@@ -8,7 +8,6 @@
 
 use egui::Align;
 use openpaint_app::Viewport;
-use openpaint_practice::PROJECT;
 use openpaint_practice_app::{PracticeIntent, PracticeProjection};
 use openpaint_ui::components::{
     Place, ScreenArea, Source, UNDER_ISLANDS, card, choices, divider, pill, ring_of, text_button,
@@ -106,7 +105,7 @@ impl PracticeBar {
             }
             return;
         }
-        let study = practice.stage == PROJECT;
+        let study = practice.copy;
         if study {
             // Its name: its sheet's title, "Colour copy n" until renamed.
             ui.label(t::shown_name(ui.ctx(), practice.sheet.name.as_str()));

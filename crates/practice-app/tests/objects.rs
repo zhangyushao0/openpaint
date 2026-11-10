@@ -14,11 +14,11 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Carve, Exercise, Family, Frame, Kind, Metric, OBJECT_SIDE, Original, Plan, Point,
-    SessionRecord, SolidCheck, resample, value,
+    Carve, Exercise, Family, Frame, Kind, Metric, OBJECT_SIDE, Original, Plan, Point, Sheet,
+    SolidCheck, resample, value,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, sheet_of,
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -33,10 +33,10 @@ fn opened() -> Session {
         exercises: vec![Exercise::generated(Kind::Object(Carve::Block), 0x5EED_0094)],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (4, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &[]).size;
+    let record = Sheet::session(1, 4, 0, plan);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -144,8 +144,8 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
     let now = value(&checked(&session).metrics, Metric::ObjectOff).expect("measured");
     assert!(now < first, "{now} against {first}");
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!(result.compares, 2);
+    let result = record.first(0).expect("compared");
+    assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(value(&result.metrics, Metric::ObjectOff), Some(first));
 }
 
@@ -153,9 +153,13 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
 fn the_log_begins_stage_four_and_offers_it_after_stage_three() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let (record, title) = log.begin((4, None), 0x5EED_0094, 1_791_900_000);
-    assert_eq!((record.stage, record.number), (4, 1));
+    assert_eq!((record.stage(), log.number(&record)), (Some(4), 1));
     assert_eq!(title.as_str(), "Practice 1");
-    let families: Vec<Family> = record.exercises.iter().map(|e| e.kind.family()).collect();
+    let families: Vec<Family> = record
+        .exercises()
+        .map(|l| &l.exercise)
+        .map(|e| e.kind.family())
+        .collect();
     assert_eq!(families[..3], [Family::Object; 3]);
     assert_eq!(families[3], Family::Cylinder);
     // No pack: no shape, no crop for a combination (S101); the solid last.

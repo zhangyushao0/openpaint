@@ -12,10 +12,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{Book, Family, Kept, Layout, Pack, Point, Rgb8, SessionRecord};
+use openpaint_practice::{Book, Family, Kept, Layout, Point, Rgb8, Sheet};
 
 use crate::copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
-use crate::projection::laid;
 use openpaint_app::ProjectId;
 use openpaint_app::Title;
 
@@ -92,23 +91,19 @@ pub struct LineRead {
 }
 
 impl SheetRead {
-    /// What `record`'s sheet `artwork` shows the book, its pictures' frames as `packs` hold them.
+    /// What `record`'s sheet `artwork` shows the book, its frames as its exercises were laid.
     #[must_use]
-    pub fn of(artwork: &Artwork, record: &SessionRecord, packs: &[Pack]) -> Self {
+    pub fn of(artwork: &Artwork, record: &Sheet) -> Self {
         let canvas = artwork.canvas();
         let size = [canvas.width(), canvas.height()];
-        let sheet = laid(record, packs, size);
+        let sheet = Layout::of_sheet(record);
         let mut lines = Vec::new();
         let mut colours = Vec::new();
-        let mut results: Vec<_> = record.results.iter().collect();
-        results.sort_by_key(|result| result.index);
-        for result in results {
-            let index = result.index as usize;
-            let (Some(exercise), Some(pair)) =
-                (record.exercises.get(index), sheet.pairs.get(index))
-            else {
+        for (index, laid) in record.exercises().enumerate() {
+            let (Some(result), Some(pair)) = (&laid.first, sheet.pairs.get(index)) else {
                 continue;
             };
+            let exercise = &laid.exercise;
             // Only what the book keeps is read: others' originals (an object's) take time to lay.
             let kept = exercise.kind.facts().kept;
             if kept == Kept::Nothing {
@@ -120,7 +115,7 @@ impl SheetRead {
                     let first = result.corrected_from.map_or(ALL_STROKES, |from| 0..from);
                     let copy = line_pieces(artwork, &pair.copy, first);
                     lines.push(LineRead {
-                        index: result.index,
+                        index: u32::try_from(index).unwrap_or(u32::MAX),
                         original: original.to_vec(),
                         copy,
                     });
@@ -146,9 +141,9 @@ impl SheetRead {
 
 /// `sheet`'s frames as `record`'s exercises show them (top left to bottom right): a kind built in
 /// one frame that one (S97), the others both.
-fn frames(sheet: &Layout, record: &SessionRecord) -> Vec<[[f32; 2]; 2]> {
+fn frames(sheet: &Layout, record: &Sheet) -> Vec<[[f32; 2]; 2]> {
     let one =
-        |index: usize| (record.exercises.get(index)).is_some_and(|e| e.kind.family().constructed());
+        |index: usize| (record.laid(index)).is_some_and(|l| l.exercise.kind.family().constructed());
     (sheet.pairs.iter().enumerate())
         .flat_map(|(index, pair)| {
             let original = (!one(index)).then_some(pair.original);

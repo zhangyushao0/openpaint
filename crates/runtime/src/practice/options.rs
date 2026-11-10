@@ -67,7 +67,7 @@ pub(crate) fn options_job(
         OptionsRequest::RenameCopy(sheet, title) => PracticeJob::Rename(sheet, title),
         OptionsRequest::RemoveCopy(sheet) => {
             let copy = (log.of_canvas(sheet))
-                .filter(|copy| copy.is_project())
+                .filter(|copy| copy.is_copy())
                 .ok_or(RuntimeError::NotNow("a colour copy of that sheet"))?;
             PracticeJob::Remove(copy.clone())
         }

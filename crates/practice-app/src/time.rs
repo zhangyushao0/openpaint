@@ -27,8 +27,17 @@ impl PracticeSheet {
     /// A use at `now` (seconds since 1970 UTC) while the sheet shows.
     pub fn practised(&mut self, now: u64) {
         let hidden = std::mem::take(&mut self.hidden);
-        let began = practised(&mut self.record.time, now, hidden);
-        let unsaved = seconds(&self.record.time).saturating_sub(self.time_saved);
+        let before = seconds(&self.record.spans);
+        let began = practised(&mut self.record.spans, now, hidden);
+        let after = seconds(&self.record.spans);
+        // The span's growth is the exercise in hand's.
+        if let Some(index) = self.current()
+            && let Some(laid) = self.record.laid_mut(index)
+        {
+            let grown = u32::try_from(after.saturating_sub(before)).unwrap_or(u32::MAX);
+            laid.seconds = laid.seconds.saturating_add(grown);
+        }
+        let unsaved = after.saturating_sub(self.time_saved);
         if began || unsaved >= SAVE_EVERY {
             self.changed = true;
         }
@@ -42,20 +51,20 @@ impl PracticeSheet {
 
     /// The time goes to the store with the next save request, if it grew since the last.
     pub fn flush(&mut self) {
-        if seconds(&self.record.time) != self.time_saved {
+        if seconds(&self.record.spans) != self.time_saved {
             self.changed = true;
         }
     }
 
     /// The finish of a session or drill done.
     pub(super) fn finished(&self) -> Option<Finished> {
-        let done = self.current().is_none() && self.record.finished.is_some();
-        if !done || self.record.is_project() {
+        let done = self.current().is_none() && self.record.finished().is_some();
+        if !done || self.record.is_copy() {
             return None;
         }
         let done = u32::try_from(self.before.len() + 1).unwrap_or(u32::MAX);
         Some(Finished {
-            road: self.record.is_session().then_some((done, STAGE_SESSIONS)),
+            road: (self.record.stage().is_some()).then_some((done, STAGE_SESSIONS)),
             sealed: sealed(&self.others, &self.record),
         })
     }

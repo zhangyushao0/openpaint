@@ -65,7 +65,7 @@ impl PracticeSheet {
                 self.notice = Some(PracticeNotice::OriginalLocked);
                 return PracticePick::Refused;
             }
-            if self.record.result(index).is_none() {
+            if self.record.first(index).is_none() {
                 self.notice = Some(PracticeNotice::PickAfterCompare);
                 return PracticePick::Refused;
             }

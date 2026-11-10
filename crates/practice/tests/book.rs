@@ -4,8 +4,8 @@
 //! the lines shown.
 
 use openpaint_practice::{
-    Book, Day, ExerciseResult, Family, ItemRef, LineShown, Metric, PAUSE, STAGE_SESSIONS, Seal,
-    SessionRecord, Span, Tally, earned, practised, sealed, seconds,
+    Book, Day, Family, First, ItemRef, LineShown, Metric, PAUSE, STAGE_SESSIONS, Seal, Sheet, Span,
+    Tally, earned, practised, sealed, seconds, stage_one,
 };
 
 /// 2026-10-05 12:00 UTC, a Monday.
@@ -14,17 +14,27 @@ const DAY: u64 = 86_400;
 /// The device's offset in Beijing, minutes.
 const BEIJING: i32 = 8 * 60;
 
-fn session(id: u64, number: u32, started: u64) -> SessionRecord {
-    SessionRecord::stage_one(id, number, 0x5EED_0045 + id, started, &[])
+fn session(id: u64, started: u64) -> Sheet {
+    Sheet::session(id, 1, started, stage_one(0x5EED_0045 + id, &[]))
 }
 
 /// The index of `session`'s `nth` exercise of `family`.
-fn of(session: &SessionRecord, family: Family, nth: usize) -> u32 {
-    let index = (session.exercises.iter().enumerate())
-        .filter(|(_, e)| e.kind.family() == family)
+fn of(session: &Sheet, family: Family, nth: usize) -> usize {
+    (session.exercises().enumerate())
+        .filter(|(_, laid)| laid.exercise.kind.family() == family)
         .nth(nth)
         .map(|(index, _)| index)
-        .expect("an exercise of the family");
+        .expect("an exercise of the family")
+}
+
+/// `session`'s exercise `index` compared first at `at` with `metrics`.
+fn compared(session: &mut Sheet, index: usize, at: u64, metrics: Vec<(Metric, f64)>) {
+    let laid = session.laid_mut(index).expect("an exercise");
+    laid.compared(First::of(at, 1, metrics));
+}
+
+/// `index` as the book names an exercise.
+fn named(index: usize) -> u32 {
     u32::try_from(index).expect("index")
 }
 
@@ -39,14 +49,14 @@ fn uses(spans: &mut Vec<Span>, from: u64, minutes: u64, step: u64) {
 
 #[test]
 fn a_session_left_untouched_two_hours_counts_only_its_minutes() {
-    let mut record = session(1, 1, NOON);
-    uses(&mut record.time, NOON, 12, 20);
+    let mut record = session(1, NOON);
+    uses(&mut record.spans, NOON, 12, 20);
     // Put down for two hours with the app in front, then eight more minutes.
     let back = NOON + 12 * 60 + 2 * 3600;
-    uses(&mut record.time, back, 8, 45);
-    assert_eq!(seconds(&record.time), 720 + 450);
+    uses(&mut record.spans, back, 8, 45);
+    assert_eq!(seconds(&record.spans), 720 + 450);
     let book = Book::of(std::slice::from_ref(&record), 1, BEIJING);
-    assert_eq!(book.seconds, seconds(&record.time));
+    assert_eq!(book.seconds, seconds(&record.spans));
     assert_eq!(book.days.len(), 1);
     assert_eq!(book.days[0].records, [1]);
     assert!(
@@ -76,11 +86,11 @@ fn a_copy_painted_over_two_days_shows_on_both() {
         pack: "test-shapes".to_owned(),
         item: "teapot".to_owned(),
     };
-    let mut copy = SessionRecord::project(2, 1, (9, NOON), item);
+    let mut copy = Sheet::copy(2, (9, NOON), item);
     copy.canvas = 40;
     // 21:00 to 21:40 in Beijing (13:00 UTC), and the next evening 20:00 to 20:30.
-    uses(&mut copy.time, NOON + 3600, 40, 60);
-    uses(&mut copy.time, NOON + DAY, 30, 60);
+    uses(&mut copy.spans, NOON + 3600, 40, 60);
+    uses(&mut copy.spans, NOON + DAY, 30, 60);
     let book = Book::of(std::slice::from_ref(&copy), 1, BEIJING);
     let days: Vec<(i64, u64, Vec<u64>)> = (book.days.iter())
         .map(|day| (day.day, day.seconds, day.records.clone()))
@@ -92,13 +102,9 @@ fn a_copy_painted_over_two_days_shows_on_both() {
     );
     assert_eq!(book.sessions, 0, "a copy is no session");
     // Past midnight in Beijing: one sitting from 23:50 to 00:10 counts on both days.
-    let mut late = SessionRecord::project(
-        3,
-        2,
-        (9, NOON),
-        copy.exercises[0].picture.clone().expect("picture"),
-    );
-    uses(&mut late.time, NOON + 3 * 3600 + 50 * 60, 20, 60);
+    let picture = (copy.laid(0)).and_then(|laid| laid.exercise.picture.clone());
+    let mut late = Sheet::copy(3, (9, NOON), picture.expect("picture"));
+    uses(&mut late.spans, NOON + 3 * 3600 + 50 * 60, 20, 60);
     let book = Book::of(std::slice::from_ref(&late), 1, BEIJING);
     assert_eq!(
         book.days,
@@ -119,14 +125,12 @@ fn a_copy_painted_over_two_days_shows_on_both() {
 
 /// A finished session of stage 1 holding `lines` single lines and `colours` colours compared,
 /// each colour's first pick `first` off, practised `minutes`.
-fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> SessionRecord {
+fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> Sheet {
     let at = NOON + id * DAY;
-    let mut record = session(id, u32::try_from(id).expect("number"), at);
+    let mut record = session(id, at);
     for nth in 0..lines {
         let index = of(&record, Family::Line, nth);
-        record
-            .results
-            .push(ExerciseResult::first(index, at + 60, 1, Vec::new()));
+        compared(&mut record, index, at + 60, Vec::new());
     }
     for nth in 0..colours {
         let index = of(&record, Family::Colour, nth);
@@ -134,21 +138,19 @@ fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> 
             (Metric::FirstDelta, first),
             (Metric::FinalDelta, first / 2.0),
         ];
-        record
-            .results
-            .push(ExerciseResult::first(index, at + 90, 1, metrics));
+        compared(&mut record, index, at + 90, metrics);
     }
-    record.time = vec![Span {
+    record.spans = vec![Span {
         from: at,
         to: at + minutes * 60,
     }];
-    record.finished = Some(at + minutes * 60);
+    record.lessons[0].finished = Some(at + minutes * 60);
     record
 }
 
 #[test]
 fn seals_are_earned_from_what_was_done_and_stamp_on_the_session_that_did_it() {
-    let records: Vec<SessionRecord> = (1..=10).map(|id| done(id, (6, 6), 0.05, 40)).collect();
+    let records: Vec<Sheet> = (1..=10).map(|id| done(id, (6, 6), 0.05, 40)).collect();
     let seals = earned(&records);
     let by = |seal: Seal| seals.iter().find(|e| e.seal == seal).map(|e| e.by);
     assert_eq!(by(Seal::FirstSession), Some(1));
@@ -175,29 +177,22 @@ fn seals_are_earned_from_what_was_done_and_stamp_on_the_session_that_did_it() {
         "400 minutes, then an hour a session"
     );
     assert_eq!(by(Seal::HundredColours), None);
-    let unfinished = SessionRecord {
-        finished: None,
-        ..done(30, (0, 0), 0.0, 1)
-    };
+    let mut unfinished = done(30, (0, 0), 0.0, 1);
+    unfinished.lessons[0].finished = None;
     assert!(sealed(&Tally::default(), &unfinished).is_empty());
 }
 
 #[test]
 fn the_book_shows_the_road_the_first_picks_and_the_first_and_latest_lines() {
-    let mut records: Vec<SessionRecord> = vec![
+    let mut records: Vec<Sheet> = vec![
         done(1, (2, 6), 0.08, 30),
         done(2, (0, 6), 0.06, 30),
         done(3, (1, 0), 0.0, 30),
     ];
     // An open session with a line compared: the latest.
-    let mut open = session(4, 4, NOON + 4 * DAY);
+    let mut open = session(4, NOON + 4 * DAY);
     let line = of(&open, Family::Line, 1);
-    open.results.push(ExerciseResult::first(
-        line,
-        NOON + 4 * DAY + 60,
-        1,
-        Vec::new(),
-    ));
+    compared(&mut open, line, NOON + 4 * DAY + 60, Vec::new());
     records.push(open);
     let book = Book::of(&records, 1, 0);
     assert_eq!(book.sessions, 3);
@@ -216,12 +211,12 @@ fn the_book_shows_the_road_the_first_picks_and_the_first_and_latest_lines() {
             LineShown {
                 record: 1,
                 number: 1,
-                index: first_line
+                index: named(first_line)
             },
             LineShown {
                 record: 4,
                 number: 4,
-                index: line
+                index: named(line)
             }
         ]
     );

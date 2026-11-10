@@ -105,7 +105,7 @@ fn stage_three(runtime: &mut Runtime, hand: &mut Hand) {
     until(runtime, hand, |runtime| {
         runtime
             .practice()
-            .is_some_and(|practice| practice.stage == 3)
+            .is_some_and(|practice| practice.stage == Some(3))
     });
     let lines = bench(hand, runtime, "practice");
     eprintln!("{}", lines.join("\n"));

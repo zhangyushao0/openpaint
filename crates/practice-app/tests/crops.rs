@@ -12,11 +12,11 @@ use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Areas, AreasCompared, Exercise, Family, Figure, ItemRef, Kind, Pack, PackItem, PictureKind,
-    Plan, SessionRecord, Tier,
+    Plan, Sheet, Tier,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, PracticeProjection,
-    SheetView, sheet_of,
+    SheetView,
 };
 use support::OnSheet;
 
@@ -75,10 +75,11 @@ fn opened(packs: &[Pack]) -> Session {
         exercises: vec![combination],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (2, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, packs).size;
+    let record = Sheet::session(1, 2, 0, plan);
+    let record = record.framed(packs);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush = StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK);
@@ -212,12 +213,15 @@ fn combinations_are_offered_only_where_a_pack_holds_crops() {
     let with = PracticeLog::new(Vec::new(), Vec::new(), vec![crops()]);
     assert!(with.today().crops);
     let (drill, _) = with.begin_drill(Family::Areas, 3, 4).expect("a drill");
-    assert!(drill.exercises.iter().all(|e| e.picture == Some(rust())));
+    assert!(
+        drill
+            .exercises()
+            .map(|l| &l.exercise)
+            .all(|e| e.picture == Some(rust()))
+    );
     // A stage-2 session takes the crop for its combination.
     let (session, _) = with.begin((2, None), 3, 4);
-    let combination = session
-        .exercises
-        .iter()
-        .find(|e| e.kind.family() == Family::Areas);
+    let combination =
+        (session.exercises().map(|l| &l.exercise)).find(|e| e.kind.family() == Family::Areas);
     assert_eq!(combination.and_then(|e| e.picture.clone()), Some(rust()));
 }

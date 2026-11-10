@@ -15,11 +15,10 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Exercise, Figure, ItemRef, Kind, Outline, Pack, PackItem, PictureKind, Plan, SHAPE_SHOWN,
-    SessionRecord, ShapeCompared, Tier,
+    ShapeCompared, Sheet, Tier,
 };
 use openpaint_practice_app::{
     GROUND_SHOWN, PictureImage, PracticeIntent, PracticePens, PracticeProjection, SheetView,
-    sheet_of,
 };
 use support::OnSheet;
 
@@ -73,10 +72,11 @@ fn opened(picture: &str) -> Session {
         exercises: vec![exercise],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (2, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &packs).size;
+    let record = Sheet::session(1, 2, 0, plan);
+    let record = record.framed(&packs);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =

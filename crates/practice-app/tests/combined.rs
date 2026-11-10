@@ -12,9 +12,7 @@ use openpaint_app::{
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{
-    ExerciseResult, Family, Figure, Layout, LinePen, Original, SessionRecord,
-};
+use openpaint_practice::{Family, Figure, First, Layout, LinePen, Original, Sheet};
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
@@ -42,19 +40,19 @@ fn after_first(finished: bool) -> Session {
     let style = Toolbox::new(library).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
-    let mut first = SessionRecord::stage_one(1, 1, 5, 1_791_201_600, &[]);
+    let mut first = Sheet::session(1, 1, 1_791_201_600, openpaint_practice::stage_one(5, &[]));
     first.canvas = 3;
-    first.finished = finished.then_some(1_791_202_600);
-    first.results = vec![
-        ExerciseResult::first(0, 1_791_201_700, 2, Vec::new()),
-        ExerciseResult::first(10, 1_791_201_800, 4, Vec::new()),
-    ];
+    first.lessons[0].finished = finished.then_some(1_791_202_600);
+    for (index, at, next) in [(0, 1_791_201_700, 2), (10, 1_791_201_800, 4)] {
+        let laid = first.laid_mut(index).expect("an exercise");
+        laid.compared(First::of(at, next, Vec::new()));
+    }
     let log = PracticeLog::new(vec![first.clone()], Vec::new(), Vec::new());
     let (record, _) = log.begin((1, None), 0x5EED_0079, 1_791_290_000);
-    let [width, height] = Layout::of(&vec![None; record.exercises.len()]).size;
+    let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
     openpaint_practice_app::open_sheet(
         sheet,
         (brush, pens()),
@@ -220,6 +218,6 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
     assert!(laid(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
-    assert_eq!(record.result(10).map(|r| r.compares), Some(2));
-    assert_eq!(record.warm_up, 4);
+    assert_eq!(record.laid(10).map(|l| l.compares), Some(2));
+    assert_eq!(record.warm_up(), 4);
 }

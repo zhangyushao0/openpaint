@@ -12,9 +12,9 @@ use std::collections::HashSet;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{Family, ItemRef, Pack, SessionRecord, Tier};
-use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead, sheet_of};
-use openpaint_practice_store::{Packs, remove, save, sessions, start};
+use openpaint_practice::{Family, Givens, ItemRef, Layout, Pack, Sheet, Tier};
+use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
+use openpaint_practice_store::{Packs, remove, save, sheets, start};
 
 use super::files;
 use crate::error::RuntimeError;
@@ -27,19 +27,21 @@ pub(crate) enum PracticeJob {
     Start {
         sheet: Artwork,
         title: Title,
-        session: SessionRecord,
+        session: Sheet,
+        /// What its lesson prints, kept beside it once (S120).
+        givens: Givens,
     },
     /// A session's record changed.
-    Save(SessionRecord),
+    Save(Sheet),
     /// A colour copy's sheet titled anew.
     Rename(ProjectId, Title),
     /// A colour copy (or a test session) to remove, its record and sheet.
-    Remove(SessionRecord),
+    Remove(Sheet),
     /// One of the user's own pictures (its item id) removed, or moved to a tier.
     RemovePicture(String),
     PictureTier(String, Tier),
     /// The sheets of these records read for the practice book, nothing written (S89).
-    Read(Vec<SessionRecord>),
+    Read(Vec<Sheet>),
     /// The file chosen kept as a practice pack.
     ImportPack(Box<dyn ImageSource>),
     /// The picture chosen added to the user's own at the tier, its outline derived.
@@ -54,7 +56,7 @@ pub(crate) enum PracticeDone {
         sheet: Artwork,
         title: Title,
         id: ProjectId,
-        session: SessionRecord,
+        session: Sheet,
     },
     Saved(Result<(), PortError>),
     /// The session could not start; nothing was written.
@@ -87,13 +89,14 @@ pub(crate) fn run(
             sheet,
             title,
             session,
-        } => match start(store, (&sheet, &title), &session) {
+            givens,
+        } => match start(store, (&sheet, &title), &session, &givens) {
             Ok(id) => {
                 *kept = Kept {
                     open: Some(id),
                     changed: false,
                 };
-                let session = SessionRecord {
+                let session = Sheet {
                     canvas: id.get(),
                     ..session
                 };
@@ -128,7 +131,7 @@ pub(crate) fn run(
             let moved = packs.map(|packs| packs.set_tier(&item, tier));
             PracticeDone::Pictures(moved.unwrap_or(Err(PortError::Stopped)))
         }
-        PracticeJob::Read(records) => PracticeDone::Read(read_sheets((store, packs), &records)),
+        PracticeJob::Read(records) => PracticeDone::Read(read_sheets(store, &records)),
         PracticeJob::ImportPack(source) => PracticeDone::PackImported(files::import(packs, source)),
         PracticeJob::AddPicture(source, tier) => {
             PracticeDone::PictureAdded(files::add(packs, source, tier))
@@ -141,20 +144,12 @@ pub(crate) fn run(
 }
 
 /// What the practice book shows of `records`' sheets, each read without writing anything, their
-/// pictures' frames as the packs kept in `packs` hold them.
-fn read_sheets(
-    (store, packs): (&mut dyn ProjectStore, Option<&Packs>),
-    records: &[SessionRecord],
-) -> Vec<(u64, SheetRead)> {
-    let held = (packs.map(Packs::list).transpose())
-        .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
-        .ok()
-        .flatten()
-        .unwrap_or_default();
+/// frames as their exercises were laid.
+fn read_sheets(store: &mut dyn ProjectStore, records: &[Sheet]) -> Vec<(u64, SheetRead)> {
     let mut read = Vec::with_capacity(records.len());
     for record in records {
         match store.artwork(ProjectId::new(record.canvas)) {
-            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record, &held))),
+            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record))),
             Err(error) => log::warn!(
                 "the sheet of practice record {} not read: {error}",
                 record.id
@@ -177,7 +172,7 @@ pub(crate) struct Listed {
 /// open (D112), and the sheets apart. The sheets are the projects the practice records name; a
 /// record that cannot be read names none.
 pub(crate) fn gallery_list(store: &mut dyn ProjectStore) -> Result<Listed, PortError> {
-    let sheets: HashSet<u64> = (sessions(store)?.iter())
+    let sheets: HashSet<u64> = (sheets(store)?.iter())
         .map(|session| session.canvas)
         .filter(|canvas| *canvas != 0)
         .collect();
@@ -224,8 +219,8 @@ pub(crate) fn start_job(
     log::info!(
         "practice session {} (stage {}, number {}) seeded {seed:016x}",
         session.id,
-        session.stage,
-        session.number
+        session.stage().unwrap_or(0),
+        log.number(&session)
     );
     started(log, session, title)
 }
@@ -255,7 +250,7 @@ pub(crate) fn drill_job(
     log::info!(
         "practice drill {} of {family:?} (number {}) seeded {seed:016x}",
         drill.id,
-        drill.number
+        log.number(&drill)
     );
     started(log, drill, title)
 }
@@ -277,7 +272,7 @@ pub(crate) fn copy_job(
     log::info!(
         "colour copy {} (number {}) of {}/{}",
         copy.id,
-        copy.number,
+        log.number(&copy),
         picture.pack,
         picture.item
     );
@@ -289,12 +284,16 @@ pub(crate) fn seed(seeds: &mut Seeds) -> u64 {
 }
 
 /// The job that stores `session`'s new sheet, titled `title`, of the size its layout asks.
-fn started(log: &PracticeLog, session: SessionRecord, title: Title) -> Result<Job, RuntimeError> {
-    let [width, height] = sheet_of(&session, log.packs()).size;
+fn started(log: &PracticeLog, session: Sheet, title: Title) -> Result<Job, RuntimeError> {
+    let [width, height] = Layout::of_sheet(&session).size;
     let sheet = Artwork::new(CanvasSize::new(width, height)?);
+    let givens = (session.lesson()).map_or_else(Givens::default, |lesson| {
+        Givens::of_lesson(lesson, log.packs())
+    });
     Ok(Job::Practice(PracticeJob::Start {
         sheet,
         title,
         session,
+        givens,
     }))
 }

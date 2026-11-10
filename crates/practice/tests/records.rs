@@ -1,9 +1,10 @@
-//! A session's record, its places with and without a warm-up, the kinds met, and its summary
-//! beside the sessions before it.
+//! A sheet's record, its places with and without a warm-up, the kinds met, its number among the
+//! sheets alike, and its summary beside the sessions before it.
 
 use openpaint_practice::{
-    Arrangement, Axis, Combination, Exercise, ExerciseResult, Family, ItemRef, Kind, LineTier,
-    Metric, PROJECT, Plan, ScaleTone, SessionRecord, Tone, met, scales_met, summary, used,
+    Arrangement, Axis, Combination, Exercise, Family, First, ItemRef, Kind, LineTier, Metric,
+    Picked, Plan, Purpose, ScaleTone, Sheet, Tone, met, number, scales_met, stage_one, summary,
+    used,
 };
 
 #[test]
@@ -12,19 +13,64 @@ fn a_long_colour_copy_is_kept_beside_the_sessions_and_counts_in_none() {
         pack: "test-shapes".to_owned(),
         item: "teapot".to_owned(),
     };
-    let mut copy = SessionRecord::project(5, 2, (77, 100), item.clone());
-    assert!(copy.is_project());
-    assert_eq!((copy.stage, copy.number, copy.warm_up), (PROJECT, 2, 0));
-    assert_eq!(copy.exercises.len(), 1);
-    assert_eq!(copy.exercises[0].kind, Kind::Study);
-    assert_eq!(copy.exercises[0].picture, Some(item));
-    copy.results.push(checked(0, Vec::new()));
+    let mut copy = Sheet::copy(5, (77, 100), item.clone());
+    assert!(copy.is_copy());
+    assert_eq!(
+        (copy.purpose, copy.stage(), copy.warm_up()),
+        (Purpose::Copy, None, 0)
+    );
+    assert_eq!(copy.drilled(), None);
+    assert_eq!(copy.exercises().count(), 1);
+    let laid = copy.laid(0).expect("its exercise");
+    assert_eq!(laid.exercise.kind, Kind::Study);
+    assert_eq!(laid.exercise.picture, Some(item));
+    checked(&mut copy, 0, Vec::new());
     assert!(
         met(std::slice::from_ref(&copy)).is_empty(),
         "no warm-up from a copy"
     );
     assert!(used(std::slice::from_ref(&copy)).is_empty());
-    assert!(!SessionRecord::stage_one(1, 1, 7, 0, &[]).is_project());
+    assert!(!Sheet::session(1, 1, 0, stage_one(7, &[])).is_copy());
+}
+
+#[test]
+fn a_sheet_is_numbered_among_the_sheets_alike() {
+    let item = ItemRef {
+        pack: "test-shapes".to_owned(),
+        item: "teapot".to_owned(),
+    };
+    let lines = |seed| Plan {
+        exercises: vec![Exercise::generated(Kind::Line(LineTier::Arc), seed)],
+        warm_up: 0,
+    };
+    let colours = Plan {
+        exercises: vec![Exercise::generated(Kind::Scale(ScaleTone::Hue, 5), 3)],
+        warm_up: 0,
+    };
+    let sheets = [
+        Sheet::session(1, 1, 0, stage_one(7, &[])),
+        Sheet::copy(2, (3, 0), item.clone()),
+        Sheet::drill(3, 0, lines(4)),
+        Sheet::session(4, 2, 0, lines(5)),
+        Sheet::session(5, 1, 0, stage_one(8, &[])),
+        Sheet::drill(6, 0, colours),
+        Sheet::drill(7, 0, lines(6)),
+        Sheet::copy(8, (9, 0), item),
+    ];
+    let numbers: Vec<u32> = sheets.iter().map(|s| number(&sheets, s)).collect();
+    assert_eq!(numbers, [1, 1, 1, 1, 2, 1, 2, 2]);
+    let picked = sheets.iter().map(|s| s.lesson().map(|l| l.picked));
+    let picked: Vec<Option<Picked>> = picked.collect();
+    assert_eq!(
+        picked[0],
+        Some(Picked::Full {
+            stage: 1,
+            warm_up: 0
+        })
+    );
+    assert_eq!(picked[2], Some(Picked::Chosen));
+    assert_eq!(sheets[2].drilled(), Some(Family::Line));
+    assert_eq!(sheets[3].drilled(), None);
 }
 
 #[test]
@@ -36,22 +82,18 @@ fn the_summary_sets_combinations_and_scales_beside_the_earlier_ones() {
         ],
         warm_up: 0,
     };
-    let mut before = SessionRecord::begun(1, (2, 1), (5, 0), plan.clone());
-    before.results = vec![checked(
-        0,
-        vec![(Metric::AreasDelta, 0.08), (Metric::AreasMadeStrong, 2.0)],
-    )];
-    let mut this = SessionRecord::begun(2, (2, 2), (6, 0), plan);
-    this.results = vec![
-        checked(
-            0,
-            vec![(Metric::AreasDelta, 0.05), (Metric::AreasMadeStrong, 0.0)],
-        ),
-        checked(
-            1,
-            vec![(Metric::ScaleOff, 0.04), (Metric::ScaleReversed, 1.0)],
-        ),
-    ];
+    let mut before = Sheet::session(1, 2, 0, plan.clone());
+    let areas = |delta, strong| {
+        vec![
+            (Metric::AreasDelta, delta),
+            (Metric::AreasMadeStrong, strong),
+        ]
+    };
+    checked(&mut before, 0, areas(0.08, 2.0));
+    let mut this = Sheet::session(2, 2, 0, plan);
+    checked(&mut this, 0, areas(0.05, 0.0));
+    let scale = vec![(Metric::ScaleOff, 0.04), (Metric::ScaleReversed, 1.0)];
+    checked(&mut this, 1, scale);
     let kinds = summary(&this, &[&before]);
     let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
     assert_eq!(families, [Family::Areas, Family::Scale]);
@@ -75,20 +117,22 @@ fn the_summary_sets_combinations_and_scales_beside_the_earlier_ones() {
         exercises: vec![Exercise::generated(Kind::Scale(ScaleTone::Hue, 5), 3)],
         warm_up: 0,
     };
-    let mut drill = SessionRecord::drill(3, 1, (7, 0), scales);
-    drill.results = vec![checked(0, Vec::new())];
+    let mut drill = Sheet::drill(3, 0, scales);
+    checked(&mut drill, 0, Vec::new());
     assert_eq!(scales_met(&[before, this, drill]), 2);
 }
 
-fn checked(index: u32, metrics: Vec<(Metric, f64)>) -> ExerciseResult {
-    ExerciseResult::first(index, 1_791_201_600, 40, metrics)
+/// Exercise `index` of `sheet` compared for the first time, with `metrics`.
+fn checked(sheet: &mut Sheet, index: usize, metrics: Vec<(Metric, f64)>) {
+    let laid = sheet.laid_mut(index).expect("an exercise");
+    laid.compared(First::of(1_791_201_600, 40, metrics));
 }
 
 #[test]
 fn a_session_knows_its_places_and_results() {
-    let mut session = SessionRecord::stage_one(3, 2, 99, 1_791_201_600, &[]);
-    assert_eq!((session.stage, session.number, session.current), (1, 2, 0));
-    assert_eq!(session.warm_up, 0);
+    let mut session = Sheet::session(3, 1, 1_791_201_600, stage_one(99, &[]));
+    assert_eq!((session.stage(), session.at()), (Some(1), 0));
+    assert_eq!(session.warm_up(), 0);
     assert_eq!(session.place(0), (1, 6));
     assert_eq!(session.place(5), (6, 6));
     assert_eq!(session.place(6), (1, 4), "combined lines");
@@ -97,15 +141,15 @@ fn a_session_knows_its_places_and_results() {
     assert_eq!(session.place(15), (6, 6));
     assert_eq!(session.place(16), (0, 0));
     assert!(!session.warming_up(0));
-    session.results.push(checked(4, Vec::new()));
-    assert!(session.result(4).is_some() && session.result(3).is_none());
-    assert_eq!(session.exercise(), session.exercises.first());
-    let result = session.result(4).expect("compared");
-    assert_eq!(result.compares, 1);
-    assert!(!result.corrects(39) && result.corrects(40) && result.corrects(41));
-    let old = ExerciseResult {
+    checked(&mut session, 4, Vec::new());
+    assert!(session.first(4).is_some() && session.first(3).is_none());
+    let laid = session.laid(4).expect("compared");
+    assert_eq!(laid.compares, 1);
+    let first = laid.first.clone().expect("its first Compare");
+    assert!(!first.corrects(39) && first.corrects(40) && first.corrects(41));
+    let old = First {
         corrected_from: None,
-        ..result.clone()
+        ..first
     };
     assert!(
         !old.corrects(u64::MAX),
@@ -119,9 +163,9 @@ fn a_warm_up_has_its_own_places_before_the_mix() {
         Kind::Line(LineTier::Wave),
         Kind::Colour(Tone::of_code(1).expect("a tone")),
     ];
-    let session = SessionRecord::stage_one(4, 3, 7, 0, &met);
-    assert_eq!(session.warm_up, 4);
-    assert_eq!(session.exercises.len(), 20);
+    let session = Sheet::session(4, 1, 0, stage_one(7, &met));
+    assert_eq!(session.warm_up(), 4);
+    assert_eq!(session.exercises().count(), 20);
     assert!(session.warming_up(3) && !session.warming_up(4));
     assert_eq!(session.place(0), (1, 4));
     assert_eq!(session.place(3), (4, 4), "a colour in the warm-up");
@@ -129,62 +173,50 @@ fn a_warm_up_has_its_own_places_before_the_mix() {
     assert_eq!(session.place(14), (1, 6), "the mix's first colour");
 }
 
+/// The kind of `sheet`'s exercise `index`.
+fn kind(sheet: &Sheet, index: usize) -> Kind {
+    sheet.laid(index).expect("an exercise").exercise.kind
+}
+
 #[test]
 fn the_kinds_met_are_those_compared_each_once() {
-    let mut first = SessionRecord::stage_one(1, 1, 7, 0, &[]);
-    first.results = vec![
-        checked(0, Vec::new()),
-        checked(7, Vec::new()),
-        checked(10, Vec::new()),
-    ];
-    let mut second = SessionRecord::stage_one(2, 2, 8, 0, &met(std::slice::from_ref(&first)));
-    second.results = vec![checked(4, Vec::new())];
+    let mut first = Sheet::session(1, 1, 0, stage_one(7, &[]));
+    for index in [0, 7, 10] {
+        checked(&mut first, index, Vec::new());
+    }
+    let mut second = Sheet::session(2, 1, 0, stage_one(8, &met(std::slice::from_ref(&first))));
+    checked(&mut second, 4, Vec::new());
     let kinds = met(&[first.clone(), second.clone()]);
-    let expected = vec![
-        first.exercises[0].kind,
-        first.exercises[10].kind,
-        first.exercises[7].kind,
-    ];
+    let expected = vec![kind(&first, 0), kind(&first, 10), kind(&first, 7)];
     assert_eq!(
         kinds, expected,
         "lines, colours, combined lines by their codes; once each"
     );
     assert!(matches!(kinds[2], Kind::Combined(Combination::Crossing)));
-    assert_eq!(
-        second.exercises[4].kind, first.exercises[0].kind,
-        "the mix again"
-    );
+    assert_eq!(kind(&second, 4), kind(&first, 0), "the mix again");
     assert!(met(&[]).is_empty());
 }
 
 #[test]
 fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
-    let mut before = SessionRecord::stage_one(1, 1, 7, 0, &[]);
-    before.results = vec![
-        checked(0, Vec::new()),
-        checked(
-            10,
-            vec![
-                (Metric::FirstDelta, 0.08),
-                (Metric::FinalDelta, 0.05),
-                (Metric::Corrections, 3.0),
-            ],
-        ),
+    let mut before = Sheet::session(1, 1, 0, stage_one(7, &[]));
+    checked(&mut before, 0, Vec::new());
+    let colour = vec![
+        (Metric::FirstDelta, 0.08),
+        (Metric::FinalDelta, 0.05),
+        (Metric::Corrections, 3.0),
     ];
-    let mut this = SessionRecord::stage_one(2, 2, 8, 100, &[]);
-    this.results = vec![
-        checked(0, Vec::new()),
-        checked(2, Vec::new()),
-        checked(7, Vec::new()),
-        checked(
-            11,
-            vec![
-                (Metric::FirstDelta, 0.04),
-                (Metric::FinalDelta, 0.01),
-                (Metric::FinalLightness, -0.01),
-            ],
-        ),
+    checked(&mut before, 10, colour);
+    let mut this = Sheet::session(2, 1, 100, stage_one(8, &[]));
+    for index in [0, 2, 7] {
+        checked(&mut this, index, Vec::new());
+    }
+    let colour = vec![
+        (Metric::FirstDelta, 0.04),
+        (Metric::FinalDelta, 0.01),
+        (Metric::FinalLightness, -0.01),
     ];
+    checked(&mut this, 11, colour);
     let kinds = summary(&this, &[&before]);
     let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
     assert_eq!(families, [Family::Line, Family::Combined, Family::Colour]);

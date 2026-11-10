@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
 use openpaint_practice::{
-    Facts, Family, Frame, ItemRef, Pair, SessionRecord, Tally, Tools, Work, seconds, summary,
+    Facts, Family, Frame, ItemRef, Pair, Sheet, Tally, Tools, Work, seconds, summary,
 };
 
 use crate::pens::PracticePens;
@@ -29,7 +29,7 @@ use openpaint_app::CanvasView;
 /// A practice sheet opening: its session's record, the finished sessions of its stage before it
 /// (for the summary), the sheet as the screen draws it, and what every other record adds up to
 /// (for the seals its finish stamps).
-pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
+pub type Practising = (Sheet, Vec<Sheet>, SheetView, Tally);
 
 #[path = "checks.rs"]
 mod checks;
@@ -59,9 +59,9 @@ use read::Painting;
 
 #[derive(Debug)]
 pub struct PracticeSheet {
-    record: SessionRecord,
+    record: Sheet,
     /// The finished sessions of its stage before it, for the summary.
-    before: Vec<SessionRecord>,
+    before: Vec<Sheet>,
     sheet: Arc<SheetView>,
     canvas: CanvasSize,
     pens: PracticePens,
@@ -119,22 +119,20 @@ impl PracticeSheet {
         let sheet = Arc::new(view);
         // Told: compared before or in this session, or warmed up with (only kinds met are); a
         // drill's How shows first every time it opens (S91).
-        let warm_up = &record.exercises[..(record.warm_up as usize).min(record.exercises.len())];
         let done = |family: Family| {
             let compared = before.iter().chain([&record]).any(|session| {
-                session.results.iter().any(|result| {
-                    let kind = session.exercises.get(result.index as usize);
-                    kind.is_some_and(|e| e.kind.family() == family)
-                })
+                (session.exercises())
+                    .any(|laid| laid.first.is_some() && laid.exercise.kind.family() == family)
             });
-            let warmed = warm_up.iter().any(|e| e.kind.family() == family);
+            let warmed = (record.exercises().take(record.warm_up()))
+                .any(|laid| laid.exercise.kind.family() == family);
             (compared || warmed) && record.drilled() != Some(family)
         };
         let mut practice = Self {
             told: Family::ALL.map(done),
-            all_tools: record.is_project(),
+            all_tools: record.is_copy(),
             hidden: true,
-            time_saved: seconds(&record.time),
+            time_saved: seconds(&record.spans),
             others,
             record,
             before,
@@ -198,8 +196,8 @@ impl PracticeSheet {
 
     /// The exercise shown, unless the session is done.
     fn current(&self) -> Option<usize> {
-        let index = self.record.current as usize;
-        (self.record.finished.is_none() && index < self.sheet.pairs.len()).then_some(index)
+        let index = self.record.at();
+        (self.record.finished().is_none() && index < self.sheet.pairs.len()).then_some(index)
     }
 
     fn pair(&self, index: usize) -> Option<&Pair> {
@@ -207,7 +205,7 @@ impl PracticeSheet {
     }
 
     fn family(&self, index: usize) -> Option<Family> {
-        let exercise = self.record.exercises.get(index)?;
+        let exercise = &self.record.laid(index)?.exercise;
         Some(exercise.kind.family())
     }
 
@@ -238,7 +236,7 @@ impl PracticeSheet {
     fn shown(&mut self) {
         let frame = self.current().map(|index| self.sheet.pairs[index].copy);
         self.clip = frame.and_then(|frame| self.region(&frame));
-        let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
+        let compared = (self.current()).is_some_and(|index| self.record.first(index).is_some());
         let family = self.current().and_then(|index| self.family(index));
         self.pen = match family.map(|family| family.facts().tools) {
             Some(Tools::Greys) => self.valuing,
@@ -310,7 +308,7 @@ impl PracticeSheet {
             PracticeIntent::Pen(pen) => self.choose(pen)?,
             PracticeIntent::AllTools(on) => {
                 // A long colour copy has no tools of its own (S104).
-                if !on && self.record.is_project() {
+                if !on && self.record.is_copy() {
                     return Err(unavailable(Availability::NothingLeft));
                 }
                 self.all_tools = on;
@@ -328,20 +326,20 @@ impl PracticeSheet {
     }
 
     /// The record for the store, once after each change (its time included).
-    pub fn save_request(&mut self) -> Option<SessionRecord> {
+    pub fn save_request(&mut self) -> Option<Sheet> {
         let changed = std::mem::take(&mut self.changed);
         changed.then(|| {
-            self.time_saved = seconds(&self.record.time);
+            self.time_saved = seconds(&self.record.spans);
             self.record.clone()
         })
     }
 
     pub(crate) fn projection(&self, artwork: &Artwork, brush: &StrokeStyle) -> PracticeProjection {
         let current = self.current();
-        let result = current.and_then(|index| self.record.result(index));
+        let result = current.and_then(|index| self.record.first(index));
         let compare = self.compare_offered(current, artwork);
         let place = current.map_or((0, 0), |index| self.record.place(index));
-        let before: Vec<&SessionRecord> = self.before.iter().collect();
+        let before: Vec<&Sheet> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
         let painted = self.painted_overlay();
         let (overlay, card, greys) = current
@@ -352,8 +350,9 @@ impl PracticeSheet {
         PracticeProjection {
             sheet: Arc::clone(&self.sheet),
             revealed: self.revealed(),
-            stage: self.record.stage,
-            number: self.record.number,
+            stage: self.record.stage(),
+            copy: self.record.is_copy(),
+            number: self.sheet.number,
             drill: self.record.drilled(),
             current,
             family: current.and_then(|index| self.family(index)),

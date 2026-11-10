@@ -33,7 +33,7 @@ pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};
 pub use crate::projection::{
     CopyRead, Greys, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe, SHOWN,
-    SheetView, sheet_of,
+    SheetView,
 };
 pub use crate::refused::Refused;
 pub use crate::sheet::{Finished, PRACTICE_ROOM, PracticePick, PracticeSheet, Practising, ReadJob};

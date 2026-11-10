@@ -11,8 +11,7 @@
 use openpaint_app::Hsv;
 use openpaint_core::Color;
 use openpaint_practice::{
-    Axis, CELLS, CardItem, Family, HUELESS, KindSummary, Metric, Original, PROJECT, Rgb8,
-    WheelSize, oklch,
+    Axis, CELLS, CardItem, Family, HUELESS, KindSummary, Metric, Original, Rgb8, WheelSize, oklch,
 };
 use openpaint_practice_app::{Finished, PracticeIntent, PracticeProjection};
 
@@ -114,7 +113,7 @@ pub(crate) fn compared(
         return;
     }
     let language = language(ui.ctx());
-    let heading = if practice.stage == PROJECT {
+    let heading = if practice.copy {
         t::shown_name(ui.ctx(), practice.sheet.name.as_str()).into_owned()
     } else {
         t::exercise(language, (family, practice.warming_up), practice.place.0)
@@ -292,7 +291,7 @@ pub(crate) fn done_heading(language: t::Language, practice: &PracticeProjection)
 /// A session's finish (S89): its dot on its stage's road inks in, then each seal its work earned
 /// stamps down with its name under it, on the interface's spring (D44's acknowledge); a drill's
 /// (S91) only its seals, for it has no dot on the road.
-fn finish(ui: &mut egui::Ui, finished: &Finished, session: (u8, u32)) {
+fn finish(ui: &mut egui::Ui, finished: &Finished, session: (Option<u8>, u32)) {
     let ctx = ui.ctx().clone();
     let id = egui::Id::new(("practice finish", session));
     // Each motion waits until the card has grown and the one before it is under way.

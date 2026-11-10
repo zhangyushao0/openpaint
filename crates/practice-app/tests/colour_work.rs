@@ -15,12 +15,12 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     AreasCompared, Arrangement, Compared, Exercise, Family, Figure, GeneratedAreas, ItemRef, Kind,
-    Metric, Original, Pack, PackItem, Pair, PictureCompared, PictureKind, Plan, ScaleCompared,
-    ScaleTone, SessionRecord, Tally, Tier, ValueScale, value,
+    Layout, Metric, Original, Pack, PackItem, Pair, PictureCompared, PictureKind, Plan,
+    ScaleCompared, ScaleTone, Sheet, Tally, Tier, ValueScale, value,
 };
 use openpaint_practice_app::{
     Pen, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, Probe, SheetView, sheet_of,
+    PracticeProjection, Probe, SheetView,
 };
 use support::OnSheet;
 
@@ -41,10 +41,11 @@ fn pens() -> PracticePens {
 }
 
 /// The sheet of `record` with `packs`, opened.
-fn opened(record: SessionRecord, packs: &[Pack]) -> Session {
-    let [width, height] = sheet_of(&record, packs).size;
+fn opened(record: Sheet, packs: &[Pack]) -> Session {
+    let record = record.framed(packs);
+    let [width, height] = Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
     let tools = (brush(Color::rgb(0.2, 0.4, 0.6).expect("colour")), pens());
     let opening = (record, Vec::new(), view, Tally::default());
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
@@ -95,7 +96,7 @@ fn colour_work() -> Session {
         ],
         warm_up: 0,
     };
-    opened(SessionRecord::begun(1, (2, 1), (5, 0), plan), &[])
+    opened(Sheet::session(1, 2, 0, plan), &[])
 }
 
 /// The copy's frame as the runtime reads it: `pixels` of the frame's size.
@@ -178,7 +179,7 @@ fn a_colour_combination_is_painted_and_compared_its_numbers_kept_from_its_pixels
     assert_eq!(read.copy.colours, all);
     assert!(read.strong.is_empty() && outlined);
     let record = session.sheet().save_request().expect("the record changed");
-    let metrics = &record.result(0).expect("compared").metrics;
+    let metrics = &record.first(0).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::AreasDelta), Some(0.0));
     assert_eq!(value(metrics, Metric::AreasMadeStrong), Some(0.0));
 }
@@ -273,7 +274,7 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
     };
     assert!(check.uneven.is_empty() && check.reversed.is_empty());
     let record = session.sheet().save_request().expect("the record changed");
-    let metrics = &record.result(1).expect("compared").metrics;
+    let metrics = &record.first(1).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::ScaleReversed), Some(0.0));
 }
 
@@ -305,7 +306,7 @@ fn teapot() -> ItemRef {
 
 /// A colour copy of the pack's one picture begun (chosen) and opened, its picture read: the log,
 /// the copy's record, the session and its frames.
-fn copy_opened() -> (PracticeLog, SessionRecord, Session, Pair) {
+fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![pack()]);
     let elsewhere = ItemRef {
         pack: "personal".to_owned(),
@@ -317,7 +318,7 @@ fn copy_opened() -> (PracticeLog, SessionRecord, Session, Pair) {
     );
     let (mut record, title) = log.begin_copy(&teapot(), 1, 2).expect("a picture");
     assert_eq!(title.as_str(), "Colour copy 1");
-    assert!(record.is_project());
+    assert!(record.is_copy());
     record.canvas = 40;
     let mut session = opened(record.clone(), &[pack()]);
     let practice = PracticeProjection::of(&session).expect("a sheet");
@@ -376,8 +377,9 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
     let next = session.practise(PracticeIntent::Next(VIEWPORT), 3);
     assert!(next.is_err(), "never ended by Next");
     let saved = session.sheet().save_request().expect("the record changed");
-    let result = saved.result(0).map(|r| (r.compares, r.metrics.len()));
-    assert_eq!(result, Some((1, 0)));
+    let first = saved.first(0).map(|first| first.metrics.len());
+    let compares = saved.laid(0).map(|l| l.compares);
+    assert_eq!((compares, first), (Some(1), Some(0)));
 }
 
 #[test]
@@ -392,7 +394,7 @@ fn a_long_colour_copy_is_kept_beside_the_sessions_and_counts_in_none() {
     let shown = today.picture(&teapot()).expect("the picture offered");
     assert_eq!((shown.copies, shown.sessions), (1, 0));
     let (next, _) = log.begin((1, None), 9, 3);
-    assert_eq!((next.number, next.warm_up), (1, 0), "the first session");
+    assert_eq!((log.number(&next), next.warm_up()), (1, 0), "a first");
     let (second, title) = log.begin_copy(&teapot(), 4, 5).expect("a picture again");
-    assert_eq!((second.number, title.as_str()), (2, "Colour copy 2"));
+    assert_eq!((log.number(&second), title.as_str()), (2, "Colour copy 2"));
 }

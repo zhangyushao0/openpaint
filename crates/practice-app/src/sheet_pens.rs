@@ -82,7 +82,7 @@ impl PracticeSheet {
         let index = self
             .current()
             .ok_or(unavailable(Availability::NothingLeft))?;
-        let compared = self.record.result(index).is_some();
+        let compared = self.record.first(index).is_some();
         let (level, valued) = (pen.level().is_some(), pen.value().is_some());
         let fits = match self.facts(index).map(|facts| facts.tools) {
             Some(Tools::Dividing) => level,
@@ -125,7 +125,7 @@ impl PracticeSheet {
     /// the full interface shows (the layers are the user's then).
     pub(crate) fn layering(&self) -> Option<Layering> {
         let copying = |facts: &Facts| facts.tools == Tools::Copying;
-        let holds = (self.record.exercises.iter()).any(|e| copying(e.kind.facts()));
+        let holds = (self.record.exercises()).any(|laid| copying(laid.exercise.kind.facts()));
         if !holds || self.all_tools {
             return None;
         }

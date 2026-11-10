@@ -11,8 +11,7 @@
 //! never depend on the pictures.
 
 use crate::maths::path::Point;
-use crate::packs::pack::Pack;
-use crate::records::record::SessionRecord;
+use crate::records::sheet::{Laid, Sheet};
 
 /// A frame's side on the sheet (a picture's frames' longer side), in canvas pixels.
 pub const FRAME: f64 = 400.0;
@@ -216,20 +215,24 @@ impl Layout {
         }
     }
 
-    /// The sheet a session's or a drill's `record` lies on, its pictures as `packs` hold them:
-    /// an exercise of a picture in frames of its shape, one no pack holds now (removed) in
-    /// square ones, as every other kind.
+    /// The layout `sheet` lies on, from its exercises as laid: a long colour copy's of its
+    /// picture's shape (`study`), else each exercise in its slot, a picture's frames of its
+    /// shape, every other kind's square.
     #[must_use]
-    pub fn of_session(record: &SessionRecord, packs: &[Pack]) -> Self {
-        let pictures: Vec<Option<[u32; 2]>> = (record.exercises.iter())
-            .map(|exercise| {
-                let item = exercise.picture.as_ref()?;
-                packs
-                    .iter()
-                    .find_map(|pack| pack.find(item))
-                    .map(|i| i.size)
-            })
-            .collect();
+    pub fn of_sheet(sheet: &Sheet) -> Self {
+        let frame = |laid: &Laid| (laid.frame != [0, 0]).then(|| laid.frame.map(u32::from));
+        if sheet.is_copy() {
+            let picture = sheet.exercises().next().and_then(frame);
+            return Self::study(picture.unwrap_or([1, 1]));
+        }
+        let slots = (sheet.exercises())
+            .map(|laid| usize::from(laid.slot) + 1)
+            .max()
+            .unwrap_or(0);
+        let mut pictures: Vec<Option<[u32; 2]>> = vec![None; slots];
+        for laid in sheet.exercises() {
+            pictures[usize::from(laid.slot)] = frame(laid);
+        }
         Self::of(&pictures)
     }
 

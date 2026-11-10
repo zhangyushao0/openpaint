@@ -15,10 +15,10 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Arrangement, Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, Plan,
-    SessionRecord, Tier,
+    Sheet, Tier,
 };
 use openpaint_practice_app::{
-    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, sheet_of,
+    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -30,9 +30,9 @@ const VIEWPORT: Viewport = Viewport {
 const NOW: u64 = 1_791_400_000;
 
 /// The sheet of `record` with `packs` on a canvas of `size`, opened.
-fn opened(record: SessionRecord, packs: &[Pack], size: [u32; 2]) -> Session {
+fn opened(record: Sheet, packs: &[Pack], size: [u32; 2]) -> Session {
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
-    let view = SheetView::of(&record, packs, (size, &Title::untitled()));
+    let view = SheetView::of(&record, packs, (size, &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush =
@@ -93,20 +93,20 @@ fn line_in_frame(session: &mut Session) {
     draw(session, &[a, [(a[0] + b[0]) / 2.0, a[1] + 3.0], b]);
 }
 
-fn lines(count: usize) -> SessionRecord {
+fn lines(count: usize) -> Sheet {
     let plan = Plan {
         exercises: (0..count)
             .map(|k| Exercise::generated(Kind::Line(LineTier::Arc), k as u64))
             .collect(),
         warm_up: 0,
     };
-    SessionRecord::begun(1, (1, 1), (5, 0), plan)
+    Sheet::session(1, 1, 0, plan)
 }
 
 #[test]
 fn undo_and_redo_reach_only_the_exercise_shown() {
     let record = lines(3);
-    let size = sheet_of(&record, &[]).size;
+    let size = openpaint_practice::Layout::of_sheet(&record).size;
     let mut session = opened(record, &[], size);
     line_in_frame(&mut session);
     line_in_frame(&mut session);
@@ -135,7 +135,7 @@ fn undo_and_redo_reach_only_the_exercise_shown() {
     assert_eq!(strokes(&session), 3);
     // The first exercise's Compare stands in the record.
     let saved = session.sheet().save_request().expect("the record changed");
-    assert_eq!(saved.result(0).map(|r| r.compares), Some(1));
+    assert_eq!(saved.laid(0).map(|l| l.compares), Some(1));
     // An undone stroke of this exercise is not redone into the next.
     undo(&mut session).expect("undone");
     session
@@ -154,8 +154,8 @@ fn a_reading_that_arrives_after_its_exercise_was_left_is_dropped() {
         ],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (2, 1), (5, 0), plan);
-    let size = sheet_of(&record, &[]).size;
+    let record = Sheet::session(1, 2, 0, plan);
+    let size = openpaint_practice::Layout::of_sheet(&record).size;
     let mut session = opened(record, &[], size);
     let fill = Color::rgb(0.5, 0.4, 0.3).expect("colour");
     session
@@ -180,7 +180,9 @@ fn a_reading_that_arrives_after_its_exercise_was_left_is_dropped() {
     };
     session.sheet().read(late.sequence, late.run(&pixels));
     let record = session.sheet().save_request().expect("the record changed");
-    let second = record.result(1).expect("the second compared");
+    let second = record.first(1).expect("the second compared");
+    let unread = record.laid(1).and_then(|laid| laid.result);
+    assert_eq!(unread, None, "no verdict before its pixels are read");
     assert!(
         second.metrics.is_empty(),
         "the first exercise's reading is not the second's"
@@ -191,7 +193,12 @@ fn a_reading_that_arrives_after_its_exercise_was_left_is_dropped() {
         .expect("the second's copy asked for");
     session.sheet().read(current.sequence, current.run(&pixels));
     let record = session.sheet().save_request().expect("its numbers kept");
-    assert!(!record.result(1).expect("compared").metrics.is_empty());
+    assert!(!record.first(1).expect("compared").metrics.is_empty());
+    let judged = record.laid(1).and_then(|laid| laid.result);
+    assert!(
+        matches!(judged, Some((_, openpaint_practice::Judge::App))),
+        "judged by the app once read: {judged:?}"
+    );
 }
 
 fn pack(id: &str, item: &str) -> Pack {
@@ -222,7 +229,8 @@ fn a_copy_whose_picture_was_removed_keeps_its_frames_and_strokes_and_offers_no_c
     let log = PracticeLog::new(Vec::new(), Vec::new(), packs.to_vec());
     let (mut record, _) = log.begin_copy(&mine, 1, 2).expect("a copy of my picture");
     record.canvas = 9;
-    let size = sheet_of(&record, &packs).size;
+    let record = record.framed(&packs);
+    let size = openpaint_practice::Layout::of_sheet(&record).size;
     let with = opened(record.clone(), &packs, size);
     let frames = PracticeProjection::of(&with)
         .expect("a sheet")

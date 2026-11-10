@@ -14,10 +14,10 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Compared, Estimate, Exercise, Family, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off,
-    Original, Plan, Point, SessionRecord, SpaceAnswer, SpaceCompared, Trick, value,
+    Original, Plan, Point, Sheet, SpaceAnswer, SpaceCompared, Trick, value,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, sheet_of,
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -36,10 +36,10 @@ fn opened() -> Session {
         ],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (3, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &[]).size;
+    let record = Sheet::session(1, 3, 0, plan);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -151,8 +151,8 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     let mark = check.mark.expect("the correction read");
     assert!((mark[0] - at[0]).abs() < 1e-3);
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!(result.compares, 2);
+    let result = record.first(0).expect("compared");
+    assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     let across = value(&result.metrics, Metric::PointAcross).expect("kept");
     assert!((across - 0.05).abs() < 1e-3, "{across}");
 }
@@ -254,9 +254,13 @@ fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
 fn the_log_begins_stage_three_and_offers_it_after_stage_two() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let (record, title) = log.begin((3, None), 0x5EED_0090, 1_791_900_000);
-    assert_eq!((record.stage, record.number), (3, 1));
+    assert_eq!((record.stage(), log.number(&record)), (Some(3), 1));
     assert_eq!(title.as_str(), "Practice 1");
-    let families: Vec<Family> = record.exercises.iter().map(|e| e.kind.family()).collect();
+    let families: Vec<Family> = record
+        .exercises()
+        .map(|l| &l.exercise)
+        .map(|e| e.kind.family())
+        .collect();
     assert_eq!(
         families[..3],
         [Family::Point, Family::Proportion, Family::Angle]

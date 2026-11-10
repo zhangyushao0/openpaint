@@ -7,7 +7,7 @@
 use openpaint_app::{ProjectId, ProjectStore};
 use openpaint_practice::Family;
 use openpaint_practice_app::TodayProjection;
-use openpaint_practice_store::sessions;
+use openpaint_practice_store::sheets;
 use openpaint_runtime::{Runtime, ToolKind};
 use openpaint_store::Library;
 
@@ -65,7 +65,7 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     let sheet = theirs.open.expect("their session open");
     drop(runtime);
     let mut library = Library::at(&dir);
-    let records = sessions(&mut library).expect("their records");
+    let records = sheets(&mut library).expect("their records");
     let file = library.artwork_file(sheet).expect("their sheet");
     drop(library);
 
@@ -91,13 +91,13 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     until(&mut runtime, &mut hand, |r| !r.holds_practice(id));
     assert_eq!(today(&runtime), theirs, "the Today card as before");
     let mut other = test;
-    other.seed ^= 1;
+    other.started ^= 1;
     let refused = runtime.end_test_practice(&other);
     assert!(refused.is_err(), "nothing else is removed");
     drop(runtime);
     let mut library = Library::at(&dir);
     assert_eq!(
-        sessions(&mut library).expect("records"),
+        sheets(&mut library).expect("records"),
         records,
         "their records"
     );

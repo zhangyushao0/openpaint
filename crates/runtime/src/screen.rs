@@ -114,7 +114,8 @@ impl Screen {
                         let before = practice.before(session);
                         let canvas = artwork.canvas();
                         let size = [canvas.width(), canvas.height()];
-                        let view = SheetView::of(session, practice.packs(), (size, title));
+                        let number = practice.number(session);
+                        let view = SheetView::of(session, practice.packs(), (size, title, number));
                         let others = practice.tally_without(session.id);
                         (session.clone(), before, view, others)
                     })

@@ -3,8 +3,8 @@
 //! one pair shaped as its picture.
 
 use openpaint_practice::{
-    Exercise, FRAME, ItemRef, Kind, Layout, Pack, PackItem, PictureFit, PictureKind, SessionRecord,
-    Tier,
+    Exercise, FRAME, ItemRef, Kind, Layout, Pack, PackItem, PictureFit, PictureKind, Sheet, Tier,
+    stage_one,
 };
 
 #[test]
@@ -111,20 +111,21 @@ fn frames_follow_their_picture_in_their_pair_s_place() {
 }
 
 #[test]
-fn a_session_s_frames_follow_the_pictures_its_packs_hold() {
+fn a_sheet_s_frames_follow_the_pictures_its_packs_held() {
     let item = |id: &str| ItemRef {
         pack: "test-frames".to_owned(),
         item: id.to_owned(),
     };
-    let mut record = SessionRecord::stage_one(1, 1, 5, 0, &[]);
-    record.exercises[1] = Exercise {
+    let mut plan = stage_one(5, &[]);
+    plan.exercises[1] = Exercise {
         picture: Some(item("tall")),
         ..Exercise::generated(Kind::Shape(Tier::Entry), 9)
     };
-    record.exercises[2] = Exercise {
+    plan.exercises[2] = Exercise {
         picture: Some(item("gone")),
         ..Exercise::generated(Kind::Shape(Tier::Entry), 9)
     };
+    let record = Sheet::session(1, 1, 0, plan);
     let pack = Pack {
         id: "test-frames".to_owned(),
         title: "Test frames".to_owned(),
@@ -140,17 +141,22 @@ fn a_session_s_frames_follow_the_pictures_its_packs_hold() {
             areas: None,
         }],
     };
-    let sheet = Layout::of_session(&record, std::slice::from_ref(&pack));
+    let framed = record.clone().framed(std::slice::from_ref(&pack));
+    assert_eq!(framed.laid(1).map(|laid| laid.frame), Some([600, 800]));
+    let sheet = Layout::of_sheet(&framed);
     assert_eq!(sheet.pairs[1].copy.size, [300.0, 400.0]);
     assert_eq!(
         sheet.pairs[2].copy.size,
         [FRAME, FRAME],
-        "a picture no pack holds now: square"
+        "a picture no pack held when it started: square"
     );
     assert_eq!(sheet.pairs[0].copy.size, [FRAME, FRAME], "a line's");
-    let without = Layout::of_session(&record, &[]);
+    let without = Layout::of_sheet(&record);
     assert_eq!(without.pairs[1].copy.size, [FRAME, FRAME]);
     assert_eq!(without.size, sheet.size);
+    // A colour copy's sheet is laid by its picture's size as it was when it began.
+    let copy = Sheet::copy(2, (5, 0), item("tall")).framed(&[pack]);
+    assert_eq!(Layout::of_sheet(&copy), Layout::study([600, 800]));
 }
 
 #[test]

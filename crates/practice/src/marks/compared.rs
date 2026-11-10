@@ -92,6 +92,27 @@ pub enum Outcome {
 }
 
 impl Outcome {
+    /// Its stored code, frozen (S120): 1 clean, 2 near, 3 redo.
+    #[must_use]
+    pub const fn code(self) -> u8 {
+        match self {
+            Self::Clean => 1,
+            Self::Near => 2,
+            Self::Redo => 3,
+        }
+    }
+
+    /// The outcome stored as `code`; none for a code no outcome holds.
+    #[must_use]
+    pub const fn of_code(code: u8) -> Option<Self> {
+        match code {
+            1 => Some(Self::Clean),
+            2 => Some(Self::Near),
+            3 => Some(Self::Redo),
+            _ => None,
+        }
+    }
+
     /// Of a copy off by `off`: clean at most `clean`, near at most `near`, else redo.
     #[must_use]
     pub fn within(off: f64, [clean, near]: [f64; 2]) -> Self {

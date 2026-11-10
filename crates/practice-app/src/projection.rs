@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    Areas, CardItem, ExerciseResult, Family, KindSummary, Layout, Level, Original, Pack, Pair,
-    Point, Rgb8, SessionRecord, SheetMark, SheetPicture, Value,
+    Areas, CardItem, Exercise, Family, First, KindSummary, Layout, Level, Original, Pack, Pair,
+    Point, Rgb8, Sheet, SheetMark, SheetPicture, Value,
 };
 
 use crate::pictures::PictureImage;
@@ -165,8 +165,10 @@ pub struct PracticeProjection {
     /// The session's frames and originals; the first `revealed` pairs show.
     pub sheet: Arc<SheetView>,
     pub revealed: usize,
-    /// The stage (`openpaint_practice::PROJECT` for a long colour copy).
-    pub stage: u8,
+    /// A session's stage; none for a drill or a long colour copy.
+    pub stage: Option<u8>,
+    /// Whether it is a long colour copy's sheet.
+    pub copy: bool,
     /// The session's number in its stage (a drill's among its kind's drills).
     pub number: u32,
     /// The kind a drill drills (S91); none on a session's or a copy's sheet.
@@ -191,8 +193,8 @@ pub struct PracticeProjection {
     /// The pen the exercise's own tools draw with now and its diameter (canvas pixels); `None`
     /// while they do not show or the toolbox's eraser is used.
     pub pen: Option<(Pen, f32)>,
-    /// The shown exercise's stored result, once compared.
-    pub result: Option<ExerciseResult>,
+    /// The shown exercise's first Compare as stored, once compared.
+    pub result: Option<First>,
     /// What lies over the copy while comparing.
     pub overlay: Option<Vec<SheetMark>>,
     /// What the card shows of the comparison under its title (S109).
@@ -234,6 +236,9 @@ pub struct PracticeProjection {
 pub struct SheetView {
     /// Its project's title: a colour copy's name.
     pub name: Title,
+    /// Its number among the sheets of its kind: a session's in its stage, a drill's among its
+    /// kind's drills, a copy's among the copies (`openpaint_practice::number`).
+    pub number: u32,
     pub size: [u32; 2],
     pub pairs: Vec<Pair>,
     pub originals: Vec<Original>,
@@ -251,28 +256,34 @@ pub struct SheetView {
 
 impl SheetView {
     /// The sheet of `record` on its canvas of `size` pixels, titled `name`, its pictures as
-    /// `packs` hold them, each in frames of its shape (S99). A colour copy's frames are read from
-    /// its canvas, so they stay where its strokes lie whatever became of its picture.
+    /// `packs` hold them, each in frames of its shape as it was laid (S99), so they stay where
+    /// its strokes lie whatever became of its picture.
     #[must_use]
-    pub fn of(record: &SessionRecord, packs: &[Pack], (size, name): ([u32; 2], &Title)) -> Self {
-        let sheet = laid(record, packs, size);
-        let originals: Vec<Original> = record.exercises.iter().map(|e| e.original()).collect();
-        let families: Vec<Family> = (record.exercises.iter()).map(|e| e.kind.family()).collect();
-        let pictures: Vec<Option<Arc<SheetPicture>>> = (record.exercises.iter())
+    pub fn of(
+        record: &Sheet,
+        packs: &[Pack],
+        (size, name, number): ([u32; 2], &Title, u32),
+    ) -> Self {
+        let sheet = Layout::of_sheet(record);
+        let exercises: Vec<&Exercise> = record.exercises().map(|laid| &laid.exercise).collect();
+        let originals: Vec<Original> = exercises.iter().map(|e| e.original()).collect();
+        let families: Vec<Family> = exercises.iter().map(|e| e.kind.family()).collect();
+        let pictures: Vec<Option<Arc<SheetPicture>>> = (exercises.iter())
             .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
             .collect();
-        let painted = (record.exercises.iter().zip(&originals).zip(&pictures))
+        let painted = (exercises.iter().zip(&originals).zip(&pictures))
             .map(|((exercise, original), picture)| {
                 let (size, pixels) = exercise.painted(original, picture.as_deref())?;
                 Some(Arc::new(PictureImage { size, pixels }))
             })
             .collect();
-        let givens = (record.exercises.iter().zip(&originals))
+        let givens = (exercises.iter().zip(&originals))
             .map(|(exercise, original)| exercise.givens(original))
             .collect();
         Self {
             name: name.clone(),
-            size: sheet.size,
+            number,
+            size,
             pairs: sheet.pairs,
             pictures,
             painted,
@@ -292,28 +303,5 @@ impl SheetView {
             return Some(made);
         }
         self.pictures.get(index)?.as_ref()?.areas_in_frame()
-    }
-}
-
-/// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape
-/// (as `packs` hold it), a session's three pairs a row, its pictures' frames of their shape.
-#[must_use]
-pub fn sheet_of(record: &SessionRecord, packs: &[Pack]) -> Layout {
-    if !record.is_project() {
-        return Layout::of_session(record, packs);
-    }
-    let picture = (record.exercises.first())
-        .and_then(|e| e.picture.as_ref())
-        .and_then(|item| packs.iter().find_map(|pack| pack.find(item)));
-    Layout::study(picture.map_or([1, 1], |item| item.size))
-}
-
-/// The sheet `record` lies on, on its canvas of `size` pixels: a session's as `packs` hold its
-/// pictures, a colour copy's read from its canvas.
-pub(crate) fn laid(record: &SessionRecord, packs: &[Pack], size: [u32; 2]) -> Layout {
-    if record.is_project() {
-        Layout::study_on(size)
-    } else {
-        Layout::of_session(record, packs)
     }
 }

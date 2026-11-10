@@ -13,11 +13,11 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Ellipse, Exercise, FRAME, Family, Frame, Kind, Metric, Original, PEN_WIDTH, Plan, Point,
-    SessionRecord, Solid, distance, resample, value,
+    Ellipse, Exercise, FRAME, Family, Frame, Kind, Metric, Original, PEN_WIDTH, Plan, Point, Sheet,
+    Solid, distance, resample, value,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, sheet_of,
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -35,10 +35,10 @@ fn opened() -> Session {
         )],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (3, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &[]).size;
+    let record = Sheet::session(1, 3, 0, plan);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -150,8 +150,8 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     let now = value(&check.metrics, Metric::SolidOff).expect("measured");
     assert!(now < first, "{now} against {first}");
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!(result.compares, 2);
+    let result = record.first(0).expect("compared");
+    assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(value(&result.metrics, Metric::SolidOff), Some(first));
 }
 
@@ -159,7 +159,7 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
 fn stage_three_s_sessions_hold_two_solids_in_turn() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let (record, _) = log.begin((3, None), 0x5EED_0093, 1_791_900_000);
-    let solids: Vec<Family> = (record.exercises.iter())
+    let solids: Vec<Family> = (record.exercises().map(|l| &l.exercise))
         .map(|e| e.kind.family())
         .filter(|f| matches!(f, Family::Cylinder | Family::Cone | Family::Sphere))
         .collect();

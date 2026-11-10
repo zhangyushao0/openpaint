@@ -15,10 +15,10 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, Exercise, Family, Frame,
-    FreeCompared, Guide, Horizon, Kind, Original, Plan, Point, Roundness, SessionRecord,
+    FreeCompared, Guide, Horizon, Kind, Original, Plan, Point, Roundness, Sheet,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, sheet_of,
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -37,10 +37,10 @@ fn opened() -> Session {
         ],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (2, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &[]).size;
+    let record = Sheet::session(1, 2, 0, plan);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -158,8 +158,14 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     assert!(compared::<BoxCompared>(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!((result.compares, result.metrics.len()), (2, 0));
+    let result = record.first(0).expect("compared");
+    assert_eq!(
+        (
+            record.laid(0).map_or(0, |l| l.compares),
+            result.metrics.len()
+        ),
+        (2, 0)
+    );
 }
 
 /// Construction (S97): off at each Compare, on when asked, off again when tapped again; none
@@ -266,10 +272,11 @@ fn a_session_begun_as_the_stages_second_holds_its_free_boxes() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let begun = |number: Option<u32>| {
         let (record, title) = log.begin((2, number), 0x5EED_0088, 1_791_290_000);
-        let free = (record.exercises.iter()).any(|e| matches!(e.kind, Kind::FreeBoxes(_)));
-        (record.number, free, title.as_str().to_owned())
+        let free =
+            (record.exercises().map(|l| &l.exercise)).any(|e| matches!(e.kind, Kind::FreeBoxes(_)));
+        (free, title.as_str().to_owned())
     };
-    assert_eq!(begun(None), (1, false, "Practice 1".to_owned()), "the next");
-    assert_eq!(begun(Some(2)), (2, true, "Practice 2".to_owned()));
-    assert!(!begun(Some(3)).1, "a box and an ellipse again");
+    assert_eq!(begun(None), (false, "Practice 1".to_owned()), "the next");
+    assert_eq!(begun(Some(2)), (true, "Practice 2".to_owned()));
+    assert!(!begun(Some(3)).0, "a box and an ellipse again");
 }

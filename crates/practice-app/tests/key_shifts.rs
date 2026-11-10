@@ -12,11 +12,11 @@ use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Areas, Exercise, Family, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack,
-    PackItem, PictureKind, Plan, SessionRecord, Tendency, Tier, value,
+    PackItem, PictureKind, Plan, Sheet, Tendency, Tier, value,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, SheetView, sheet_of,
+    PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -75,10 +75,11 @@ fn opened(packs: &[Pack]) -> Session {
         exercises: vec![exercise],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (5, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, packs).size;
+    let record = Sheet::session(1, 5, 0, plan);
+    let record = record.framed(packs);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush = StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK);
@@ -201,14 +202,15 @@ fn stage_five_and_its_tile_are_offered_once_a_pack_holds_crops() {
     assert!(without.begin_drill(Family::KeyShift, 3, 4).is_none());
     let with = PracticeLog::new(Vec::new(), Vec::new(), vec![crops()]);
     let (drill, _) = with.begin_drill(Family::KeyShift, 3, 4).expect("a drill");
-    assert_eq!(drill.exercises.len(), 2);
+    assert_eq!(drill.exercises().count(), 2);
     assert!(
-        (drill.exercises.iter())
+        (drill.exercises().map(|l| &l.exercise))
             .all(|e| matches!(e.kind, Kind::KeyShift(_)) && e.picture.is_some())
     );
     let (session, _) = with.begin((5, None), 3, 4);
-    assert_eq!(session.stage, 5);
-    let shifts = (session.exercises.iter()).filter(|e| e.kind.family() == Family::KeyShift);
+    assert_eq!(session.stage(), Some(5));
+    let shifts =
+        (session.exercises().map(|l| &l.exercise)).filter(|e| e.kind.family() == Family::KeyShift);
     assert_eq!(shifts.count(), 3);
     assert!(
         with.today()

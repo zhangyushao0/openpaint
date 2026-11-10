@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use openpaint_practice::{Comparison, Point, Reading, Rgb8, in_grey};
 
+use super::compare::judged;
 use super::{Compared, PracticeSheet, unavailable};
 use crate::copy::PAPER;
 use crate::pictures::PictureImage;
@@ -236,16 +237,16 @@ impl PracticeSheet {
         if self.current().is_none() || sequence <= self.painting_state.since {
             return;
         }
-        let index = self.record.current as usize;
-        if let Some(result) = self
-            .record
-            .results
-            .iter_mut()
-            .find(|r| r.index as usize == index)
-            && result.metrics.is_empty()
+        let index = self.record.at();
+        if let Some(laid) = self.record.laid_mut(index)
+            && let Some(first) = &mut laid.first
+            && first.metrics.is_empty()
             && let Some(read) = &painted
         {
-            result.metrics.clone_from(&read.metrics);
+            first.metrics.clone_from(&read.metrics);
+            if laid.result.is_none() {
+                laid.result = judged(read.comparison.verdict());
+            }
             self.changed = true;
         }
         if let Some(Compared::Painted(_, shown, _)) = &mut self.compared

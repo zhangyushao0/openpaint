@@ -13,7 +13,7 @@ use openpaint_app::{
     ProjectSummary, SaveId, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::{Pack, SessionRecord};
+use openpaint_practice::{Pack, Sheet};
 use openpaint_practice_store::Packs;
 use openpaint_store::{Cached, DisplayCache};
 
@@ -116,8 +116,8 @@ pub(crate) enum Done {
     Practice(PracticeDone),
 }
 
-/// The practice sessions, their sheets' titles and the packs kept, as opening read them.
-pub(crate) type Practised = (Vec<SessionRecord>, Vec<(ProjectId, Title)>, Vec<Pack>);
+/// The practice sheets, their titles and the packs kept, as opening read them.
+pub(crate) type Practised = (Vec<Sheet>, Vec<(ProjectId, Title)>, Vec<Pack>);
 
 /// What the worker knows between calls.
 #[derive(Debug, Default)]
@@ -224,19 +224,23 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
                 .ok()
                 .flatten();
-            let sessions = openpaint_practice_store::sessions(store)
-                .inspect_err(|error| log::warn!("the practice sessions are unreadable: {error}"))
-                .unwrap_or_default();
-            let titles = practice::gallery_list(store)
-                .map(|listed| listed.sheets)
-                .inspect_err(|error| log::warn!("the practice sheets' titles are unread: {error}"))
-                .unwrap_or_default();
             let packs = (packs.map(Packs::list).transpose())
                 .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
                 .ok()
                 .flatten()
                 .unwrap_or_default();
-            Done::Started(opened, editor.map(Box::new), (sessions, titles, packs))
+            // The session records of 1.21.6 and before become sheets, once (S120c).
+            if let Err(error) = openpaint_practice_store::convert(store, &packs) {
+                log::error!("the practice records were not converted: {error}");
+            }
+            let sheets = openpaint_practice_store::sheets(store)
+                .inspect_err(|error| log::warn!("the practice sheets are unreadable: {error}"))
+                .unwrap_or_default();
+            let titles = practice::gallery_list(store)
+                .map(|listed| listed.sheets)
+                .inspect_err(|error| log::warn!("the practice sheets' titles are unread: {error}"))
+                .unwrap_or_default();
+            Done::Started(opened, editor.map(Box::new), (sheets, titles, packs))
         }
         Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),
         Job::Save(artwork) => {

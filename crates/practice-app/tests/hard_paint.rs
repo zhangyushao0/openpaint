@@ -11,12 +11,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
-    Exercise, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Plan, SessionRecord, Tally,
-    Tier,
+    Exercise, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Plan, Sheet, Tally, Tier,
 };
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, copy_brush,
-    sheet_of,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -173,11 +171,12 @@ fn vase_pack() -> Pack {
 }
 
 /// `record`'s sheet as it opens: its canvas and what the session opens with.
-fn sheet(record: SessionRecord) -> (Artwork, openpaint_practice_app::Practising) {
+fn sheet(record: Sheet) -> (Artwork, openpaint_practice_app::Practising) {
     let packs = [vase_pack()];
-    let [width, height] = sheet_of(&record, &packs).size;
+    let record = record.framed(&packs);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let artwork = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled(), 1));
     (artwork, (record, Vec::new(), view, Tally::default()))
 }
 
@@ -226,7 +225,7 @@ fn a_long_copy_opens_on_hard_paint_at_a_size_for_its_frame_as_the_hand_would_cho
         exercises: vec![Exercise::generated(Kind::Line(LineTier::Arc), 7)],
         warm_up: 0,
     };
-    let session = SessionRecord::begun(1, (1, 1), (5, 0), lines);
+    let session = Sheet::session(1, 1, 0, lines);
     assert_eq!(copy_brush(&sheet(session).1), None, "a session's sheet");
     // The brush tool, Hard Paint, its size; the eraser chosen before.
     let mut toolbox = toolbox();

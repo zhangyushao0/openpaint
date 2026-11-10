@@ -32,19 +32,23 @@ impl PracticeSheet {
         let Some(index) = self.current() else {
             return Ok(());
         };
-        if self.record.is_project() {
-            // A colour copy is worked on whenever the user likes; it never ends with Next.
+        // A colour copy is worked on whenever the user likes; it never ends with Next.
+        let copy = self.record.is_copy();
+        let Some(lesson) = self.record.lesson_mut().filter(|_| !copy) else {
             return Err(unavailable(Availability::NothingLeft));
+        };
+        if index + 1 < self.sheet.pairs.len() {
+            lesson.at = lesson.at.saturating_add(1);
+        } else {
+            lesson.finished = Some(now);
         }
         (self.compared, self.instructions, self.notice) = (None, None, None);
         self.fit_job = None;
         if index + 1 < self.sheet.pairs.len() {
-            self.record.current += 1;
             if let Some(pair) = self.pair(index + 1) {
                 *view = centred(view, pair.centre(), (self.canvas, viewport));
             }
         } else {
-            self.record.finished = Some(now);
             *view = self.whole(viewport);
         }
         self.changed = true;
@@ -62,7 +66,7 @@ impl PracticeSheet {
         let pair_width = (pair.copy.origin[0] + pair.copy.size[0] - pair.original.origin[0]) as f32;
         let frame_height = pair.copy.size[1] as f32;
         // A colour copy's pair fills the room: it is the whole sheet.
-        let tall = if self.record.is_project() {
+        let tall = if self.record.is_copy() {
             STUDY_HEIGHT
         } else {
             FRAME_HEIGHT

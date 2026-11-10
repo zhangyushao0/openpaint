@@ -9,17 +9,17 @@
 //! (`read.rs`). Whatever was found is a comparison (`openpaint_practice::Comparison`,
 //! S109) whose marks and card the screen draws (`overlay.rs`).
 //!
-//! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
+//! The first Compare stores the exercise's first: when, the sheet's next stroke id (every stroke
 //! in the frame from it on is a correction) and the numbers its comparison keeps (a painted copy's
-//! when its pixels arrive), which judge the eye before the answer was seen; every later one
-//! counts. A drawn exercise's pen turns blue. Anything laid in the frame afterwards takes the
+//! when its pixels arrive), which judge the eye before the answer was seen, and its outcome where
+//! the app judges it (a painted copy's with its numbers); every later one counts. A drawn exercise's pen turns blue. Anything laid in the frame afterwards takes the
 //! comparison away: corrections are made by eye.
 
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    Asked, Compare, Comparison, ExerciseResult, Fit, Frame, Reading, ToFit, Tools,
+    Asked, Compare, Comparison, First, Fit, Frame, Judge, Outcome, Reading, ToFit, Tools, Verdict,
 };
 
 use super::checks::CopyOn;
@@ -88,19 +88,16 @@ impl PracticeSheet {
         }
         self.forget_probe();
         let compared = self.compared_now(index, artwork, &frame)?;
-        match self
-            .record
-            .results
-            .iter_mut()
-            .find(|r| r.index as usize == index)
-        {
-            Some(result) => result.compares = result.compares.saturating_add(1),
-            None => {
-                let metrics = compared.shown().metrics();
-                let index = u32::try_from(index).unwrap_or(u32::MAX);
-                let next = artwork.next_stroke_id();
-                (self.record.results).push(ExerciseResult::first(index, now, next, metrics));
-            }
+        let Some(laid) = self.record.laid_mut(index) else {
+            return Err(nothing());
+        };
+        if laid.first.is_some() {
+            laid.compares = laid.compares.saturating_add(1);
+        } else {
+            let shown = compared.shown();
+            let next = artwork.next_stroke_id();
+            laid.compared(First::of(now, next, shown.metrics()));
+            laid.result = judged(shown.verdict());
         }
         self.changed = true;
         if matches!(compared, Compared::Drawn(..) | Compared::Checked(_)) {
@@ -130,14 +127,14 @@ impl PracticeSheet {
         let sheet = Arc::clone(&self.sheet);
         let exercise = self
             .record
-            .exercises
-            .get(index)
+            .laid(index)
             .ok_or_else(nothing)?
+            .exercise
             .clone();
         let copy = CopyOn {
             artwork,
             frame,
-            corrected_from: self.record.result(index).and_then(|r| r.corrected_from),
+            corrected_from: self.record.first(index).and_then(|r| r.corrected_from),
         };
         let asked = Asked {
             exercise: &exercise,
@@ -170,7 +167,7 @@ impl PracticeSheet {
         };
         let removed =
             self.sheet.originals[index].picture().is_some() && self.sheet.pictures[index].is_none();
-        let held = self.record.result(index).is_some()
+        let held = self.record.first(index).is_some()
             || (self.pair(index)).is_some_and(|pair| holds_copy(artwork, &pair.copy));
         if held && !removed {
             Availability::Available
@@ -243,5 +240,14 @@ impl PracticeSheet {
     /// Something was laid in the frame (a fill): the comparison goes.
     pub(crate) fn laid(&mut self) {
         (self.compared, self.fit_job) = (None, None);
+    }
+}
+
+/// The result a first comparison keeps: its outcome where the app judges it (S119); none where
+/// the eye does, or while no verdict is honest yet (a painted copy's until its pixels are read).
+pub(super) const fn judged(verdict: Verdict) -> Option<(Outcome, Judge)> {
+    match verdict {
+        Verdict::App(outcome) => Some((outcome, Judge::App)),
+        Verdict::Eye | Verdict::Incomplete => None,
     }
 }

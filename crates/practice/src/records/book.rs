@@ -6,8 +6,8 @@
 //! done in all. Progress counts what was done, never days in a row.
 
 use crate::records::metric::{Metric, value};
-use crate::records::record::SessionRecord;
 use crate::records::seals::{Earned, earned};
+use crate::records::sheet::{Sheet, number};
 use crate::records::time::{by_day, seconds};
 use crate::sessions::plan::{Family, STAGES};
 
@@ -71,33 +71,33 @@ pub struct LineShown {
 impl Book {
     /// The book of `records`, `stage` practised, its days on a clock `offset` minutes from UTC.
     #[must_use]
-    pub fn of(records: &[SessionRecord], stage: u8, offset: i32) -> Self {
-        let mut ordered: Vec<&SessionRecord> = records.iter().collect();
+    pub fn of(records: &[Sheet], stage: u8, offset: i32) -> Self {
+        let mut ordered: Vec<&Sheet> = records.iter().collect();
         ordered.sort_by_key(|record| record.id);
         // Drills count in the time and the days, never on the road, the first picks or the lines.
-        let sessions: Vec<&SessionRecord> = (ordered.iter().copied())
-            .filter(|record| record.is_session())
+        let sessions: Vec<&Sheet> = (ordered.iter().copied())
+            .filter(|record| record.stage().is_some())
             .collect();
-        let finished: Vec<&&SessionRecord> = (sessions.iter())
-            .filter(|session| session.finished.is_some())
+        let finished: Vec<&&Sheet> = (sessions.iter())
+            .filter(|session| session.finished().is_some())
             .collect();
         let mut road = Road {
             stage,
             done: [0; STAGES as usize],
         };
         for session in &finished {
-            let index = usize::from(session.stage).wrapping_sub(1);
+            let index = usize::from(session.stage().unwrap_or(0)).wrapping_sub(1);
             if let Some(done) = road.done.get_mut(index) {
                 *done += 1;
             }
         }
         Self {
             sessions: u32::try_from(finished.len()).unwrap_or(u32::MAX),
-            seconds: ordered.iter().map(|record| seconds(&record.time)).sum(),
+            seconds: ordered.iter().map(|record| seconds(&record.spans)).sum(),
             road,
             days: days(&ordered, offset),
             colour: sessions.iter().filter_map(|s| first_pick(s)).collect(),
-            lines: lines(&sessions),
+            lines: lines(records, &sessions),
             seals: earned(records),
         }
     }
@@ -110,10 +110,10 @@ impl Book {
 }
 
 /// The local days `records` (by id) were practised on.
-fn days(records: &[&SessionRecord], offset: i32) -> Vec<Day> {
+fn days(records: &[&Sheet], offset: i32) -> Vec<Day> {
     let mut days: Vec<Day> = Vec::new();
     for record in records {
-        for (day, seconds) in by_day(&record.time, offset) {
+        for (day, seconds) in by_day(&record.spans, offset) {
             match days.iter_mut().find(|kept| kept.day == day) {
                 Some(kept) => {
                     kept.seconds += seconds;
@@ -132,28 +132,24 @@ fn days(records: &[&SessionRecord], offset: i32) -> Vec<Day> {
 }
 
 /// The mean of `session`'s colours' first differences, if it compared any.
-fn first_pick(session: &SessionRecord) -> Option<f64> {
-    let picks: Vec<f64> = (session.results.iter())
-        .filter(|result| family(session, result.index) == Some(Family::Colour))
-        .filter_map(|result| value(&result.metrics, Metric::FirstDelta))
+fn first_pick(session: &Sheet) -> Option<f64> {
+    let picks: Vec<f64> = (session.exercises())
+        .filter(|laid| laid.exercise.kind.family() == Family::Colour)
+        .filter_map(|laid| value(&laid.first.as_ref()?.metrics, Metric::FirstDelta))
         .collect();
     (!picks.is_empty()).then(|| picks.iter().sum::<f64>() / picks.len() as f64)
 }
 
-fn family(session: &SessionRecord, index: u32) -> Option<Family> {
-    let exercise = session.exercises.get(index as usize)?;
-    Some(exercise.kind.family())
-}
-
-/// The first session's first single line compared, and the latest session's when it is another.
-fn lines(sessions: &[&SessionRecord]) -> Vec<LineShown> {
-    let shown = |session: &&SessionRecord| {
-        let result = (session.results.iter())
-            .find(|result| family(session, result.index) == Some(Family::Line))?;
+/// The first session's first single line compared, and the latest session's when it is another,
+/// each numbered among the sessions of its stage in `all`.
+fn lines(all: &[Sheet], sessions: &[&Sheet]) -> Vec<LineShown> {
+    let shown = |session: &&Sheet| {
+        let index = (session.exercises())
+            .position(|laid| laid.first.is_some() && laid.exercise.kind.family() == Family::Line)?;
         Some(LineShown {
             record: session.id,
-            number: session.number,
-            index: result.index,
+            number: number(all, session),
+            index: u32::try_from(index).unwrap_or(u32::MAX),
         })
     };
     let first = sessions.iter().find_map(shown);

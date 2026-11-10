@@ -15,11 +15,11 @@ use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Exercise, Family, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Pack, PackItem,
-    PictureKind, Plan, SessionRecord, Tier, Value, ValueMasses, value,
+    PictureKind, Plan, Sheet, Tier, Value, ValueMasses, value,
 };
 use openpaint_practice_app::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent, PracticeLog,
-    PracticePens, PracticePick, PracticeProjection, SheetView, sheet_of, value_colour,
+    PracticePens, PracticePick, PracticeProjection, SheetView, value_colour,
 };
 use support::OnSheet;
 
@@ -70,10 +70,11 @@ fn opened(kind: Kind) -> Session {
         exercises: vec![exercise],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (4, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &packs).size;
+    let record = Sheet::session(1, 4, 0, plan);
+    let record = record.framed(&packs);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -178,7 +179,7 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     assert!(shown.is_some_and(|masses| masses.check.is_some()));
     let record = session.sheet().save_request().expect("compared");
     let kept = value(
-        &record.result(0).expect("compared").metrics,
+        &record.first(0).expect("compared").metrics,
         Metric::MassesMatched,
     );
     assert!(kept.is_some_and(|share| share > 0.99), "{kept:?}");
@@ -255,21 +256,24 @@ fn stage_four_holds_value_masses_and_whole_copies_in_turn_and_drills_them() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![compositions()]);
     assert!(log.today().masses);
     let (record, _) = log.begin((4, None), 0x5EED_0096, NOW);
-    let families: Vec<Family> = record.exercises.iter().map(|e| e.kind.family()).collect();
+    let families: Vec<Family> = record
+        .exercises()
+        .map(|l| &l.exercise)
+        .map(|e| e.kind.family())
+        .collect();
     assert_eq!(&families[3..], [Family::Division, Family::ValueMasses]);
     // Only the picture whose masses read is offered for value masses.
-    let masses = record.exercises[4]
+    let masses = (record.laid(4).expect("value masses").exercise)
         .picture
         .as_ref()
         .map(|item| item.item.as_str());
     assert_eq!(masses, Some("harbour"));
     let (drill, _) = (log.begin_drill(Family::ValueMasses, 7, NOW)).expect("a value masses drill");
-    assert_eq!(drill.exercises.len(), 3);
+    assert_eq!(drill.exercises().count(), 3);
     assert!(
         drill
-            .exercises
-            .iter()
-            .all(|e| e.kind.family() == Family::ValueMasses)
+            .exercises()
+            .all(|l| l.exercise.kind.family() == Family::ValueMasses)
     );
     let bare = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     assert!(!bare.today().masses);

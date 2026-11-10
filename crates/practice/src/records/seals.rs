@@ -3,7 +3,7 @@
 //! record removed (a test session) takes its part with it. Each seal counts what was done, never
 //! when: no days in a row, quotas or reminders (the author, 2026-10-28).
 
-use crate::records::record::SessionRecord;
+use crate::records::sheet::Sheet;
 use crate::records::time::seconds;
 use crate::sessions::plan::{Family, STAGE_SESSIONS, STAGES};
 
@@ -46,7 +46,7 @@ pub struct Tally {
 impl Tally {
     /// What `records` add up to.
     #[must_use]
-    pub fn of<'a>(records: impl IntoIterator<Item = &'a SessionRecord>) -> Self {
+    pub fn of<'a>(records: impl IntoIterator<Item = &'a Sheet>) -> Self {
         let mut tally = Self::default();
         for record in records {
             tally.add(record);
@@ -55,28 +55,24 @@ impl Tally {
     }
 
     /// Adds what `record` did.
-    pub fn add(&mut self, record: &SessionRecord) {
-        self.seconds += seconds(&record.time);
-        if record.is_project() {
+    pub fn add(&mut self, record: &Sheet) {
+        self.seconds += seconds(&record.spans);
+        if record.is_copy() {
             self.copies += u32::from(record.canvas != 0);
             return;
         }
         // A drill counts its time and what it compared, never as a session (S91).
-        if record.finished.is_some() && record.is_session() {
+        if let Some(stage) = record.stage().filter(|_| record.finished().is_some()) {
             self.sessions += 1;
-            let stage = usize::from(record.stage).wrapping_sub(1);
+            let stage = usize::from(stage).wrapping_sub(1);
             if let Some(done) = self.stages.get_mut(stage) {
                 *done += 1;
             }
         }
-        for result in &record.results {
-            match record
-                .exercises
-                .get(result.index as usize)
-                .map(|e| e.kind.family())
-            {
-                Some(Family::Line | Family::Combined) => self.lines += 1,
-                Some(Family::Colour) => self.colours += 1,
+        for laid in record.exercises().filter(|laid| laid.first.is_some()) {
+            match laid.exercise.kind.family() {
+                Family::Line | Family::Combined => self.lines += 1,
+                Family::Colour => self.colours += 1,
                 _ => {}
             }
         }
@@ -115,8 +111,8 @@ pub struct Earned {
 /// Every seal `records` earned, in the order they were: the records added up by their ids
 /// (the order they began in), each seal going to the record that crossed its mark.
 #[must_use]
-pub fn earned(records: &[SessionRecord]) -> Vec<Earned> {
-    let mut ordered: Vec<&SessionRecord> = records.iter().collect();
+pub fn earned(records: &[Sheet]) -> Vec<Earned> {
+    let mut ordered: Vec<&Sheet> = records.iter().collect();
     ordered.sort_by_key(|record| record.id);
     let mut tally = Tally::default();
     let mut earned: Vec<Earned> = Vec::new();
@@ -137,7 +133,7 @@ pub fn earned(records: &[SessionRecord]) -> Vec<Earned> {
 /// The seals `record` earns beside `others` (what every other record adds up to): those its
 /// own work adds.
 #[must_use]
-pub fn sealed(others: &Tally, record: &SessionRecord) -> Vec<Seal> {
+pub fn sealed(others: &Tally, record: &Sheet) -> Vec<Seal> {
     let before = others.seals();
     let mut with = *others;
     with.add(record);

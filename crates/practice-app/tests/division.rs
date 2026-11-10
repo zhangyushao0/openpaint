@@ -18,11 +18,11 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     DivisionCheck, DivisionCompared, Exercise, Family, Frame, ItemRef, Kind, Level, Metric, Pack,
-    PackItem, PictureCompared, PictureKind, Plan, Point, SessionRecord, Tier, resample, value,
+    PackItem, PictureCompared, PictureKind, Plan, Point, Sheet, Tier, resample, value,
 };
 use openpaint_practice_app::{
     DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER, Pen, PracticeIntent, PracticeLog, PracticePens,
-    PracticeProjection, SheetView, sheet_of,
+    PracticeProjection, SheetView,
 };
 use support::OnSheet;
 
@@ -66,10 +66,11 @@ fn opened(kind: Kind) -> Session {
         exercises: vec![exercise],
         warm_up: 0,
     };
-    let record = SessionRecord::begun(1, (4, 1), (5, 0), plan);
-    let [width, height] = sheet_of(&record, &packs).size;
+    let record = Sheet::session(1, 4, 0, plan);
+    let record = record.framed(&packs);
+    let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled(), 1));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -226,8 +227,8 @@ fn lines_drawn_after_a_divisions_compare_are_part_of_it_and_the_first_numbers_ke
     assert_eq!(check.rows[0].lines, 6);
     assert!(check.too_many_main());
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!(result.compares, 2);
+    let result = record.first(0).expect("compared");
+    assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(result.metrics, first, "the first Compare's numbers kept");
 }
 
@@ -299,7 +300,7 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
     practise(&mut session, PracticeIntent::Shown(0.85));
     assert!((picture_shown(&session) - 0.85).abs() < 1e-6);
     let record = session.sheet().save_request().expect("compared");
-    let metrics = &record.result(0).expect("compared").metrics;
+    let metrics = &record.first(0).expect("compared").metrics;
     for level in [Level::Main, Level::Second] {
         assert_eq!(value(metrics, Metric::DivisionLines(level)), Some(1.0));
     }
@@ -319,13 +320,21 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
 fn stage_four_holds_a_division_and_a_whole_copy_with_the_composition_pack() {
     let bare = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let (record, _) = bare.begin((4, None), 0x5EED_0095, NOW);
-    let families: Vec<Family> = record.exercises.iter().map(|e| e.kind.family()).collect();
+    let families: Vec<Family> = record
+        .exercises()
+        .map(|l| &l.exercise)
+        .map(|e| e.kind.family())
+        .collect();
     assert_eq!(families[3], Family::Cylinder, "S94's mix");
     assert!(!bare.today().compositions);
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![compositions()]);
     assert!(log.today().compositions);
     let (record, _) = log.begin((4, None), 0x5EED_0095, NOW);
-    let families: Vec<Family> = record.exercises.iter().map(|e| e.kind.family()).collect();
+    let families: Vec<Family> = record
+        .exercises()
+        .map(|l| &l.exercise)
+        .map(|e| e.kind.family())
+        .collect();
     assert_eq!(
         families,
         [
@@ -336,7 +345,7 @@ fn stage_four_holds_a_division_and_a_whole_copy_with_the_composition_pack() {
             Family::WholeCopy
         ]
     );
-    let pictures: Vec<&ItemRef> = (record.exercises[3..].iter())
+    let pictures: Vec<&ItemRef> = (record.exercises().skip(3).map(|l| &l.exercise))
         .filter_map(|e| e.picture.as_ref())
         .collect();
     assert_eq!(pictures.len(), 2);
@@ -344,7 +353,7 @@ fn stage_four_holds_a_division_and_a_whole_copy_with_the_composition_pack() {
     let (drill, _) = log
         .begin_drill(Family::Division, 7, NOW)
         .expect("a division drill");
-    assert_eq!(drill.exercises.len(), 3);
+    assert_eq!(drill.exercises().count(), 3);
     assert!(bare.begin_drill(Family::WholeCopy, 7, NOW).is_none());
     let pack = (log.today().packs.first().cloned()).expect("the pack");
     assert_eq!((pack.pictures, pack.outlines), (2, None));

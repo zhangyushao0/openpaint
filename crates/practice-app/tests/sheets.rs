@@ -15,8 +15,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    ColourCompared, Family, Figure, Layout, Metric, Metrics, Original, Pair, SessionRecord, Tally,
-    value,
+    ColourCompared, Family, Figure, Judge, Layout, Metric, Metrics, Original, Outcome, Pair, Sheet,
+    Tally, stage_one, value,
 };
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, PracticeProjection, SheetView,
@@ -42,11 +42,11 @@ fn pens() -> PracticePens {
 }
 
 fn practising() -> Session {
-    let record = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
-    let [width, height] = Layout::of(&vec![None; record.exercises.len()]).size;
+    let record = Sheet::session(1, 1, 1_791_201_600, stage_one(0x5EED_0045, &[]));
+    let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
     let opening = (record, Vec::new(), view, Tally::default());
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
 }
@@ -193,12 +193,10 @@ fn a_line_is_compared_in_place_and_aligned_and_its_pen_turns_blue() {
     let (mut session, pair, line, copy) = copied();
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!(
-        (result.compares, result.metrics.len()),
-        (1, 0),
-        "no numbers for lines"
-    );
+    let result = record.first(0).expect("compared");
+    let (compares, judged) = (record.laid(0)).map_or((0, None), |l| (l.compares, l.result));
+    let kept = (compares, result.metrics.len(), judged);
+    assert_eq!(kept, (1, 0, None), "no numbers, judged by the eye");
     assert!(result.corrected_from.is_some(), "corrections marked");
     // In place: the original as it lies in its frame, moved into the copy's.
     let in_place = overlay(&session).expect("the overlay");
@@ -228,7 +226,7 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     practise(&mut session, PracticeIntent::Compare(true));
     practise(&mut session, PracticeIntent::Aligned(true));
     let record = session.sheet().save_request().expect("the record changed");
-    let first_correction = record.result(0).and_then(|r| r.corrected_from);
+    let first_correction = record.first(0).and_then(|r| r.corrected_from);
     // Drawing in the frame takes the comparison away and is a correction, in blue.
     draw(&mut session, &copy[..20]);
     assert!(overlay(&session).is_none(), "corrected by eye");
@@ -238,8 +236,8 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     assert!(record.is_none(), "a stroke changes no record");
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
-    let result = record.result(0).expect("compared");
-    assert_eq!(result.compares, 2);
+    let result = record.first(0).expect("compared");
+    assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(
         result.corrected_from, first_correction,
         "kept from the first"
@@ -330,9 +328,11 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
     }
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
-    let metrics = &record.result(10).expect("compared").metrics;
+    let metrics = &record.first(10).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::Corrections), Some(1.0));
     assert_eq!(value(metrics, Metric::FinalDelta), Some(0.0));
+    let judged = record.laid(10).and_then(|laid| laid.result);
+    assert_eq!(judged, Some((Outcome::Clean, Judge::App)), "clean");
     assert!(value(metrics, Metric::FirstDelta).expect("first") > 0.1);
     assert_eq!(
         session.sheet().pick(middle),
@@ -353,7 +353,7 @@ fn filled_again(session: &mut Session, metrics: &Metrics) {
     assert_eq!(taken, Some(true));
     practise(session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
-    assert_eq!(&record.result(10).expect("compared").metrics, metrics);
+    assert_eq!(&record.first(10).expect("compared").metrics, metrics);
     let projection = PracticeProjection::of(session);
     let compared = (projection.as_ref()).and_then(|p| p.compared.as_ref());
     let Some(ColourCompared { last, .. }) = compared.and_then(|c| c.downcast()) else {
@@ -388,7 +388,7 @@ fn finished(session: &mut Session, at: [f32; 2]) {
         session
             .sheet()
             .save_request()
-            .and_then(|r| r.finished)
+            .and_then(|r| r.finished())
             .is_some()
     );
     practise(session, PracticeIntent::OneMore);

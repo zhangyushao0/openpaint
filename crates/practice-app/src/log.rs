@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use openpaint_practice::{
     Before, Book, Family, ItemRef, Kind, PERSONAL, Pack, PackItem, PictureKind, Pictures, Random,
-    STAGE_SESSIONS, STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan,
+    STAGE_SESSIONS, STAGES_READY, Sheet, Tally, drill, kinds_of, local_day, met, number, plan,
     recent, scales_met, used,
 };
 
@@ -28,7 +28,7 @@ use openpaint_app::Title;
 /// clock, with the sheets read for it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PracticeLog {
-    sessions: Vec<SessionRecord>,
+    sheets: Vec<Sheet>,
     /// Each colour copy's sheet's title, by its project.
     titles: HashMap<u64, Title>,
     packs: Vec<Pack>,
@@ -47,14 +47,10 @@ pub struct PracticeLog {
 impl PracticeLog {
     /// The log of `sessions` (with the titles of the sheets `titles` names) and `packs`.
     #[must_use]
-    pub fn new(
-        mut sessions: Vec<SessionRecord>,
-        titles: Vec<(ProjectId, Title)>,
-        packs: Vec<Pack>,
-    ) -> Self {
-        sessions.sort_by_key(|session| session.id);
+    pub fn new(mut sheets: Vec<Sheet>, titles: Vec<(ProjectId, Title)>, packs: Vec<Pack>) -> Self {
+        sheets.sort_by_key(|sheet| sheet.id);
         let mut log = Self {
-            sessions,
+            sheets,
             titles: (titles.into_iter())
                 .map(|(id, title)| (id.get(), title))
                 .collect(),
@@ -66,8 +62,8 @@ impl PracticeLog {
     }
 
     /// The sessions, colour copies and drills left out.
-    fn sessions(&self) -> impl DoubleEndedIterator<Item = &SessionRecord> {
-        self.sessions.iter().filter(|s| s.is_session())
+    fn sessions(&self) -> impl DoubleEndedIterator<Item = &Sheet> {
+        self.sheets.iter().filter(|s| s.stage().is_some())
     }
 
     /// The stage practised: the last session's, 1 before any.
@@ -75,7 +71,7 @@ impl PracticeLog {
     pub fn stage(&self) -> u8 {
         self.sessions()
             .last()
-            .map_or(1, |s| s.stage.clamp(1, STAGES_READY))
+            .map_or(1, |s| s.stage().unwrap_or(1).clamp(1, STAGES_READY))
     }
 
     /// The Today card: the stage practised, its finished sessions, the open one, the next stage
@@ -84,11 +80,11 @@ impl PracticeLog {
     pub fn today(&self) -> TodayProjection {
         let stage = self.stage();
         let done = (self.sessions())
-            .filter(|s| s.stage == stage && s.finished.is_some())
+            .filter(|s| s.stage() == Some(stage) && s.finished().is_some())
             .count();
         let done = u32::try_from(done).unwrap_or(u32::MAX);
         let open = (self.sessions().rev())
-            .find(|s| s.finished.is_none() && s.canvas != 0)
+            .find(|s| s.finished().is_none() && s.canvas != 0)
             .map(|s| ProjectId::new(s.canvas));
         let any = |held: fn(&PackItem) -> bool| self.packs.iter().any(|p| p.items.iter().any(held));
         TodayProjection {
@@ -117,10 +113,10 @@ impl PracticeLog {
     /// Each ready stage's kinds: in ink once compared anywhere, with the newest drill of it left
     /// unfinished, which its tile continues.
     fn drills(&self) -> Vec<DrillShown> {
-        let met: Vec<Family> = (met(&self.sessions).iter()).map(|k| k.family()).collect();
+        let met: Vec<Family> = (met(&self.sheets).iter()).map(|k| k.family()).collect();
         let open = |family: Family| {
-            (self.sessions.iter().rev())
-                .find(|s| s.drilled() == Some(family) && s.finished.is_none() && s.canvas != 0)
+            (self.sheets.iter().rev())
+                .find(|s| s.drilled() == Some(family) && s.finished().is_none() && s.canvas != 0)
                 .map(|s| ProjectId::new(s.canvas))
         };
         (1..=STAGES_READY)
@@ -138,18 +134,13 @@ impl PracticeLog {
     /// its shapes' pictures picked as a session's are (others than those shown before while there
     /// are), with its sheet's title; none for a kind no stage drills, or shapes without a picture.
     #[must_use]
-    pub fn begin_drill(
-        &self,
-        family: Family,
-        seed: u64,
-        now: u64,
-    ) -> Option<(SessionRecord, Title)> {
-        let number = (self.sessions.iter())
+    pub fn begin_drill(&self, family: Family, seed: u64, now: u64) -> Option<(Sheet, Title)> {
+        let number = (self.sheets.iter())
             .filter(|s| s.drilled() == Some(family))
             .count();
         let number = u32::try_from(number + 1).unwrap_or(u32::MAX);
         let plan = self.planned(&[], |before| drill(family, number, seed, before))?;
-        let record = SessionRecord::drill(self.next_id(), number, (seed, now), plan);
+        let record = Sheet::drill(self.next_id(), now, plan).framed(&self.packs);
         let title = Title::new(&format!("Drill {number}")).unwrap_or_else(|_| Title::untitled());
         Some((record, title))
     }
@@ -173,21 +164,22 @@ impl PracticeLog {
     /// What every record but `id` adds up to: what a session's seals are earned beside.
     #[must_use]
     pub fn tally_without(&self, id: u64) -> Tally {
-        Tally::of(self.sessions.iter().filter(|s| s.id != id))
+        Tally::of(self.sheets.iter().filter(|s| s.id != id))
     }
 
     /// The book made again from the records.
     fn booked(&mut self) {
-        self.book = Arc::new(Book::of(&self.sessions, self.stage(), self.offset));
-        self.named = (self.sessions.iter())
+        self.book = Arc::new(Book::of(&self.sheets, self.stage(), self.offset));
+        self.named = (self.sheets.iter())
             .filter(|s| s.canvas != 0)
             .map(|s| BookRecord {
                 id: s.id,
                 sheet: ProjectId::new(s.canvas),
-                number: s.number,
+                number: number(&self.sheets, s),
                 drill: s.drilled(),
-                copy: (s.is_project()).then(|| {
-                    (self.titles.get(&s.canvas).cloned()).unwrap_or_else(|| copy_title(s.number))
+                copy: (s.is_copy()).then(|| {
+                    (self.titles.get(&s.canvas).cloned())
+                        .unwrap_or_else(|| copy_title(number(&self.sheets, s)))
                 }),
             })
             .collect();
@@ -195,16 +187,16 @@ impl PracticeLog {
 
     /// The colour copies begun, newest first, as the options list them.
     fn copies(&self) -> Vec<CopyShown> {
-        (self.sessions.iter().rev())
-            .filter(|s| s.is_project() && s.canvas != 0)
+        (self.sheets.iter().rev())
+            .filter(|s| s.is_copy() && s.canvas != 0)
             .map(|copy| {
-                let item = copy.exercises.first().and_then(|e| e.picture.as_ref());
+                let item = copy.laid(0).and_then(|laid| laid.exercise.picture.as_ref());
                 let kept = item.filter(|item| self.packs.iter().any(|p| p.find(item).is_some()));
                 let name = (self.titles.get(&copy.canvas).cloned())
-                    .unwrap_or_else(|| copy_title(copy.number));
+                    .unwrap_or_else(|| copy_title(number(&self.sheets, copy)));
                 CopyShown {
                     sheet: ProjectId::new(copy.canvas),
-                    number: copy.number,
+                    number: number(&self.sheets, copy),
                     name,
                     picture: kept.cloned(),
                 }
@@ -218,58 +210,48 @@ impl PracticeLog {
     /// its shapes' pictures from the packs kept (others than those shown before while there
     /// are), with its sheet's title; it has no canvas until the store gives it one.
     #[must_use]
-    pub fn begin(
-        &self,
-        (stage, number): (u8, Option<u32>),
-        seed: u64,
-        now: u64,
-    ) -> (SessionRecord, Title) {
+    pub fn begin(&self, (stage, number): (u8, Option<u32>), seed: u64, now: u64) -> (Sheet, Title) {
         let stage = if (1..=STAGES_READY).contains(&stage) {
             stage
         } else {
             1
         };
         let id = self.next_id();
-        let next = self.sessions().filter(|s| s.stage == stage).count() + 1;
+        let next = self.sessions().filter(|s| s.stage() == Some(stage)).count() + 1;
         let number = number.unwrap_or_else(|| u32::try_from(next).unwrap_or(u32::MAX));
         let number = number.max(1);
         let title = Title::new(&format!("Practice {number}")).unwrap_or_else(|_| Title::untitled());
-        let kinds = met(&self.sessions);
+        let kinds = met(&self.sheets);
         let plan = self.planned(&kinds, |before| plan(stage, number, seed, before));
-        let record = SessionRecord::begun(id, (stage, number), (seed, now), plan);
+        let record = Sheet::session(id, stage, now, plan).framed(&self.packs);
         (record, title)
     }
 
     /// What `plan` makes of what the records tell (`Before`) with the kinds `met` (a drill's none:
     /// it has no warm-up): the pictures kept, used and lately shown, the scales met.
     fn planned<T>(&self, met: &[Kind], plan: impl FnOnce(&Before<'_>) -> T) -> T {
-        let (used, recent) = (used(&self.sessions), recent(&self.sessions));
+        let (used, recent) = (used(&self.sheets), recent(&self.sheets));
         let pictures = Pictures::of(&self.packs);
         plan(&Before {
             met,
             pictures: &pictures,
             used: &used,
             recent: &recent,
-            scales: scales_met(&self.sessions),
+            scales: scales_met(&self.sheets),
         })
     }
 
     /// A new colour copy of `picture` (the user chose it; none unless a pack kept holds it),
     /// seeded `seed`, begun at `now`, with its sheet's title.
     #[must_use]
-    pub fn begin_copy(
-        &self,
-        picture: &ItemRef,
-        seed: u64,
-        now: u64,
-    ) -> Option<(SessionRecord, Title)> {
+    pub fn begin_copy(&self, picture: &ItemRef, seed: u64, now: u64) -> Option<(Sheet, Title)> {
         let found = self.packs.iter().find_map(|pack| pack.find(picture))?;
         if found.kind != PictureKind::Shape {
             return None;
         }
-        let number = self.sessions.iter().filter(|s| s.is_project()).count() + 1;
+        let number = self.sheets.iter().filter(|s| s.is_copy()).count() + 1;
         let number = u32::try_from(number).unwrap_or(u32::MAX);
-        let record = SessionRecord::project(self.next_id(), number, (seed, now), picture.clone());
+        let record = Sheet::copy(self.next_id(), (seed, now), picture.clone()).framed(&self.packs);
         Some((record, copy_title(number)))
     }
 
@@ -325,47 +307,53 @@ impl PracticeLog {
     /// The id the next session or copy begun takes.
     #[must_use]
     pub fn next_id(&self) -> u64 {
-        self.sessions.last().map_or(1, |s| s.id + 1)
+        self.sheets.last().map_or(1, |s| s.id + 1)
     }
 
     /// Session (or copy) `id`, if the log holds it.
     #[must_use]
-    pub fn session(&self, id: u64) -> Option<&SessionRecord> {
-        self.sessions.iter().find(|s| s.id == id)
+    pub fn session(&self, id: u64) -> Option<&Sheet> {
+        self.sheets.iter().find(|s| s.id == id)
+    }
+
+    /// `sheet`'s number among the sheets of its kind the log holds (`openpaint_practice::number`).
+    #[must_use]
+    pub fn number(&self, sheet: &Sheet) -> u32 {
+        number(&self.sheets, sheet)
     }
 
     /// The session or copy whose sheet is project `id`.
     #[must_use]
-    pub fn of_canvas(&self, id: ProjectId) -> Option<&SessionRecord> {
-        self.sessions.iter().find(|s| s.canvas == id.get())
+    pub fn of_canvas(&self, id: ProjectId) -> Option<&Sheet> {
+        self.sheets.iter().find(|s| s.canvas == id.get())
     }
 
     /// What `session`'s summary sets it beside: the finished sessions of its stage before it, or
     /// for a drill the finished drills of its kind before it (never a session).
     #[must_use]
-    pub fn before(&self, session: &SessionRecord) -> Vec<SessionRecord> {
-        let alike = |s: &SessionRecord| match session.drilled() {
+    pub fn before(&self, session: &Sheet) -> Vec<Sheet> {
+        let alike = |s: &Sheet| match session.drilled() {
             Some(family) => s.drilled() == Some(family),
-            None => s.is_session() && s.stage == session.stage,
+            None => s.stage().is_some() && s.stage() == session.stage(),
         };
-        (self.sessions.iter())
-            .filter(|s| alike(s) && s.id < session.id && s.finished.is_some())
+        (self.sheets.iter())
+            .filter(|s| alike(s) && s.id < session.id && s.finished().is_some())
             .cloned()
             .collect()
     }
 
     /// Keeps `session`, new or newer; its sheet is read again when the book asks.
-    pub fn keep(&mut self, session: SessionRecord) {
+    pub fn keep(&mut self, session: Sheet) {
         if self.read.contains_key(&session.id) {
             let mut read = (*self.read).clone();
             read.remove(&session.id);
             self.read = Arc::new(read);
         }
-        match self.sessions.iter_mut().find(|s| s.id == session.id) {
+        match self.sheets.iter_mut().find(|s| s.id == session.id) {
             Some(kept) => *kept = session,
             None => {
-                self.sessions.push(session);
-                self.sessions.sort_by_key(|s| s.id);
+                self.sheets.push(session);
+                self.sheets.sort_by_key(|s| s.id);
                 self.shown();
             }
         }
@@ -383,14 +371,14 @@ impl PracticeLog {
         if let Some(canvas) = self.session(id).map(|session| session.canvas) {
             self.titles.remove(&canvas);
         }
-        self.sessions.retain(|s| s.id != id);
+        self.sheets.retain(|s| s.id != id);
         self.shown();
         self.booked();
     }
 
     /// The pictures as the options show them, made again.
     fn shown(&mut self) {
-        self.pictures = pictures_shown(&self.packs, &self.sessions);
+        self.pictures = pictures_shown(&self.packs, &self.sheets);
     }
 }
 

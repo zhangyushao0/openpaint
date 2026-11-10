@@ -133,10 +133,12 @@ pub use records::book::{Book, Day, LineShown, Road};
 pub use records::givens::{Given, Givens};
 pub use records::metric::{Metric, Metrics, value};
 pub use records::record::{
-    AREAS_ROWS, COLOUR_ROWS, DRILL, ExerciseResult, KindSummary, PROJECT, RECENT, SCALE_ROWS,
-    SessionRecord, met, recent, scales_met, summary, used,
+    AREAS_ROWS, COLOUR_ROWS, KindSummary, RECENT, SCALE_ROWS, met, recent, scales_met, summary,
+    used,
 };
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
+pub use records::settled::settled;
+pub use records::sheet::{First, Judge, Laid, Lesson, Picked, Purpose, Sheet, number};
 pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds};
 pub use sessions::drill::{drill, kinds_of, stage_needs};
 pub use sessions::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, STUDY_SIDE};

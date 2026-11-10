@@ -9,10 +9,10 @@
 //! other session is reached; `copy`: a colour copy of a pack's picture; `drill <kind>`: a drill of
 //! the kind its tile starts, named in a-z and '-' as `line`, `centre` or `next-face`, the app
 //! refusing another name with the list), beside any open one, and keeps its name
-//! (id, sheet, seed, start) in `artifacts/device/practice-test`; it refuses while a name is kept.
+//! (id, sheet, start) in `artifacts/device/practice-test`; it refuses while a name is kept.
 //! `end` goes to the gallery, has the app remove the session of the name kept (its record and
 //! sheet) and forgets the name; a name the app holds no session of (a library restored since)
-//! is forgotten and nothing removed. The app matches all four parts, so no other session can go.
+//! is forgotten and nothing removed. The app matches all three parts, so no other session can go.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -120,15 +120,12 @@ fn end(adb: &Adb, kept: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Whether `name` is a test session's name as the app writes it, `id:sheet:seed:started`: only
-/// digits, small hex letters and three colons reach the device's shell.
+/// Whether `name` is a test session's name as the app writes it, `id:sheet:started`: only digits
+/// and two colons reach the device's shell.
 fn named(name: &str) -> bool {
     let parts: Vec<&str> = name.split(':').collect();
     let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
-    let hex = |part: &str| {
-        !part.is_empty() && part.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-    };
-    matches!(parts[..], [id, sheet, seed, started] if digits(id) && digits(sheet) && hex(seed) && digits(started))
+    matches!(parts[..], [id, sheet, started] if digits(id) && digits(sheet) && digits(started))
 }
 
 #[cfg(test)]
@@ -137,15 +134,8 @@ mod tests {
 
     #[test]
     fn only_a_test_sessions_name_reaches_the_device() {
-        assert!(named("13:41:5eed004500000079:1791290000"));
-        for bad in [
-            "",
-            "13:41:5eed",
-            "13:41:5EED:1",
-            "13:41:5eed:1;rm",
-            "a:41:5:1",
-            "1:2:3:4:5",
-        ] {
+        assert!(named("13:41:1791290000"));
+        for bad in ["", "13:41", "13:41:5eed", "13:41:1;rm", "a:41:1", "1:2:3:4"] {
             assert!(!named(bad), "{bad}");
         }
     }

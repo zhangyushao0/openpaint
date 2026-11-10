@@ -8,8 +8,8 @@
 //! its warm-up from the kinds met), or the stage's session of a number given (so a stage's every
 //! other session, stage 2's free boxes, is reached on the tablet), started from the gallery even
 //! while another is open. It is
-//! named by its id, its sheet, its seed and when it started (`PracticeTest`), which the chore
-//! keeps on the dev machine between the two calls: `end` removes the session holding all four
+//! named by its id, its sheet and when it started (`PracticeTest`), which the chore
+//! keeps on the dev machine between the two calls: `end` removes the session holding all three
 //! and nothing else, also after the app restarted, and a name another session could hold (a
 //! library restored since) matches none.
 
@@ -17,7 +17,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use openpaint_app::ProjectId;
-use openpaint_practice::{Family, SessionRecord};
+use openpaint_practice::{Family, Sheet};
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
@@ -39,40 +39,33 @@ fn drilled() -> Vec<Family> {
         .collect()
 }
 
-/// A test session's name: its id, its sheet's project, its seed and when it started (seconds
-/// since 1970 UTC). Written `id:sheet:seed:started`, the seed in hex.
+/// A test session's name: its id, its sheet's project and when it started (seconds since
+/// 1970 UTC). Written `id:sheet:started`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PracticeTest {
     pub id: u64,
     pub sheet: u64,
-    pub seed: u64,
     pub started: u64,
 }
 
 impl PracticeTest {
-    fn of(session: &SessionRecord) -> Self {
+    fn of(session: &Sheet) -> Self {
         Self {
             id: session.id,
             sheet: session.canvas,
-            seed: session.seed,
             started: session.started,
         }
     }
 
-    fn names(&self, session: &SessionRecord) -> bool {
+    fn names(&self, session: &Sheet) -> bool {
         *self == Self::of(session) && session.canvas != 0
     }
 }
 
 impl fmt::Display for PracticeTest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self {
-            id,
-            sheet,
-            seed,
-            started,
-        } = self;
-        write!(f, "{id}:{sheet}:{seed:016x}:{started}")
+        let Self { id, sheet, started } = self;
+        write!(f, "{id}:{sheet}:{started}")
     }
 }
 
@@ -80,17 +73,16 @@ impl FromStr for PracticeTest {
     type Err = RuntimeError;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        let bad = RuntimeError::NotNow("a test session written id:sheet:seed:started");
+        let bad = RuntimeError::NotNow("a test session written id:sheet:started");
         let parts: Vec<&str> = text.split(':').collect();
-        let [id, sheet, seed, started] = parts[..] else {
+        let [id, sheet, started] = parts[..] else {
             return Err(bad);
         };
-        let number = |part: &str, radix| u64::from_str_radix(part, radix).map_err(|_| bad.clone());
+        let number = |part: &str| part.parse::<u64>().map_err(|_| bad.clone());
         Ok(Self {
-            id: number(id, 10)?,
-            sheet: number(sheet, 10)?,
-            seed: number(seed, 16)?,
-            started: number(started, 10)?,
+            id: number(id)?,
+            sheet: number(sheet)?,
+            started: number(started)?,
         })
     }
 }
@@ -215,13 +207,12 @@ mod tests {
         let test = PracticeTest {
             id: 13,
             sheet: 41,
-            seed: 0x5EED_0045_0000_0079,
             started: 1_791_290_000,
         };
         let written = test.to_string();
-        assert_eq!(written, "13:41:5eed004500000079:1791290000");
+        assert_eq!(written, "13:41:1791290000");
         assert_eq!(written.parse::<PracticeTest>(), Ok(test));
-        for bad in ["", "13:41:5eed", "13:41:zz:1", "13:41:1:2:3", "-1:41:1:2"] {
+        for bad in ["", "13:41", "13:41:zz", "13:41:1:2", "-1:41:1"] {
             assert!(bad.parse::<PracticeTest>().is_err(), "{bad}");
         }
     }

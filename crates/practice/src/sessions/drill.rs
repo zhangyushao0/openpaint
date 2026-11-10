@@ -2,8 +2,8 @@
 //! drills one skill at a time, week by week; the author's 专项训练, 2026-10-28). A drill is a sheet
 //! of that kind only, about ten minutes and no warm-up; what it holds is its kind's description's
 //! (`Described::drill`, each kind's variants in turn by the drill's number among its kind's
-//! drills). Its record is one of stage `DRILL` (`record.rs`): it counts in no session, road or
-//! stage.
+//! drills). Its sheet's lesson is one of a kind chosen (`Picked::Chosen`, `sheet.rs`): it counts in
+//! no session, road or stage.
 
 use crate::kinds::{Needs, Turn};
 use crate::packs::pack::{ItemRef, Tier};

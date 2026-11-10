@@ -6,9 +6,9 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Before, Book, DRILL, ExerciseResult, Family, ItemRef, Kind, Metric, Pack, PackItem,
-    PictureKind, Pictures, STAGES, STAGES_READY, Seal, SessionRecord, Span, Tally, Tier,
-    ValueMasses, drill, kinds_of, met, sealed,
+    Areas, Before, Book, Family, First, ItemRef, Kind, Metric, Pack, PackItem, Picked, PictureKind,
+    Pictures, STAGES, STAGES_READY, Seal, Sheet, Span, Tally, Tier, ValueMasses, drill, kinds_of,
+    met, sealed, stage_one,
 };
 
 /// 2026-10-05 12:00 UTC, a Monday.
@@ -253,22 +253,18 @@ fn a_combinations_drill_takes_crops_not_shown_before_and_none_without_them() {
 }
 
 /// Drill `id` of `family`, its first exercise compared at `at`, practised from `at` for `minutes`.
-fn drilled(id: u64, family: Family, at: u64, minutes: u64) -> SessionRecord {
+fn drilled(id: u64, family: Family, at: u64, minutes: u64) -> Sheet {
     let none = pictures(&[], None);
     let plan = drill(family, 1, id, &before(&none, &[])).expect("a drill");
-    let mut record = SessionRecord::drill(id, 1, (id, at), plan);
+    let mut record = Sheet::drill(id, at, plan);
     record.canvas = 40 + id;
-    record.results.push(ExerciseResult::first(
-        0,
-        at + 60,
-        9,
-        vec![(Metric::FirstDelta, 0.08)],
-    ));
-    record.time = vec![Span {
+    let first = First::of(at + 60, 9, vec![(Metric::FirstDelta, 0.08)]);
+    record.laid_mut(0).expect("its first").compared(first);
+    record.spans = vec![Span {
         from: at,
         to: at + minutes * 60,
     }];
-    record.finished = Some(at + minutes * 60);
+    record.lessons[0].finished = Some(at + minutes * 60);
     record
 }
 
@@ -276,10 +272,14 @@ fn drilled(id: u64, family: Family, at: u64, minutes: u64) -> SessionRecord {
 fn a_drill_counts_its_time_kinds_and_lines_never_as_a_session() {
     let line = drilled(1, Family::Line, NOON, 10);
     let colour = drilled(2, Family::Colour, NOON + 3600, 7);
-    assert!(line.is_drill() && !line.is_session() && !line.is_project());
-    assert_eq!((line.stage, line.drilled()), (DRILL, Some(Family::Line)));
-    let session = SessionRecord::stage_one(3, 1, 9, NOON, &[]);
-    assert!(session.is_session() && session.drilled().is_none());
+    assert!(line.stage().is_none() && !line.is_copy());
+    let picked = line.lesson().map(|lesson| lesson.picked);
+    assert_eq!(
+        (picked, line.drilled()),
+        (Some(Picked::Chosen), Some(Family::Line))
+    );
+    let session = Sheet::session(3, 1, NOON, stage_one(9, &[]));
+    assert!(session.stage().is_some() && session.drilled().is_none());
     // The kinds compared in a drill are met: a later warm-up draws on them.
     let records = [line.clone(), colour.clone()];
     let families: Vec<Family> = met(&records).iter().map(|kind| kind.family()).collect();
