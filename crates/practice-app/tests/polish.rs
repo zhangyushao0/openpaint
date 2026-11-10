@@ -17,9 +17,7 @@ use openpaint_practice::{
     Arrangement, Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, Plan,
     Sheet, Tier,
 };
-use openpaint_practice_app::{
-    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
-};
+use openpaint_practice_app::{PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -32,7 +30,7 @@ const NOW: u64 = 1_791_400_000;
 /// The sheet of `record` with `packs` on a canvas of `size`, opened.
 fn opened(record: Sheet, packs: &[Pack], size: [u32; 2]) -> Session {
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
-    let view = SheetView::of(&record, packs, (size, &Title::untitled(), 1));
+    let view = support::view(&record, packs, size);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush =

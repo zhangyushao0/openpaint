@@ -8,15 +8,15 @@ mod support;
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Areas, Exercise, Family, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack,
-    PackItem, PictureKind, Plan, Sheet, Tendency, Tier, value,
+    PackItem, PictureKind, Plan, Sheet, SheetPicture, Tendency, Tier, value,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, SheetView,
+    PracticeProjection,
 };
 use support::OnSheet;
 
@@ -79,7 +79,7 @@ fn opened(packs: &[Pack]) -> Session {
     let record = record.framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, packs, [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush = StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK);
@@ -134,7 +134,13 @@ fn a_key_shift_shows_its_tendency_and_its_original_is_never_picked() {
             _ => None,
         });
     assert_eq!(tendency, Some(BLUE.colour()), "printed beside the copy");
-    assert!(practice.sheet.areas(0).is_some(), "the crop's areas");
+    assert!(
+        practice.sheet.pictures[0]
+            .as_deref()
+            .and_then(SheetPicture::areas_in_frame)
+            .is_some(),
+        "the crop's areas"
+    );
     let pair = practice.sheet.pairs[0];
     let on = pair.original.to_canvas([0.1, 0.3]).map(|v| v as f32);
     assert_eq!(session.sheet().pick(on), PracticePick::Refused);

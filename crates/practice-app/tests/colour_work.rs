@@ -9,7 +9,7 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
@@ -20,7 +20,7 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{
     Pen, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, Probe, SheetView,
+    PracticeProjection, Probe,
 };
 use support::OnSheet;
 
@@ -45,7 +45,7 @@ fn opened(record: Sheet, packs: &[Pack]) -> Session {
     let record = record.framed(packs);
     let [width, height] = Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, packs, [width, height]);
     let tools = (brush(Color::rgb(0.2, 0.4, 0.6).expect("colour")), pens());
     let opening = (record, Vec::new(), view, Tally::default());
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
@@ -138,7 +138,7 @@ fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
         "its picture drawn once"
     );
     let pair = practice.sheet.pairs[0];
-    let Original::Areas(generated) = practice.sheet.originals[0].clone() else {
+    let Some(Original::Areas(generated)) = practice.original.as_deref().cloned() else {
         panic!("a colour combination")
     };
     let tone = colour(generated.areas.colours[0]);
@@ -237,7 +237,7 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
     assert_eq!(practice.family, Some(Family::Scale));
     assert_eq!(practice.cell, Some(1), "the first cell between the ends");
     let pair = practice.sheet.pairs[1];
-    let Original::Scale(scale) = practice.sheet.originals[1] else {
+    let Original::Scale(scale) = *practice.original.as_deref().expect("in hand") else {
         panic!("a value scale")
     };
     let middle = |cell: usize| {

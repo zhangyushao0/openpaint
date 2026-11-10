@@ -28,8 +28,8 @@ use crate::storage::{Job, Storage};
 
 pub(crate) use compare::CompareWorker;
 pub(crate) use jobs::{
-    Next, PracticeDone, PracticeJob, copy_job, drill_job, gallery_list, run, seed, start_job,
-    stopped,
+    Next, PracticeDone, PracticeJob, copy_job, drill_job, gallery_list, run, seed, sheet_printed,
+    start_job, stopped,
 };
 pub(crate) use options::{chosen, dispatch_options, submit_options};
 

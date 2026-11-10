@@ -228,7 +228,7 @@ impl Runtime {
         let practice = self.practice();
         let shown = (practice.as_ref()).and_then(|p| {
             let index = p.current?;
-            let group = p.sheet.originals[index].lines()?.to_vec();
+            let group = p.original.as_deref()?.lines()?.to_vec();
             Some((group, p.sheet.pairs[index].copy))
         });
         let (group, frame) = shown.ok_or(RuntimeError::NotNow("combined lines shown"))?;

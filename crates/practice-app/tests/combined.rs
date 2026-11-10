@@ -8,14 +8,12 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{Family, Figure, First, Layout, LinePen, Original, Sheet};
-use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
-};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -52,7 +50,7 @@ fn after_first(finished: bool) -> Session {
     let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     openpaint_practice_app::open_sheet(
         sheet,
         (brush, pens()),
@@ -171,7 +169,7 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
     }
     let practice = PracticeProjection::of(&session).expect("a practice sheet");
     let pair = practice.sheet.pairs[10];
-    let Original::Lines(lines) = practice.sheet.originals[10].clone() else {
+    let Original::Lines(lines) = (*practice.original.as_deref().expect("in hand")).clone() else {
         panic!("combined lines")
     };
     assert!(lines.len() >= 2);

@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use openpaint_app::{ProjectId, SaveId, Thumbnail};
 use openpaint_core::Artwork;
+use openpaint_practice::Given;
 use openpaint_render::{CanvasTarget, Core};
 use openpaint_store::{CacheKey, Cached};
 
@@ -27,6 +28,8 @@ pub(crate) struct Held {
     pub(crate) cached: Option<Cached>,
     /// Its gallery picture, shown enlarged when no cache fits.
     pub(crate) picture: Option<Thumbnail>,
+    /// A practice sheet's exercises' givens, as stored (S120d); none for an artwork.
+    pub(crate) printed: Option<Vec<Given>>,
 }
 
 /// The canvas's part in the display cache.

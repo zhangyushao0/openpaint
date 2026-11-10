@@ -9,7 +9,7 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, ProjectId, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Family, First, Kind, Layout, Picked, STAGES_READY, Sheet, Tally, Trick, kinds_of,
+    Family, First, Given, Kind, Layout, Picked, STAGES_READY, Sheet, Tally, Trick, kinds_of,
 };
 use openpaint_practice_app::{
     DrillShown, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, PracticeSheet,
@@ -122,7 +122,12 @@ fn practising(record: Sheet, before: Vec<Sheet>) -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = SheetView::of(
+        &record,
+        &Given::of_sheet(&record, &[]),
+        &[],
+        ([width, height], &Title::untitled(), 1),
+    );
     let opening = (record, before, view, Tally::default());
     openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }

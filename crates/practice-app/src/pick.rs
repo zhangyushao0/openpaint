@@ -5,10 +5,13 @@
 //! compares the original and the copy there (`Probe`): the runtime reads the copy's pixel and
 //! hands it back (`probed`), a whole copy's bare paper comparing nothing. Value masses compare
 //! greys, not colours: nothing. A key shift's original is never picked, its copy as the canvas
-//! (S107).
+//! (S107). Over an exercise before the one in hand its original is made again by its generator
+//! for the pick, the one place a sheet still remakes an exercise not in hand.
+
+use std::sync::Arc;
 
 use openpaint_core::Color;
-use openpaint_practice::{Picks, Point, Rgb8};
+use openpaint_practice::{Original, Picks, Point, Rgb8};
 
 use super::PracticeSheet;
 use crate::copy::PAPER;
@@ -87,13 +90,14 @@ impl PracticeSheet {
             pair.copy
         };
         let at = frame.to_frame(point);
-        let given = self.sheet.originals[index].colour_at(at);
+        let given = |sheet: &Self| sheet.made(index).and_then(|made| made.colour_at(at));
         let original = match self.picks(index) {
-            Picks::Swatch if on_original => self.sheet.originals[index].swatch(),
+            Picks::Swatch if on_original => self.made(index).and_then(|made| made.swatch()),
             Picks::Ends if !on_original => {
-                return (given.and_then(colour)).map_or(PracticePick::Canvas, PracticePick::Colour);
+                let end = given(self).and_then(colour);
+                return end.map_or(PracticePick::Canvas, PracticePick::Colour);
             }
-            Picks::Probed | Picks::Blocks => given.or_else(|| self.picture_colour(index, at)),
+            Picks::Probed | Picks::Blocks => given(self).or_else(|| self.picture_colour(index, at)),
             _ => None,
         };
         let Some((rgb, shown)) = original.and_then(|rgb| Some((rgb, colour(rgb)?))) else {
@@ -111,6 +115,15 @@ impl PracticeSheet {
             PracticePick::Colour(shown)
         } else {
             PracticePick::Canvas
+        }
+    }
+
+    /// Exercise `index`'s original: the one in hand's, or an earlier one's made again by its
+    /// generator for the pick (a known limit: not read from what the sheet printed).
+    fn made(&self, index: usize) -> Option<Arc<Original>> {
+        match self.original(index) {
+            Some(original) => Some(Arc::clone(original)),
+            None => Some(Arc::new(self.record.laid(index)?.exercise.original())),
         }
     }
 

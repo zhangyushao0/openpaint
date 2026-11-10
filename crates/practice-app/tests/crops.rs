@@ -8,15 +8,14 @@ mod support;
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Areas, AreasCompared, Exercise, Family, Figure, ItemRef, Kind, Pack, PackItem, PictureKind,
-    Plan, Sheet, Tier,
+    Plan, Sheet, SheetPicture, Tier,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, PracticeProjection,
-    SheetView,
 };
 use support::OnSheet;
 
@@ -79,7 +78,7 @@ fn opened(packs: &[Pack]) -> Session {
     let record = record.framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, packs, [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush = StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK);
@@ -145,7 +144,10 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
     let pair = practice.sheet.pairs[0];
     let height = 400.0 * 400.0 / 600.0;
     assert!((pair.copy.size[1] - height).abs() < 1e-9 && pair.copy.size[0] == 400.0);
-    let (areas, extent) = practice.sheet.areas(0).expect("its areas");
+    let (areas, extent) = practice.sheet.pictures[0]
+        .as_deref()
+        .and_then(SheetPicture::areas_in_frame)
+        .expect("its areas");
     assert_eq!((areas.count(), areas.weak_pairs().len()), (3, 1));
     assert!((extent[1] - 2.0 / 3.0).abs() < 1e-9);
     assert!(
@@ -200,7 +202,12 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
 fn a_removed_crop_shows_no_areas_and_compares_nothing() {
     let mut session = opened(&[]);
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert!(practice.sheet.areas(0).is_none());
+    assert!(
+        practice.sheet.pictures[0]
+            .as_deref()
+            .and_then(SheetPicture::areas_in_frame)
+            .is_none()
+    );
     practise(&mut session, PracticeIntent::Fill(Color::BLACK));
     assert!(session.practise(PracticeIntent::Compare(true), 1).is_err());
 }

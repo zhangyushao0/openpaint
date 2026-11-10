@@ -3,7 +3,8 @@
 //! each change on its sheet; a colour copy renamed (its sheet's title) or removed with its sheet
 //! (S83), and a test session or copy removed so (`test.rs`); a pack imported, a picture of the
 //! user's own added (`files.rs`), removed or moved to another tier in their pack; a picture read
-//! for the screen. And the job a new one starts with: the next
+//! for the screen; what a sheet's exercises printed, read when it opens and for the book (S120d).
+//! And the job a new one starts with: the next
 //! session in the app's practice log, a drill of the kind chosen (S91), or a colour copy of the
 //! picture chosen, seeded from the strokes' seed source (fixed in the harness), its sheet the size
 //! its layout asks. And the gallery's list, which leaves the practice sheets out (D112).
@@ -12,9 +13,9 @@ use std::collections::HashSet;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{Family, Givens, ItemRef, Layout, Pack, Sheet, Tier};
+use openpaint_practice::{Family, Given, Givens, ItemRef, Layout, Pack, Sheet, Tier};
 use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
-use openpaint_practice_store::{Packs, remove, save, sheets, start};
+use openpaint_practice_store::{Packs, printed, remove, save, sheets, start};
 
 use super::files;
 use crate::error::RuntimeError;
@@ -28,8 +29,9 @@ pub(crate) enum PracticeJob {
         sheet: Artwork,
         title: Title,
         session: Sheet,
-        /// What its lesson prints, kept beside it once (S120).
+        /// What its lesson prints, kept beside it once (S120), and each exercise's of it in order.
         givens: Givens,
+        printed: Vec<Given>,
     },
     /// A session's record changed.
     Save(Sheet),
@@ -51,12 +53,13 @@ pub(crate) enum PracticeJob {
 }
 
 pub(crate) enum PracticeDone {
-    /// The session started on project `id`; its record names it.
+    /// The session started on project `id`; its record names it; what its exercises print.
     Started {
         sheet: Artwork,
         title: Title,
         id: ProjectId,
         session: Sheet,
+        printed: Vec<Given>,
     },
     Saved(Result<(), PortError>),
     /// The session could not start; nothing was written.
@@ -90,6 +93,7 @@ pub(crate) fn run(
             title,
             session,
             givens,
+            printed,
         } => match start(store, (&sheet, &title), &session, &givens) {
             Ok(id) => {
                 *kept = Kept {
@@ -105,6 +109,7 @@ pub(crate) fn run(
                     title,
                     id,
                     session,
+                    printed,
                 }
             }
             Err(error) => {
@@ -144,12 +149,23 @@ pub(crate) fn run(
 }
 
 /// What the practice book shows of `records`' sheets, each read without writing anything, their
-/// frames as their exercises were laid.
+/// frames as their exercises were laid and their originals as they printed; a sheet whose givens
+/// cannot be read is refused (logged).
 fn read_sheets(store: &mut dyn ProjectStore, records: &[Sheet]) -> Vec<(u64, SheetRead)> {
     let mut read = Vec::with_capacity(records.len());
     for record in records {
+        let printed = match printed(store, record) {
+            Ok(printed) => printed,
+            Err(error) => {
+                log::error!(
+                    "the givens of practice sheet {} refused: {error}",
+                    record.id
+                );
+                continue;
+            }
+        };
         match store.artwork(ProjectId::new(record.canvas)) {
-            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record))),
+            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record, &printed))),
             Err(error) => log::warn!(
                 "the sheet of practice record {} not read: {error}",
                 record.id
@@ -157,6 +173,29 @@ fn read_sheets(store: &mut dyn ProjectStore, records: &[Sheet]) -> Vec<(u64, She
         }
     }
     read
+}
+
+/// What each exercise of the practice sheet on `project` printed (S120d); none when no sheet is
+/// on it (an artwork).
+///
+/// # Errors
+/// Whatever reading the records fails with; `Corrupt` for givens missing or unreadable (logged):
+/// the sheet is refused, never remade.
+pub(crate) fn sheet_printed(
+    store: &mut dyn ProjectStore,
+    project: ProjectId,
+) -> Result<Option<Vec<Given>>, PortError> {
+    let Some(sheet) = sheets(store)?
+        .into_iter()
+        .find(|s| s.canvas == project.get())
+    else {
+        return Ok(None);
+    };
+    printed(store, &sheet)
+        .inspect_err(|error| {
+            log::error!("the givens of practice sheet {} refused: {error}", sheet.id)
+        })
+        .map(Some)
 }
 
 /// The library's projects as the gallery takes them (`gallery_list`).
@@ -290,10 +329,13 @@ fn started(log: &PracticeLog, session: Sheet, title: Title) -> Result<Job, Runti
     let givens = (session.lesson()).map_or_else(Givens::default, |lesson| {
         Givens::of_lesson(lesson, log.packs())
     });
+    let printed = Givens::laid(std::slice::from_ref(&givens), &session)
+        .ok_or(RuntimeError::NotNow("a lesson's givens"))?;
     Ok(Job::Practice(PracticeJob::Start {
         sheet,
         title,
         session,
         givens,
+        printed,
     }))
 }

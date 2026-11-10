@@ -11,7 +11,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
-    Exercise, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Plan, Sheet, Tally, Tier,
+    Exercise, Given, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Plan, Sheet, Tally, Tier,
 };
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, copy_brush,
@@ -176,7 +176,12 @@ fn sheet(record: Sheet) -> (Artwork, openpaint_practice_app::Practising) {
     let record = record.framed(&packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let artwork = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled(), 1));
+    let view = SheetView::of(
+        &record,
+        &Given::of_sheet(&record, &packs),
+        &packs,
+        ([width, height], &Title::untitled(), 1),
+    );
     (artwork, (record, Vec::new(), view, Tally::default()))
 }
 

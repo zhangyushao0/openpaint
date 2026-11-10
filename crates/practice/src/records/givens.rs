@@ -5,7 +5,7 @@
 use crate::marks::asked::Painted;
 use crate::marks::mark::SheetMark;
 use crate::packs::pack::Pack;
-use crate::records::sheet::Lesson;
+use crate::records::sheet::{Lesson, Sheet};
 use crate::sessions::plan::Exercise;
 use crate::sessions::sheet_picture::SheetPicture;
 
@@ -33,6 +33,14 @@ impl Given {
             painted: exercise.painted(&original, picture.as_ref()),
         }
     }
+
+    /// What each exercise of `sheet` prints now (`Given::printed`), in their order.
+    #[must_use]
+    pub fn of_sheet(sheet: &Sheet, packs: &[Pack]) -> Vec<Self> {
+        (sheet.exercises())
+            .map(|laid| Self::printed(&laid.exercise, packs))
+            .collect()
+    }
 }
 
 impl Givens {
@@ -51,5 +59,19 @@ impl Givens {
         (self.slots.iter())
             .find(|(held, _)| *held == slot)
             .map(|(_, given)| given)
+    }
+
+    /// What each exercise of `sheet` printed, in their order, `lessons` holding each of its
+    /// lessons' givens in turn; none when a lesson's or an exercise's is not kept (corrupt).
+    #[must_use]
+    pub fn laid(lessons: &[Self], sheet: &Sheet) -> Option<Vec<Given>> {
+        if lessons.len() != sheet.lessons.len() {
+            return None;
+        }
+        (sheet.lessons.iter().zip(lessons))
+            .flat_map(|(lesson, givens)| {
+                (lesson.exercises.iter()).map(|laid| givens.of(laid.slot).cloned())
+            })
+            .collect()
     }
 }

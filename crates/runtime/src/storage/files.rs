@@ -1,4 +1,4 @@
-//! The storage worker's files (`storage.rs`): an artwork written into the file the user chose or
+//! The storage worker's files (`mod.rs`): an artwork written into the file the user chose or
 //! the chosen file added as a new artwork (D62). A mode's files are its own jobs
 //! (`practice/files.rs`).
 

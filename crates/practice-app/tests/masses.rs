@@ -11,7 +11,7 @@ mod support;
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Exercise, Family, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Pack, PackItem,
@@ -19,7 +19,7 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent, PracticeLog,
-    PracticePens, PracticePick, PracticeProjection, SheetView, value_colour,
+    PracticePens, PracticePick, PracticeProjection, value_colour,
 };
 use support::OnSheet;
 
@@ -74,7 +74,7 @@ fn opened(kind: Kind) -> Session {
     let record = record.framed(&packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &packs, ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &packs, [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =

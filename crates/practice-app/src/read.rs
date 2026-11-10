@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use openpaint_practice::{Comparison, Point, Reading, Rgb8, in_grey};
+use openpaint_practice::{Areas, Comparison, Point, Reading, Rgb8, ValueScale, in_grey};
 
 use super::compare::judged;
 use super::{Compared, PracticeSheet, unavailable};
@@ -124,18 +124,34 @@ impl PracticeSheet {
         let Some(index) = self.current() else {
             return;
         };
-        if let Some((areas, extent)) = self.sheet.areas(index) {
+        if let Some((areas, extent)) = self.areas(index) {
             self.painting_state.outline = Arc::new(areas.edges_in_frame(0, None, extent));
         }
-        if self.sheet.originals[index].scale().is_some() {
+        if self.scale(index).is_some() {
             self.take_cell_at(index, 1);
         }
+    }
+
+    /// Exercise `index`'s colour areas, if it has any: its areas and the size its picture fills in
+    /// its frame (frame units); a crop's as its pack holds them (S101), or a generated
+    /// combination's as its original in hand holds them, its square frame whole. None for another
+    /// kind or a crop no pack holds now (removed).
+    fn areas(&self, index: usize) -> Option<(&Areas, Point)> {
+        if let Some(made) = self.original(index).and_then(|original| original.areas()) {
+            return Some(made);
+        }
+        self.sheet.pictures.get(index)?.as_ref()?.areas_in_frame()
+    }
+
+    /// Exercise `index`'s value scale, if it is one in hand.
+    fn scale(&self, index: usize) -> Option<ValueScale> {
+        self.original(index)?.scale().copied()
     }
 
     /// Cell `cell` of exercise `index`'s value scale in hand: Fill fills it (with all tools the
     /// brush paints it).
     fn take_cell_at(&mut self, index: usize, cell: usize) {
-        let Some(scale) = self.sheet.originals[index].scale() else {
+        let Some(scale) = self.scale(index) else {
             return;
         };
         let frame = self.sheet.pairs[index].copy;
@@ -149,7 +165,7 @@ impl PracticeSheet {
     /// A pen landing at the frame point `p` of exercise `index`: on a value scale it takes the
     /// cell between the ends it lands in (true), or is refused; elsewhere nothing (false).
     pub(super) fn take_cell(&mut self, index: usize, p: Point) -> Result<bool, PracticeNotice> {
-        let Some(scale) = self.sheet.originals[index].scale() else {
+        let Some(scale) = self.scale(index) else {
             return Ok(false);
         };
         match scale.cell_at(p) {
@@ -166,7 +182,7 @@ impl PracticeSheet {
         let Some(index) = self.current() else {
             return;
         };
-        if let Some(scale) = self.sheet.originals[index].scale() {
+        if let Some(scale) = self.scale(index) {
             let next = (self.painting_state.cell + 1).min(scale.cells - 2);
             self.take_cell_at(index, next);
         }
@@ -175,7 +191,7 @@ impl PracticeSheet {
     /// The value scale's cell in hand, while one shows.
     pub(super) fn cell(&self) -> Option<usize> {
         let index = self.current()?;
-        (self.sheet.originals[index].scale().is_some()).then_some(self.painting_state.cell)
+        (self.scale(index).is_some()).then_some(self.painting_state.cell)
     }
 
     /// The colour area the card compares, outlined on both frames.
@@ -183,7 +199,7 @@ impl PracticeSheet {
         let index = self
             .current()
             .ok_or(unavailable(Availability::NothingLeft))?;
-        let Some((areas, extent)) = self.sheet.areas(index) else {
+        let Some((areas, extent)) = self.areas(index) else {
             return Err(unavailable(Availability::NothingLeft));
         };
         if area >= areas.count() {

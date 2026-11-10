@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
 use openpaint_practice::{
-    Facts, Family, Frame, ItemRef, Pair, Sheet, Tally, Tools, Work, seconds, summary,
+    Facts, Family, Frame, ItemRef, Original, Pair, Sheet, Tally, Tools, Work, seconds, summary,
 };
 
 use crate::pens::PracticePens;
@@ -63,6 +63,8 @@ pub struct PracticeSheet {
     /// The finished sessions of its stage before it, for the summary.
     before: Vec<Sheet>,
     sheet: Arc<SheetView>,
+    /// The shown exercise and its original, the only one its generator makes (`compare.rs`).
+    in_hand: Option<(usize, Arc<Original>)>,
     canvas: CanvasSize,
     pens: PracticePens,
     /// What strokes and fills stay inside: the shown exercise's empty frame, or a value scale's
@@ -137,6 +139,7 @@ impl PracticeSheet {
             record,
             before,
             sheet,
+            in_hand: None,
             canvas,
             pens,
             clip: None,
@@ -223,7 +226,7 @@ impl PracticeSheet {
     /// original lines or a picture with an outline.
     fn aligned_offered(&self, index: usize) -> bool {
         let lines = self.facts(index).is_some_and(|f| f.work == Work::Lines);
-        let original = self.sheet.originals.get(index);
+        let original = self.original(index);
         let outlined = (self.sheet.pictures.get(index))
             .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some()));
         lines && (original.is_some_and(|o| o.lines().is_some()) || outlined)
@@ -234,6 +237,7 @@ impl PracticeSheet {
     /// exercises painted with the painting pen last chosen (value masses with the grey last
     /// chosen); its family's instructions show by themselves the first time.
     fn shown(&mut self) {
+        self.take_in_hand();
         let frame = self.current().map(|index| self.sheet.pairs[index].copy);
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = (self.current()).is_some_and(|index| self.record.first(index).is_some());
@@ -350,6 +354,7 @@ impl PracticeSheet {
         PracticeProjection {
             sheet: Arc::clone(&self.sheet),
             revealed: self.revealed(),
+            original: current.and_then(|index| self.original(index).cloned()),
             stage: self.record.stage(),
             copy: self.record.is_copy(),
             number: self.sheet.number,

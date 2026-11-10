@@ -8,7 +8,7 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
@@ -16,9 +16,7 @@ use openpaint_practice::{
     Ellipse, Exercise, FRAME, Family, Frame, Kind, Metric, Original, PEN_WIDTH, Plan, Point, Sheet,
     Solid, distance, resample, value,
 };
-use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
-};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -38,7 +36,7 @@ fn opened() -> Session {
     let record = Sheet::session(1, 3, 0, plan);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -105,7 +103,7 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     assert_eq!(practice.instructions, Some(Family::Cylinder));
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Solid(task) = &practice.sheet.originals[0] else {
+    let Original::Solid(task) = practice.original.as_deref().expect("in hand") else {
         panic!("a solid")
     };
     let [near, far] = [task.answer.ellipses[0], task.answer.ellipses[1]];

@@ -9,7 +9,7 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
@@ -17,9 +17,7 @@ use openpaint_practice::{
     BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, Exercise, Family, Frame,
     FreeCompared, Guide, Horizon, Kind, Original, Plan, Point, Roundness, Sheet,
 };
-use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
-};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -40,7 +38,7 @@ fn opened() -> Session {
     let record = Sheet::session(1, 2, 0, plan);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -108,7 +106,7 @@ fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
 fn completed(session: &mut Session) -> Frame {
     let practice = PracticeProjection::of(session).expect("a sheet");
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Box(exact) = practice.sheet.originals[0] else {
+    let Original::Box(exact) = *practice.original.as_deref().expect("in hand") else {
         panic!("a box")
     };
     let mut drawn = 0;
@@ -213,7 +211,7 @@ fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.family, Some(Family::FreeBoxes));
     let frame = practice.sheet.pairs[1].copy;
-    let Original::FreeBoxes(example) = practice.sheet.originals[1] else {
+    let Original::FreeBoxes(example) = *practice.original.as_deref().expect("in hand") else {
         panic!("a page")
     };
     // The example box drawn twice, side by side, each made smaller about the horizon.
@@ -243,7 +241,7 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.family, Some(Family::Ellipse));
     let frame = practice.sheet.pairs[2].copy;
-    let Original::Ellipse(guide) = practice.sheet.originals[2] else {
+    let Original::Ellipse(guide) = *practice.original.as_deref().expect("in hand") else {
         panic!("an ellipse")
     };
     let round = |e: &Ellipse| e.outline(48);

@@ -28,11 +28,13 @@ impl Screen {
                 title,
                 id,
                 session,
+                printed,
             } => {
                 log::info!("practice session {} on project {}", session.id, id.get());
                 practice.keep(session);
                 practice.name(id, title.clone());
-                *self = Self::Opening(Some(Content::Stored(sheet, title, new_project(id))));
+                let held = new_project(id, Some(printed));
+                *self = Self::Opening(Some(Content::Stored(sheet, title, held)));
             }
             PracticeDone::Failed(error) => {
                 self.gallery_answer(LibraryAnswer::CreateFailed(error));

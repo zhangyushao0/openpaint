@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StreamLine,
-    StrokeIntent, Title, Toolbox, Viewport,
+    StrokeIntent, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -19,7 +19,7 @@ use openpaint_practice::{
     Tally, stage_one, value,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, PracticeProjection, SheetView,
+    Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, PracticeProjection,
 };
 use support::OnSheet;
 
@@ -46,7 +46,7 @@ fn practising() -> Session {
     let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     let opening = (record, Vec::new(), view, Tally::default());
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
 }
@@ -138,7 +138,10 @@ fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
 fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     let mut session = practising();
     let practice = PracticeProjection::of(&session).expect("a practice sheet");
-    let (pair, original) = (practice.sheet.pairs[0], practice.sheet.originals[0].clone());
+    let (pair, original) = (
+        practice.sheet.pairs[0],
+        practice.original.as_deref().cloned(),
+    );
     assert!(close(on_screen(&session, pair.centre()), ROOM_MIDDLE, 0.5));
     assert_eq!(
         practice.instructions,
@@ -154,7 +157,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     // The copy: the original moved 30 px right and drawn smaller about its frame's middle;
     // StreamLine asked for and not used.
     session.set_streamline(StreamLine::new(1.0).expect("streamline"));
-    let Original::Lines(mut lines) = original else {
+    let Some(Original::Lines(mut lines)) = original else {
         panic!("a line first")
     };
     let line = lines.remove(0);
@@ -313,7 +316,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
     );
     assert_eq!(practice.pen, None, "colours have no pens");
     let pair = practice.sheet.pairs[10];
-    let Original::Colour(swatch) = practice.sheet.originals[10] else {
+    let Original::Colour(swatch) = *practice.original.as_deref().expect("in hand") else {
         panic!("a colour")
     };
     let middle = pair.original.to_canvas([0.5, 0.5]).map(|v| v as f32);

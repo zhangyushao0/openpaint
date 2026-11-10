@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    Areas, CardItem, Exercise, Family, First, KindSummary, Layout, Level, Original, Pack, Pair,
+    CardItem, Exercise, Family, First, Given, KindSummary, Layout, Level, Original, Pack, Pair,
     Point, Rgb8, Sheet, SheetMark, SheetPicture, Value,
 };
 
@@ -162,9 +162,11 @@ pub struct Probe {
 /// The open practice sheet for one UI frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PracticeProjection {
-    /// The session's frames and originals; the first `revealed` pairs show.
+    /// The session's frames and what they print; the first `revealed` pairs show.
     pub sheet: Arc<SheetView>,
     pub revealed: usize,
+    /// The shown exercise's original, made by its generator (the only one made; none once done).
+    pub original: Option<Arc<Original>>,
     /// A session's stage; none for a drill or a long colour copy.
     pub stage: Option<u8>,
     /// Whether it is a long colour copy's sheet.
@@ -241,45 +243,44 @@ pub struct SheetView {
     pub number: u32,
     pub size: [u32; 2],
     pub pairs: Vec<Pair>,
-    pub originals: Vec<Original>,
     /// Each exercise's family, whose facts the flow and the screen read.
     pub families: Vec<Family>,
     /// Each exercise's pack picture (none: a kind without one, or a picture no pack holds now:
     /// removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
-    /// Each exercise's picture the practice crate draws (`Exercise::painted`: a generated
-    /// combination's, an object's, value masses' answer in its greys).
+    /// Each exercise's picture the practice crate drew for it, as stored (`Given::painted`: a
+    /// generated combination's, an object's, value masses' answer in its greys).
     pub painted: Vec<Option<Arc<PictureImage>>>,
-    /// What each exercise gives in its frames before Compare, as its kind draws it (S109).
+    /// What each exercise gives in its frames before Compare, as its kind drew it (S109), as
+    /// stored (`Given::marks`).
     pub givens: Vec<Vec<SheetMark>>,
 }
 
 impl SheetView {
-    /// The sheet of `record` on its canvas of `size` pixels, titled `name`, its pictures as
-    /// `packs` hold them, each in frames of its shape as it was laid (S99), so they stay where
-    /// its strokes lie whatever became of its picture.
+    /// The sheet of `record` on its canvas of `size` pixels, titled `name`: what each exercise
+    /// printed as `printed` holds it (stored when the sheet started, `Givens::laid`; no
+    /// generator runs), its pictures as `packs` hold them, each in frames of its shape as it was
+    /// laid (S99), so they stay where its strokes lie whatever became of its picture.
     #[must_use]
     pub fn of(
         record: &Sheet,
+        printed: &[Given],
         packs: &[Pack],
         (size, name, number): ([u32; 2], &Title, u32),
     ) -> Self {
         let sheet = Layout::of_sheet(record);
         let exercises: Vec<&Exercise> = record.exercises().map(|laid| &laid.exercise).collect();
-        let originals: Vec<Original> = exercises.iter().map(|e| e.original()).collect();
         let families: Vec<Family> = exercises.iter().map(|e| e.kind.family()).collect();
         let pictures: Vec<Option<Arc<SheetPicture>>> = (exercises.iter())
             .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
             .collect();
-        let painted = (exercises.iter().zip(&originals).zip(&pictures))
-            .map(|((exercise, original), picture)| {
-                let (size, pixels) = exercise.painted(original, picture.as_deref())?;
+        let painted = (printed.iter())
+            .map(|given| {
+                let (size, pixels) = given.painted.clone()?;
                 Some(Arc::new(PictureImage { size, pixels }))
             })
             .collect();
-        let givens = (exercises.iter().zip(&originals))
-            .map(|(exercise, original)| exercise.givens(original))
-            .collect();
+        let givens = printed.iter().map(|given| given.marks.clone()).collect();
         Self {
             name: name.clone(),
             number,
@@ -287,21 +288,8 @@ impl SheetView {
             pairs: sheet.pairs,
             pictures,
             painted,
-            originals,
             families,
             givens,
         }
-    }
-
-    /// Exercise `index`'s colour areas, if it has any: its areas and the size its picture fills in
-    /// its frame (frame units); a crop's as its pack holds them (S101), or a generated
-    /// combination's (a record of 1.18.1 and before), its square frame whole. None for another
-    /// kind or a crop no pack holds now (removed).
-    #[must_use]
-    pub fn areas(&self, index: usize) -> Option<(&Areas, Point)> {
-        if let Some(made) = self.originals.get(index)?.areas() {
-            return Some(made);
-        }
-        self.pictures.get(index)?.as_ref()?.areas_in_frame()
     }
 }

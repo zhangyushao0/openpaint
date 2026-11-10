@@ -1,13 +1,13 @@
 //! Practice records in the library's record spaces (D112, `records.rs` their bytes): every
-//! sheet read; a new one started with its project and its lesson's givens in one write, the
-//! project becoming the open one; a sheet's record replaced whole after each change (its givens
+//! sheet read, and what its exercises printed; a new one started with its project and its
+//! lesson's givens in one write, the project becoming the open one; a sheet's record replaced whole after each change (its givens
 //! stay as they were written); one removed with its givens and its project.
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Title};
 use openpaint_core::Artwork;
-use openpaint_practice::{Givens, Sheet};
+use openpaint_practice::{Given, Givens, Sheet};
 
-use crate::givens::encode_givens;
+use crate::givens::{decode_givens, encode_givens};
 use crate::records::{GIVENS, PRACTICE, decode_sheet, encode_sheet, givens_key, sheet_key};
 
 /// Every practice sheet, oldest first; a record that cannot be read is left out (logged).
@@ -23,6 +23,27 @@ pub fn sheets(store: &mut dyn ProjectStore) -> Result<Vec<Sheet>, PortError> {
         }
     }
     Ok(sheets)
+}
+
+/// What each exercise of `sheet` printed, in their order, as its lessons' givens were written.
+///
+/// # Errors
+/// Whatever reading the library's records fails with; `Corrupt` when a lesson's givens are
+/// missing, do not decode, or miss one of its exercises: the sheet is refused, never remade.
+pub fn printed(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<Vec<Given>, PortError> {
+    let corrupt = || PortError::Corrupt {
+        what: "practice givens",
+    };
+    let records = store.records(GIVENS, &sheet.canvas.to_be_bytes())?;
+    let mut lessons = Vec::with_capacity(sheet.lessons.len());
+    for lesson in 0..sheet.lessons.len() {
+        let key = givens_key(sheet.canvas, u16::try_from(lesson).map_err(|_| corrupt())?);
+        let (_, value) = (records.iter())
+            .find(|(held, _)| *held == key)
+            .ok_or_else(corrupt)?;
+        lessons.push(decode_givens(value)?);
+    }
+    Givens::laid(&lessons, sheet).ok_or_else(corrupt)
 }
 
 /// A new practice sheet: `artwork` as a new project titled `title`, which becomes the open one,

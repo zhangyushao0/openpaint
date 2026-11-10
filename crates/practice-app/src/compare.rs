@@ -19,7 +19,8 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    Asked, Compare, Comparison, First, Fit, Frame, Judge, Outcome, Reading, ToFit, Tools, Verdict,
+    Asked, Compare, Comparison, First, Fit, Frame, Judge, Original, Outcome, Reading, ToFit, Tools,
+    Verdict,
 };
 
 use super::checks::CopyOn;
@@ -71,6 +72,27 @@ impl Compared {
 }
 
 impl PracticeSheet {
+    /// The shown exercise's original made by its generator, once each time an exercise comes to
+    /// show: Compare, the readings, the aligned fit and the areas take its typed original; every
+    /// other exercise shows what it printed (S120d).
+    pub(super) fn take_in_hand(&mut self) {
+        let shown = self.current();
+        if self.in_hand.as_ref().map(|(index, _)| *index) == shown {
+            return;
+        }
+        self.in_hand = shown.and_then(|index| {
+            let original = self.record.laid(index)?.exercise.original();
+            Some((index, Arc::new(original)))
+        });
+    }
+
+    /// Exercise `index`'s original, if it is the one in hand.
+    pub(super) fn original(&self, index: usize) -> Option<&Arc<Original>> {
+        (self.in_hand.as_ref())
+            .filter(|(held, _)| *held == index)
+            .map(|(_, original)| original)
+    }
+
     /// The comparison shown (`on`) or taken away.
     pub(super) fn compare(&mut self, on: bool, artwork: &Artwork, now: u64) -> Result<(), Refused> {
         let Some(index) = self.current() else {
@@ -125,6 +147,7 @@ impl PracticeSheet {
     ) -> Result<Compared, Refused> {
         let nothing = || unavailable(Availability::NothingLeft);
         let sheet = Arc::clone(&self.sheet);
+        let original = Arc::clone(self.original(index).ok_or_else(nothing)?);
         let exercise = self
             .record
             .laid(index)
@@ -138,7 +161,7 @@ impl PracticeSheet {
         };
         let asked = Asked {
             exercise: &exercise,
-            original: &sheet.originals[index],
+            original: &original,
             picture: sheet.pictures.get(index).and_then(Option::as_deref),
             copy: &copy,
         };
@@ -165,8 +188,8 @@ impl PracticeSheet {
         let Some(index) = current else {
             return Availability::NothingLeft;
         };
-        let removed =
-            self.sheet.originals[index].picture().is_some() && self.sheet.pictures[index].is_none();
+        let pictured = self.original(index).is_some_and(|o| o.picture().is_some());
+        let removed = pictured && self.sheet.pictures[index].is_none();
         let held = self.record.first(index).is_some()
             || (self.pair(index)).is_some_and(|pair| holds_copy(artwork, &pair.copy));
         if held && !removed {

@@ -1,8 +1,16 @@
 //! What every practice test takes: the sheet a session holds, and its intents, as the runtime
 //! reaches them.
 
-use openpaint_app::Session;
-use openpaint_practice_app::{PracticeIntent, PracticeSheet, Refused};
+use openpaint_app::{Session, Title};
+use openpaint_practice::{Given, Pack, Sheet};
+use openpaint_practice_app::{PracticeIntent, PracticeSheet, Refused, SheetView};
+
+/// `record`'s sheet as the screen draws it on a canvas of `size`, untitled, its pictures as
+/// `packs` hold them and what it prints as its generators print it now.
+pub fn view(record: &Sheet, packs: &[Pack], size: [u32; 2]) -> SheetView {
+    let printed = Given::of_sheet(record, packs);
+    SheetView::of(record, &printed, packs, (size, &Title::untitled(), 1))
+}
 
 /// The practice sheet a session holds and its intents, as methods of the session.
 pub trait OnSheet {

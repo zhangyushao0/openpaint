@@ -3,16 +3,19 @@
 //! as they were written), its project (one its record owns, the runtime's gallery list leaves out)
 //! opens as the last artwork, the records before practice keep their bytes, and a sheet removed
 //! (the test-session chore's) takes its record, its givens and its project with it and leaves
-//! every other byte; a record that cannot be read is left out.
+//! every other byte; a record that cannot be read is left out; its givens read back whole or
+//! refuse it.
 
 #[path = "../../store/tests/common/mod.rs"]
 mod common;
 
 use common::{TestDir, records, untitled, write_records};
-use openpaint_app::{ProjectId, ProjectStore, Record, Title};
+use openpaint_app::{PortError, ProjectId, ProjectStore, Record, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{First, Givens, Layout, Metric, Sheet, met, stage_one};
-use openpaint_practice_store::{GIVENS, decode_givens, remove, save, sheets, start};
+use openpaint_practice::{First, Given, Givens, Layout, Metric, Sheet, met, stage_one};
+use openpaint_practice_store::{
+    GIVENS, decode_givens, encode_givens, printed, remove, save, sheets, start,
+};
 use openpaint_store::Library;
 
 fn artwork() -> Artwork {
@@ -203,6 +206,44 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
         without_counters(&before),
         "every other record byte for byte"
     );
+}
+
+/// A sheet's givens read back as it printed them (S120d); missing, damaged or short of an
+/// exercise, the sheet is refused, never remade.
+#[test]
+fn a_sheet_s_givens_read_back_as_printed_and_refuse_it_when_not_whole() {
+    let dir = TestDir::new("practice-printed");
+    let mut library = Library::at(&dir);
+    let sheet = session(1, 0x5EED_0120, 1_791_201_600, &[]);
+    let title = Title::new("Practice 1").expect("title");
+    let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
+    let stored = sheets(&mut library).expect("practice").remove(0);
+    let read = printed(&mut library, &stored).expect("its givens");
+    assert_eq!(
+        read,
+        Given::of_sheet(&sheet, &[]),
+        "as the generators print now"
+    );
+    let mut key = vec![b'g'];
+    key.extend_from_slice(&id.get().to_be_bytes());
+    key.extend_from_slice(&0u16.to_be_bytes());
+    let corrupt = Err(PortError::Corrupt {
+        what: "practice givens",
+    });
+    let mut short = givens(&sheet);
+    short.slots.pop();
+    library
+        .put_records(&[(GIVENS, (key.clone(), encode_givens(&short)))])
+        .expect("an exercise's left out");
+    assert_eq!(printed(&mut library, &stored), corrupt, "short of one");
+    library
+        .put_records(&[(GIVENS, (key.clone(), vec![1, 0, 0]))])
+        .expect("damaged");
+    assert!(printed(&mut library, &stored).is_err(), "damaged");
+    library
+        .remove_owned(&[(GIVENS, key)], None)
+        .expect("removed");
+    assert_eq!(printed(&mut library, &stored), corrupt, "missing");
 }
 
 #[test]

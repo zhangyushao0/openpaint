@@ -9,6 +9,7 @@ use openpaint_app::{
     Transfers,
 };
 use openpaint_core::Artwork;
+use openpaint_practice::Given;
 use openpaint_practice_app::{Options, PracticeLog, SheetView};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
@@ -110,15 +111,24 @@ impl Screen {
         if let (Self::Opening(Some(content)), Some(area)) = (&*self, area) {
             let sheet = match content {
                 Content::Stored(artwork, title, held) => {
-                    practice.of_canvas(held.project).map(|session| {
-                        let before = practice.before(session);
-                        let canvas = artwork.canvas();
-                        let size = [canvas.width(), canvas.height()];
-                        let number = practice.number(session);
-                        let view = SheetView::of(session, practice.packs(), (size, title, number));
-                        let others = practice.tally_without(session.id);
-                        (session.clone(), before, view, others)
-                    })
+                    let session = practice.of_canvas(held.project);
+                    if session.is_some() && held.printed.is_none() {
+                        let project = held.project.get();
+                        log::error!("practice sheet on {project} opened without its givens");
+                    }
+                    session
+                        .zip(held.printed.as_deref())
+                        .map(|(session, printed)| {
+                            let before = practice.before(session);
+                            let canvas = artwork.canvas();
+                            let size = [canvas.width(), canvas.height()];
+                            let number = practice.number(session);
+                            let packs = practice.packs();
+                            let view =
+                                SheetView::of(session, printed, packs, (size, title, number));
+                            let others = practice.tally_without(session.id);
+                            (session.clone(), before, view, others)
+                        })
                 }
                 Content::Blank | Content::BlankAfterFailedOpen => None,
             };
@@ -170,7 +180,7 @@ impl Screen {
             Done::Loaded(loaded) => *self = opening(*loaded),
             Done::Created(artwork, title, id) => {
                 log::info!("new artwork {}", id.get());
-                *self = Self::Opening(Some(Content::Stored(artwork, title, new_project(id))));
+                *self = Self::Opening(Some(Content::Stored(artwork, title, new_project(id, None))));
             }
             Done::Gallery(answer) => self.gallery_answer(answer),
             Done::Practice(done) => self.practice(done, practice),
@@ -327,24 +337,31 @@ impl Screen {
     }
 }
 
-/// What a canvas opening project `id`, just made, holds for it: nothing to show yet.
-fn new_project(id: openpaint_app::ProjectId) -> Box<Held> {
+/// What a canvas opening project `id`, just made, holds for it: nothing to show yet, but a new
+/// practice sheet's givens.
+fn new_project(id: openpaint_app::ProjectId, printed: Option<Vec<Given>>) -> Box<Held> {
     Box::new(Held {
         project: id,
         saved: None,
         cached: None,
         picture: None,
+        printed,
     })
 }
 
 /// The canvas about to show what the library opened, with its cached canvas or gallery picture.
 fn opening(loaded: Loaded) -> Screen {
-    let Loaded { project, cached } = loaded;
+    let Loaded {
+        project,
+        cached,
+        printed,
+    } = loaded;
     let held = Held {
         project: project.id,
         saved: Some(project.saved),
         cached,
         picture: project.thumbnail,
+        printed,
     };
     Screen::Opening(Some(Content::Stored(
         project.artwork,

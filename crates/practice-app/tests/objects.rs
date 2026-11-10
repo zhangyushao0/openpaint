@@ -9,7 +9,7 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
@@ -17,9 +17,7 @@ use openpaint_practice::{
     Carve, Exercise, Family, Frame, Kind, Metric, OBJECT_SIDE, Original, Plan, Point, Sheet,
     SolidCheck, resample, value,
 };
-use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
-};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -36,7 +34,7 @@ fn opened() -> Session {
     let record = Sheet::session(1, 4, 0, plan);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -105,7 +103,7 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
         .expect("the object's picture");
     assert_eq!(picture.size, [OBJECT_SIDE; 2]);
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Object(task) = &practice.sheet.originals[0] else {
+    let Original::Object(task) = practice.original.as_deref().expect("in hand") else {
         panic!("an object")
     };
     // The box completed and the construction drawn with Sketch: never read.

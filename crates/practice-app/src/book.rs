@@ -6,13 +6,16 @@
 //! A sheet read keeps what the book shows of it: its strokes and fills as marks for a small
 //! picture of it, each single line's original and first copy (the strokes before its first
 //! Compare, the sketch pen's left out) and each colour's original and first pick (the eye's own,
-//! before any correction), whatever version wrote its record.
+//! before any correction), whatever version wrote its record; the originals as the sheet printed
+//! them (S120d), no generator run.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{Book, Family, Kept, Layout, Point, Rgb8, Sheet};
+use openpaint_practice::{
+    Book, Family, Figure, Given, In, Kept, Layout, LinePen, Point, Rgb8, Sheet,
+};
 
 use crate::copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
 use openpaint_app::ProjectId;
@@ -91,32 +94,27 @@ pub struct LineRead {
 }
 
 impl SheetRead {
-    /// What `record`'s sheet `artwork` shows the book, its frames as its exercises were laid.
+    /// What `record`'s sheet `artwork` shows the book, its frames as its exercises were laid and
+    /// their originals as they printed (`printed`, each exercise's in order: a line's ink, a
+    /// colour's swatch).
     #[must_use]
-    pub fn of(artwork: &Artwork, record: &Sheet) -> Self {
+    pub fn of(artwork: &Artwork, record: &Sheet, printed: &[Given]) -> Self {
         let canvas = artwork.canvas();
         let size = [canvas.width(), canvas.height()];
         let sheet = Layout::of_sheet(record);
         let mut lines = Vec::new();
         let mut colours = Vec::new();
-        for (index, laid) in record.exercises().enumerate() {
+        for (index, (laid, given)) in record.exercises().zip(printed).enumerate() {
             let (Some(result), Some(pair)) = (&laid.first, sheet.pairs.get(index)) else {
                 continue;
             };
-            let exercise = &laid.exercise;
-            // Only what the book keeps is read: others' originals (an object's) take time to lay.
-            let kept = exercise.kind.facts().kept;
-            if kept == Kept::Nothing {
-                continue;
-            }
-            let original = exercise.original();
-            match (kept, original.lines(), original.swatch()) {
+            match (laid.exercise.kind.facts().kept, ink(given), swatch(given)) {
                 (Kept::Line, Some(original), _) => {
                     let first = result.corrected_from.map_or(ALL_STROKES, |from| 0..from);
                     let copy = line_pieces(artwork, &pair.copy, first);
                     lines.push(LineRead {
                         index: u32::try_from(index).unwrap_or(u32::MAX),
-                        original: original.to_vec(),
+                        original,
                         copy,
                     });
                 }
@@ -137,6 +135,30 @@ impl SheetRead {
             colours,
         }
     }
+}
+
+/// The lines an exercise printed in ink on its original's frame (a line's); none without.
+fn ink(given: &Given) -> Option<Vec<Vec<Point>>> {
+    let lines: Vec<Vec<Point>> = (given.marks.iter())
+        .filter_map(|mark| match (&mark.on, &mark.drawn) {
+            (In::Original, Figure::Line { points, pen, .. }) if *pen == LinePen::Ink => {
+                Some(points.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    (!lines.is_empty()).then_some(lines)
+}
+
+/// The swatch an exercise printed on its original's frame (a colour's); none without.
+fn swatch(given: &Given) -> Option<Rgb8> {
+    given
+        .marks
+        .iter()
+        .find_map(|mark| match (&mark.on, &mark.drawn) {
+            (In::Original, Figure::Swatch(colour)) => Some(*colour),
+            _ => None,
+        })
 }
 
 /// `sheet`'s frames as `record`'s exercises show them (top left to bottom right): a kind built in

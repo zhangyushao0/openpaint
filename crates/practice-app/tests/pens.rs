@@ -13,7 +13,9 @@ use openpaint_app::{
     StrokeIntent, Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
-use openpaint_practice::{Arrangement, Exercise, Kind, LineTier, Pack, Plan, ScaleTone, Sheet};
+use openpaint_practice::{
+    Arrangement, Exercise, Given, Kind, LineTier, Pack, Plan, ScaleTone, Sheet,
+};
 use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection, SheetView};
 
 const VIEWPORT: Viewport = Viewport {
@@ -125,7 +127,12 @@ fn opened(record: Sheet, packs: &[Pack], toolbox: &Toolbox) -> Session {
     let record = record.framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled(), 1));
+    let view = SheetView::of(
+        &record,
+        &Given::of_sheet(&record, packs),
+        packs,
+        ([width, height], &Title::untitled(), 1),
+    );
     let brush = toolbox.style().expect("style");
     let tally = openpaint_practice::Tally::default();
     let opening = (record, Vec::new(), view, tally);

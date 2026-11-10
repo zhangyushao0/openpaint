@@ -3,54 +3,35 @@
 //! project is open: the one opened at start, loaded or created from the gallery, or created by
 //! the first save of a new artwork; leaving an artwork for the gallery closes it. Leaving an
 //! artwork that was saved since it opened or since it was last left keeps a version of it
-//! (DECISIONS D63).
+//! (DECISIONS D63). Opening is `open.rs`, the files the user chooses `files.rs`.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use openpaint_app::{
-    EditorState, FileJob, LibraryAnswer, PortError, Project, ProjectId, ProjectStore,
-    ProjectSummary, SaveId, Thumbnail, Title, VersionId,
+    EditorState, FileJob, LibraryAnswer, PortError, ProjectId, ProjectStore, SaveId, Thumbnail,
+    Title, VersionId,
 };
 use openpaint_core::Artwork;
 use openpaint_practice::{Pack, Sheet};
 use openpaint_practice_store::Packs;
-use openpaint_store::{Cached, DisplayCache};
+use openpaint_store::DisplayCache;
 
 use crate::error::RuntimeError;
 use crate::practice::{self, PracticeDone, PracticeJob};
 use crate::worker::Queue;
 
-#[path = "storage_files.rs"]
 mod files;
+mod open;
 pub(crate) use files::read;
-
-/// An artwork the library opened, with its cached canvas if the display cache holds one.
-#[derive(Debug)]
-pub(crate) struct Loaded {
-    pub(crate) project: Project,
-    pub(crate) cached: Option<Cached>,
-}
+pub(crate) use open::{Loaded, Opened};
+use open::{loaded, start};
 
 /// What a save stored: the project it went to and the save id its head holds now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Stored {
     pub(crate) project: ProjectId,
     pub(crate) saved: SaveId,
-}
-
-/// What opening the library found.
-#[derive(Debug)]
-pub(crate) enum Opened {
-    /// The artwork open when the app was left.
-    Last(Box<Loaded>),
-    /// No artwork was open: the user was in the gallery, which lists these.
-    Gallery(Result<Vec<ProjectSummary>, PortError>),
-    /// An empty library: start blank.
-    Empty,
-    /// The last artwork could not be read; it stays in the library untouched and the app
-    /// starts blank, saving into a new project.
-    Failed(PortError),
 }
 
 pub(crate) enum Job {
@@ -218,21 +199,22 @@ fn stopped(job: &Job) -> Done {
 fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
     match job {
         Job::Start => {
+            let packs = (packs.map(Packs::list).transpose())
+                .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            // The session records of 1.21.6 and before become sheets, once (S120c), before a
+            // sheet left open reads its givens.
+            if let Err(error) = openpaint_practice_store::convert(store, &packs) {
+                log::error!("the practice records were not converted: {error}");
+            }
             let opened = start(store, kept, cache);
             let editor = store
                 .editor()
                 .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
                 .ok()
                 .flatten();
-            let packs = (packs.map(Packs::list).transpose())
-                .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
-                .ok()
-                .flatten()
-                .unwrap_or_default();
-            // The session records of 1.21.6 and before become sheets, once (S120c).
-            if let Err(error) = openpaint_practice_store::convert(store, &packs) {
-                log::error!("the practice records were not converted: {error}");
-            }
             let sheets = openpaint_practice_store::sheets(store)
                 .inspect_err(|error| log::warn!("the practice sheets are unreadable: {error}"))
                 .unwrap_or_default();
@@ -266,44 +248,6 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
         Job::Library(request) => library((store, cache), kept, request),
         Job::File(job) => Done::Gallery(files::run(store, job)),
         Job::Practice(job) => practice::run((store, packs), kept, job),
-    }
-}
-
-/// `project` with its cached canvas, if `cache` holds one; a cache that cannot be read is
-/// logged and left out (derived data: the canvas is evaluated).
-fn loaded(cache: Option<&DisplayCache>, project: Project) -> Box<Loaded> {
-    let started = Instant::now();
-    let cached = cache.and_then(|cache| {
-        cache
-            .read(project.id)
-            .inspect_err(|error| log::warn!("the display cache is not read: {error}"))
-            .ok()
-            .flatten()
-    });
-    if let Some(cached) = &cached {
-        log::info!(
-            "display cache of project {} read in {} ms",
-            project.id.get(),
-            started.elapsed().as_millis()
-        );
-        log::debug!("{cached:?}");
-    }
-    Box::new(Loaded { project, cached })
-}
-
-fn start(store: &mut dyn ProjectStore, kept: &mut Kept, cache: Option<&DisplayCache>) -> Opened {
-    match store.open_last() {
-        Ok(Some(last)) => {
-            kept.open = Some(last.id);
-            Opened::Last(loaded(cache, last))
-        }
-        Ok(None) => match practice::gallery_list(store).map(|listed| listed.artworks) {
-            Ok(items) if items.is_empty() => Opened::Empty,
-            listed => Opened::Gallery(listed),
-        },
-        // A library of another format: the gallery says so; nothing is written to it.
-        Err(error @ PortError::OtherFormat { .. }) => Opened::Gallery(Err(error)),
-        Err(error) => Opened::Failed(error),
     }
 }
 
@@ -372,13 +316,13 @@ fn library(
         LibraryCall::List => {
             LibraryAnswer::Listed(practice::gallery_list(store).map(|listed| listed.artworks))
         }
-        LibraryCall::Load(id) => match store.load(id) {
-            Ok(project) => {
+        LibraryCall::Load(id) => match (store.load(id)).and_then(|p| loaded((store, cache), p)) {
+            Ok(loaded) => {
                 *kept = Kept {
                     open: Some(id),
                     changed: false,
                 };
-                return Done::Loaded(loaded(cache, project));
+                return Done::Loaded(loaded);
             }
             Err(error) => LibraryAnswer::OpenFailed(error),
         },

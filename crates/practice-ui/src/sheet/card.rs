@@ -54,10 +54,9 @@ const HOW_LEAST: f32 = 12.0 * SPACE;
 /// The How `practice` shows for `family`: a value scale's of the cells of the row in hand (S97),
 /// nine where none is.
 pub(crate) fn how_of(practice: &PracticeProjection, family: Family) -> HowOf {
-    let shown = practice
-        .current
-        .and_then(|index| practice.sheet.originals.get(index));
-    let cells = shown.and_then(Original::cells).unwrap_or(CELLS);
+    let cells = (practice.original.as_deref())
+        .and_then(Original::cells)
+        .unwrap_or(CELLS);
     HowOf::new(family, cells)
 }
 

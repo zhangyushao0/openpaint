@@ -9,16 +9,16 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Estimate, Kind, Layout, Original, PAUSE, STAGE_SESSIONS, ScaleTone, Seal, Sheet, Solid, Span,
-    Tally, Trick,
+    Estimate, Given, Kind, Layout, Original, PAUSE, STAGE_SESSIONS, ScaleTone, Seal, Sheet, Solid,
+    Span, Tally, Trick,
 };
 use openpaint_practice_app::{
-    Finished, Mark, PracticeIntent, PracticePens, PracticeProjection, SheetRead, SheetView,
+    Finished, Mark, PracticeIntent, PracticePens, PracticeProjection, SheetRead,
 };
 use support::OnSheet;
 
@@ -38,7 +38,7 @@ fn practising(record: Sheet, (before, others): (Vec<Sheet>, Tally)) -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     openpaint_practice_app::open_sheet(
         sheet,
         (brush, pens),
@@ -186,7 +186,8 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     let later = Color::rgb(0.1, 0.2, 0.8).expect("colour");
     practise(&mut session, PracticeIntent::Fill(later));
     let record = session.sheet().save_request().expect("the record");
-    let read = SheetRead::of(session.artwork(), &record);
+    let printed = Given::of_sheet(&record, &[]);
+    let read = SheetRead::of(session.artwork(), &record, &printed);
     assert_eq!(
         read.size,
         Layout::of(&vec![None; record.exercises().count()]).size
@@ -195,13 +196,17 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     // A kind built in one frame shows that one (S97).
     let mut scaled = record.clone();
     scaled.laid_mut(3).expect("an exercise").exercise.kind = Kind::Scale(ScaleTone::Grey, 9);
-    let one_less = SheetRead::of(session.artwork(), &scaled).frames.len();
+    let one_less = SheetRead::of(session.artwork(), &scaled, &printed)
+        .frames
+        .len();
     assert_eq!(one_less, 2 * record.exercises().count() - 1);
     // A trick and a solid alike (S98); an estimate keeps its original beside its copy.
     scaled.laid_mut(4).expect("an exercise").exercise.kind = Kind::Space(Trick::Centre);
     scaled.laid_mut(5).expect("an exercise").exercise.kind = Kind::Solid(Solid::Cone);
     scaled.laid_mut(6).expect("an exercise").exercise.kind = Kind::Flat(Estimate::Point);
-    let alike = SheetRead::of(session.artwork(), &scaled).frames.len();
+    let alike = SheetRead::of(session.artwork(), &scaled, &printed)
+        .frames
+        .len();
     assert_eq!(alike, 2 * record.exercises().count() - 3);
     assert_eq!(read.lines.len(), 1);
     assert_eq!(read.lines[0].index, 0);

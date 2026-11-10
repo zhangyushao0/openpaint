@@ -8,7 +8,7 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
@@ -16,9 +16,7 @@ use openpaint_practice::{
     Compared, Estimate, Exercise, Family, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off,
     Original, Plan, Point, Sheet, SpaceAnswer, SpaceCompared, Trick, value,
 };
-use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
-};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -39,7 +37,7 @@ fn opened() -> Session {
     let record = Sheet::session(1, 3, 0, plan);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled(), 1));
+    let view = support::view(&record, &[], [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
@@ -118,7 +116,7 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Flat(flat) = practice.sheet.originals[0] else {
+    let Original::Flat(flat) = *practice.original.as_deref().expect("in hand") else {
         panic!("an estimate")
     };
     let FlatAnswer::Point(at) = flat.answer() else {
@@ -164,7 +162,8 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.family, Some(Family::Angle));
     let frame = practice.sheet.pairs[1].copy;
-    let Original::Flat(flat @ Flat::Angle { .. }) = practice.sheet.originals[1] else {
+    let Original::Flat(flat @ Flat::Angle { .. }) = *practice.original.as_deref().expect("in hand")
+    else {
         panic!("an angle")
     };
     let FlatAnswer::Line([a, b]) = flat.answer() else {
@@ -181,7 +180,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.family, Some(Family::Centre));
     let frame = practice.sheet.pairs[2].copy;
-    let Original::Space(task) = &practice.sheet.originals[2] else {
+    let Original::Space(task) = practice.original.as_deref().expect("in hand") else {
         panic!("a point in space")
     };
     let SpaceAnswer::Point(centre) = task.answer() else {
@@ -222,7 +221,7 @@ fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
         |session: &Session| (PracticeProjection::of(session)).map(|p| p.construction);
     let practice = PracticeProjection::of(&session).expect("a sheet");
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Flat(flat) = practice.sheet.originals[0] else {
+    let Original::Flat(flat) = *practice.original.as_deref().expect("in hand") else {
         panic!("an estimate")
     };
     let FlatAnswer::Point(at) = flat.answer() else {

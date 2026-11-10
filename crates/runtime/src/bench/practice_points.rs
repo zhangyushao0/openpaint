@@ -67,7 +67,7 @@ impl Runtime {
     fn bench_answer(&mut self) -> Result<(), RuntimeError> {
         let shown = self.practice().and_then(|p| {
             let index = p.current?;
-            let strokes = p.sheet.families[index].answer(&p.sheet.originals[index]);
+            let strokes = p.sheet.families[index].answer(p.original.as_deref()?);
             (!strokes.is_empty()).then(|| (strokes, p.sheet.pairs[index].copy))
         });
         let (strokes, frame) = shown.ok_or(RuntimeError::NotNow("a point shown"))?;
