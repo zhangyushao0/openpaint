@@ -50,7 +50,7 @@ pub struct BookRecord {
     pub id: u64,
     /// Its sheet, which opens it.
     pub sheet: ProjectId,
-    /// Its number in its stage, among the copies, or among its kind's drills.
+    /// Its lesson in hand's number in its stage, among the copies, or among its kind's drills.
     pub number: u32,
     /// The kind a drill drills (S91); none for a session or a copy.
     pub drill: Option<Family>,
@@ -100,8 +100,7 @@ impl SheetRead {
     #[must_use]
     pub fn of(artwork: &Artwork, record: &Sheet, printed: &[Given]) -> Self {
         let canvas = artwork.canvas();
-        let size = [canvas.width(), canvas.height()];
-        let sheet = Layout::of_sheet(record);
+        let sheet = Layout::on(record, [canvas.width(), canvas.height()]);
         let mut lines = Vec::new();
         let mut colours = Vec::new();
         for (index, (laid, given)) in record.exercises().zip(printed).enumerate() {
@@ -128,7 +127,7 @@ impl SheetRead {
             }
         }
         Self {
-            size,
+            size: sheet.size,
             frames: frames(&sheet, record),
             marks: artwork.layers().iter().flat_map(marks).collect(),
             lines,

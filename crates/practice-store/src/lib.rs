@@ -22,4 +22,4 @@ pub use crate::pack::{PACK_FORMAT, encode_pack, open_pack};
 pub use crate::pack_picture::{PackPicture, pack_picture, shown_picture, thumbnail_picture};
 pub use crate::packs::Packs;
 pub use crate::records::{GIVENS, PRACTICE};
-pub use crate::stored::{printed, remove, save, sheets, start};
+pub use crate::stored::{append, printed, remove, save, sheets, start};

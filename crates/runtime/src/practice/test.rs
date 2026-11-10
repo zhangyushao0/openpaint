@@ -2,7 +2,8 @@
 //! practice session (or a test colour copy, `start copy`, or a test drill, `start drill <kind>`)
 //! started beside any open one, and removed afterwards with its sheet, so a practice slice walks
 //! its session on the tablet while the author's sessions, drills, copies, records and the Today
-//! card's progress stay as they were.
+//! card's progress stay as they were. A test session's or drill's sheet is a `Purpose::Test`
+//! sheet (a day's in all else); a test copy stays a copy.
 //!
 //! The test session is the one Start practice would start now (the next of the log: its number,
 //! its warm-up from the kinds met), or the stage's session of a number given (so a stage's every
@@ -17,7 +18,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use openpaint_app::ProjectId;
-use openpaint_practice::{Family, Sheet};
+use openpaint_practice::{Family, Purpose, Sheet};
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
@@ -107,7 +108,12 @@ impl Runtime {
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
         let stage = stage.unwrap_or_else(|| self.practice.stage());
-        let job = start_job(&self.practice, (stage, number), &mut self.seeds, now)?;
+        let job = start_job(
+            &self.practice,
+            (stage, number, Purpose::Test),
+            &mut self.seeds,
+            now,
+        )?;
         self.storage.submit(job);
         Ok(id)
     }
@@ -148,7 +154,8 @@ impl Runtime {
             .ok_or(RuntimeError::NotNow(DRILL_KINDS))?;
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
-        let job = drill_job(&self.practice, family, &mut self.seeds, now)?;
+        let purpose = (family, Purpose::Test);
+        let job = drill_job(&self.practice, purpose, &mut self.seeds, now)?;
         self.storage.submit(job);
         Ok(id)
     }

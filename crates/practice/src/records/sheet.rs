@@ -1,19 +1,24 @@
 //! What is kept of a practice sheet (S120): the sheet a hidden project of the library holds, its
-//! purpose (the day's practice or a long colour copy), the spans it was practised in (`time.rs`)
+//! purpose (the day's practice, a test's, or a long colour copy), the spans it was practised in
+//! (`time.rs`)
 //! and its lessons, each with how it was picked (a stage's session with its warm-up, or a kind
 //! chosen: a drill, a copy's picture), the exercise in hand and its exercises as laid: each one's
 //! place on the sheet (its slot), its picture's size (its frames' shape), its level, its first
 //! Compare (when, which strokes after it are corrections, its numbers), how often it was compared,
 //! its result and who judged it, and the seconds spent on it. What each exercise printed is kept
-//! beside it once (`givens.rs`), so a generator may change.
+//! beside it once (`givens.rs`), so a generator may change. A lesson appended to a sheet is laid
+//! from the row after the last one used (`append`).
 //!
-//! A sheet's number among its kind (a stage's sessions, a kind's drills, the copies) is never
-//! stored: it is its place among the sheets alike (`number`).
+//! A lesson's number among its kind (a stage's sessions, a kind's drills, the copies) is never
+//! stored: it is its place among the lessons alike (`lessons.rs`).
 
 use crate::marks::compared::Outcome;
 use crate::packs::pack::{ItemRef, Pack};
+use crate::records::givens::Givens;
+use crate::records::lessons::OnSheet;
 use crate::records::metric::Metrics;
 use crate::records::time::Span;
+use crate::sessions::layout::Layout;
 use crate::sessions::plan::{Exercise, Family, Kind};
 use crate::sessions::session::Plan;
 
@@ -40,6 +45,9 @@ pub enum Purpose {
     Day,
     /// A long colour copy (V大's 色彩临摹): one exercise, never finished, in no stage or summary.
     Copy,
+    /// A test session or drill the device chore started (`practice-test`): a day's sheet in all
+    /// else.
+    Test,
 }
 
 /// One lesson on a sheet.
@@ -210,14 +218,45 @@ impl Sheet {
         self
     }
 
-    /// The lesson in hand: the last.
+    /// The index of the lesson in hand: the last unfinished one, else the last.
+    #[must_use]
+    pub fn in_hand(&self) -> usize {
+        (self
+            .lessons
+            .iter()
+            .rposition(|lesson| lesson.finished.is_none()))
+        .unwrap_or_else(|| self.lessons.len().saturating_sub(1))
+    }
+
+    /// The lesson in hand (`in_hand`).
     #[must_use]
     pub fn lesson(&self) -> Option<&Lesson> {
-        self.lessons.last()
+        self.lessons.get(self.in_hand())
     }
 
     pub fn lesson_mut(&mut self) -> Option<&mut Lesson> {
-        self.lessons.last_mut()
+        let index = self.in_hand();
+        self.lessons.get_mut(index)
+    }
+
+    /// The lesson in hand as the counts walk it.
+    #[must_use]
+    pub fn held(&self) -> Option<OnSheet<'_>> {
+        OnSheet::of(self, self.in_hand())
+    }
+
+    /// `lesson` appended as the lesson in hand, laid from the row after the last one used, and
+    /// `givens`, what it prints, moved with it: returns them.
+    pub fn append(&mut self, mut lesson: Lesson, mut givens: Givens) -> Givens {
+        let shift = u16::try_from(Layout::next_slot(self)).unwrap_or(u16::MAX);
+        for laid in &mut lesson.exercises {
+            laid.slot = laid.slot.saturating_add(shift);
+        }
+        for (slot, _) in &mut givens.slots {
+            *slot = slot.saturating_add(shift);
+        }
+        self.lessons.push(lesson);
+        givens
     }
 
     /// Every exercise laid on it, its lessons' in order.
@@ -248,10 +287,10 @@ impl Sheet {
     /// The exercise in hand, an index into `exercises`.
     #[must_use]
     pub fn at(&self) -> usize {
-        let before: usize = (self.lessons.iter().rev().skip(1))
-            .map(|lesson| lesson.exercises.len())
-            .sum();
-        before + self.lesson().map_or(0, |lesson| usize::from(lesson.at))
+        let held = self.held();
+        held.map_or(0, |held| {
+            held.first_exercise() + usize::from(held.lesson.at)
+        })
     }
 
     /// When the lesson in hand finished.
@@ -263,21 +302,13 @@ impl Sheet {
     /// The stage of the session in hand; none for a drill or a copy.
     #[must_use]
     pub fn stage(&self) -> Option<u8> {
-        match self.lesson()?.picked {
-            Picked::Full { stage, .. } => Some(stage),
-            Picked::Chosen => None,
-        }
+        self.lesson()?.stage()
     }
 
-    /// The kind a drill drills (its exercises'); none for a session or a copy.
+    /// The kind the drill in hand drills (its exercises'); none for a session or a copy.
     #[must_use]
     pub fn drilled(&self) -> Option<Family> {
-        let lesson = self.lesson().filter(|_| self.purpose == Purpose::Day)?;
-        let first = lesson
-            .exercises
-            .first()
-            .filter(|_| lesson.picked == Picked::Chosen)?;
-        Some(first.exercise.kind.family())
+        self.held()?.drilled()
     }
 
     /// Whether it is a long colour copy.
@@ -289,10 +320,7 @@ impl Sheet {
     /// How many of the lesson in hand's first exercises are its warm-up.
     #[must_use]
     pub fn warm_up(&self) -> usize {
-        match self.lesson().map(|lesson| lesson.picked) {
-            Some(Picked::Full { warm_up, .. }) => usize::from(warm_up),
-            _ => 0,
-        }
+        self.lesson().map_or(0, Lesson::warm_up)
     }
 
     /// The lesson holding exercise `index`, and the exercise's index in it.
@@ -310,10 +338,7 @@ impl Sheet {
     #[must_use]
     pub fn warming_up(&self, index: usize) -> bool {
         self.locate(index)
-            .is_some_and(|(lesson, at)| match lesson.picked {
-                Picked::Full { warm_up, .. } => at < usize::from(warm_up),
-                Picked::Chosen => false,
-            })
+            .is_some_and(|(lesson, at)| at < lesson.warm_up())
     }
 
     /// Exercise `index`'s place, from 1, and how many there are: in the warm-up among the
@@ -323,12 +348,8 @@ impl Sheet {
         let Some((lesson, at)) = self.locate(index) else {
             return (0, 0);
         };
-        let warm_up = match lesson.picked {
-            Picked::Full { warm_up, .. } => usize::from(warm_up),
-            Picked::Chosen => 0,
-        };
         let exercises = &lesson.exercises;
-        let warm_up = warm_up.min(exercises.len());
+        let warm_up = lesson.warm_up().min(exercises.len());
         if at < warm_up {
             return (at + 1, warm_up);
         }
@@ -338,22 +359,4 @@ impl Sheet {
         let all = exercises[warm_up..].iter().filter(alike).count();
         (before + 1, all)
     }
-
-    /// Whether `other` is a sheet of its kind: a session of its stage, a drill of its kind, a
-    /// copy.
-    fn alike(&self, other: &Self) -> bool {
-        self.purpose == other.purpose
-            && self.stage() == other.stage()
-            && self.drilled() == other.drilled()
-    }
-}
-
-/// `sheet`'s number among the sheets of its kind in `all`, from 1: a session's in its stage, a
-/// drill's among its kind's drills, a copy's among the copies.
-#[must_use]
-pub fn number(all: &[Sheet], sheet: &Sheet) -> u32 {
-    let earlier = (all.iter())
-        .filter(|other| other.id < sheet.id && sheet.alike(other))
-        .count();
-    u32::try_from(earlier + 1).unwrap_or(u32::MAX)
 }

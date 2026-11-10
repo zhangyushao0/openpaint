@@ -13,7 +13,7 @@ use std::collections::HashSet;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{Family, Given, Givens, ItemRef, Layout, Pack, Sheet, Tier};
+use openpaint_practice::{Family, Given, Givens, ItemRef, Layout, Pack, Purpose, Sheet, Tier};
 use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
 use openpaint_practice_store::{Packs, printed, remove, save, sheets, start};
 
@@ -246,15 +246,17 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
 }
 
 /// The job that starts the next session of `stage` in `log` (or the one numbered `number`: a
-/// test session's), seeded from `seeds`, at `now` (seconds since 1970 UTC).
+/// test session's) on a sheet for `purpose` (the day's, or a test's), seeded from `seeds`, at
+/// `now` (seconds since 1970 UTC).
 pub(crate) fn start_job(
     log: &PracticeLog,
-    (stage, number): (u8, Option<u32>),
+    (stage, number, purpose): (u8, Option<u32>, Purpose),
     seeds: &mut Seeds,
     now: u64,
 ) -> Result<Job, RuntimeError> {
     let seed = seed(seeds);
     let (session, title) = log.begin((stage, number), seed, now);
+    let session = Sheet { purpose, ..session };
     log::info!(
         "practice session {} (stage {}, number {}) seeded {seed:016x}",
         session.id,
@@ -273,19 +275,21 @@ pub(crate) enum Next {
     Drill(Family),
 }
 
-/// The job that begins the next drill of `family` in `log` (S91), seeded from `seeds`, at `now`.
+/// The job that begins the next drill of `family` in `log` (S91) on a sheet for `purpose` (the
+/// day's, or a test's), seeded from `seeds`, at `now`.
 ///
 /// # Errors
 /// `NotNow` for a kind no stage drills, or shapes while no pack holds a picture.
 pub(crate) fn drill_job(
     log: &PracticeLog,
-    family: Family,
+    (family, purpose): (Family, Purpose),
     seeds: &mut Seeds,
     now: u64,
 ) -> Result<Job, RuntimeError> {
     let seed = seed(seeds);
     let (drill, title) = (log.begin_drill(family, seed, now))
         .ok_or(RuntimeError::NotNow("a kind to drill with its pictures"))?;
+    let drill = Sheet { purpose, ..drill };
     log::info!(
         "practice drill {} of {family:?} (number {}) seeded {seed:016x}",
         drill.id,

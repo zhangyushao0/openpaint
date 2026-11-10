@@ -3,11 +3,13 @@
 //! local day with their time and their records, the colour's first pick per session (the mean of
 //! its colours' first ΔE: the eye's own level, before any correction), the sessions whose first
 //! single line shows side by side (the first and the latest), the seals earned, and how much was
-//! done in all. Progress counts what was done, never days in a row.
+//! done in all. Progress counts what was done, never days in a row. Sessions are lessons
+//! (`lessons.rs`); days and time are the sheets'.
 
+use crate::records::lessons::{OnSheet, lessons, number};
 use crate::records::metric::{Metric, value};
 use crate::records::seals::{Earned, earned};
-use crate::records::sheet::{Sheet, number};
+use crate::records::sheet::Sheet;
 use crate::records::time::{by_day, seconds};
 use crate::sessions::plan::{Family, STAGES};
 
@@ -75,10 +77,10 @@ impl Book {
         let mut ordered: Vec<&Sheet> = records.iter().collect();
         ordered.sort_by_key(|record| record.id);
         // Drills count in the time and the days, never on the road, the first picks or the lines.
-        let sessions: Vec<&Sheet> = (ordered.iter().copied())
-            .filter(|record| record.stage().is_some())
+        let sessions: Vec<OnSheet<'_>> = (lessons(records).into_iter())
+            .filter(|lesson| lesson.stage().is_some())
             .collect();
-        let finished: Vec<&&Sheet> = (sessions.iter())
+        let finished: Vec<&OnSheet<'_>> = (sessions.iter())
             .filter(|session| session.finished().is_some())
             .collect();
         let mut road = Road {
@@ -96,7 +98,7 @@ impl Book {
             seconds: ordered.iter().map(|record| seconds(&record.spans)).sum(),
             road,
             days: days(&ordered, offset),
-            colour: sessions.iter().filter_map(|s| first_pick(s)).collect(),
+            colour: sessions.iter().filter_map(first_pick).collect(),
             lines: lines(records, &sessions),
             seals: earned(records),
         }
@@ -132,8 +134,8 @@ fn days(records: &[&Sheet], offset: i32) -> Vec<Day> {
 }
 
 /// The mean of `session`'s colours' first differences, if it compared any.
-fn first_pick(session: &Sheet) -> Option<f64> {
-    let picks: Vec<f64> = (session.exercises())
+fn first_pick(session: &OnSheet<'_>) -> Option<f64> {
+    let picks: Vec<f64> = (session.lesson.exercises.iter())
         .filter(|laid| laid.exercise.kind.family() == Family::Colour)
         .filter_map(|laid| value(&laid.first.as_ref()?.metrics, Metric::FirstDelta))
         .collect();
@@ -141,21 +143,22 @@ fn first_pick(session: &Sheet) -> Option<f64> {
 }
 
 /// The first session's first single line compared, and the latest session's when it is another,
-/// each numbered among the sessions of its stage in `all`.
-fn lines(all: &[Sheet], sessions: &[&Sheet]) -> Vec<LineShown> {
-    let shown = |session: &&Sheet| {
-        let index = (session.exercises())
+/// each numbered among the sessions of its stage in `all`, its index its sheet's.
+fn lines(all: &[Sheet], sessions: &[OnSheet<'_>]) -> Vec<LineShown> {
+    let shown = |session: &OnSheet<'_>| {
+        let index = (session.lesson.exercises.iter())
             .position(|laid| laid.first.is_some() && laid.exercise.kind.family() == Family::Line)?;
+        let index = session.first_exercise() + index;
         Some(LineShown {
-            record: session.id,
-            number: number(all, session),
+            record: session.sheet.id,
+            number: number(all, session.sheet, session.index),
             index: u32::try_from(index).unwrap_or(u32::MAX),
         })
     };
     let first = sessions.iter().find_map(shown);
     let latest = sessions.iter().rev().find_map(shown);
     match (first, latest) {
-        (Some(first), Some(latest)) if latest.record != first.record => vec![first, latest],
+        (Some(first), Some(latest)) if latest != first => vec![first, latest],
         (Some(first), _) => vec![first],
         _ => Vec::new(),
     }

@@ -16,7 +16,8 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
 use openpaint_practice::{
-    Facts, Family, Frame, ItemRef, Original, Pair, Sheet, Tally, Tools, Work, seconds, summary,
+    Facts, Family, Frame, ItemRef, Lesson, Original, Pair, Sheet, Tally, Tools, Work, seconds,
+    summary,
 };
 
 use crate::pens::PracticePens;
@@ -26,10 +27,10 @@ use crate::refused::Refused;
 use openpaint_app::Availability;
 use openpaint_app::CanvasView;
 
-/// A practice sheet opening: its session's record, the finished sessions of its stage before it
-/// (for the summary), the sheet as the screen draws it, and what every other record adds up to
-/// (for the seals its finish stamps).
-pub type Practising = (Sheet, Vec<Sheet>, SheetView, Tally);
+/// A practice sheet opening: its record, the finished lessons of its lesson in hand's kind
+/// before it (for the summary), the sheet as the screen draws it, and what every other lesson adds
+/// up to (for the seals its finish stamps). The flow works on the lesson in hand.
+pub type Practising = (Sheet, Vec<Lesson>, SheetView, Tally);
 
 #[path = "checks.rs"]
 mod checks;
@@ -60,8 +61,8 @@ use read::Painting;
 #[derive(Debug)]
 pub struct PracticeSheet {
     record: Sheet,
-    /// The finished sessions of its stage before it, for the summary.
-    before: Vec<Sheet>,
+    /// The finished lessons of its kind before the one in hand, for the summary.
+    before: Vec<Lesson>,
     sheet: Arc<SheetView>,
     /// The shown exercise and its original, the only one its generator makes (`compare.rs`).
     in_hand: Option<(usize, Arc<Original>)>,
@@ -122,11 +123,12 @@ impl PracticeSheet {
         // Told: compared before or in this session, or warmed up with (only kinds met are); a
         // drill's How shows first every time it opens (S91).
         let done = |family: Family| {
-            let compared = before.iter().chain([&record]).any(|session| {
-                (session.exercises())
+            let compared = before.iter().chain(record.lesson()).any(|lesson| {
+                (lesson.exercises.iter())
                     .any(|laid| laid.first.is_some() && laid.exercise.kind.family() == family)
             });
-            let warmed = (record.exercises().take(record.warm_up()))
+            let warmed = (record.lesson().into_iter())
+                .flat_map(|lesson| lesson.exercises.iter().take(lesson.warm_up()))
                 .any(|laid| laid.exercise.kind.family() == family);
             (compared || warmed) && record.drilled() != Some(family)
         };
@@ -343,7 +345,7 @@ impl PracticeSheet {
         let result = current.and_then(|index| self.record.first(index));
         let compare = self.compare_offered(current, artwork);
         let place = current.map_or((0, 0), |index| self.record.place(index));
-        let before: Vec<&Sheet> = self.before.iter().collect();
+        let before: Vec<&Lesson> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
         let painted = self.painted_overlay();
         let (overlay, card, greys) = current
@@ -375,7 +377,8 @@ impl PracticeSheet {
             card,
             greys,
             instructions: self.instructions,
-            summary: current.is_none().then(|| summary(&self.record, &before)),
+            summary: (self.record.lesson().filter(|_| current.is_none()))
+                .map(|this| summary(this, &before)),
             finished: self.finished(),
             notice: self.notice,
             aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),

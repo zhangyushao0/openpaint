@@ -1,7 +1,8 @@
 //! Practice records in the library's record spaces (D112, `records.rs` their bytes): every
 //! sheet read, and what its exercises printed; a new one started with its project and its
-//! lesson's givens in one write, the project becoming the open one; a sheet's record replaced whole after each change (its givens
-//! stay as they were written); one removed with its givens and its project.
+//! lesson's givens in one write, the project becoming the open one; a lesson appended with its
+//! givens and the sheet's record in one write; a sheet's record replaced whole after each change
+//! (its givens stay as they were written); one removed with its givens and its project.
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Title};
 use openpaint_core::Artwork;
@@ -79,6 +80,28 @@ pub fn start(
         id.get()
     );
     Ok(id)
+}
+
+/// A lesson appended to a stored sheet (`Sheet::append`): `sheet`'s record replaced whole and
+/// `givens`, what its last lesson prints, written beside it, in one write.
+///
+/// # Errors
+/// Whatever the write fails with; nothing is written then, the sheet stays as it was stored.
+pub fn append(
+    store: &mut dyn ProjectStore,
+    sheet: &Sheet,
+    givens: &Givens,
+) -> Result<(), PortError> {
+    let lesson = u16::try_from(sheet.lessons.len().saturating_sub(1)).unwrap_or(u16::MAX);
+    store.put_records(&[
+        (PRACTICE, (sheet_key(sheet.id), encode_sheet(sheet))),
+        (
+            GIVENS,
+            (givens_key(sheet.canvas, lesson), encode_givens(givens)),
+        ),
+    ])?;
+    log::info!("practice sheet {} took lesson {lesson}", sheet.id);
+    Ok(())
 }
 
 /// `sheet`'s stored record replaced whole (by its id); its project is saved as any artwork.

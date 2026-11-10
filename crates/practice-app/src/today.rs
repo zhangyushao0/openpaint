@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use openpaint_practice::{Family, ItemRef, Pack, PictureKind, Sheet, Tier};
+use openpaint_practice::{Family, ItemRef, Pack, PictureKind, Sheet, Tier, lessons};
 
 use crate::book::BookProjection;
 use crate::pictures::PackShown;
@@ -88,13 +88,16 @@ pub struct PictureShown {
     pub sessions: u32,
 }
 
-/// The pictures of `packs` as the options show them, with how often `records` used each.
+/// The pictures of `packs` as the options show them, with how many lessons of `records` used
+/// each.
 pub(crate) fn pictures_shown(packs: &[Pack], records: &[Sheet]) -> Arc<[PictureShown]> {
+    let lessons = lessons(records);
     let uses = |item: &ItemRef, copies: bool| -> u32 {
-        let count = (records.iter())
-            .filter(|record| record.is_copy() == copies)
-            .filter(|record| {
-                (record.exercises()).any(|laid| laid.exercise.picture.as_ref() == Some(item))
+        let count = (lessons.iter())
+            .filter(|on| on.is_copy() == copies)
+            .filter(|on| {
+                (on.lesson.exercises.iter())
+                    .any(|laid| laid.exercise.picture.as_ref() == Some(item))
             })
             .count();
         u32::try_from(count).unwrap_or(u32::MAX)

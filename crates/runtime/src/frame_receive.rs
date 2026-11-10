@@ -3,6 +3,7 @@
 //! applied to the screen.
 
 use openpaint_app::Intent;
+use openpaint_practice::Purpose;
 use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeSheet};
 
 use super::Runtime;
@@ -28,8 +29,8 @@ impl Runtime {
                 let now = self.frame_clock.wall_seconds();
                 let (log, seeds) = (&self.practice, &mut self.seeds);
                 let job = match next {
-                    Next::Session => start_job(log, (log.stage(), None), seeds, now),
-                    Next::Drill(family) => drill_job(log, family, seeds, now),
+                    Next::Session => start_job(log, (log.stage(), None, Purpose::Day), seeds, now),
+                    Next::Drill(family) => drill_job(log, (family, Purpose::Day), seeds, now),
                 };
                 match job {
                     Ok(job) => self.storage.submit(job),

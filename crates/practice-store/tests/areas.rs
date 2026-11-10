@@ -224,7 +224,7 @@ fn generated_combinations_count_and_show_as_they_did() {
     );
     assert_eq!(book.seals.len(), tally.seals().len());
 
-    let rows = summary(&read[0], &[]);
+    let rows = summary(&read[0].lessons[0], &[]);
     let areas = rows.iter().find(|row| row.family == Family::Areas);
     let areas = areas.expect("combinations in the summary");
     assert_eq!((areas.checked, areas.held), (2, 2));

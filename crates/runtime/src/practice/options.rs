@@ -4,6 +4,7 @@
 //! gave, and the store's answers to their pickers.
 
 use openpaint_app::{Gallery, ImageSource, LibraryAnswer, PortError};
+use openpaint_practice::Purpose;
 use openpaint_practice_app::{Options, OptionsFile, OptionsIntent, OptionsRequest, PracticeLog};
 
 use super::jobs::{PracticeJob, copy_job, drill_job, start_job};
@@ -61,8 +62,12 @@ pub(crate) fn options_job(
     (log, seeds, now): (&PracticeLog, &mut Seeds, u64),
 ) -> Result<Job, RuntimeError> {
     Ok(Job::Practice(match request {
-        OptionsRequest::Practice(stage) => return start_job(log, (stage, None), seeds, now),
-        OptionsRequest::Drill(family) => return drill_job(log, family, seeds, now),
+        OptionsRequest::Practice(stage) => {
+            return start_job(log, (stage, None, Purpose::Day), seeds, now);
+        }
+        OptionsRequest::Drill(family) => {
+            return drill_job(log, (family, Purpose::Day), seeds, now);
+        }
         OptionsRequest::Copy(picture) => return copy_job(log, &picture, seeds, now),
         OptionsRequest::RenameCopy(sheet, title) => PracticeJob::Rename(sheet, title),
         OptionsRequest::RemoveCopy(sheet) => {

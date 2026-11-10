@@ -76,7 +76,7 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     stage[0] = 1;
     assert!(decode_sheet(&key, &stage).is_err(), "a record of 1.21.6");
     let mut purpose = bytes.clone();
-    purpose[1 + 8 + 8] = 3;
+    purpose[1 + 8 + 8] = 4;
     assert!(decode_sheet(&key, &purpose).is_err(), "a purpose unknown");
     // The spans: their count after the purpose, then the first one's start and end.
     let spans = 1 + 8 + 8 + 1;
@@ -226,7 +226,7 @@ fn every_kind_s_exercises_round_trip_with_their_pictures_and_numbers() {
 }
 
 #[test]
-fn a_drill_and_a_long_colour_copy_round_trip_as_what_they_are() {
+fn a_drill_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are() {
     let plan = Plan {
         exercises: (0..3)
             .map(|seed| Exercise::generated(Kind::Space(Trick::Thirds), seed))
@@ -242,6 +242,15 @@ fn a_drill_and_a_long_colour_copy_round_trip_as_what_they_are() {
     let read = round_trip(&drill).expect("read");
     assert_eq!(read.drilled(), Some(openpaint_practice::Family::Thirds));
     assert_eq!(read, drill);
+    // A test's drill (the device chore's, S121b): its purpose's byte 3, a drill all the same.
+    let test = Sheet {
+        purpose: Purpose::Test,
+        ..drill
+    };
+    assert_eq!(encode_sheet(&test)[1 + 8 + 8], 3);
+    let read = round_trip(&test).expect("read");
+    assert_eq!(read.drilled(), Some(openpaint_practice::Family::Thirds));
+    assert_eq!(read, test);
     let picture = ItemRef {
         pack: "openpaint-shapes".to_owned(),
         item: "teapot-bail".to_owned(),

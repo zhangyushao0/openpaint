@@ -1,5 +1,6 @@
 //! The sheet the app lays a session's exercises out on, a pair of frames each (the original at
-//! the left, the empty frame for the copy at its right), three pairs a row; a long colour copy's
+//! the left, the empty frame for the copy at its right), three pairs a row, each exercise at its
+//! slot, a lesson appended from the row after the last one used (`next_slot`); a long colour copy's
 //! sheet, one pair of frames shaped as its picture (and read back from its canvas, whatever
 //! became of the picture); a picture filling its frame.
 //!
@@ -178,46 +179,60 @@ pub struct Layout {
     pub pairs: Vec<Pair>,
 }
 
+/// A pair's width: both frames and the gap between.
+const PAIR_WIDTH: f64 = 2.0 * FRAME + PAIR_GAP;
+/// A day's sheet's width, and a row's height with its gap below.
+const WIDTH: f64 = 2.0 * EDGE + COLUMNS as f64 * PAIR_WIDTH + (COLUMNS - 1) as f64 * COLUMN_GAP;
+const ROW: f64 = FRAME + ROW_GAP;
+
 impl Layout {
     /// The sheet for exercises whose frames are each square (`None`) or of a picture of
-    /// `[width, height]` pixels: in its slot, the original's frame against the gap from the
-    /// left, the copy's from the right, both in the slot's middle from top to bottom.
+    /// `[width, height]` pixels, each in the slot of its index (`pair_at`).
     #[must_use]
     pub fn of(pictures: &[Option<[u32; 2]>]) -> Self {
-        let pair_width = 2.0 * FRAME + PAIR_GAP;
         let rows = pictures.len().div_ceil(COLUMNS).max(1);
         let pairs = (pictures.iter().enumerate())
-            .map(|(index, picture)| {
-                let (column, row) = ((index % COLUMNS) as f64, (index / COLUMNS) as f64);
-                let x = EDGE + column * (pair_width + COLUMN_GAP);
-                let y = EDGE + row * (FRAME + ROW_GAP);
-                let size = picture.map_or([FRAME; 2], |size| {
-                    PictureFit::of(size).size.map(|side| side * FRAME)
-                });
-                let top = y + (FRAME - size[1]) / 2.0;
-                Pair {
-                    original: Frame {
-                        origin: [x + FRAME - size[0], top],
-                        size,
-                    },
-                    copy: Frame {
-                        origin: [x + FRAME + PAIR_GAP, top],
-                        size,
-                    },
-                }
-            })
+            .map(|(slot, picture)| Self::pair_at(slot, *picture))
             .collect();
-        let width = 2.0 * EDGE + COLUMNS as f64 * pair_width + (COLUMNS - 1) as f64 * COLUMN_GAP;
-        let height = 2.0 * EDGE + rows as f64 * FRAME + (rows - 1) as f64 * ROW_GAP;
         Self {
-            size: [width as u32, height as u32],
+            size: Self::of_rows(rows),
             pairs,
         }
     }
 
+    /// The frames of slot `slot` for a picture of `picture` pixels (`None`: square): the
+    /// original's frame against the gap from the left, the copy's from the right, both in the
+    /// slot's middle from top to bottom.
+    #[must_use]
+    pub fn pair_at(slot: usize, picture: Option<[u32; 2]>) -> Pair {
+        let (column, row) = ((slot % COLUMNS) as f64, (slot / COLUMNS) as f64);
+        let x = EDGE + column * (PAIR_WIDTH + COLUMN_GAP);
+        let y = EDGE + row * ROW;
+        let size = picture.map_or([FRAME; 2], |size| {
+            PictureFit::of(size).size.map(|side| side * FRAME)
+        });
+        let top = y + (FRAME - size[1]) / 2.0;
+        Pair {
+            original: Frame {
+                origin: [x + FRAME - size[0], top],
+                size,
+            },
+            copy: Frame {
+                origin: [x + FRAME + PAIR_GAP, top],
+                size,
+            },
+        }
+    }
+
+    /// A day's sheet of `rows` rows.
+    fn of_rows(rows: usize) -> [u32; 2] {
+        let height = 2.0 * EDGE + rows as f64 * FRAME + rows.saturating_sub(1) as f64 * ROW_GAP;
+        [WIDTH as u32, height as u32]
+    }
+
     /// The layout `sheet` lies on, from its exercises as laid: a long colour copy's of its
-    /// picture's shape (`study`), else each exercise in its slot, a picture's frames of its
-    /// shape, every other kind's square.
+    /// picture's shape (`study`), else one pair an exercise at its slot, a picture's frames of
+    /// its shape, every other kind's square, on a sheet of the rows they use (`used`).
     #[must_use]
     pub fn of_sheet(sheet: &Sheet) -> Self {
         let frame = |laid: &Laid| (laid.frame != [0, 0]).then(|| laid.frame.map(u32::from));
@@ -225,15 +240,65 @@ impl Layout {
             let picture = sheet.exercises().next().and_then(frame);
             return Self::study(picture.unwrap_or([1, 1]));
         }
-        let slots = (sheet.exercises())
-            .map(|laid| usize::from(laid.slot) + 1)
+        let pairs = (sheet.exercises())
+            .map(|laid| Self::pair_at(usize::from(laid.slot), frame(laid)))
+            .collect();
+        Self {
+            size: Self::used(sheet),
+            pairs,
+        }
+    }
+
+    /// `sheet`'s layout on its canvas of `canvas` pixels: the same frames.
+    #[must_use]
+    pub fn on(sheet: &Sheet, canvas: [u32; 2]) -> Self {
+        Self {
+            size: canvas,
+            ..Self::of_sheet(sheet)
+        }
+    }
+
+    /// The size of the rows `sheet`'s exercises use (one at least); a colour copy's whole sheet.
+    #[must_use]
+    pub fn used(sheet: &Sheet) -> [u32; 2] {
+        if sheet.is_copy() {
+            return Self::of_sheet(sheet).size;
+        }
+        Self::of_rows((Self::next_slot(sheet) / COLUMNS).max(1))
+    }
+
+    /// The first slot of the row after the last one `sheet`'s exercises use: where a lesson
+    /// appended to it starts (0 on an empty sheet).
+    #[must_use]
+    pub fn next_slot(sheet: &Sheet) -> usize {
+        let rows = (sheet.exercises())
+            .map(|laid| usize::from(laid.slot) / COLUMNS + 1)
             .max()
             .unwrap_or(0);
-        let mut pictures: Vec<Option<[u32; 2]>> = vec![None; slots];
-        for laid in sheet.exercises() {
-            pictures[usize::from(laid.slot)] = frame(laid);
-        }
-        Self::of(&pictures)
+        rows * COLUMNS
+    }
+
+    /// How many rows a canvas of `size` pixels holds.
+    #[must_use]
+    pub fn rows_on(size: [u32; 2]) -> usize {
+        let height = f64::from(size[1]) - 2.0 * EDGE + ROW_GAP;
+        (height / ROW).floor().max(0.0) as usize
+    }
+
+    /// Whether a lesson of `exercises` fits on `sheet`'s canvas of `size` pixels from the row
+    /// after its last one used; never on a colour copy's.
+    #[must_use]
+    pub fn fits(sheet: &Sheet, exercises: usize, size: [u32; 2]) -> bool {
+        let rows = Self::next_slot(sheet) / COLUMNS + exercises.div_ceil(COLUMNS);
+        !sheet.is_copy() && rows <= Self::rows_on(size)
+    }
+
+    /// The rectangle of slot `slot`'s row, `[x, y, width, height]` in canvas pixels: the row with
+    /// the edge round it, exactly a one-row sheet.
+    #[must_use]
+    pub fn row_rect(slot: usize) -> [f64; 4] {
+        let [width, height] = Self::of_rows(1).map(f64::from);
+        [0.0, (slot / COLUMNS) as f64 * ROW, width, height]
     }
 
     /// A long colour copy's sheet for a picture of `picture` pixels: one pair of frames of the

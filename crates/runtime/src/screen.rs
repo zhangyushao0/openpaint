@@ -126,7 +126,7 @@ impl Screen {
                             let packs = practice.packs();
                             let view =
                                 SheetView::of(session, printed, packs, (size, title, number));
-                            let others = practice.tally_without(session.id);
+                            let others = practice.tally_beside(session);
                             (session.clone(), before, view, others)
                         })
                 }

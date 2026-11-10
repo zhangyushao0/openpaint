@@ -6,15 +6,16 @@
 //! the stage is the last session's, the next one offered once a stage's sessions are done and
 //! earlier at the user's choice, an earlier one revisited. A long colour copy counts in no stage:
 //! it is worked on whenever the user likes, of a picture the user chose (`today.rs`).
-//! Nor does a drill (S91): one kind on its own sheet, chosen from the options' tiles.
+//! Nor does a drill (S91): one kind on its own sheet, chosen from the options' tiles. Sessions,
+//! drills and copies are lessons, counted in the order of sheet and lesson (`lessons`).
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, Book, Family, ItemRef, Kind, PERSONAL, Pack, PackItem, PictureKind, Pictures, Random,
-    STAGE_SESSIONS, STAGES_READY, Sheet, Tally, drill, kinds_of, local_day, met, number, plan,
-    recent, scales_met, used,
+    Before, Book, Family, ItemRef, Kind, Lesson, OnSheet, PERSONAL, Pack, PackItem, PictureKind,
+    Pictures, Random, STAGE_SESSIONS, STAGES_READY, Sheet, Tally, drill, kinds_of, lessons,
+    local_day, met, number, plan, recent, scales_met, used,
 };
 
 use crate::book::{BookProjection, BookRecord, SheetRead};
@@ -61,9 +62,11 @@ impl PracticeLog {
         log
     }
 
-    /// The sessions, colour copies and drills left out.
-    fn sessions(&self) -> impl DoubleEndedIterator<Item = &Sheet> {
-        self.sheets.iter().filter(|s| s.stage().is_some())
+    /// The session lessons, colour copies and drills left out.
+    fn sessions(&self) -> impl DoubleEndedIterator<Item = OnSheet<'_>> {
+        lessons(&self.sheets)
+            .into_iter()
+            .filter(|s| s.stage().is_some())
     }
 
     /// The stage practised: the last session's, 1 before any.
@@ -84,8 +87,8 @@ impl PracticeLog {
             .count();
         let done = u32::try_from(done).unwrap_or(u32::MAX);
         let open = (self.sessions().rev())
-            .find(|s| s.finished().is_none() && s.canvas != 0)
-            .map(|s| ProjectId::new(s.canvas));
+            .find(|s| s.finished().is_none() && s.sheet.canvas != 0)
+            .map(|s| ProjectId::new(s.sheet.canvas));
         let any = |held: fn(&PackItem) -> bool| self.packs.iter().any(|p| p.items.iter().any(held));
         TodayProjection {
             stage,
@@ -114,10 +117,13 @@ impl PracticeLog {
     /// unfinished, which its tile continues.
     fn drills(&self) -> Vec<DrillShown> {
         let met: Vec<Family> = (met(&self.sheets).iter()).map(|k| k.family()).collect();
+        let lessons = lessons(&self.sheets);
         let open = |family: Family| {
-            (self.sheets.iter().rev())
-                .find(|s| s.drilled() == Some(family) && s.finished().is_none() && s.canvas != 0)
-                .map(|s| ProjectId::new(s.canvas))
+            (lessons.iter().rev())
+                .find(|s| {
+                    s.drilled() == Some(family) && s.finished().is_none() && s.sheet.canvas != 0
+                })
+                .map(|s| ProjectId::new(s.sheet.canvas))
         };
         (1..=STAGES_READY)
             .flat_map(|stage| kinds_of(stage).iter().map(move |family| (stage, *family)))
@@ -135,7 +141,7 @@ impl PracticeLog {
     /// are), with its sheet's title; none for a kind no stage drills, or shapes without a picture.
     #[must_use]
     pub fn begin_drill(&self, family: Family, seed: u64, now: u64) -> Option<(Sheet, Title)> {
-        let number = (self.sheets.iter())
+        let number = (lessons(&self.sheets).iter())
             .filter(|s| s.drilled() == Some(family))
             .count();
         let number = u32::try_from(number + 1).unwrap_or(u32::MAX);
@@ -161,10 +167,10 @@ impl PracticeLog {
         self.read = Arc::new(kept);
     }
 
-    /// What every record but `id` adds up to: what a session's seals are earned beside.
+    /// What every lesson but `sheet`'s in hand adds up to: what its seals are earned beside.
     #[must_use]
-    pub fn tally_without(&self, id: u64) -> Tally {
-        Tally::of(self.sheets.iter().filter(|s| s.id != id))
+    pub fn tally_beside(&self, sheet: &Sheet) -> Tally {
+        Tally::beside(&self.sheets, sheet)
     }
 
     /// The book made again from the records.
@@ -175,11 +181,11 @@ impl PracticeLog {
             .map(|s| BookRecord {
                 id: s.id,
                 sheet: ProjectId::new(s.canvas),
-                number: number(&self.sheets, s),
+                number: self.number(s),
                 drill: s.drilled(),
                 copy: (s.is_copy()).then(|| {
                     (self.titles.get(&s.canvas).cloned())
-                        .unwrap_or_else(|| copy_title(number(&self.sheets, s)))
+                        .unwrap_or_else(|| copy_title(self.number(s)))
                 }),
             })
             .collect();
@@ -193,10 +199,10 @@ impl PracticeLog {
                 let item = copy.laid(0).and_then(|laid| laid.exercise.picture.as_ref());
                 let kept = item.filter(|item| self.packs.iter().any(|p| p.find(item).is_some()));
                 let name = (self.titles.get(&copy.canvas).cloned())
-                    .unwrap_or_else(|| copy_title(number(&self.sheets, copy)));
+                    .unwrap_or_else(|| copy_title(self.number(copy)));
                 CopyShown {
                     sheet: ProjectId::new(copy.canvas),
-                    number: number(&self.sheets, copy),
+                    number: self.number(copy),
                     name,
                     picture: kept.cloned(),
                 }
@@ -249,7 +255,7 @@ impl PracticeLog {
         if found.kind != PictureKind::Shape {
             return None;
         }
-        let number = self.sheets.iter().filter(|s| s.is_copy()).count() + 1;
+        let number = lessons(&self.sheets).iter().filter(|s| s.is_copy()).count() + 1;
         let number = u32::try_from(number).unwrap_or(u32::MAX);
         let record = Sheet::copy(self.next_id(), (seed, now), picture.clone()).framed(&self.packs);
         Some((record, copy_title(number)))
@@ -316,10 +322,11 @@ impl PracticeLog {
         self.sheets.iter().find(|s| s.id == id)
     }
 
-    /// `sheet`'s number among the sheets of its kind the log holds (`openpaint_practice::number`).
+    /// The number of `sheet`'s lesson in hand among the lessons of its kind the log holds
+    /// (`openpaint_practice::number`).
     #[must_use]
     pub fn number(&self, sheet: &Sheet) -> u32 {
-        number(&self.sheets, sheet)
+        number(&self.sheets, sheet, sheet.in_hand())
     }
 
     /// The session or copy whose sheet is project `id`.
@@ -328,17 +335,21 @@ impl PracticeLog {
         self.sheets.iter().find(|s| s.canvas == id.get())
     }
 
-    /// What `session`'s summary sets it beside: the finished sessions of its stage before it, or
-    /// for a drill the finished drills of its kind before it (never a session).
+    /// What the summary of `session`'s lesson in hand sets it beside: the finished session
+    /// lessons of its stage before it, or for a drill the finished drills of its kind before it
+    /// (never a session), earlier ones on its sheet included.
     #[must_use]
-    pub fn before(&self, session: &Sheet) -> Vec<Sheet> {
-        let alike = |s: &Sheet| match session.drilled() {
-            Some(family) => s.drilled() == Some(family),
-            None => s.stage().is_some() && s.stage() == session.stage(),
+    pub fn before(&self, session: &Sheet) -> Vec<Lesson> {
+        let Some(this) = session.held() else {
+            return Vec::new();
         };
-        (self.sheets.iter())
-            .filter(|s| alike(s) && s.id < session.id && s.finished().is_some())
-            .cloned()
+        let alike = |s: &OnSheet<'_>| match this.drilled() {
+            Some(family) => s.drilled() == Some(family),
+            None => s.stage().is_some() && s.stage() == this.stage(),
+        };
+        (lessons(&self.sheets).into_iter())
+            .filter(|s| alike(s) && s.order() < this.order() && s.finished().is_some())
+            .map(|s| s.lesson.clone())
             .collect()
     }
 

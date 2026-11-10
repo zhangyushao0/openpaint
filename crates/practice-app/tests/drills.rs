@@ -9,7 +9,7 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, ProjectId, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Family, First, Given, Kind, Layout, Picked, STAGES_READY, Sheet, Tally, Trick, kinds_of,
+    Family, First, Given, Kind, Layout, Lesson, Picked, STAGES_READY, Sheet, Tally, Trick, kinds_of,
 };
 use openpaint_practice_app::{
     DrillShown, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, PracticeSheet,
@@ -100,21 +100,21 @@ fn a_drill_s_summary_sets_it_beside_earlier_drills_of_its_kind_only() {
         compared(record)
     };
     let (first, _) = log.begin_drill(Family::Colour, 1, NOON).expect("a drill");
-    log.keep(finished(first));
+    let first = finished(first);
+    log.keep(first.clone());
     let (session, _) = log.begin((1, None), 2, NOON);
-    log.keep(finished(session));
+    let session = finished(session);
+    log.keep(session.clone());
     let (line, _) = log.begin_drill(Family::Line, 3, NOON).expect("a drill");
     log.keep(finished(line));
     let (second, _) = log.begin_drill(Family::Colour, 4, NOON).expect("a drill");
-    let before: Vec<u64> = log.before(&second).iter().map(|r| r.id).collect();
-    assert_eq!(before, [1], "the colour drill only");
+    assert_eq!(log.before(&second), first.lessons, "the colour drill only");
     let (next, _) = log.begin((1, None), 5, NOON);
-    let before: Vec<u64> = log.before(&next).iter().map(|r| r.id).collect();
-    assert_eq!(before, [2], "the session only");
+    assert_eq!(log.before(&next), session.lessons, "the session only");
     assert_eq!(log.today().done, 1);
 }
 
-fn practising(record: Sheet, before: Vec<Sheet>) -> Session {
+fn practising(record: Sheet, before: Vec<Lesson>) -> Session {
     let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -141,7 +141,7 @@ fn a_drill_shows_its_how_first_every_time_and_finishes_without_a_road() {
         id: 9,
         ..record.clone()
     });
-    let mut session = practising(record, vec![earlier]);
+    let mut session = practising(record, earlier.lessons);
     let shown = |session: &Session| PracticeProjection::of(session).expect("a sheet");
     let first = shown(&session);
     assert_eq!(first.instructions, Some(Family::Halves), "its How first");

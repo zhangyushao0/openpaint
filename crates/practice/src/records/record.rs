@@ -1,11 +1,13 @@
-//! What the sheets kept tell (`sheet.rs`): the kinds met and the pictures shown (what the next
-//! session or drill draws on), the value scales met, and a session's summary (its means and
-//! colour judgement beside its stage's earlier sessions'). Long colour copies count in none.
+//! What the sheets kept tell (`sheet.rs`), every lesson of each counted: the kinds met and the
+//! pictures shown (what the next session or drill draws on), the value scales met, and a lesson's
+//! summary (its means and colour judgement beside the earlier lessons of its kind). Long colour
+//! copies count in none.
 
 use crate::kinds::colours::judgement::Judgement;
 use crate::packs::pack::ItemRef;
+use crate::records::lessons::lessons;
 use crate::records::metric::{Metric, Metrics, value};
-use crate::records::sheet::Sheet;
+use crate::records::sheet::{Lesson, Sheet};
 use crate::sessions::plan::{Family, Kind};
 
 /// The kinds compared in `sheets`' sessions and drills (long colour copies left out), each once,
@@ -54,14 +56,14 @@ pub fn used(sheets: &[Sheet]) -> Vec<ItemRef> {
 /// The sessions and drills a composition waits before it comes back (S95).
 pub const RECENT: usize = 10;
 
-/// The pictures the last `RECENT` sessions and drills of `sheets` (oldest first; colour copies
-/// left out) showed: what a division or a whole copy picks others than while there are.
+/// The pictures the last `RECENT` session and drill lessons of `sheets` (colour copies left out)
+/// showed: what a division or a whole copy picks others than while there are.
 #[must_use]
 pub fn recent(sheets: &[Sheet]) -> Vec<ItemRef> {
-    let mut items: Vec<ItemRef> = (sheets.iter().rev())
-        .filter(|sheet| !sheet.is_copy())
+    let mut items: Vec<ItemRef> = (lessons(sheets).iter().rev())
+        .filter(|lesson| !lesson.is_copy())
         .take(RECENT)
-        .flat_map(Sheet::exercises)
+        .flat_map(|lesson| lesson.lesson.exercises.iter())
         .filter_map(|laid| laid.exercise.picture.clone())
         .collect();
     items.sort();
@@ -88,12 +90,14 @@ pub struct KindSummary {
     pub judgement: Option<[Judgement; 2]>,
 }
 
-/// `this` sheet's summary per family it holds (the warm-up's exercises counted in their
-/// families) beside `before` (the earlier sessions of its stage), in the order the session's mix
+/// `this` lesson's summary per family it holds (the warm-up's exercises counted in their
+/// families) beside `before` (the earlier lessons of its kind), in the order the session's mix
 /// meets them (a family only warmed up with last).
 #[must_use]
-pub fn summary(this: &Sheet, before: &[&Sheet]) -> Vec<KindSummary> {
-    let exercises: Vec<Kind> = this.exercises().map(|laid| laid.exercise.kind).collect();
+pub fn summary(this: &Lesson, before: &[&Lesson]) -> Vec<KindSummary> {
+    let exercises: Vec<Kind> = (this.exercises.iter())
+        .map(|laid| laid.exercise.kind)
+        .collect();
     let warm_up = this.warm_up().min(exercises.len());
     let mut families = Family::ALL.to_vec();
     families.sort_by_key(|family| {
@@ -130,10 +134,10 @@ pub fn summary(this: &Sheet, before: &[&Sheet]) -> Vec<KindSummary> {
         .collect()
 }
 
-/// Every first Compare of `sheets` of `family`, with its exercise's kind.
-fn results_of<'a>(sheets: &[&'a Sheet], family: Family) -> Vec<(Kind, &'a Metrics)> {
-    (sheets.iter())
-        .flat_map(|sheet| sheet.exercises())
+/// Every first Compare of `lessons` of `family`, with its exercise's kind.
+fn results_of<'a>(lessons: &[&'a Lesson], family: Family) -> Vec<(Kind, &'a Metrics)> {
+    (lessons.iter())
+        .flat_map(|lesson| lesson.exercises.iter())
         .filter(|laid| laid.exercise.kind.family() == family)
         .filter_map(|laid| Some((laid.exercise.kind, &laid.first.as_ref()?.metrics)))
         .collect()

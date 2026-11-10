@@ -5,7 +5,7 @@
 //! record to its bytes. Motion runs on the hand's held clock, 16 ms a frame, as in scenarios.
 
 use openpaint_app::{ProjectId, ProjectStore};
-use openpaint_practice::Family;
+use openpaint_practice::{Family, Purpose};
 use openpaint_practice_app::TodayProjection;
 use openpaint_practice_store::sheets;
 use openpaint_runtime::{Runtime, ToolKind};
@@ -147,6 +147,15 @@ fn a_test_drill_is_named_by_its_kind_counts_in_no_session_and_one_more_drills_ag
         .find(|tile| tile.family == Family::Centre)
         .expect("its tile");
     assert!(tile.compared && tile.open.is_some());
+    // Stored as a test's sheet (S121b); One more's drill is a day's.
+    drop(runtime);
+    let mut library = Library::at(&dir);
+    let purposes: Vec<(u64, Purpose)> = (sheets(&mut library).expect("records").iter())
+        .map(|sheet| (sheet.id, sheet.purpose))
+        .collect();
+    assert_eq!(purposes, [(id, Purpose::Test), (id + 1, Purpose::Day)]);
+    drop(library);
+    let (mut runtime, mut hand) = in_the_gallery(&dir);
     runtime.end_test_practice(&test).expect("ended");
     until(&mut runtime, &mut hand, |r| !r.holds_practice(id));
 }

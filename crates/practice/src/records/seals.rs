@@ -54,22 +54,48 @@ impl Tally {
         tally
     }
 
-    /// Adds what `record` did.
+    /// What every record of `records` but `record` adds up to, with `record`'s lessons but the
+    /// one in hand: what that lesson's seals are earned beside (`sealed`).
+    #[must_use]
+    pub fn beside<'a>(records: impl IntoIterator<Item = &'a Sheet>, record: &Sheet) -> Self {
+        let mut tally = Self::of(records.into_iter().filter(|other| other.id != record.id));
+        let hand = record.in_hand();
+        for index in (0..record.lessons.len()).filter(|index| *index != hand) {
+            tally.add_lesson(record, index);
+        }
+        tally
+    }
+
+    /// Adds what `record` did: its time and every lesson of it.
     pub fn add(&mut self, record: &Sheet) {
+        self.add_time(record);
+        for index in 0..record.lessons.len() {
+            self.add_lesson(record, index);
+        }
+    }
+
+    /// Adds `record`'s time, and a long colour copy begun.
+    fn add_time(&mut self, record: &Sheet) {
         self.seconds += seconds(&record.spans);
         if record.is_copy() {
             self.copies += u32::from(record.canvas != 0);
-            return;
         }
-        // A drill counts its time and what it compared, never as a session (S91).
-        if let Some(stage) = record.stage().filter(|_| record.finished().is_some()) {
+    }
+
+    /// Adds what lesson `index` of `record` did; a copy's nothing.
+    fn add_lesson(&mut self, record: &Sheet, index: usize) {
+        let Some(lesson) = record.lessons.get(index).filter(|_| !record.is_copy()) else {
+            return;
+        };
+        // A drill counts what it compared, never as a session (S91).
+        if let Some(stage) = lesson.stage().filter(|_| lesson.finished.is_some()) {
             self.sessions += 1;
             let stage = usize::from(stage).wrapping_sub(1);
             if let Some(done) = self.stages.get_mut(stage) {
                 *done += 1;
             }
         }
-        for laid in record.exercises().filter(|laid| laid.first.is_some()) {
+        for laid in lesson.exercises.iter().filter(|laid| laid.first.is_some()) {
             match laid.exercise.kind.family() {
                 Family::Line | Family::Combined => self.lines += 1,
                 Family::Colour => self.colours += 1,
@@ -130,13 +156,14 @@ pub fn earned(records: &[Sheet]) -> Vec<Earned> {
     earned
 }
 
-/// The seals `record` earns beside `others` (what every other record adds up to): those its
-/// own work adds.
+/// The seals `record`'s lesson in hand earns beside `others` (what every other lesson adds up
+/// to, `Tally::beside`): those its own work and its sheet's time add.
 #[must_use]
 pub fn sealed(others: &Tally, record: &Sheet) -> Vec<Seal> {
     let before = others.seals();
     let mut with = *others;
-    with.add(record);
+    with.add_time(record);
+    with.add_lesson(record, record.in_hand());
     (with.seals().into_iter())
         .filter(|seal| !before.contains(seal))
         .collect()

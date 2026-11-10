@@ -4,7 +4,7 @@
 //! opens again (the time between was not spent on it). The time goes to the store with every
 //! other change, at least once a minute while it grows, when the app is hidden and when the sheet
 //! is left. Once a session is done: its dot on its stage's road and the seals its work earned
-//! beside every other record's; once a drill is done, the seals only.
+//! beside every other lesson's; once a drill is done, the seals only.
 
 use openpaint_practice::{STAGE_SESSIONS, Seal, practised, sealed, seconds};
 

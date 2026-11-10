@@ -39,6 +39,7 @@ fn practising(record: Sheet, (before, others): (Vec<Sheet>, Tally)) -> Session {
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
     let view = support::view(&record, &[], [width, height]);
+    let before = before.into_iter().flat_map(|sheet| sheet.lessons).collect();
     openpaint_practice_app::open_sheet(
         sheet,
         (brush, pens),

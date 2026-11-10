@@ -49,7 +49,7 @@ fn after_first(finished: bool) -> Session {
     let (record, _) = log.begin((1, None), 0x5EED_0079, 1_791_290_000);
     let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let before = if finished { vec![first] } else { Vec::new() };
+    let before = if finished { first.lessons } else { Vec::new() };
     let view = support::view(&record, &[], [width, height]);
     openpaint_practice_app::open_sheet(
         sheet,

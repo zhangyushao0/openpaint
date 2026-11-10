@@ -1,5 +1,5 @@
-//! A sheet's record, its places with and without a warm-up, the kinds met, its number among the
-//! sheets alike, and its summary beside the sessions before it.
+//! A sheet's record, its places with and without a warm-up, the kinds met, a lesson's number among
+//! the lessons alike, and its summary beside the lessons before it.
 
 use openpaint_practice::{
     Arrangement, Axis, Combination, Exercise, Family, First, ItemRef, Kind, LineTier, Metric,
@@ -57,7 +57,7 @@ fn a_sheet_is_numbered_among_the_sheets_alike() {
         Sheet::drill(7, 0, lines(6)),
         Sheet::copy(8, (9, 0), item),
     ];
-    let numbers: Vec<u32> = sheets.iter().map(|s| number(&sheets, s)).collect();
+    let numbers: Vec<u32> = sheets.iter().map(|s| number(&sheets, s, 0)).collect();
     assert_eq!(numbers, [1, 1, 1, 1, 2, 1, 2, 2]);
     let picked = sheets.iter().map(|s| s.lesson().map(|l| l.picked));
     let picked: Vec<Option<Picked>> = picked.collect();
@@ -94,7 +94,7 @@ fn the_summary_sets_combinations_and_scales_beside_the_earlier_ones() {
     checked(&mut this, 0, areas(0.05, 0.0));
     let scale = vec![(Metric::ScaleOff, 0.04), (Metric::ScaleReversed, 1.0)];
     checked(&mut this, 1, scale);
-    let kinds = summary(&this, &[&before]);
+    let kinds = summary(&this.lessons[0], &[&before.lessons[0]]);
     let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
     assert_eq!(families, [Family::Areas, Family::Scale]);
     assert_eq!(
@@ -217,7 +217,7 @@ fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
         (Metric::FinalLightness, -0.01),
     ];
     checked(&mut this, 11, colour);
-    let kinds = summary(&this, &[&before]);
+    let kinds = summary(&this.lessons[0], &[&before.lessons[0]]);
     let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
     assert_eq!(families, [Family::Line, Family::Combined, Family::Colour]);
     let lines = &kinds[0];
@@ -245,6 +245,6 @@ fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
     assert!((lightness - 0.8).abs() < 1e-9, "{lightness}");
     assert_eq!(earlier.of(Axis::Lightness), None);
     assert!(earlier.of(Axis::FirstToFinal).is_some());
-    let first = summary(&this, &[]);
+    let first = summary(&this.lessons[0], &[]);
     assert!(first[2].judgement.expect("a judgement")[1].is_empty());
 }

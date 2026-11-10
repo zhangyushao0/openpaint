@@ -238,10 +238,11 @@ pub struct PracticeProjection {
 pub struct SheetView {
     /// Its project's title: a colour copy's name.
     pub name: Title,
-    /// Its number among the sheets of its kind: a session's in its stage, a drill's among its
-    /// kind's drills, a copy's among the copies (`openpaint_practice::number`).
+    /// The number of its lesson in hand among the lessons of its kind: a session's in its stage,
+    /// a drill's among its kind's drills, a copy's among the copies (`openpaint_practice::number`).
     pub number: u32,
     pub size: [u32; 2],
+    /// Each exercise's frames, in the order of its lessons, at its slot.
     pub pairs: Vec<Pair>,
     /// Each exercise's family, whose facts the flow and the screen read.
     pub families: Vec<Family>,
@@ -268,7 +269,7 @@ impl SheetView {
         packs: &[Pack],
         (size, name, number): ([u32; 2], &Title, u32),
     ) -> Self {
-        let sheet = Layout::of_sheet(record);
+        let sheet = Layout::on(record, size);
         let exercises: Vec<&Exercise> = record.exercises().map(|laid| &laid.exercise).collect();
         let families: Vec<Family> = exercises.iter().map(|e| e.kind.family()).collect();
         let pictures: Vec<Option<Arc<SheetPicture>>> = (exercises.iter())
@@ -284,7 +285,7 @@ impl SheetView {
         Self {
             name: name.clone(),
             number,
-            size,
+            size: sheet.size,
             pairs: sheet.pairs,
             pictures,
             painted,

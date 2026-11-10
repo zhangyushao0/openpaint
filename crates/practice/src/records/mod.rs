@@ -3,6 +3,7 @@
 
 pub(crate) mod book;
 pub(crate) mod givens;
+pub(crate) mod lessons;
 pub(crate) mod metric;
 pub(crate) mod record;
 pub(crate) mod seals;

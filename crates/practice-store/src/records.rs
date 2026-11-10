@@ -6,7 +6,7 @@
 //!
 //! - The tag `SHEET` (u8; a record beginning otherwise is refused, 1.21.6's too), its
 //!   project (u64, 0 none), when it started (u64 seconds since 1970 UTC), its purpose (u8: 1 the
-//!   day's practice, 2 a long colour copy).
+//!   day's practice, 2 a long colour copy, 3 a test's, `practice-test`).
 //! - The spans it was practised in: a count (u32) and each one's start and end (u64 seconds since
 //!   1970 UTC, the end not before the start).
 //! - Its lessons, a count (u32, one at least), each: started and finished (u64, finished 0 while
@@ -66,6 +66,7 @@ pub(crate) fn encode_sheet(sheet: &Sheet) -> Vec<u8> {
     writer.u8(match sheet.purpose {
         Purpose::Day => 1,
         Purpose::Copy => 2,
+        Purpose::Test => 3,
     });
     writer.len(sheet.spans.len());
     for span in &sheet.spans {
@@ -152,6 +153,7 @@ pub(crate) fn decode_sheet(key: &[u8], bytes: &[u8]) -> Result<Sheet, PortError>
     let purpose = match reader.u8()? {
         1 => Purpose::Day,
         2 => Purpose::Copy,
+        3 => Purpose::Test,
         _ => return Err(reader.corrupt()),
     };
     let spans = read_spans(&mut reader)?;
