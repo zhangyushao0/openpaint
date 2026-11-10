@@ -9,9 +9,9 @@ use crate::screen::screen_pipeline;
 
 const SHADER: &str = include_str!("../shaders/chrome.wgsl");
 /// At most this many islands carry chrome at once.
-pub const CHROME_ISLANDS: usize = 4;
+pub(crate) const CHROME_ISLANDS: usize = 4;
 /// At most this many panels are drawn growing or shrinking at once; more keep the newest.
-pub const CHROME_PANELS: usize = 3;
+pub(crate) const CHROME_PANELS: usize = 3;
 /// Smooth-union radius between an island and its panel, in points: a small fillet where the
 /// panel crosses the island's edge, below the gap the panel's top steps over, so the two never
 /// pull towards each other across a thin gap.

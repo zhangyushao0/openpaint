@@ -25,7 +25,7 @@ pub const BACKGROUND_NS: f64 = 4_000_000.0;
 
 /// The background work the GPU's queue holds at most while nothing touches the screen: the first
 /// frame of a touch waits for at most this much.
-pub const IDLE_BACKGROUND_NS: f64 = 10_000_000.0;
+pub(crate) const IDLE_BACKGROUND_NS: f64 = 10_000_000.0;
 
 /// How much of the measured and estimated sums each reading keeps: about the last 30 readings
 /// count.

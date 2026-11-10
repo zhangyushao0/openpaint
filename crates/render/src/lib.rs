@@ -76,27 +76,23 @@ mod view_tiles;
 mod waiting;
 
 pub use crate::adapter::{
-    CHROME_ISLANDS, CHROME_PANELS, ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame,
-    chrome_shape,
+    ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame, chrome_shape,
 };
-pub use crate::budget::{
-    CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET, SHARED_BUDGET, SHARED_PART,
-};
+pub use crate::budget::{CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET};
 pub use crate::canvas::{CanvasCopy, CanvasTarget};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
-pub use crate::difference::{EDGE, ImageDifference, image_difference};
+pub use crate::difference::{ImageDifference, image_difference};
 pub use crate::error::RenderError;
 pub use crate::export::{Banding, Bands};
 pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;
 pub use crate::image::RgbaImage;
-pub use crate::output::MAX_SCALE;
-pub use crate::pace::{BACKGROUND_NS, Background, IDLE_BACKGROUND_NS};
+pub use crate::pace::{BACKGROUND_NS, Background};
 pub use crate::profile::{Spent, take_spent};
 pub use crate::raster_worker::{RasterAnswer, RasterDone, RasterDrawer, RasterJob, RasterOrder};
 pub use crate::screen::{BrushCursor, CanvasPlacement, ScreenTarget};
-pub use crate::stroke::{curve_pieces, stroke_region, tip_radius};
+pub use crate::stroke::{stroke_region, tip_radius};
 pub use crate::surface::{Surface, SurfaceWindow};
 pub use crate::tally::Counts;
 pub use crate::thumbnail::{thumbnail_reference, thumbnail_size};

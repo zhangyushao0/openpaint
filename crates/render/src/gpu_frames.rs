@@ -127,7 +127,22 @@ impl Core {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::test_core;
+    use crate::core::{Core, clear_attachment, test_core};
+    use crate::readback::{FORMAT, target_texture};
+
+    /// A frame's work on this thread: an offscreen target of `size` pixels cleared.
+    fn clear(core: &Core, size: [u32; 2]) {
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
+        let texture = target_texture(&core.gpu, (size, FORMAT), usage).expect("a target");
+        let view = texture.create_view(&Default::default());
+        let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
+        drop(encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("clear"),
+            color_attachments: &[Some(clear_attachment(&view, [1, 2, 3, 255]))],
+            ..Default::default()
+        }));
+        core.gpu.submit([encoder.finish()]);
+    }
 
     #[test]
     fn a_frame_is_in_flight_until_the_gpu_finished_it() {
@@ -148,8 +163,7 @@ mod tests {
         core.frame_begun();
         core.frame_ended();
         core.frame_begun();
-        core.render_clear([64, 64], [1, 2, 3, 255])
-            .expect("a frame's work");
+        clear(core, [64, 64]);
         core.frame_ended();
         core.time_frames(false);
         core.wait_idle().expect("idle");
@@ -159,7 +173,7 @@ mod tests {
             assert!(times[0] > 0.0);
         }
         core.frame_begun();
-        core.render_clear([8, 8], [0; 4]).expect("untimed");
+        clear(core, [8, 8]);
         core.frame_ended();
         core.wait_idle().expect("idle");
         assert!(core.frame_times().is_empty(), "not timed");

@@ -250,15 +250,6 @@ pub fn stroke_region(
     span_regions(style, samples, &path, range).reduce(|all, next| all.union(&next))
 }
 
-/// How many spans a finished stroke of `style` through `samples` has, and how many straight
-/// pieces the raster core draws them as at `scale` output pixels per canvas pixel (statistics).
-#[must_use]
-pub fn curve_pieces(style: &StrokeStyle, samples: &[StrokeSample], scale: f32) -> [usize; 2] {
-    let spans: Vec<Segment> = segments(style, samples).collect();
-    let pieces = spans.iter().map(|span| span.pieces(scale).len()).sum();
-    [spans.len(), pieces]
-}
-
 /// The radius in canvas pixels at the last of `samples`, as a stroke of `style` draws it there
 /// before its taper: the size dynamics at that sample's pressure, pen speed and tilt (the pen's
 /// outline shows the brush, never its taper). `None` without samples.

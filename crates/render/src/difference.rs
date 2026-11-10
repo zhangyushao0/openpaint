@@ -7,7 +7,7 @@
 use crate::image::RgbaImage;
 
 /// The step between neighbours, in 8-bit levels, from which a pixel counts as on an edge.
-pub const EDGE: u8 = 8;
+pub(crate) const EDGE: u8 = 8;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct ImageDifference {

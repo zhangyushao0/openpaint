@@ -9,7 +9,7 @@ use crate::geom::PixelRect;
 
 /// The largest output scale: the view's finest tier, 64 output pixels per canvas pixel.
 /// Exports offer up to 4x (the app's `ExportScale`).
-pub const MAX_SCALE: u32 = 8;
+pub(crate) const MAX_SCALE: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Output {

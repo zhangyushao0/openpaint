@@ -12,11 +12,6 @@ use crate::profile::waited;
 /// The offscreen colour format: 8 bits per channel, no sRGB conversion on write or read.
 pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
-/// A texture that can be rendered into and then read back.
-pub(crate) fn offscreen_texture(gpu: &Gpu, size: [u32; 2]) -> Result<wgpu::Texture, RenderError> {
-    target_texture(gpu, (size, FORMAT), wgpu::TextureUsages::RENDER_ATTACHMENT)
-}
-
 /// A texture of `size` pixels in `format` (`FORMAT` or the display's, `Gpu::display`) with
 /// `usage`, readable back.
 pub(crate) fn target_texture(

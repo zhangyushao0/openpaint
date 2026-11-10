@@ -8,10 +8,10 @@
 use crate::core::Core;
 
 /// The share of the device's memory the derived caches may hold on a GPU sharing it.
-pub const SHARED_PART: u64 = 4;
+pub(crate) const SHARED_PART: u64 = 4;
 /// The budget on a GPU sharing the system's memory when the host did not say how much the device
 /// has (the harness and tests on such a GPU), measured on the tablet.
-pub const SHARED_BUDGET: u64 = 384 << 20;
+pub(crate) const SHARED_BUDGET: u64 = 384 << 20;
 /// The budget on a GPU with memory of its own.
 pub const OWN_BUDGET: u64 = 2 << 30;
 

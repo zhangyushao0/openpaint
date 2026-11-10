@@ -5,5 +5,5 @@
 mod chrome;
 mod painter;
 
-pub use chrome::{CHROME_ISLANDS, CHROME_PANELS, ChromePanel, ChromeShapes, chrome_shape};
+pub use chrome::{ChromePanel, ChromeShapes, chrome_shape};
 pub use painter::{ScreenFrame, ScreenPainter, UiFrame};

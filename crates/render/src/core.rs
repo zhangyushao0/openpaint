@@ -9,12 +9,12 @@ use crate::error::RenderError;
 use crate::filter::{FILTER_SHADER, FilterPipeline};
 use crate::gpu::Gpu;
 use crate::gpu_frames::GpuFrames;
-use crate::image::{RgbaImage, fnv1a};
+use crate::image::fnv1a;
 use crate::pace::{Background, Pace};
 use crate::paper::paper_levels;
 use crate::protocol::encode;
 use crate::raster_gpu::{RasterPipelines, raster_source};
-use crate::readback::{offscreen_texture, read_rgba, wait};
+use crate::readback::wait;
 use crate::screen::{blit_layout, blit_sampler};
 use crate::shapes::shapes;
 use crate::smudge::{SMUDGE_SHADER, SmudgePipeline};
@@ -238,21 +238,6 @@ impl Core {
     /// `GPU_WAIT`, then `RenderError::Timeout`.
     pub fn wait_idle(&self) -> Result<(), RenderError> {
         wait(&self.gpu, "the submitted frames")
-    }
-
-    /// Clears an offscreen target of `size` pixels to the 8-bit RGBA `color` and reads it back.
-    pub fn render_clear(&self, size: [u32; 2], color: [u8; 4]) -> Result<RgbaImage, RenderError> {
-        let texture = offscreen_texture(&self.gpu, size)?;
-        let view = texture.create_view(&Default::default());
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
-        let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("clear"),
-            color_attachments: &[Some(clear_attachment(&view, color))],
-            ..Default::default()
-        });
-        drop(pass);
-        self.gpu.submit([encoder.finish()]);
-        read_rgba(&self.gpu, &texture)
     }
 }
 
