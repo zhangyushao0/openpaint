@@ -353,7 +353,8 @@ impl Runtime {
         watch: &mut Watch,
     ) -> Result<(), RuntimeError> {
         if let Screen::Canvas(canvas) = &mut self.screen {
-            crate::practice::apply(canvas, intents, self.frame_clock.wall_seconds());
+            let day = (&mut self.practice, &mut self.seeds, &mut self.storage);
+            crate::practice::apply(canvas, intents, day, self.frame_clock.wall_seconds());
         }
         self.bench_drawn(watch)
     }

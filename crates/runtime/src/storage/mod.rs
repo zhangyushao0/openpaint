@@ -24,8 +24,8 @@ use crate::worker::Queue;
 mod files;
 mod open;
 pub(crate) use files::read;
-pub(crate) use open::{Loaded, Opened};
-use open::{loaded, start};
+use open::start;
+pub(crate) use open::{Loaded, Opened, loaded};
 
 /// What a save stored: the project it went to and the save id its head holds now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,7 +242,7 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
         },
         Job::Library(request) => library((store, cache), kept, request),
         Job::File(job) => Done::Gallery(files::run(store, job)),
-        Job::Practice(job) => practice::run((store, packs), kept, job),
+        Job::Practice(job) => practice::run((store, cache, packs), kept, job),
     }
 }
 

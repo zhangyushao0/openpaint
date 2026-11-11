@@ -8,7 +8,9 @@
 //! division shows and whether it shows follow the pen and Compare, never steps of their own: the
 //! session amends the version shown (`History::amend`), so undo walks the strokes alone. The
 //! division and line drawing are made, above the others, the first time the whole copy shows with
-//! its own tools; the layers keep the names the app gave them (shown in the language).
+//! its own tools; the layers keep the names the app gave them (shown in the language). Once
+//! another exercise shows (or the lesson ends) the sheet's first layer is drawn on again and the
+//! division shows at full strength.
 
 use openpaint_core::{Artwork, ArtworkCommand, CoreError, LayerCommand, LayerId, LayerName};
 
@@ -28,17 +30,7 @@ pub const DIVISION_DIMMED: f32 = 0.3;
 /// `LayerLimit` when the artwork has no room for the layers.
 pub(crate) fn layered(artwork: &Artwork, layering: Layering) -> Result<Artwork, CoreError> {
     let Layering::Copying { on, hidden } = layering else {
-        // Another exercise, or the end: the division shows again where there is one.
-        return match named(artwork, DIVISION_LAYER) {
-            Some(layer) => command(
-                artwork,
-                LayerCommand::SetVisible {
-                    layer,
-                    visible: true,
-                },
-            ),
-            None => Ok(artwork.clone()),
-        };
+        return rested(artwork);
     };
     let (artwork, division) = made(artwork, DIVISION_LAYER, None)?;
     let (artwork, drawing) = made(&artwork, LINES_LAYER, None)?;
@@ -67,6 +59,36 @@ pub(crate) fn layered(artwork: &Artwork, layering: Layering) -> Result<Artwork, 
         },
     )?;
     command(&artwork, LayerCommand::Select(drawn_on))
+}
+
+/// Another exercise, or the end: the sheet's first layer (the one under every layer of the whole
+/// copy's) is drawn on again, and the division shows at full strength where there is one.
+fn rested(artwork: &Artwork) -> Result<Artwork, CoreError> {
+    let copy = [DIVISION_LAYER, LINES_LAYER, BLOCKS_LAYER];
+    let base = (artwork.layers().iter())
+        .find(|layer| !copy.contains(&layer.name().as_str()))
+        .map(openpaint_core::Layer::id);
+    let artwork = match base {
+        Some(base) if artwork.active() != base => command(artwork, LayerCommand::Select(base))?,
+        _ => artwork.clone(),
+    };
+    let Some(layer) = named(&artwork, DIVISION_LAYER) else {
+        return Ok(artwork);
+    };
+    let artwork = command(
+        &artwork,
+        LayerCommand::SetOpacity {
+            layer,
+            opacity: 1.0,
+        },
+    )?;
+    command(
+        &artwork,
+        LayerCommand::SetVisible {
+            layer,
+            visible: true,
+        },
+    )
 }
 
 /// The layer named `name`, if `artwork` has one.

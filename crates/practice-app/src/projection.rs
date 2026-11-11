@@ -61,8 +61,10 @@ pub enum PracticeIntent {
     /// On to the next exercise, the view moved to it within `viewport` at its zoom; after the
     /// last the session ends and its summary shows over the whole sheet.
     Next(Viewport),
-    /// Another session (after a drill, another drill of its kind), from the summary.
-    OneMore,
+    /// Another session (after a drill, another drill of its kind), from the summary: on the same
+    /// sheet from a new row where it fits (the view gliding to it within `viewport`), else on a
+    /// new one.
+    OneMore(Viewport),
     /// Closes the notice.
     Dismiss,
 }
@@ -148,6 +150,8 @@ pub enum PracticeNotice {
     CannotFill(LayerRefusal),
     /// The session is done.
     Done,
+    /// The lesson One more appended could not be stored: it was rolled back.
+    NotSaved,
 }
 
 /// A point the eyedropper compared on a colour copy or a colour combination: where (frame units),
@@ -292,5 +296,31 @@ impl SheetView {
             families,
             givens,
         }
+    }
+
+    /// It with `record`'s last lesson, just appended, laid on it as `printed` holds what that
+    /// lesson's exercises print, its pictures as `packs` hold them, numbered `number`.
+    #[must_use]
+    pub fn appended(&self, record: &Sheet, printed: &[Given], packs: &[Pack], number: u32) -> Self {
+        let Some(lesson) = record.lessons.last() else {
+            return self.clone();
+        };
+        let mut sheet = Self::of(
+            &Sheet {
+                lessons: vec![lesson.clone()],
+                ..record.clone()
+            },
+            printed,
+            packs,
+            (self.size, &self.name, number),
+        );
+        let mut joined = self.clone();
+        joined.number = number;
+        joined.pairs = Layout::on(record, self.size).pairs;
+        joined.families.append(&mut sheet.families);
+        joined.pictures.append(&mut sheet.pictures);
+        joined.painted.append(&mut sheet.painted);
+        joined.givens.append(&mut sheet.givens);
+        joined
     }
 }

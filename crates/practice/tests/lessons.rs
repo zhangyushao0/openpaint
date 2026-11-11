@@ -83,6 +83,12 @@ fn a_lesson_appended_is_laid_from_a_new_row_with_its_givens() {
     assert!(!Layout::fits(&drill, count, Layout::used(&drill)));
     assert!(Layout::fits(&drill, count, [2920, 6280]));
     assert_eq!(Layout::rows_on([2920, 6280]), 12);
+    // A new day's sheet is laid ahead to twelve rows (S121c); a lesson longer takes its own.
+    assert_eq!(Layout::laid_ahead(&drill), [2920, 6280]);
+    assert_eq!(
+        Layout::rows_on(Layout::laid_ahead(&drill)),
+        openpaint_practice::ROWS
+    );
     let copy = Sheet::copy(
         3,
         (1, NOON),
@@ -95,6 +101,7 @@ fn a_lesson_appended_is_laid_from_a_new_row_with_its_givens() {
         !Layout::fits(&copy, 1, [6000, 6000]),
         "never on a colour copy's"
     );
+    assert_eq!(Layout::laid_ahead(&copy), Layout::of_sheet(&copy).size);
 }
 
 /// Sheet 1: a line drill, then a session of stage 1 appended and finished with a line compared;

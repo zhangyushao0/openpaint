@@ -1,9 +1,9 @@
 //! The store's jobs the screen hands over: leaving the canvas, and the gallery's calls; the
 //! gallery's intents applied in order; and practice's answers from the store.
 
-use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest, PortError};
+use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice_app::{Options, PracticeLog};
+use openpaint_practice_app::{Options, PracticeLog, PracticeSheet};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
@@ -19,8 +19,8 @@ impl Screen {
     /// picture read for the open sheet. A change that failed leaves everything as it was and the
     /// gallery says so.
     pub(super) fn practice(&mut self, done: PracticeDone, practice: &mut PracticeLog) {
-        let failed = |screen: &mut Self, error: PortError| {
-            screen.gallery_answer(LibraryAnswer::Changed(Err(error)));
+        let Some(done) = self.day(done, practice) else {
+            return;
         };
         match done {
             PracticeDone::Started {
@@ -42,7 +42,9 @@ impl Screen {
             PracticeDone::Saved(Err(error)) => {
                 log::error!("storing the practice session failed: {error}");
             }
-            PracticeDone::Saved(Ok(())) => {}
+            PracticeDone::Saved(Ok(()))
+            | PracticeDone::Continued { .. }
+            | PracticeDone::Appended { .. } => {}
             PracticeDone::Renamed(sheet, title, Ok(())) => practice.name(sheet, title),
             PracticeDone::Removed(id, Ok(())) => {
                 log::info!("practice session {id} removed");
@@ -72,9 +74,31 @@ impl Screen {
             | PracticeDone::Removed(_, Err(error))
             | PracticeDone::Pictures(Err(error)) => {
                 log::error!("a practice change failed: {error}");
-                failed(self, error);
+                self.gallery_answer(LibraryAnswer::Changed(Err(error)));
             }
         }
+    }
+
+    /// The day's sheet's answers (S121c): a lesson went onto today's sheet, which opens, or One
+    /// more's lesson appended in place was stored or not (rolled back); anything else returned.
+    fn day(&mut self, done: PracticeDone, practice: &mut PracticeLog) -> Option<PracticeDone> {
+        match done {
+            PracticeDone::Continued { session, loaded } => {
+                log::info!("practice sheet {} took a lesson and opens", session.id);
+                practice.keep(session);
+                *self = super::opening(*loaded);
+            }
+            PracticeDone::Appended {
+                id,
+                lessons,
+                result,
+            } => {
+                let open = self.canvas_mut().filter(|canvas| sheet_of(canvas, id));
+                crate::practice::appended((open, practice), (id, lessons), &result);
+            }
+            done => return Some(done),
+        }
+        None
     }
 
     /// The store finished a file the practice options' picker gave: they say how it went, and
@@ -88,6 +112,11 @@ impl Screen {
             None => log::warn!("a gallery answer arrived after the gallery closed"),
         }
     }
+}
+
+/// Whether `canvas` shows practice sheet `id`.
+fn sheet_of(canvas: &Canvas, id: u64) -> bool {
+    PracticeSheet::of(canvas.session()).is_some_and(|sheet| sheet.record().id == id)
 }
 
 /// The store's job for leaving `canvas`: `version` (from `Session::leave_request`) and the

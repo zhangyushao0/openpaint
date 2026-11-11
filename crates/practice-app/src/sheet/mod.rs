@@ -1,28 +1,28 @@
-//! The open practice sheet's flow (`practice.rs`): which exercise shows, where the pen may draw
-//! (strokes and fills only in its empty frame, or a value scale's cell, clipped to it), the
-//! exercise's own tools or the full interface, the pen drawn exercises are drawn with (a single
-//! line, combined lines, a single shape) or painted ones painted with (a colour combination, a
-//! value scale), Compare and its overlay (`compare.rs`), a painted copy's reading and the
-//! eyedropper (`read.rs`, a reading's frames in grey on asking), Next
-//! (the view glides to the next pair at its zoom,
-//! `view.rs`; after the last the session ends over the whole sheet), the instructions
-//! (by themselves the first time a family comes up), the summary and the notices; the session's
+//! The open practice sheet's flow: which exercise shows, where the pen may draw (strokes and
+//! fills only in its empty frame, or a value scale's cell, clipped to it), the exercise's own
+//! tools or the full interface, the pen drawn exercises are drawn with (a single line, combined
+//! lines, a single shape) or painted ones painted with (a colour combination, a value scale;
+//! `pens.rs`), Compare and its overlay (`compare.rs`, `overlay.rs`), a painted copy's reading and
+//! the eyedropper (`read.rs`, a reading's frames in grey on asking), Next (the view glides to the
+//! next pair at its zoom, its row fitted, `view.rs`; after the last the lesson ends over the rows
+//! used), One more in place (`append.rs`: the next lesson laid from a new row of the day's
+//! sheet), the instructions (by themselves the first time a family comes up), the summary, the
+//! time (`time.rs`) and the notices; what the screen draws (`projected.rs`); the lesson's
 //! pictures as the store reads them. A long colour copy is a sheet of one pair, the full
 //! interface always showing (painted with the toolbox's own brushes, S104) and no Next. The
-//! session record changes here and goes to the store whenever it did (`save_request`).
+//! record changes here and goes to the store whenever it did (`save_request`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
+use openpaint_core::{Artwork, CanvasSize, RegionMask};
 use openpaint_practice::{
     Facts, Family, Frame, ItemRef, Lesson, Original, Pair, Sheet, Tally, Tools, Work, seconds,
-    summary,
 };
 
 use crate::pens::PracticePens;
 use crate::pictures::{FitJob, PictureImage, grounded};
-use crate::projection::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
+use crate::projection::{Pen, PracticeIntent, PracticeNotice, SheetView};
 use crate::refused::Refused;
 use openpaint_app::Availability;
 use openpaint_app::CanvasView;
@@ -32,21 +32,15 @@ use openpaint_app::CanvasView;
 /// up to (for the seals its finish stamps). The flow works on the lesson in hand.
 pub type Practising = (Sheet, Vec<Lesson>, SheetView, Tally);
 
-#[path = "checks.rs"]
+mod append;
 mod checks;
-#[path = "compare.rs"]
 mod compare;
-#[path = "overlay.rs"]
 mod overlay;
-#[path = "sheet_pens.rs"]
 mod pens;
-#[path = "pick.rs"]
 mod pick;
-#[path = "read.rs"]
+mod projected;
 mod read;
-#[path = "time.rs"]
 mod time;
-#[path = "view.rs"]
 mod view;
 
 pub(crate) use pens::{CopyLayer, Layering};
@@ -111,6 +105,10 @@ pub struct PracticeSheet {
     images: Vec<(ItemRef, Option<Arc<PictureImage>>)>,
     grounded: Vec<(ItemRef, Arc<PictureImage>)>,
     asked: HashSet<ItemRef>,
+    /// The zoom the view had before Finish, which One more glides to (`view.rs`).
+    zoom: Option<f32>,
+    /// A lesson appended in place waiting for the store, and what it rolls back to (`append.rs`).
+    appending: Option<Box<append::Appending>>,
 }
 
 impl PracticeSheet {
@@ -120,20 +118,8 @@ impl PracticeSheet {
         pens: PracticePens,
     ) -> Self {
         let sheet = Arc::new(view);
-        // Told: compared before or in this session, or warmed up with (only kinds met are); a
-        // drill's How shows first every time it opens (S91).
-        let done = |family: Family| {
-            let compared = before.iter().chain(record.lesson()).any(|lesson| {
-                (lesson.exercises.iter())
-                    .any(|laid| laid.first.is_some() && laid.exercise.kind.family() == family)
-            });
-            let warmed = (record.lesson().into_iter())
-                .flat_map(|lesson| lesson.exercises.iter().take(lesson.warm_up()))
-                .any(|laid| laid.exercise.kind.family() == family);
-            (compared || warmed) && record.drilled() != Some(family)
-        };
         let mut practice = Self {
-            told: Family::ALL.map(done),
+            told: told(&record, &before),
             all_tools: record.is_copy(),
             hidden: true,
             time_saved: seconds(&record.spans),
@@ -162,6 +148,8 @@ impl PracticeSheet {
             images: Vec::new(),
             grounded: Vec::new(),
             asked: HashSet::new(),
+            zoom: None,
+            appending: None,
         };
         practice.shown();
         practice
@@ -199,6 +187,12 @@ impl PracticeSheet {
         self.record.drilled()
     }
 
+    /// Its record as it stands.
+    #[must_use]
+    pub const fn record(&self) -> &Sheet {
+        &self.record
+    }
+
     /// The exercise shown, unless the session is done.
     fn current(&self) -> Option<usize> {
         let index = self.record.at();
@@ -207,6 +201,15 @@ impl PracticeSheet {
 
     fn pair(&self, index: usize) -> Option<&Pair> {
         self.sheet.pairs.get(index)
+    }
+
+    /// Whether exercise `index` is the last of its lesson (Next finishes it).
+    fn ends(&self, index: usize) -> bool {
+        let held = self.record.held();
+        let end = held.map_or(0, |held| {
+            held.first_exercise() + held.lesson.exercises.len()
+        });
+        index + 1 >= end.min(self.sheet.pairs.len())
     }
 
     fn family(&self, index: usize) -> Option<Family> {
@@ -320,8 +323,9 @@ impl PracticeSheet {
                 self.all_tools = on;
             }
             PracticeIntent::Next(viewport) => self.next(view, &viewport, now)?,
-            PracticeIntent::OneMore => {
-                if self.current().is_some() {
+            PracticeIntent::OneMore(_) => {
+                // A lesson appended waits for the store before another may follow it.
+                if self.current().is_some() || self.appending.is_some() {
                     return Err(unavailable(Availability::Running));
                 }
             }
@@ -331,70 +335,37 @@ impl PracticeSheet {
         Ok(())
     }
 
-    /// The record for the store, once after each change (its time included).
+    /// The record for the store, once after each change (its time included); none while a
+    /// lesson appended waits for the store (a record naming it must not be stored before it).
     pub fn save_request(&mut self) -> Option<Sheet> {
+        if self.appending.is_some() {
+            return None;
+        }
         let changed = std::mem::take(&mut self.changed);
         changed.then(|| {
             self.time_saved = seconds(&self.record.spans);
             self.record.clone()
         })
     }
-
-    pub(crate) fn projection(&self, artwork: &Artwork, brush: &StrokeStyle) -> PracticeProjection {
-        let current = self.current();
-        let result = current.and_then(|index| self.record.first(index));
-        let compare = self.compare_offered(current, artwork);
-        let place = current.map_or((0, 0), |index| self.record.place(index));
-        let before: Vec<&Lesson> = self.before.iter().collect();
-        let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
-        let painted = self.painted_overlay();
-        let (overlay, card, greys) = current
-            .and_then(|_| self.overlay())
-            .map_or((None, Vec::new(), None), |(marks, card, greys)| {
-                (Some(marks), card, greys)
-            });
-        PracticeProjection {
-            sheet: Arc::clone(&self.sheet),
-            revealed: self.revealed(),
-            original: current.and_then(|index| self.original(index).cloned()),
-            stage: self.record.stage(),
-            copy: self.record.is_copy(),
-            number: self.sheet.number,
-            drill: self.record.drilled(),
-            current,
-            family: current.and_then(|index| self.family(index)),
-            warming_up: current.is_some_and(|index| self.record.warming_up(index)),
-            place,
-            last: current.is_some_and(|index| index + 1 == self.sheet.pairs.len()),
-            compare,
-            comparing: self.compared.is_some(),
-            aligned: self.aligned,
-            construction: self.construction && self.construction_offered(),
-            all_tools: self.all_tools,
-            pen,
-            result: result.cloned(),
-            overlay,
-            card,
-            greys,
-            instructions: self.instructions,
-            summary: (self.record.lesson().filter(|_| current.is_none()))
-                .map(|this| summary(this, &before)),
-            finished: self.finished(),
-            notice: self.notice,
-            aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
-            fitting: self.fitting(),
-            images: self.images.clone(),
-            grounded: self.grounded.clone(),
-            cell: self.cell(),
-            probe: self.probe(),
-            compared: (self.compared.as_ref()).map(|compared| compared.shown().clone()),
-            shown: painted.0,
-            area: painted.1,
-            grey: painted.3,
-        }
-    }
 }
 
 fn unavailable(availability: Availability) -> Refused {
     Refused::Unavailable(availability)
+}
+
+/// Whether each family's instructions need not show by themselves on `record`'s lesson in hand:
+/// compared in `before` or in it, or warmed up with (only kinds met are); a drill's How shows
+/// first every time it opens (S91).
+fn told(record: &Sheet, before: &[Lesson]) -> [bool; Family::ALL.len()] {
+    let done = |family: Family| {
+        let compared = before.iter().chain(record.lesson()).any(|lesson| {
+            (lesson.exercises.iter())
+                .any(|laid| laid.first.is_some() && laid.exercise.kind.family() == family)
+        });
+        let warmed = (record.lesson().into_iter())
+            .flat_map(|lesson| lesson.exercises.iter().take(lesson.warm_up()))
+            .any(|laid| laid.exercise.kind.family() == family);
+        (compared || warmed) && record.drilled() != Some(family)
+    };
+    Family::ALL.map(done)
 }

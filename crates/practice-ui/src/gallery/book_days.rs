@@ -1,9 +1,10 @@
 //! The practice book's days (S89): a month as a calendar, Monday first, earlier months a swipe (or
 //! the chevrons beside its name) away; a day practised an ink wash behind its number, darker the
 //! longer, today ringed, days ahead pale, a day without practice plain paper. A day practised,
-//! tapped, shows its card grown out of it over progress: its date, its time, its sessions' and
-//! copies' sheets small (a tap opens one) and the colours matched, each a square split corner to
-//! corner, the original above the diagonal and the copy's first pick below it.
+//! tapped, shows its card grown out of it over progress: its date, its time, its sheets small (a
+//! day's sheet the rows its lessons used, named by them; a tap opens one) and the colours matched,
+//! each a square split corner to corner, the original above the diagonal and the copy's first pick
+//! below it.
 
 use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2};
 use openpaint_practice::Rgb8;
@@ -229,25 +230,25 @@ fn sheets(ui: &mut egui::Ui, book: &BookProjection, records: &[u64]) -> Option<B
     tapped
 }
 
-/// A record's name, in English (its control's) and as the pass's language shows it.
+/// A sheet's name, in English (its control's) and as the pass's language shows it: a colour
+/// copy's title, a day's sheet its lessons' names joined (S121c).
 fn name(record: &BookRecord, ctx: &egui::Context) -> (String, String) {
-    let language = t::language(ctx);
-    if let Some(family) = record.drill {
+    if let Some(title) = &record.copy {
         return (
-            t::drill_number(Language::English, family, record.number),
-            t::drill_number(language, family, record.number),
-        );
-    }
-    match &record.copy {
-        Some(title) => (
             title.as_str().to_owned(),
             t::shown_name(ctx, title.as_str()).into_owned(),
-        ),
-        None => (
-            t::session_number(Language::English, record.number),
-            t::session_number(language, record.number),
-        ),
+        );
     }
+    let named = |language: Language| {
+        let names: Vec<String> = (record.lessons.iter())
+            .map(|(drill, number)| match drill {
+                Some(family) => t::drill_number(language, *family, *number),
+                None => t::session_number(language, *number),
+            })
+            .collect();
+        t::lessons_joined(&names)
+    };
+    (named(Language::English), named(t::language(ctx)))
 }
 
 /// What lies on a sheet read, drawn small in `rect`.

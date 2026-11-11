@@ -10,8 +10,10 @@
 
 use openpaint_app::{Availability, Lent, Mode, Session, Viewport};
 use openpaint_core::{Artwork, RegionMask, StrokeStyle};
+use openpaint_practice::{Givens, Lesson, Sheet};
 
 use crate::layers::layered;
+use crate::log::PracticeLog;
 use crate::pens::PracticePens;
 use crate::projection::{PracticeIntent, PracticeProjection};
 use crate::refused::Refused;
@@ -89,6 +91,36 @@ pub fn practise(session: &mut Session, intent: PracticeIntent, now: u64) -> Resu
     session
         .lend::<PracticeSheet, _>(|sheet, lent| sheet.apply(intent, lent, now))
         .unwrap_or(Err(Refused::Unavailable(Availability::NothingLeft)))
+}
+
+/// One more in place (S121c): `lesson` and `givens`, what it prints, appended to the sheet
+/// `session` holds when it takes them (`PracticeSheet::takes`; `today` whether the sheet was
+/// started on today's local day by `log`), the view gliding to its first pair in `viewport`, undo
+/// and redo reaching only the exercise shown. Returns the record and the givens for the store;
+/// none when the lesson goes on a new sheet.
+pub fn append_lesson(
+    session: &mut Session,
+    (lesson, givens): (Lesson, Givens),
+    log: &PracticeLog,
+    viewport: &Viewport,
+) -> Option<(Sheet, Givens)> {
+    let today = PracticeSheet::of(session).is_some_and(|sheet| log.is_today(sheet.record()));
+    session
+        .lend::<PracticeSheet, _>(|sheet, lent| {
+            if !sheet.takes(lesson.exercises.len(), today) {
+                return None;
+            }
+            let appended = sheet.append((lesson, givens), log, (lent.view(), viewport));
+            lent.keep_only_current();
+            Some(appended)
+        })
+        .flatten()
+}
+
+/// The store wrote the lesson appended to sheet `id` (`stored`), or did not: then the sheet
+/// `session` holds rolls it back (`PracticeSheet::appended`).
+pub fn append_stored(session: &mut Session, id: u64, stored: bool) {
+    session.lend::<PracticeSheet, _>(|sheet, lent| sheet.appended(id, stored, lent.view()));
 }
 
 impl PracticeProjection {

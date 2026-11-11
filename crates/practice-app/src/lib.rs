@@ -25,7 +25,7 @@ mod today;
 pub use crate::book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
 pub use crate::log::PracticeLog;
-pub use crate::mode::{open_sheet, practise};
+pub use crate::mode::{append_lesson, append_stored, open_sheet, practise};
 pub use crate::options::{
     MAX_PACK_BYTES, Options, OptionsFile, OptionsIntent, OptionsNotice, OptionsRequest,
 };

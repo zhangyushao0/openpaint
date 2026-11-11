@@ -31,7 +31,7 @@
     { "tap": { "at": "How" } },
     { "screenshot": { "name": "line-how-tapped", "after_ms": 4500 } },
     { "tap": { "at": "Got it" } },
-    { "checkpoint": { "name": "line-sheet-untouched", "canvas": "113ebec64a6970e0" } },
+    { "checkpoint": { "name": "line-sheet-untouched", "canvas": "cf1f3c5c6d2536e4" } },
     { "tap": { "at": "Gallery" } },
     { "tap": { "at": "Practice options" } },
     { "tap": { "at": "Combined lines" } },

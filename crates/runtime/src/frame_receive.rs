@@ -61,7 +61,8 @@ impl Runtime {
                 let now = self.frame_clock.wall_seconds();
                 let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
                 canvas.dispatch(&self.core, intents, app);
-                practice::apply(canvas, sheet, now);
+                let day = (&mut self.practice, &mut self.seeds, &mut self.storage);
+                practice::apply(canvas, sheet, day, now);
                 self.fill.step(canvas);
                 self.compare.step(canvas);
                 while let Some(item) =

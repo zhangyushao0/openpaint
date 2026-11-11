@@ -368,10 +368,8 @@ fn filled_again(session: &mut Session, metrics: &Metrics) {
 /// `session`, its eleventh exercise compared, taken past its last: the summary shows with the
 /// colour judgement, One more is offered and the pen draws nowhere (`at`: a place it lands).
 fn finished(session: &mut Session, at: [f32; 2]) {
-    assert!(
-        session.practise(PracticeIntent::OneMore, 30).is_err(),
-        "not done yet"
-    );
+    let more = PracticeIntent::OneMore(VIEWPORT);
+    assert!(session.practise(more, 30).is_err(), "not done yet");
     for _ in 10..16 {
         practise(session, PracticeIntent::Next(VIEWPORT));
     }
@@ -394,7 +392,7 @@ fn finished(session: &mut Session, at: [f32; 2]) {
             .and_then(|r| r.finished())
             .is_some()
     );
-    practise(session, PracticeIntent::OneMore);
+    practise(session, PracticeIntent::OneMore(VIEWPORT));
     draw(session, &[at, [at[0] + 40.0, at[1] + 40.0]]);
     assert_eq!(notice(session), Some(PracticeNotice::Done));
 }

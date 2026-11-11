@@ -39,7 +39,7 @@
     { "stroke": { "points": [[1640, 700, 1.0], [1760, 702, 1.0], [1880, 700, 1.0]] } },
     { "tap": { "at": "Undo" } },
     { "tap": { "at": "Redo" } },
-    { "checkpoint": { "name": "key-painted", "canvas": "f5969b9926643cbb" } },
+    { "checkpoint": { "name": "key-painted", "canvas": "b66fe549c58307bd" } },
     { "tap": { "at": "Compare" } },
     { "expect": { "shown": ["Grey", "Area 1", "Area 2"], "absent": ["Original shown"] } },
     { "screenshot": { "name": "key-compared" } },

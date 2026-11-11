@@ -166,7 +166,12 @@ fn a_drill_shows_its_how_first_every_time_and_finishes_without_a_road() {
     let finished = done.finished.expect("a finish");
     assert_eq!(finished.road, None, "no session's dot");
     assert!(
-        openpaint_practice_app::practise(&mut session, PracticeIntent::OneMore, NOON + 40).is_ok()
+        openpaint_practice_app::practise(
+            &mut session,
+            PracticeIntent::OneMore(VIEWPORT),
+            NOON + 40
+        )
+        .is_ok()
     );
     // The same drill opened again shows its How first again.
     let (again, _) = log.begin_drill(Family::Halves, 3, NOON).expect("a drill");

@@ -80,6 +80,8 @@ impl CanvasHook for SheetHook<'_> {
             PracticeNotice::OriginalLocked => t::ORIGINAL_LOCKED.get(language).to_owned(),
             PracticeNotice::CannotFill(refusal) => t::refused(language, Refused::Fill, refusal),
             PracticeNotice::Done => t::SESSION_DONE.get(language).to_owned(),
+            // The words a failed save shows (the painting's).
+            PracticeNotice::NotSaved => t::SAVE_FAILED.get(language).to_owned(),
         };
         Some(message)
     }
@@ -98,7 +100,9 @@ impl CanvasHook for SheetHook<'_> {
     }
 
     fn glides(&self) -> bool {
-        // A tap on Next: the view glides to the next exercise, or to the whole sheet once done.
-        (self.taps.iter()).any(|tap| matches!(tap, PracticeIntent::Next(_)))
+        // A tap on Next: the view glides to the next exercise, or to the rows used once done; on
+        // One more to the next lesson's first pair, laid on the same sheet.
+        (self.taps.iter())
+            .any(|tap| matches!(tap, PracticeIntent::Next(_) | PracticeIntent::OneMore(_)))
     }
 }

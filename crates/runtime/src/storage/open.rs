@@ -36,7 +36,7 @@ pub(crate) enum Opened {
 /// `project` with its cached canvas, if `cache` holds one, and a practice sheet's givens from
 /// `store`; a cache that cannot be read is logged and left out (derived data: the canvas is
 /// evaluated); givens that cannot be read refuse the sheet.
-pub(super) fn loaded(
+pub(crate) fn loaded(
     (store, cache): (&mut dyn ProjectStore, Option<&DisplayCache>),
     project: Project,
 ) -> Result<Box<Loaded>, PortError> {

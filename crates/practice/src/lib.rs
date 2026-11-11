@@ -141,7 +141,7 @@ pub use records::seals::{Earned, Seal, Tally, earned, sealed};
 pub use records::sheet::{First, Judge, Laid, Lesson, Picked, Purpose, Sheet};
 pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds};
 pub use sessions::drill::{drill, kinds_of, stage_needs};
-pub use sessions::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, STUDY_SIDE};
+pub use sessions::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, ROWS, STUDY_SIDE};
 pub use sessions::plan::{Exercise, Family, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use sessions::session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
 pub use sessions::session_five::stage_five;

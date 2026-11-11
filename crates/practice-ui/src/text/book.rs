@@ -114,6 +114,11 @@ pub(crate) fn session_number(language: Language, number: u32) -> String {
     }
 }
 
+/// A day's sheet named by its lessons (S121c): "Line drill 1 · Session 4", "线条专项 1 · 第 4 次".
+pub(crate) fn lessons_joined(names: &[String]) -> String {
+    names.join(" · ")
+}
+
 /// What a seal's stamp says: two short lines, stacked.
 pub(crate) fn seal_lines(language: Language, seal: Seal) -> [String; 2] {
     let pair = |en: [&str; 2], zh: [&str; 2]| match language {

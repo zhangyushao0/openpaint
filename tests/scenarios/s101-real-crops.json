@@ -40,7 +40,7 @@
     { "stroke": { "points": [[1130, 900, 1.0], [1300, 960, 1.0], [1500, 1040, 1.0], [1700, 1120, 1.0], [1870, 1180, 1.0]] } },
     { "tap": { "at": "Undo" } },
     { "tap": { "at": "Redo" } },
-    { "checkpoint": { "name": "crop-painted", "canvas": "f7030a276f022037" } },
+    { "checkpoint": { "name": "crop-painted", "canvas": "6785b0a613705189" } },
     { "screenshot": { "name": "crop-painted-screen" } },
     { "tap": { "at": "Compare" } },
     { "screenshot": { "name": "crop-compared" } },

@@ -1,5 +1,6 @@
 //! Practice on the storage worker (G9): a new session's or colour copy's sheet and record are
-//! written in one call and the sheet becomes the open artwork; a record is written again after
+//! written in one call and the sheet becomes the open artwork, or a session or drill goes onto
+//! today's sheet, or One more's lesson is appended in place (`day.rs`); a record is written again after
 //! each change on its sheet; a colour copy renamed (its sheet's title) or removed with its sheet
 //! (S83), and a test session or copy removed so (`test.rs`); a pack imported, a picture of the
 //! user's own added (`files.rs`), removed or moved to another tier in their pack; a picture read
@@ -15,12 +16,13 @@ use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSumm
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{Family, Given, Givens, ItemRef, Layout, Pack, Purpose, Sheet, Tier};
 use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
-use openpaint_practice_store::{Packs, printed, remove, save, sheets, start};
+use openpaint_practice_store::{Packs, append, printed, remove, save, sheets, start};
+use openpaint_store::DisplayCache;
 
-use super::files;
+use super::{day, files};
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
-use crate::storage::{Done, Job, Kept};
+use crate::storage::{Done, Job, Kept, Loaded};
 
 pub(crate) enum PracticeJob {
     /// A new session: its `sheet`, titled `title`, as a new project that becomes the open one,
@@ -32,6 +34,17 @@ pub(crate) enum PracticeJob {
         /// What its lesson prints, kept beside it once (S120), and each exercise's of it in order.
         givens: Givens,
         printed: Vec<Given>,
+    },
+    /// A new session or drill (`start`, a `Start`) onto today's sheet `day` from a new row, where
+    /// its canvas holds it, else as `start` (`day.rs`).
+    Continue {
+        day: Sheet,
+        start: Box<PracticeJob>,
+    },
+    /// One more in place: `sheet` with its last lesson appended and `givens`, what it prints.
+    Append {
+        sheet: Sheet,
+        givens: Givens,
     },
     /// A session's record changed.
     Save(Sheet),
@@ -61,6 +74,17 @@ pub(crate) enum PracticeDone {
         session: Sheet,
         printed: Vec<Given>,
     },
+    /// A lesson went onto today's sheet `session`, opened as `loaded`.
+    Continued {
+        session: Sheet,
+        loaded: Box<Loaded>,
+    },
+    /// The lesson appended to sheet `id` (its lessons with it) stored, or why not (nothing was).
+    Appended {
+        id: u64,
+        lessons: usize,
+        result: Result<(), PortError>,
+    },
     Saved(Result<(), PortError>),
     /// The session could not start; nothing was written.
     Failed(PortError),
@@ -83,40 +107,20 @@ pub(crate) enum PracticeDone {
 }
 
 pub(crate) fn run(
-    (store, packs): (&mut dyn ProjectStore, Option<&Packs>),
+    (store, cache, packs): (&mut dyn ProjectStore, Option<&DisplayCache>, Option<&Packs>),
     kept: &mut Kept,
     job: PracticeJob,
 ) -> Done {
     Done::Practice(match job {
-        PracticeJob::Start {
-            sheet,
-            title,
-            session,
-            givens,
-            printed,
-        } => match start(store, (&sheet, &title), &session, &givens) {
-            Ok(id) => {
-                *kept = Kept {
-                    open: Some(id),
-                    changed: false,
-                };
-                let session = Sheet {
-                    canvas: id.get(),
-                    ..session
-                };
-                PracticeDone::Started {
-                    sheet,
-                    title,
-                    id,
-                    session,
-                    printed,
-                }
-            }
-            Err(error) => {
-                log::error!("a practice session did not start: {error}");
-                PracticeDone::Failed(error)
-            }
+        PracticeJob::Continue { day: sheet, start } => {
+            return day::continued((store, cache, packs), kept, (sheet, *start));
+        }
+        PracticeJob::Append { sheet, givens } => PracticeDone::Appended {
+            id: sheet.id,
+            lessons: sheet.lessons.len(),
+            result: append(store, &sheet, &givens),
         },
+        job @ PracticeJob::Start { .. } => begun(store, kept, job),
         PracticeJob::Save(session) => PracticeDone::Saved(save(store, &session)),
         PracticeJob::Rename(sheet, title) => {
             let result = store.rename(sheet, &title);
@@ -146,6 +150,43 @@ pub(crate) fn run(
             PracticeDone::Picture(item, image)
         }
     })
+}
+
+/// A new sheet started: its project and record written in one call, the project the open one.
+fn begun(store: &mut dyn ProjectStore, kept: &mut Kept, job: PracticeJob) -> PracticeDone {
+    let PracticeJob::Start {
+        sheet,
+        title,
+        session,
+        givens,
+        printed,
+    } = job
+    else {
+        return PracticeDone::Failed(PortError::Stopped);
+    };
+    match start(store, (&sheet, &title), &session, &givens) {
+        Ok(id) => {
+            *kept = Kept {
+                open: Some(id),
+                changed: false,
+            };
+            let session = Sheet {
+                canvas: id.get(),
+                ..session
+            };
+            PracticeDone::Started {
+                sheet,
+                title,
+                id,
+                session,
+                printed,
+            }
+        }
+        Err(error) => {
+            log::error!("a practice session did not start: {error}");
+            PracticeDone::Failed(error)
+        }
+    }
 }
 
 /// What the practice book shows of `records`' sheets, each read without writing anything, their
@@ -229,7 +270,12 @@ pub(crate) fn gallery_list(store: &mut dyn ProjectStore) -> Result<Listed, PortE
 pub(crate) fn stopped(job: &PracticeJob) -> Done {
     let error = PortError::Stopped;
     Done::Practice(match job {
-        PracticeJob::Start { .. } => PracticeDone::Failed(error),
+        PracticeJob::Start { .. } | PracticeJob::Continue { .. } => PracticeDone::Failed(error),
+        PracticeJob::Append { sheet, .. } => PracticeDone::Appended {
+            id: sheet.id,
+            lessons: sheet.lessons.len(),
+            result: Err(error),
+        },
         PracticeJob::Save(_) => PracticeDone::Saved(Err(error)),
         PracticeJob::Rename(sheet, title) => {
             PracticeDone::Renamed(*sheet, title.clone(), Err(error))
@@ -263,7 +309,12 @@ pub(crate) fn start_job(
         session.stage().unwrap_or(0),
         log.number(&session)
     );
-    started(log, session, title)
+    let job = started(log, session, title)?;
+    Ok(day::onto_day(
+        log,
+        job,
+        purpose == Purpose::Day && number.is_none(),
+    ))
 }
 
 /// What One more starts once the sheet left is stored.
@@ -295,7 +346,8 @@ pub(crate) fn drill_job(
         drill.id,
         log.number(&drill)
     );
-    started(log, drill, title)
+    let job = started(log, drill, title)?;
+    Ok(day::onto_day(log, job, purpose == Purpose::Day))
 }
 
 /// The job that begins a long colour copy of `picture` (the user chose it) from the packs of
@@ -326,9 +378,10 @@ pub(crate) fn seed(seeds: &mut Seeds) -> u64 {
     u64::from(seeds.next()) << 32 | u64::from(seeds.next())
 }
 
-/// The job that stores `session`'s new sheet, titled `title`, of the size its layout asks.
+/// The job that stores `session`'s new sheet, titled `title`, of the size its layout asks (a
+/// day's laid ahead, S121c).
 fn started(log: &PracticeLog, session: Sheet, title: Title) -> Result<Job, RuntimeError> {
-    let [width, height] = Layout::of_sheet(&session).size;
+    let [width, height] = Layout::laid_ahead(&session);
     let sheet = Artwork::new(CanvasSize::new(width, height)?);
     let givens = (session.lesson()).map_or_else(Givens::default, |lesson| {
         Givens::of_lesson(lesson, log.packs())

@@ -1,7 +1,8 @@
 //! Practice composed into the runtime (G9, D112): the painting crates know only a mode slot on the
 //! session and the gallery's turn for pickers, and this module puts practice into them. A sheet
 //! opens as the session's mode (`Canvas::open`); its intents reach it after the frame's painting
-//! intents, One more leaving it for the next session or drill (`apply`); what the sheet asks of
+//! intents, One more laying the next lesson on the same sheet or leaving it for a new one (`apply`,
+//! `day.rs`, the day's sheet); what the sheet asks of
 //! the store and the workers, and what they answer, passes through `sheet`, the one place the
 //! runtime reaches the sheet; the practice options take their turn beside the gallery
 //! (`options.rs`); practice's part of the screen (`Shown`) fills the shell's hooks through its
@@ -10,6 +11,7 @@
 //! sessions of debug builds `test.rs`.
 
 mod compare;
+mod day;
 mod files;
 mod jobs;
 mod options;
@@ -24,9 +26,11 @@ use openpaint_practice_ui::{Hooked, PracticeScreens};
 
 use crate::canvas::{Canvas, Leaving, Then};
 use crate::screen::Screen;
+use crate::seeds::Seeds;
 use crate::storage::{Job, Storage};
 
 pub(crate) use compare::CompareWorker;
+pub(crate) use day::appended;
 pub(crate) use jobs::{
     Next, PracticeDone, PracticeJob, copy_job, drill_job, gallery_list, run, seed, sheet_printed,
     start_job, stopped,
@@ -53,15 +57,25 @@ pub(crate) fn save_record(canvas: &mut Canvas, (log, storage): (&mut PracticeLog
 }
 
 /// The frame's sheet intents at `now` (seconds since 1970 UTC), after its painting intents, each
-/// applied as one of them is (`Canvas::by_mode`); One more leaves the sheet for the next session,
-/// or after a drill another drill of its kind.
-pub(crate) fn apply(canvas: &mut Canvas, intents: Vec<PracticeIntent>, now: u64) {
+/// applied as one of them is (`Canvas::by_mode`); One more lays the next session (or after a
+/// drill another drill of its kind) on the same sheet where it takes it (`day.rs`, the lesson
+/// begun from `log` seeded from `seeds`, written by `storage`), else leaves for a new one.
+pub(crate) fn apply(
+    canvas: &mut Canvas,
+    intents: Vec<PracticeIntent>,
+    (log, seeds, storage): (&mut PracticeLog, &mut Seeds, &mut Storage),
+    now: u64,
+) {
     for intent in intents {
         let applied = canvas.by_mode(|session| practise(session, intent, now));
-        if applied && intent == PracticeIntent::OneMore {
+        if let (true, PracticeIntent::OneMore(viewport)) = (applied, intent) {
             let drill = sheet(canvas).and_then(|sheet| sheet.drill());
-            canvas.leaving = Leaving::Waiting;
-            canvas.then = Then::Practice(drill.map_or(Next::Session, Next::Drill));
+            let next = drill.map_or(Next::Session, Next::Drill);
+            let app = (&mut *log, &mut *seeds, &mut *storage);
+            if !day::one_more(canvas, next, app, (now, &viewport)) {
+                canvas.leaving = Leaving::Waiting;
+                canvas.then = Then::Practice(next);
+            }
         }
     }
 }

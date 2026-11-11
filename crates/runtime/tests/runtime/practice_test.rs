@@ -147,13 +147,13 @@ fn a_test_drill_is_named_by_its_kind_counts_in_no_session_and_one_more_drills_ag
         .find(|tile| tile.family == Family::Centre)
         .expect("its tile");
     assert!(tile.compared && tile.open.is_some());
-    // Stored as a test's sheet (S121b); One more's drill is a day's.
+    // Stored as a test's sheet (S121b); One more's drill a test lesson on it, in place (S121c).
     drop(runtime);
     let mut library = Library::at(&dir);
-    let purposes: Vec<(u64, Purpose)> = (sheets(&mut library).expect("records").iter())
-        .map(|sheet| (sheet.id, sheet.purpose))
+    let purposes: Vec<(u64, Purpose, usize)> = (sheets(&mut library).expect("records").iter())
+        .map(|sheet| (sheet.id, sheet.purpose, sheet.lessons.len()))
         .collect();
-    assert_eq!(purposes, [(id, Purpose::Test), (id + 1, Purpose::Day)]);
+    assert_eq!(purposes, [(id, Purpose::Test, 2)]);
     drop(library);
     let (mut runtime, mut hand) = in_the_gallery(&dir);
     runtime.end_test_practice(&test).expect("ended");

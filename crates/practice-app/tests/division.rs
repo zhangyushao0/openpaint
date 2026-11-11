@@ -17,8 +17,9 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    DivisionCheck, DivisionCompared, Exercise, Family, Frame, ItemRef, Kind, Level, Metric, Pack,
-    PackItem, PictureCompared, PictureKind, Plan, Point, Sheet, Tier, resample, value,
+    DivisionCheck, DivisionCompared, Exercise, Family, Frame, ItemRef, Kind, Level, LineTier,
+    Metric, Pack, PackItem, PictureCompared, PictureKind, Plan, Point, Sheet, Tier, resample,
+    value,
 };
 use openpaint_practice_app::{
     DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER, Pen, PracticeIntent, PracticeLog, PracticePens,
@@ -54,16 +55,24 @@ fn compositions() -> Pack {
 }
 
 fn opened(kind: Kind) -> Session {
-    let packs = [compositions()];
-    let exercise = Exercise {
+    opened_with(vec![copied(kind)])
+}
+
+/// An exercise of `kind` copying the pack's harbour.
+fn copied(kind: Kind) -> Exercise {
+    Exercise {
         picture: Some(ItemRef {
             pack: "test-compositions".to_owned(),
             item: "harbour".to_owned(),
         }),
         ..Exercise::generated(kind, 0x5EED_0095)
-    };
+    }
+}
+
+fn opened_with(exercises: Vec<Exercise>) -> Session {
+    let packs = [compositions()];
     let plan = Plan {
-        exercises: vec![exercise],
+        exercises,
         warm_up: 0,
     };
     let record = Sheet::session(1, 4, 0, plan);
@@ -314,6 +323,36 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
     practise(&mut session, PracticeIntent::Pen(Pen::Third));
     assert_eq!(layer(&session, DIVISION_LAYER), (1.0, true, 2, true));
     assert_eq!(session.history().undo_steps(), 5);
+}
+
+#[test]
+fn after_a_whole_copy_the_next_exercise_draws_on_the_sheets_first_layer_the_division_whole() {
+    let line = Exercise::generated(Kind::Line(LineTier::Arc), 3);
+    let mut session = opened_with(vec![copied(Kind::WholeCopy(Tier::Simple)), line]);
+    let frame = copy_frame(&session);
+    draw(&mut session, &frame, &[[0.08, 0.5], [0.92, 0.45]]);
+    practise(&mut session, PracticeIntent::Pen(Pen::Draw));
+    draw(&mut session, &frame, &[[0.1, 0.52], [0.9, 0.47]]);
+    assert_eq!(layer(&session, DIVISION_LAYER).0, DIVISION_DIMMED);
+    practise(&mut session, PracticeIntent::Next(VIEWPORT));
+    let artwork = session.artwork();
+    let first = artwork.layers().first().expect("the sheet's layer").id();
+    assert_eq!(
+        artwork.active(),
+        first,
+        "the line drawn on the sheet's layer"
+    );
+    assert_eq!(layer(&session, DIVISION_LAYER), (1.0, true, 1, false));
+    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let line_frame = practice.sheet.pairs[1].copy;
+    draw(&mut session, &line_frame, &[[0.2, 0.2], [0.8, 0.8]]);
+    let strokes = |s: &Session| {
+        s.artwork()
+            .layers()
+            .first()
+            .map_or(0, |l| l.strokes().len())
+    };
+    assert_eq!(strokes(&session), 1);
 }
 
 #[test]

@@ -100,8 +100,9 @@ impl PracticeBar {
             ui.label(practice_card::done_heading(language, practice));
             ui.add_space(2.0 * SPACE);
             divider(ui);
-            if text_button(ui, t::ONE_MORE, true).clicked() {
-                push_once(taps, PracticeIntent::OneMore);
+            let tapped = text_button(ui, t::ONE_MORE, viewport.is_some());
+            if let (true, Some(viewport)) = (tapped.clicked(), viewport) {
+                push_once(taps, PracticeIntent::OneMore(viewport));
             }
             return;
         }

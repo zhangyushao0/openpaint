@@ -1,6 +1,7 @@
 //! The sheet the app lays a session's exercises out on, a pair of frames each (the original at
 //! the left, the empty frame for the copy at its right), three pairs a row, each exercise at its
-//! slot, a lesson appended from the row after the last one used (`next_slot`); a long colour copy's
+//! slot, a lesson appended from the row after the last one used (`next_slot`), a day's sheet laid
+//! ahead to `ROWS` rows (`laid_ahead`); a long colour copy's
 //! sheet, one pair of frames shaped as its picture (and read back from its canvas, whatever
 //! became of the picture); a picture filling its frame.
 //!
@@ -28,6 +29,8 @@ const ROW_GAP: f64 = 120.0;
 const EDGE: f64 = 80.0;
 /// Pairs a row.
 const COLUMNS: usize = 3;
+/// The rows a day's sheet is laid ahead with: the day's lessons follow down it (S121c).
+pub const ROWS: usize = 12;
 
 /// Where a picture lies in its frame: filling it, the frame of its own shape (S99).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -265,6 +268,16 @@ impl Layout {
             return Self::of_sheet(sheet).size;
         }
         Self::of_rows((Self::next_slot(sheet) / COLUMNS).max(1))
+    }
+
+    /// The size a new sheet for `sheet` is made with: a day's (or a test's) laid ahead to `ROWS`
+    /// rows, or the rows it uses where they are more; a colour copy's whole sheet.
+    #[must_use]
+    pub fn laid_ahead(sheet: &Sheet) -> [u32; 2] {
+        if sheet.is_copy() {
+            return Self::of_sheet(sheet).size;
+        }
+        Self::of_rows((Self::next_slot(sheet) / COLUMNS).max(ROWS))
     }
 
     /// The first slot of the row after the last one `sheet`'s exercises use: where a lesson

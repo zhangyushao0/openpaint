@@ -25,6 +25,8 @@ use openpaint_app::Title;
 const MARK_POINTS: usize = 24;
 
 /// The practice book for one UI frame.
+///
+/// A day's sheet shows once, its picture the rows its lessons used.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BookProjection {
     pub book: Arc<Book>,
@@ -44,17 +46,16 @@ impl BookProjection {
     }
 }
 
-/// A session or copy as the book names and opens it.
+/// A sheet as the book names and opens it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BookRecord {
     pub id: u64,
     /// Its sheet, which opens it.
     pub sheet: ProjectId,
-    /// Its lesson in hand's number in its stage, among the copies, or among its kind's drills.
-    pub number: u32,
-    /// The kind a drill drills (S91); none for a session or a copy.
-    pub drill: Option<Family>,
-    /// A colour copy's name (its sheet's title); none for a session or a drill.
+    /// Each lesson on it, in order (a day's sheet holds the day's, S121c): the kind a drill
+    /// drills (none for a session) and its number in its stage or among its kind's drills.
+    pub lessons: Vec<(Option<Family>, u32)>,
+    /// A colour copy's name (its sheet's title); none for a day's sheet.
     pub copy: Option<Title>,
 }
 
@@ -126,8 +127,15 @@ impl SheetRead {
                 _ => {}
             }
         }
+        // The rows used, the paper laid ahead below them left out (S121c).
+        let used = Layout::used(record);
+        let size = if record.is_copy() {
+            sheet.size
+        } else {
+            [used[0].min(sheet.size[0]), used[1].min(sheet.size[1])]
+        };
         Self {
-            size: sheet.size,
+            size,
             frames: frames(&sheet, record),
             marks: artwork.layers().iter().flat_map(marks).collect(),
             lines,
