@@ -10,7 +10,7 @@ use openpaint_app::{
 };
 use openpaint_core::Artwork;
 use openpaint_practice::Given;
-use openpaint_practice_app::{Options, PracticeLog, SheetView};
+use openpaint_practice_app::{Options, PracticeLog};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
@@ -116,19 +116,10 @@ impl Screen {
                         let project = held.project.get();
                         log::error!("practice sheet on {project} opened without its givens");
                     }
-                    session
-                        .zip(held.printed.as_deref())
-                        .map(|(session, printed)| {
-                            let before = practice.before(session);
-                            let canvas = artwork.canvas();
-                            let size = [canvas.width(), canvas.height()];
-                            let number = practice.number(session);
-                            let packs = practice.packs();
-                            let view =
-                                SheetView::of(session, printed, packs, (size, title, number));
-                            let others = practice.tally_beside(session);
-                            (session.clone(), before, view, others)
-                        })
+                    let canvas = artwork.canvas();
+                    let sized = ([canvas.width(), canvas.height()], title);
+                    (session.zip(held.printed.as_deref()))
+                        .map(|(session, printed)| practice.practising(session, printed, sized))
                 }
                 Content::Blank | Content::BlankAfterFailedOpen => None,
             };

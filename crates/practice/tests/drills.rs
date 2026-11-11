@@ -290,7 +290,7 @@ fn a_drill_counts_its_time_kinds_and_lines_never_as_a_session() {
     assert_eq!((tally.lines, tally.colours, tally.seconds), (1, 1, 17 * 60));
     assert!(!sealed(&Tally::default(), &line).contains(&Seal::FirstSession));
     // The book: the time and the day, never the road, the sessions or the first picks.
-    let book = Book::of(&records, 1, 8 * 60);
+    let book = Book::of(&records, 8 * 60);
     assert_eq!((book.sessions, book.seconds), (0, 17 * 60));
     assert_eq!(book.road.done, [0; STAGES as usize]);
     assert!(book.colour.is_empty() && book.lines.is_empty());

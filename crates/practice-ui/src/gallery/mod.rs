@@ -1,5 +1,6 @@
-//! Practice in the gallery (G9, D112), the ui's gallery hook (`openpaint_ui::GalleryHook`)
-//! filled: the Today card first in the grid (its road; its action word starting or continuing
+//! Practice on the home (G9, D112), the ui's home hook (`openpaint_ui::HomeHook`, S122) filled
+//! with the gallery's content as it was, until S122c lays the home's column and the path page:
+//! the Today card first in the grid (its road; its action word starting or continuing
 //! practice; its sheet opening the practice book, `book.rs` with `book_days.rs` and
 //! `book_progress.rs`), the practice options grown out of it (`options.rs`, `drills.rs`,
 //! `pictures.rs`, `copies.rs`) and what they tell in the gallery's notice pill after the gallery's
@@ -16,7 +17,7 @@ use openpaint_app::Intent;
 use openpaint_practice::ItemRef;
 use openpaint_practice_app::{OptionsIntent, OptionsNotice, PictureImage, TodayProjection};
 use openpaint_ui::components::carry::Opening;
-use openpaint_ui::{GalleryHook, Page};
+use openpaint_ui::{HomeHook, Page};
 
 use crate::text::{self as t, Text};
 
@@ -52,20 +53,13 @@ pub(crate) struct TodayHook<'a> {
     pub(crate) taps: &'a mut Vec<OptionsIntent>,
 }
 
-impl GalleryHook for TodayHook<'_> {
-    fn island(&mut self, ctx: &Context) -> bool {
-        // The practice book takes the whole screen: its own island only.
-        if !self.part.book.shows() {
-            return false;
-        }
-        self.part.book_island(ctx);
-        true
-    }
-
+impl HomeHook for TodayHook<'_> {
     fn page(&mut self, ctx: &Context, taps: &mut Vec<Intent>) -> Page {
         if !self.part.book.shows() {
             return Page::None;
         }
+        // The practice book takes the whole screen: its own island only.
+        self.part.book_island(ctx);
         self.part.book_page(ctx, self.today, (taps, self.taps));
         if self.part.book.covers() {
             Page::Covers
@@ -74,7 +68,7 @@ impl GalleryHook for TodayHook<'_> {
         }
     }
 
-    fn card(&mut self, ui: &mut Ui, rect: Rect, enabled: bool, taps: &mut Vec<Intent>) -> Rect {
+    fn column(&mut self, ui: &mut Ui, rect: Rect, enabled: bool, taps: &mut Vec<Intent>) -> Rect {
         let today = (self.today, enabled);
         self.part.today(ui, rect, today, (taps, self.taps))
     }

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use super::KINDS;
 use super::facts::Facts;
 use super::original::Original;
+use super::skill::SkillLevel;
 use crate::colour_areas::areas_generated::Arrangement;
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::Guide;
@@ -86,6 +87,9 @@ pub enum Kind {
     /// A crop painted again shifted toward a tendency the exercise gives (V大's 变调, S107,
     /// `key_shifts/`).
     KeyShift(Tendency),
+    /// A free scribble in one empty frame: the first lesson's first exercise, nothing given,
+    /// nothing compared, no result (S122, `free/`).
+    Free,
 }
 
 impl Kind {
@@ -96,7 +100,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 19), its
+    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 20), its
     /// variant its description's (`Described::variant`). A code names one generator for good; a
     /// changed generator is a new code.
     #[must_use]
@@ -121,9 +125,17 @@ impl Kind {
     pub fn facts(self) -> &'static Facts {
         self.family().facts()
     }
+
+    /// Its How (S92), for an exercise of `cells` cells in hand (a value scale's row, S97); none
+    /// for a kind without one. What the flow and the screens ask a How by (S122): the kind in
+    /// hand, never its family.
+    #[must_use]
+    pub fn how(self, cells: usize) -> Option<Demo> {
+        self.described().how_of(self.family(), cells)
+    }
 }
 
-/// A drill's place among its kind's (from 0), its seed and what came before it.
+/// A lesson's (a drill's) place among its skill's (from 0), its seed and what came before it.
 pub(crate) struct Turn<'a> {
     pub(crate) turn: usize,
     pub(crate) seed: u64,
@@ -159,6 +171,35 @@ pub(crate) trait Described: Sync {
     /// no stage drills.
     fn drill(&self, _family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         Vec::new()
+    }
+    /// The key it goes by as a skill (`Skill::key`): its one topic's, or its own where it holds
+    /// several topics.
+    fn key(&self) -> &'static str {
+        self.facts().first().map_or("", |facts| facts.key)
+    }
+    /// How many of its last judged exercises at its level its next dot is earned from
+    /// (`Skill::window`).
+    ///
+    /// Skeleton body: 6. S122a: 3 in a folder whose lesson holds one exercise.
+    fn window(&self) -> usize {
+        6
+    }
+    /// A lesson of it at `level`, the `turn`th of its skill (S122): its kinds and their pictures,
+    /// 1 to 6 exercises by its minutes (6 lines, 3 colours, 1 whole copy); none where it finds no
+    /// picture to practise on. A level is harder variants, mixing or volume, the folder's own to
+    /// say. Exercise `i` is seeded `derived(seed, i)` (`session::seeded`).
+    ///
+    /// The First-prefix rule: at `SkillLevel::First` a folder of one topic lays a prefix of what
+    /// its `drill` laid at the same turn (the same kinds in the same order), so a sheet started
+    /// before and after S122a holds the same first exercises.
+    ///
+    /// Skeleton body: its first topic's drill at every level. S122a: each folder's own, and
+    /// `drill` goes.
+    fn lesson(&self, _level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        match self.facts().first() {
+            Some(facts) => self.drill(facts.family, turn),
+            None => Vec::new(),
+        }
     }
     /// What `exercise` gives in its frames before Compare (its `original`); a pack's picture is
     /// the sheet's to lay.

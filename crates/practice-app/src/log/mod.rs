@@ -14,11 +14,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Book, Family, Lesson, OnSheet, PERSONAL, Pack, PackItem, PictureKind, STAGE_SESSIONS,
+    Book, Family, Learner, Lesson, OnSheet, PERSONAL, Pack, PackItem, PictureKind, STAGE_SESSIONS,
     STAGES_READY, Sheet, Tally, kinds_of, lessons, local_day, met, number,
 };
 
 use crate::book::{BookProjection, BookRecord, SheetRead};
+use crate::lesson::LessonRow;
 use crate::pictures::PackShown;
 use crate::today::{CopyShown, DrillShown, PictureShown, TodayProjection, pictures_shown};
 use openpaint_app::ProjectId;
@@ -26,6 +27,7 @@ use openpaint_app::Title;
 
 mod begin;
 mod day;
+mod path;
 
 /// Every practice session and colour copy the library holds, oldest first, the titles of the
 /// copies' sheets, and the practice packs kept; the practice book made of them on the device's
@@ -46,6 +48,8 @@ pub struct PracticeLog {
     book: Arc<Book>,
     named: Arc<[BookRecord]>,
     read: Arc<BTreeMap<u64, Arc<SheetRead>>>,
+    /// The learner the records tell of (S122, `path.rs`), made again as the log changes.
+    learner: Learner,
 }
 
 impl PracticeLog {
@@ -161,9 +165,10 @@ impl PracticeLog {
         Tally::beside(&self.sheets, sheet)
     }
 
-    /// The book made again from the records.
+    /// The book and the learner made again from the records.
     fn booked(&mut self) {
-        self.book = Arc::new(Book::of(&self.sheets, self.stage(), self.offset));
+        self.learner = Learner::of(&self.sheets);
+        self.book = Arc::new(Book::of(&self.sheets, self.offset));
         self.named = (self.sheets.iter())
             .filter(|s| s.canvas != 0)
             .map(|s| BookRecord {
@@ -173,6 +178,7 @@ impl PracticeLog {
                     .filter_map(|lesson| OnSheet::of(s, lesson))
                     .map(|on| (on.drilled(), number(&self.sheets, s, on.index)))
                     .collect(),
+                rows: LessonRow::of_sheet(s, |lesson| number(&self.sheets, s, lesson)),
                 copy: (s.is_copy()).then(|| {
                     (self.titles.get(&s.canvas).cloned())
                         .unwrap_or_else(|| copy_title(self.number(s)))

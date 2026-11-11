@@ -25,11 +25,10 @@ use crate::components::{
     CanvasArea, ControlMap, ScreenArea, ViewSettle, canvas_frame, chrome, controls, moving,
 };
 use crate::copy_bar::CopyBar;
-use crate::design::DESK;
 use crate::design::motion::OPEN;
 use crate::drop_bar;
 use crate::gallery::GalleryScreen;
-use crate::hooks::{CanvasHook, Chrome, GalleryHook, Hooks};
+use crate::hooks::{CanvasHook, Chrome, HomeHook, Hooks};
 use crate::panels::Panels;
 use crate::pen_marks;
 use crate::reference_window::ReferenceWindow;
@@ -109,13 +108,10 @@ impl Shell {
         controls::begin(&ctx);
         text::set_language(&ctx, self.language);
         text::set_names(&ctx, self.names);
-        let Hooks {
-            canvas,
-            mut gallery,
-        } = hooks;
+        let Hooks { canvas, mut home } = hooks;
         let showing = Showing::of(projection);
         if showing != self.showing {
-            self.switch(&ctx, showing, gallery.as_deref_mut());
+            self.switch(&ctx, showing, home.as_deref_mut());
         }
         self.pixels_per_point = ctx.pixels_per_point();
         self.shown = None;
@@ -130,17 +126,7 @@ impl Shell {
             }
             ScreenProjection::Canvas(session) => self.canvas_screen(ui, session, canvas),
             ScreenProjection::Gallery(projection) => {
-                let taps = &mut self.taps;
-                self.gallery
-                    .islands(&ctx, projection, (gallery.as_deref_mut(), taps));
-                // On the desk, so the list's edge fade has its colour.
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::new().fill(DESK))
-                    .show(ui, |ui| {
-                        self.gallery.body(ui, projection, (gallery, &mut self.taps));
-                        ui.max_rect()
-                    })
-                    .inner
+                (self.gallery).show(ui, projection, (home, &mut self.taps))
             }
         };
         self.canvas = Some(CanvasArea::from_points(rect, self.pixels_per_point));
@@ -162,7 +148,7 @@ impl Shell {
         &mut self,
         ctx: &egui::Context,
         showing: Showing,
-        gallery: Option<&mut (dyn GalleryHook + '_)>,
+        gallery: Option<&mut (dyn HomeHook + '_)>,
     ) {
         chrome::forget(ctx);
         self.panels.close();
@@ -378,7 +364,7 @@ impl Shell {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
                 true
             }
-            ScreenProjection::Gallery(_) => self.gallery.back(hooks.gallery),
+            ScreenProjection::Gallery(_) => self.gallery.back(hooks.home),
             ScreenProjection::Starting => false,
         }
     }

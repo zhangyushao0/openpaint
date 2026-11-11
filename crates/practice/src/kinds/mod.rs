@@ -18,6 +18,7 @@ pub(crate) mod combined_lines;
 pub(crate) mod divisions;
 pub(crate) mod ellipses;
 pub(crate) mod estimates;
+pub(crate) mod free;
 pub(crate) mod free_boxes;
 pub(crate) mod generated_combinations;
 pub(crate) mod key_shifts;
@@ -34,15 +35,17 @@ pub(crate) mod whole_copies;
 mod facts;
 mod kind;
 mod original;
+mod skill;
 
 pub use crate::marks::compared::DrawnCopy;
 pub use facts::{Facts, Kept, Needs, Picks, Tools, Work};
 pub use kind::Kind;
 pub(crate) use kind::{Described, Turn, place};
 pub use original::Original;
+pub use skill::{Skill, SkillLevel};
 
-/// Every kind, by its stored code (1 to 19): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 19] = [
+/// Every kind, by its stored code (1 to 20): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 20] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -62,4 +65,5 @@ pub(crate) const KINDS: [&dyn Described; 19] = [
     &value_masses::ValueMasses,
     &combinations::Crops,
     &key_shifts::KeyShifts,
+    &free::Free,
 ];

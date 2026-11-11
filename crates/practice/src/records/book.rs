@@ -71,9 +71,13 @@ pub struct LineShown {
 }
 
 impl Book {
-    /// The book of `records`, `stage` practised, its days on a clock `offset` minutes from UTC.
+    /// The book of `records`, its days on a clock `offset` minutes from UTC (S122: the stage
+    /// practised is no argument any more; the road shows the last session's until it goes).
+    ///
+    /// S122a: `road` goes with the stages; `sessions` counts every finished lesson but a copy's,
+    /// `colour` and `lines` walk them; the other fields stand.
     #[must_use]
-    pub fn of(records: &[Sheet], stage: u8, offset: i32) -> Self {
+    pub fn of(records: &[Sheet], offset: i32) -> Self {
         let mut ordered: Vec<&Sheet> = records.iter().collect();
         ordered.sort_by_key(|record| record.id);
         // Drills count in the time and the days, never on the road, the first picks or the lines.
@@ -84,7 +88,7 @@ impl Book {
             .filter(|session| session.finished().is_some())
             .collect();
         let mut road = Road {
-            stage,
+            stage: sessions.last().and_then(OnSheet::stage).unwrap_or(1),
             done: [0; STAGES as usize],
         };
         for session in &finished {

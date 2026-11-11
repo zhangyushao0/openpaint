@@ -108,11 +108,30 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     // The first exercise: its kind after the lesson's exercise in hand and count.
     let kind = picked + 3 + 2 + 4;
     let mut unknown = bytes.clone();
-    unknown[kind] = 20;
+    unknown[kind] = 21;
     assert!(
         decode_sheet(&key, &unknown).is_err(),
-        "a kind none of 1.21.6's"
+        "a kind no version wrote yet"
     );
+}
+
+#[test]
+fn the_first_lesson_round_trips_with_its_free_scribble_and_a_result_by_eye() {
+    // S122's additions, each additive: picked 4, kind (20, 0); the eye's judge (2) and the
+    // level were written before it.
+    let planned = openpaint_practice::schedule::first(5);
+    let mut sheet = Sheet::begun(8, (Purpose::Day, NOON), planned);
+    let line = sheet.laid_mut(1).expect("the straight line");
+    line.level = 2;
+    line.compared(First::of(NOON, 3, Vec::new()));
+    line.judged(Outcome::Near);
+    assert_eq!(line.result, Some((Outcome::Near, Judge::Eye)));
+    assert_eq!(round_trip(&sheet), Ok(sheet.clone()));
+    let bytes = encode_sheet(&sheet);
+    let picked = 1 + 8 + 8 + 1 + 4 + 4 + 8 + 8;
+    assert_eq!(bytes[picked], 4, "the first lesson");
+    let kind = picked + 1 + 2 + 4;
+    assert_eq!(bytes[kind..kind + 2], [20, 0], "a free scribble");
 }
 
 #[test]

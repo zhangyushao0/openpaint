@@ -18,6 +18,7 @@ mod combined_lines;
 mod divisions;
 mod ellipses;
 mod estimates;
+mod free;
 mod free_boxes;
 mod key_shifts;
 mod lines;
@@ -83,7 +84,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's families' words: its line here registers them.
-const KINDS: [&[KindWords]; 18] = [
+const KINDS: [&[KindWords]; 19] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -102,6 +103,7 @@ const KINDS: [&[KindWords]; 18] = [
     &study::WORDS,
     &value_masses::WORDS,
     &key_shifts::WORDS,
+    &free::WORDS,
 ];
 
 /// `family`'s words, by its key.
@@ -148,6 +150,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         divisions::PRACTICE_DIVISIONS,
         ellipses::PRACTICE_ELLIPSES,
         estimates::PRACTICE_ESTIMATES,
+        free::PRACTICE_FREE,
         free_boxes::PRACTICE_FREE_BOXES,
         key_shifts::PRACTICE_KEY_SHIFTS,
         lines::PRACTICE_LINES,

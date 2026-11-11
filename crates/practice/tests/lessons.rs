@@ -145,7 +145,7 @@ fn every_count_sees_each_lesson_in_the_order_of_sheet_and_lesson() {
     assert_eq!((others.sessions, others.lines), (0, 1));
     assert_eq!(sealed(&others, day), [Seal::FirstSession]);
     // The book: the road and the lines are the session lessons', the line's index its sheet's.
-    let book = Book::of(&sheets, 1, 0);
+    let book = Book::of(&sheets, 0);
     assert_eq!((book.sessions, book.road.done_in(1)), (1, 1));
     assert_eq!(
         book.lines,

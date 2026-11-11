@@ -1,7 +1,8 @@
 //! The gallery screen (Procreate's model): its name on the desk at the top left, a search field
 //! in the top band's middle, an island at the top right with the "+" that makes a new artwork
-//! of a size chosen in a small popover or opens an OpenPaint file, and below them a mode's card
-//! (`GalleryHook::card`; not while searching), then every artwork whose title holds the search's
+//! of a size chosen in a small popover or opens an OpenPaint file, and below them a mode's column
+//! (`HomeHook::column`, in the first card's place until S122c lays the home out in two columns;
+//! not while searching), then every artwork whose title holds the search's
 //! text as a card in a grid, the one changed last first. Tap a
 //! picture to open it, its title to rename it (a dialog under the islands, above the soft
 //! keyboard), the options to save it as an OpenPaint file or restore a kept version, the copy
@@ -28,12 +29,12 @@ use crate::components::{
     Alpha, ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, artwork_card, card_size,
     icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
 };
-use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
-use crate::hooks::{GalleryHook, Page};
+use crate::design::{CARD_GAP, DESK, Icon, SPACE, TOUCH_TARGET};
+use crate::hooks::{HomeHook, Page};
 use crate::text::{self as t, Words};
 
-/// A mode's part of the gallery this pass, and the gallery's taps.
-type Taps<'a, 'h> = (Option<&'a mut (dyn GalleryHook + 'h)>, &'a mut Vec<Intent>);
+/// A mode's part of the home this pass, and the gallery's taps.
+type Taps<'a, 'h> = (Option<&'a mut (dyn HomeHook + 'h)>, &'a mut Vec<Intent>);
 
 /// The island "+" sits on; the new-canvas popover grows out of it.
 const ISLAND: &str = "gallery island";
@@ -107,10 +108,44 @@ impl GalleryScreen {
     }
 
     /// What the mode opened (if anything) since it was last asked: the canvas grows out of it.
-    fn opened_by(&mut self, hook: &mut (dyn GalleryHook + '_)) {
+    fn opened_by(&mut self, hook: &mut (dyn HomeHook + '_)) {
         if let Some(opening) = hook.opening() {
             self.opening = Some(opening);
         }
+    }
+
+    /// The whole screen inside `ui`: a mode's page first; unless one shows, the top band; unless
+    /// one covers them, the cards on the desk. Returns where the screen lies.
+    pub(crate) fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        projection: &GalleryProjection,
+        (mut hook, taps): Taps<'_, '_>,
+    ) -> Rect {
+        let ctx = ui.ctx().clone();
+        let page = self.page(&ctx, (hook.as_deref_mut(), &mut *taps));
+        if page == Page::None {
+            self.islands(&ctx, projection, (hook.as_deref_mut(), &mut *taps));
+        }
+        // On the desk, so the list's edge fade has its colour.
+        let desk = egui::CentralPanel::default().frame(egui::Frame::new().fill(DESK));
+        let shown = desk.show(ui, |ui| {
+            if page != Page::Covers {
+                self.body(ui, projection, (hook, taps));
+            }
+            ui.max_rect()
+        });
+        shown.inner
+    }
+
+    /// A mode's page over the gallery, drawn with its own island; how far it lies over it.
+    fn page(&mut self, ctx: &egui::Context, (hook, taps): Taps<'_, '_>) -> Page {
+        let Some(hook) = hook else {
+            return Page::None;
+        };
+        let page = hook.page(ctx, taps);
+        self.opened_by(hook);
+        page
     }
 
     /// The top band: the screen's name on the desk at the left, the search field in the
@@ -120,12 +155,8 @@ impl GalleryScreen {
         &mut self,
         ctx: &egui::Context,
         projection: &GalleryProjection,
-        (mut hook, taps): Taps<'_, '_>,
+        (hook, taps): Taps<'_, '_>,
     ) {
-        // A mode's page takes the whole screen: its own island only.
-        if hook.as_deref_mut().is_some_and(|hook| hook.island(ctx)) {
-            return;
-        }
         egui::Area::new(egui::Id::new("gallery title"))
             .order(egui::Order::Background)
             .interactable(false)
@@ -176,7 +207,7 @@ impl GalleryScreen {
     }
 
     /// The grid of the cards the search finds inside `ui` (the whole screen, the cards under
-    /// the top band), and an open dialog; a mode's page over them while it shows.
+    /// the top band), and an open dialog.
     pub(crate) fn body(
         &mut self,
         ui: &mut egui::Ui,
@@ -184,13 +215,6 @@ impl GalleryScreen {
         (mut hook, taps): Taps<'_, '_>,
     ) {
         let ctx = ui.ctx().clone();
-        if let Some(hook) = hook.as_deref_mut() {
-            let page = hook.page(&ctx, taps);
-            self.opened_by(hook);
-            if page == Page::Covers {
-                return;
-            }
-        }
         let language = t::language(&ctx);
         self.load_pictures(&ctx, projection.items());
         // While the sizes are open a tap elsewhere only closes them.
@@ -250,7 +274,7 @@ impl GalleryScreen {
             egui::Rect::from_min_size(origin + cell * pitch, card_size())
         };
         if let Some(hook) = hook {
-            let sheet = hook.card(ui, place(0), enabled, taps);
+            let sheet = hook.column(ui, place(0), enabled, taps);
             self.opened_by(hook);
             if let Some(arrival) = self.arriving.filter(|arrival| arrival.card)
                 && land(ui.ctx(), &arrival, None, sheet)
@@ -326,7 +350,7 @@ impl GalleryScreen {
 
     /// Closes an open dialog as Cancel would (a mode's too), or the new-canvas popover. Returns
     /// whether one was open.
-    pub(crate) fn back(&mut self, hook: Option<&mut (dyn GalleryHook + '_)>) -> bool {
+    pub(crate) fn back(&mut self, hook: Option<&mut (dyn HomeHook + '_)>) -> bool {
         let mode = hook.is_some_and(|hook| hook.back());
         let open = self.rename.is_some()
             || self.confirm.is_some()

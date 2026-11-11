@@ -35,6 +35,7 @@ pub type Practising = (Sheet, Vec<Lesson>, SheetView, Tally);
 mod append;
 mod checks;
 mod compare;
+mod lesson;
 mod overlay;
 mod pens;
 mod pick;
@@ -330,6 +331,7 @@ impl PracticeSheet {
                 }
             }
             PracticeIntent::Fill(_) => return Err(unavailable(Availability::NothingLeft)),
+            PracticeIntent::Judge(outcome) => self.judge(outcome)?,
             PracticeIntent::Dismiss => self.notice = None,
         }
         Ok(())

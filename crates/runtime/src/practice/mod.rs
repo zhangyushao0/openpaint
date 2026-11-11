@@ -8,19 +8,21 @@
 //! (`options.rs`); practice's part of the screen (`Shown`) fills the shell's hooks through its
 //! screens (`openpaint_practice_ui::PracticeScreens`). The store's jobs are `jobs.rs` and
 //! `files.rs`, Compare's worker `compare.rs`, the options' pictures `pack_pictures.rs`, the test
-//! sessions of debug builds `test.rs`.
+//! sessions of debug builds `test.rs`. The path's lessons (S122) start in `lesson.rs`, beside the
+//! sessions and drills that go at the package's integration.
 
 mod compare;
 mod day;
 mod files;
 mod jobs;
+mod lesson;
 mod options;
 mod pack_pictures;
 mod test;
 
 use openpaint_practice_app::{
-    OptionsNotice, PracticeIntent, PracticeLog, PracticeProjection, PracticeSheet, TodayProjection,
-    practise,
+    OptionsNotice, PathProjection, PracticeIntent, PracticeLog, PracticeProjection, PracticeSheet,
+    TodayProjection, practise,
 };
 use openpaint_practice_ui::{Hooked, PracticeScreens};
 
@@ -80,17 +82,17 @@ pub(crate) fn apply(
     }
 }
 
-/// Practice's part of the screen for one frame: the open sheet's, or in the gallery the Today
-/// card and the options' notice.
+/// Practice's part of the screen for one frame: the open sheet's, or on the home the path (the
+/// gallery's card within it until S122's integration) and the options' notice.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct Shown {
     sheet: Option<PracticeProjection>,
-    today: Option<TodayProjection>,
+    path: Option<PathProjection>,
     notice: Option<OptionsNotice>,
 }
 
 impl Shown {
-    /// What `screen` shows of practice, the Today card from `log`.
+    /// What `screen` shows of practice, the path from `log`.
     pub(crate) fn of(screen: &Screen, log: &PracticeLog) -> Self {
         match screen {
             Screen::Canvas(canvas) => Self {
@@ -98,7 +100,7 @@ impl Shown {
                 ..Self::default()
             },
             Screen::Gallery(_, options) => Self {
-                today: Some(log.today()),
+                path: Some(log.path()),
                 notice: options.notice(),
                 ..Self::default()
             },
@@ -108,8 +110,8 @@ impl Shown {
 
     /// The hooks `screens` fill for it in one frame.
     pub(crate) fn hooked<'a>(&'a self, screens: &'a mut PracticeScreens) -> Hooked<'a> {
-        let today = self.today.as_ref().map(|today| (today, self.notice));
-        screens.hooked((self.sheet.as_ref(), today))
+        let path = self.path.as_ref().map(|path| (path, self.notice));
+        screens.hooked((self.sheet.as_ref(), path))
     }
 }
 
@@ -124,5 +126,12 @@ impl Runtime {
     #[must_use]
     pub fn today(&self) -> Option<TodayProjection> {
         matches!(self.screen, Screen::Gallery(..)).then(|| self.practice.today())
+    }
+
+    /// The path (S122: the home's practice column, the path page, the practice book), while the
+    /// home shows.
+    #[must_use]
+    pub fn path(&self) -> Option<PathProjection> {
+        matches!(self.screen, Screen::Gallery(..)).then(|| self.practice.path())
     }
 }

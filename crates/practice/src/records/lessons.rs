@@ -4,6 +4,7 @@
 //! long colour copy. A lesson's number among its kind is its place among the lessons alike; the
 //! lesson in hand is a sheet's last unfinished one, else its last.
 
+use crate::kinds::Skill;
 use crate::records::sheet::{Lesson, Picked, Sheet};
 use crate::sessions::plan::Family;
 
@@ -13,8 +14,25 @@ impl Lesson {
     pub fn stage(&self) -> Option<u8> {
         match self.picked {
             Picked::Full { stage, .. } => Some(stage),
-            Picked::Chosen => None,
+            Picked::Chosen | Picked::First => None,
         }
+    }
+
+    /// The unit of a full lesson (S122); none for a skill's lesson, the first lesson or a copy.
+    #[must_use]
+    pub fn unit(&self) -> Option<u8> {
+        self.stage()
+    }
+
+    /// The skill a skill's lesson practises (its first exercise's, S122); none for a full
+    /// lesson, the first lesson or a copy.
+    #[must_use]
+    pub fn skill(&self) -> Option<Skill> {
+        let first = self
+            .exercises
+            .first()
+            .filter(|_| self.picked == Picked::Chosen)?;
+        Skill::of(first.exercise.kind)
     }
 
     /// The kind a chosen lesson holds (its first exercise's): a drill's, a copy's study; none for
@@ -33,7 +51,7 @@ impl Lesson {
     pub fn warm_up(&self) -> usize {
         match self.picked {
             Picked::Full { warm_up, .. } => usize::from(warm_up),
-            Picked::Chosen => 0,
+            Picked::Chosen | Picked::First => 0,
         }
     }
 }
@@ -118,6 +136,10 @@ pub fn lessons<'a>(sheets: impl IntoIterator<Item = &'a Sheet>) -> Vec<OnSheet<'
 /// Lesson `lesson` of `sheet`'s number among the lessons of its kind in `all` (`sheet` among them
 /// or not), from 1: a session's in its stage, a drill's among its kind's drills, a copy's among
 /// the copies.
+///
+/// S122a: a row's label on the sheet is "lesson n · skill", n this number counted over every
+/// lesson but a copy's (the learner's lessons), a copy's still among the copies: only the stage's
+/// and the drilled kind's part of `alike` goes, the signature stands.
 #[must_use]
 pub fn number(all: &[Sheet], sheet: &Sheet, lesson: usize) -> u32 {
     let Some(this) = OnSheet::of(sheet, lesson) else {

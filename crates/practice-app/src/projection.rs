@@ -14,10 +14,11 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    CardItem, Exercise, Family, First, Given, KindSummary, Layout, Level, Original, Pack, Pair,
-    Point, Rgb8, Sheet, SheetMark, SheetPicture, Value,
+    CardItem, Exercise, Family, First, Given, Kind, KindSummary, Layout, Level, Original, Outcome,
+    Pack, Pair, Point, Rgb8, Sheet, SheetMark, SheetPicture, Value,
 };
 
+use crate::lesson::{End, Judged, LessonRow, LessonShown};
 use crate::pictures::PictureImage;
 use crate::sheet::Finished;
 pub use crate::shown::{CopyRead, Greys};
@@ -65,6 +66,9 @@ pub enum PracticeIntent {
     /// sheet from a new row where it fits (the view gliding to it within `viewport`), else on a
     /// new one.
     OneMore(Viewport),
+    /// The result the user chooses for the shown exercise after Compare, where the eye judges
+    /// (S122: `Judged`, `Verdict::Eye`): kept once, with `Judge::Eye`.
+    Judge(Outcome),
     /// Closes the notice.
     Dismiss,
 }
@@ -235,6 +239,18 @@ pub struct PracticeProjection {
     pub shown: f32,
     pub area: usize,
     pub grey: bool,
+    /// The lesson in hand as the bar names it (S122); none on a long colour copy's sheet. In
+    /// place of `stage`, `number`, `drill`, `warming_up` and `place`, which go with S122b.
+    pub lesson: Option<LessonShown>,
+    /// The shown exercise's kind (none once the lesson is done): what its facts, its words and
+    /// its How go by (S122), in place of `family`.
+    pub kind: Option<Kind>,
+    /// The How shown, for a kind (S122), in place of `instructions`.
+    pub how: Option<Kind>,
+    /// While comparing: who judges the shown exercise and the result kept (S122).
+    pub judged: Option<Judged>,
+    /// Once the lesson is done: its end (S122), in place of `summary` and `finished`.
+    pub end: Option<End>,
 }
 
 /// A session's sheet as the screen draws it.
@@ -259,6 +275,11 @@ pub struct SheetView {
     /// What each exercise gives in its frames before Compare, as its kind drew it (S109), as
     /// stored (`Given::marks`).
     pub givens: Vec<Vec<SheetMark>>,
+    /// Each exercise's kind, whose facts the flow and the screen read (S122), in place of
+    /// `families`.
+    pub kinds: Vec<Kind>,
+    /// Each lesson on it as its row's label names it (S122); none on a long colour copy's.
+    pub rows: Vec<LessonRow>,
 }
 
 impl SheetView {
@@ -295,6 +316,9 @@ impl SheetView {
             painted,
             families,
             givens,
+            kinds: exercises.iter().map(|e| e.kind).collect(),
+            // Each lesson its own number once the log numbers them (`PracticeLog::practising`).
+            rows: LessonRow::of_sheet(record, |_| number),
         }
     }
 
@@ -321,6 +345,8 @@ impl SheetView {
         joined.pictures.append(&mut sheet.pictures);
         joined.painted.append(&mut sheet.painted);
         joined.givens.append(&mut sheet.givens);
+        joined.kinds.append(&mut sheet.kinds);
+        joined.rows.append(&mut sheet.rows);
         joined
     }
 }

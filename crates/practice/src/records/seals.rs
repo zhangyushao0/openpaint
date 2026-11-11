@@ -2,6 +2,12 @@
 //! derived from the records, never stored: what has been earned is a function of them, so a
 //! record removed (a test session) takes its part with it. Each seal counts what was done, never
 //! when: no days in a row, quotas or reminders (the author, 2026-10-28).
+//!
+//! S122a re-bases them on the path, the variants and their names standing through S122 (the
+//! screens' words go by them; S123 may rename): `FirstSession`, `TenSessions` and
+//! `FiftySessions` count finished lessons (a skill's, a full one, the first), `Stage(n)` is
+//! earned when every skill of unit n has its first dot. `Tally::beside`, `sealed` and `earned`
+//! keep their signatures.
 
 use crate::records::sheet::Sheet;
 use crate::records::time::seconds;

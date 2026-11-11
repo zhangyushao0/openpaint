@@ -8,6 +8,14 @@
 //! refuses a capitalised literal under `crates/practice-ui/src` outside this module). Written
 //! Chinese-first as the ui's are: V大's words (原图, 明度, 纯度, 色块, 勾线笔, 素材包), no term
 //! the ui's `RETIRED` lists.
+//!
+//! The path's controls (S122), their English fixed with the contract because scenarios tap them
+//! by it; the tables are S122c's. The home's two entrances: Practice, Studio (画室; the ui's word).
+//! The home's column and the path page: Start (开始), Review (复习), All units (全部单元), Practice
+//! book (练习簿, as it is), Full lesson (完整一课). On the sheet the bar is the skill and its place
+//! ("skill 3/5", "First lesson 2/3"), How, Compare and Next as they are. An exercise's result:
+//! Accurate (准), Almost (差一点), Again (重来). A lesson's end: One more (再来一课), That's all for
+//! today (今天到这儿). A skill's words go by `Skill::key`, a kind's by its `Facts::key`.
 
 pub(crate) use openpaint_ui::text::*;
 

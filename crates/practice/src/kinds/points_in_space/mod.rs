@@ -40,6 +40,10 @@ impl Described for PointsInSpace {
         &FACTS
     }
 
+    fn key(&self) -> &'static str {
+        "points-in-space"
+    }
+
     fn variant(&self, kind: Kind) -> Option<u8> {
         match kind {
             Kind::Space(trick) => Some(place(&Trick::ALL, &trick)),

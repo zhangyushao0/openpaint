@@ -10,6 +10,7 @@
 
 mod colour_areas;
 mod compositions;
+mod course;
 mod demos;
 mod fits;
 mod geometry;
@@ -30,6 +31,10 @@ pub use colour_areas::main_hue::{HUE_STEP, MAIN_CHROMA, main_hue, turn};
 pub use compositions::levels::{Level, LevelRow};
 pub use compositions::masses::Masses;
 pub use compositions::value_masses::{BLUR, ISLAND, MASSES_SIDE, RIM, Value, ValueMasses};
+pub use course::learner::{DOTS, Learner, Redo};
+pub use course::schedule;
+pub use course::schedule::{Offer, Planned, Standing};
+pub use course::unit::{UNITS, Unit};
 pub use demos::demo::{
     Demo, DemoLayout, Drawn, Mark, Marker, On, Pictured, Shaded, Strip, WIDE_REACH,
 };
@@ -101,7 +106,9 @@ pub use kinds::value_masses::marks::{MassesCompared, MassesReading};
 pub use kinds::value_masses::value_masses_read::{
     BARE_LEFT, HATCH_GAP, MassesCheck, NEAR_MATCHED, VALUE_PEN,
 };
-pub use kinds::{DrawnCopy, Facts, Kept, Kind, Needs, Original, Picks, Tools, Work};
+pub use kinds::{
+    DrawnCopy, Facts, Kept, Kind, Needs, Original, Picks, Skill, SkillLevel, Tools, Work,
+};
 pub use marks::asked::{Asked, Compare, Copied, Painted, Read, Reading, Reads, ToFit};
 pub use marks::card::{Arg, CardItem, Say, WheelSize};
 pub use marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};

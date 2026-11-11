@@ -4,9 +4,9 @@
 //! mode's sheet (`CanvasHook`) draws its marks over the canvas through the view, adds to the left
 //! island, holds the top band's middle with its own chrome (its notices then under it), may take
 //! the place of the side bar, the panels and the right island with tools of its own, and tells
-//! its notices; in the gallery (`GalleryHook`) it lays a card first in the grid, a page over the
-//! gallery with an island of its own, its dialogs and its notices after the gallery's own. Its
-//! taps are its own: the runtime takes them from the mode and applies them after the frame's
+//! its notices; on the home (`HomeHook`, S122) it has a column beside the studio's artworks and
+//! whole pages of its own, each with its island, its dialogs and its notices after the home's own.
+//! Its taps are its own: the runtime takes them from the mode and applies them after the frame's
 //! painting intents; what it asks of the painting goes to the shell's taps it is lent.
 
 use egui::{Context, Rect, Ui};
@@ -17,12 +17,12 @@ use crate::components::ScreenArea;
 use crate::components::carry::Opening;
 use crate::text::Text;
 
-/// The hooks of one frame: a mode's canvas while the canvas shows its sheet, its gallery part
-/// while the gallery shows; none without a mode.
+/// The hooks of one frame: a mode's canvas while the canvas shows its sheet, its part of the home
+/// while the home shows; none without a mode.
 #[derive(Default)]
 pub struct Hooks<'a> {
     pub canvas: Option<&'a mut dyn CanvasHook>,
-    pub gallery: Option<&'a mut dyn GalleryHook>,
+    pub home: Option<&'a mut dyn HomeHook>,
 }
 
 impl Hooks<'_> {
@@ -30,7 +30,7 @@ impl Hooks<'_> {
     pub fn reborrow(&mut self) -> Hooks<'_> {
         Hooks {
             canvas: (self.canvas.as_mut()).map(|hook| &mut **hook as &mut dyn CanvasHook),
-            gallery: (self.gallery.as_mut()).map(|hook| &mut **hook as &mut dyn GalleryHook),
+            home: (self.home.as_mut()).map(|hook| &mut **hook as &mut dyn HomeHook),
         }
     }
 }
@@ -90,30 +90,31 @@ impl<'a> Chrome<'a> {
     }
 }
 
-/// How far a mode's page lies over the gallery.
+/// How far a mode's page lies over the home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
     /// None shows.
     None,
-    /// It shows, still growing over the gallery.
+    /// It shows, still growing out of where it was opened: the home shows under it, without its
+    /// top band.
     Over,
-    /// It covers the gallery: nothing of the gallery needs drawing.
+    /// It is alone on the screen: nothing of the home is drawn.
     Covers,
 }
 
-/// A mode's part of the gallery.
-pub trait GalleryHook {
-    /// While its page shows, the top band holds only the page's island, drawn here; whether it
-    /// does.
-    fn island(&mut self, ctx: &Context) -> bool;
-    /// Its page over the gallery, if it shows; the gallery's taps to `taps`.
+/// A mode's part of the home (S122): the home is two entrances side by side, the mode's column
+/// and the studio's artworks, and the mode's pages lie over it whole. Until S122c lays the home
+/// out so, the shell gives the column the first card's place in the grid.
+pub trait HomeHook {
+    /// Its page over the home, if one shows, drawn here with its own island (the top band holds
+    /// nothing else then); the home's taps to `taps`. Called first in the pass.
     fn page(&mut self, ctx: &Context, taps: &mut Vec<Intent>) -> Page;
-    /// Its card in `rect`, first in the grid (none while a search is typed); where its picture
-    /// lies, which a sheet going back lands in.
-    fn card(&mut self, ui: &mut Ui, rect: Rect, enabled: bool, taps: &mut Vec<Intent>) -> Rect;
-    /// Its dialogs, after the gallery's own.
+    /// Its column in `rect` (not while a search is typed); where its sheet's picture lies, which
+    /// a sheet going back lands in.
+    fn column(&mut self, ui: &mut Ui, rect: Rect, enabled: bool, taps: &mut Vec<Intent>) -> Rect;
+    /// Its dialogs, after the home's own.
     fn dialogs(&mut self, ctx: &Context, taps: &mut Vec<Intent>);
-    /// What it tells in the gallery's notice pill once the gallery has nothing to.
+    /// What it tells in the home's notice pill once the home has nothing to.
     fn notice(&self) -> Option<Text>;
     /// Its notice was answered with OK.
     fn dismiss(&mut self);

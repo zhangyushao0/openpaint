@@ -11,9 +11,11 @@
 mod book;
 mod copy;
 mod layers;
+mod lesson;
 mod log;
 mod mode;
 mod options;
+mod path;
 mod pens;
 mod pictures;
 mod projection;
@@ -24,11 +26,13 @@ mod today;
 
 pub use crate::book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
+pub use crate::lesson::{End, Judged, LessonRow, LessonShown};
 pub use crate::log::PracticeLog;
 pub use crate::mode::{append_lesson, append_stored, open_sheet, practise};
 pub use crate::options::{
     MAX_PACK_BYTES, Options, OptionsFile, OptionsIntent, OptionsNotice, OptionsRequest,
 };
+pub use crate::path::{PathProjection, SkillShown, Start, UnitShown};
 pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};
 pub use crate::projection::{

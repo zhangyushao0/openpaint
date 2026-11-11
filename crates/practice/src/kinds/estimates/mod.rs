@@ -37,6 +37,10 @@ impl Described for Estimates {
         &FACTS
     }
 
+    fn key(&self) -> &'static str {
+        "estimates"
+    }
+
     fn variant(&self, kind: Kind) -> Option<u8> {
         match kind {
             Kind::Flat(estimate) => Some(place(&Estimate::ALL, &estimate)),

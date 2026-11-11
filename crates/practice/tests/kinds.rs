@@ -35,11 +35,12 @@ fn every_kind() -> Vec<Kind> {
         hue: 30,
     }));
     kinds.push(Kind::Study);
+    kinds.push(Kind::Free);
     kinds
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_nineteen() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -48,8 +49,10 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_nineteen() {
     }
     codes.sort_unstable();
     codes.dedup();
-    assert_eq!(codes, (1..=19).collect::<Vec<u8>>());
-    assert_eq!(Kind::of_code(20, 0), None);
+    assert_eq!(codes, (1..=20).collect::<Vec<u8>>());
+    // The first lesson's free scribble (S122) is kind 20, its one variant 0.
+    assert_eq!(Kind::Free.code(), (20, 0));
+    assert_eq!(Kind::of_code(21, 0), None);
 }
 
 #[test]
@@ -108,5 +111,6 @@ fn a_family_s_work_says_what_it_is_as_the_stages_had_it() {
     let constructed: Vec<Family> = (Family::ALL.into_iter())
         .filter(|f| f.constructed())
         .collect();
-    assert_eq!(constructed.len(), 12, "{constructed:?}");
+    // The twelve built from given parts, and the free scribble's one frame (S122).
+    assert_eq!(constructed.len(), 13, "{constructed:?}");
 }

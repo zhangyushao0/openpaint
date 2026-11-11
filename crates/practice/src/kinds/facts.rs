@@ -105,6 +105,13 @@ pub struct Facts {
     pub family: Family,
     pub key: &'static str,
     pub work: Work,
+    /// Whether its copy is laid over its original as lines, so Aligned may be offered (lines,
+    /// combined lines, single shapes): what the flow reads in place of `work` (S122b), which
+    /// goes (S122a).
+    pub aligned: bool,
+    /// Whether its copy is compared at all: Compare is offered and it ends with a result. Not a
+    /// free scribble's (S122): no Compare on its bar, Next alone (S122b, S122c).
+    pub compared: bool,
     pub constructed: bool,
     pub composed: bool,
     pub tools: Tools,
@@ -129,6 +136,8 @@ impl Facts {
             family,
             key,
             work,
+            aligned: matches!(work, Work::Lines),
+            compared: true,
             constructed: false,
             composed: false,
             tools,
@@ -150,6 +159,13 @@ impl Facts {
     pub(crate) const fn composed(self) -> Self {
         Self {
             composed: true,
+            ..self
+        }
+    }
+
+    pub(crate) const fn uncompared(self) -> Self {
+        Self {
+            compared: false,
             ..self
         }
     }

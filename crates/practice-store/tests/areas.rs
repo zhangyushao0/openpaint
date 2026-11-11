@@ -213,7 +213,7 @@ fn generated_combinations_count_and_show_as_they_did() {
         assert_eq!(decode_givens(&kept[0].1), Ok(givens(sheet)));
     }
 
-    let book = Book::of(&read, 2, 480);
+    let book = Book::of(&read, 480);
     assert_eq!((book.sessions, book.seconds), (1, 1600 + 420));
     assert_eq!(book.road.done_in(2), 1);
     assert_eq!(book.days.len(), 2);

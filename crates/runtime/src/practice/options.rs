@@ -8,6 +8,7 @@ use openpaint_practice::Purpose;
 use openpaint_practice_app::{Options, OptionsFile, OptionsIntent, OptionsRequest, PracticeLog};
 
 use super::jobs::{PracticeJob, copy_job, drill_job, start_job};
+use super::lesson::lesson_job;
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
@@ -37,10 +38,7 @@ pub(crate) fn submit_options(
         if let OptionsRequest::RemoveCopy(id) = &request {
             cache.submit(CacheJob::Delete(*id));
         }
-        let creates = matches!(
-            request,
-            OptionsRequest::Practice(_) | OptionsRequest::Drill(_) | OptionsRequest::Copy(_)
-        );
+        let creates = request.opens();
         match options_job(request, (log, seeds, now)) {
             Ok(job) => storage.submit(job),
             Err(error) if creates => {
@@ -62,6 +60,9 @@ pub(crate) fn options_job(
     (log, seeds, now): (&PracticeLog, &mut Seeds, u64),
 ) -> Result<Job, RuntimeError> {
     Ok(Job::Practice(match request {
+        OptionsRequest::Lesson(start) => {
+            return lesson_job(log, (start, Purpose::Day), seeds, now);
+        }
         OptionsRequest::Practice(stage) => {
             return start_job(log, (stage, None, Purpose::Day), seeds, now);
         }

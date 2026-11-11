@@ -13,12 +13,13 @@
 use std::collections::HashSet;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
-use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{Family, Given, Givens, ItemRef, Layout, Pack, Purpose, Sheet, Tier};
+use openpaint_core::Artwork;
+use openpaint_practice::{Family, Given, Givens, ItemRef, Pack, Purpose, Sheet, Tier};
 use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
 use openpaint_practice_store::{Packs, append, printed, remove, save, sheets, start};
 use openpaint_store::DisplayCache;
 
+use super::lesson::started;
 use super::{day, files};
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
@@ -376,23 +377,4 @@ pub(crate) fn copy_job(
 
 pub(crate) fn seed(seeds: &mut Seeds) -> u64 {
     u64::from(seeds.next()) << 32 | u64::from(seeds.next())
-}
-
-/// The job that stores `session`'s new sheet, titled `title`, of the size its layout asks (a
-/// day's laid ahead, S121c).
-fn started(log: &PracticeLog, session: Sheet, title: Title) -> Result<Job, RuntimeError> {
-    let [width, height] = Layout::laid_ahead(&session);
-    let sheet = Artwork::new(CanvasSize::new(width, height)?);
-    let givens = (session.lesson()).map_or_else(Givens::default, |lesson| {
-        Givens::of_lesson(lesson, log.packs())
-    });
-    let printed = Givens::laid(std::slice::from_ref(&givens), &session)
-        .ok_or(RuntimeError::NotNow("a lesson's givens"))?;
-    Ok(Job::Practice(PracticeJob::Start {
-        sheet,
-        title,
-        session,
-        givens,
-        printed,
-    }))
 }

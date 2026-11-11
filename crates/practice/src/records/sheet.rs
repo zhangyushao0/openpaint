@@ -12,6 +12,8 @@
 //! A lesson's number among its kind (a stage's sessions, a kind's drills, the copies) is never
 //! stored: it is its place among the lessons alike (`lessons.rs`).
 
+use crate::course::schedule::Planned;
+use crate::kinds::SkillLevel;
 use crate::marks::compared::Outcome;
 use crate::packs::pack::{ItemRef, Pack};
 use crate::records::givens::Givens;
@@ -65,10 +67,14 @@ pub struct Lesson {
 /// How a lesson was picked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Picked {
-    /// A kind the user chose (a drill), or a copy's picture.
+    /// One skill's lesson, tapped on the path or offered (S122), a review's; a drill before it; a
+    /// copy's picture. Stored as 2.
     Chosen,
-    /// A stage's session, its first `warm_up` exercises the warm-up.
+    /// A full lesson of unit `stage` (S122; a stage's session before it), its first `warm_up`
+    /// exercises the warm-up. Stored as 3.
     Full { stage: u8, warm_up: u8 },
+    /// The first lesson (S122): a free scribble, a straight line, an arc. Stored as 4.
+    First,
 }
 
 /// One exercise as it was laid on a sheet.
@@ -149,6 +155,14 @@ impl Laid {
         self.first = Some(first);
         self.compares = 1;
     }
+
+    /// The user chose `outcome` for it after Compare (S122), where the eye judges
+    /// (`Verdict::Eye`): kept with `Judge::Eye`, the first choice only, never over the app's.
+    pub fn judged(&mut self, outcome: Outcome) {
+        if self.result.is_none() {
+            self.result = Some((outcome, Judge::Eye));
+        }
+    }
 }
 
 impl Sheet {
@@ -157,13 +171,13 @@ impl Sheet {
     pub fn session(id: u64, stage: u8, started: u64, plan: Plan) -> Self {
         let warm_up = u8::try_from(plan.warm_up).unwrap_or(u8::MAX);
         let picked = Picked::Full { stage, warm_up };
-        Self::begun(id, (Purpose::Day, started), picked, plan.exercises)
+        Self::laid_out(id, (Purpose::Day, started), picked, plan.exercises)
     }
 
     /// A drill (S91), the `id`th of all sheets, begun at `started`, holding `plan`.
     #[must_use]
     pub fn drill(id: u64, started: u64, plan: Plan) -> Self {
-        Self::begun(id, (Purpose::Day, started), Picked::Chosen, plan.exercises)
+        Self::laid_out(id, (Purpose::Day, started), Picked::Chosen, plan.exercises)
     }
 
     /// A long colour copy of `picture`, the `id`th of all sheets, seeded `seed`, begun at
@@ -174,10 +188,25 @@ impl Sheet {
             picture: Some(picture),
             ..Exercise::generated(Kind::Study, seed)
         };
-        Self::begun(id, (Purpose::Copy, started), Picked::Chosen, vec![copy])
+        Self::laid_out(id, (Purpose::Copy, started), Picked::Chosen, vec![copy])
     }
 
-    fn begun(
+    /// A lesson as planned (S122, `schedule`), the `id`th of all sheets, on a sheet for `purpose`
+    /// started at `started`, each exercise at the level it was planned at. Takes the place of
+    /// `session` and `drill`, which go with S122a.
+    #[must_use]
+    pub fn begun(id: u64, (purpose, started): (Purpose, u64), planned: Planned) -> Self {
+        let (exercises, levels): (Vec<Exercise>, Vec<SkillLevel>) =
+            planned.exercises.into_iter().unzip();
+        let mut sheet = Self::laid_out(id, (purpose, started), planned.picked, exercises);
+        let laid = (sheet.lessons.iter_mut()).flat_map(|lesson| lesson.exercises.iter_mut());
+        for (laid, level) in laid.zip(levels) {
+            laid.level = level.code();
+        }
+        sheet
+    }
+
+    fn laid_out(
         id: u64,
         (purpose, started): (Purpose, u64),
         picked: Picked,

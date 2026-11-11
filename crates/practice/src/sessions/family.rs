@@ -40,11 +40,13 @@ pub enum Family {
     ValueMasses,
     /// A crop painted again shifted toward a tendency (S107).
     KeyShift,
+    /// A free scribble, the first lesson's (S122).
+    Free,
 }
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 27] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
@@ -71,6 +73,7 @@ impl Family {
         Self::Study,
         Self::ValueMasses,
         Self::KeyShift,
+        Self::Free,
     ];
 
     /// The description of the kind it belongs to.

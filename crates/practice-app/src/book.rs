@@ -18,6 +18,7 @@ use openpaint_practice::{
 };
 
 use crate::copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
+use crate::lesson::LessonRow;
 use openpaint_app::ProjectId;
 use openpaint_app::Title;
 
@@ -55,6 +56,9 @@ pub struct BookRecord {
     /// Each lesson on it, in order (a day's sheet holds the day's, S121c): the kind a drill
     /// drills (none for a session) and its number in its stage or among its kind's drills.
     pub lessons: Vec<(Option<Family>, u32)>,
+    /// Each lesson on it as its row's label names it (S122: "lesson n · skill"), in place of
+    /// `lessons`; none on a colour copy's.
+    pub rows: Vec<LessonRow>,
     /// A colour copy's name (its sheet's title); none for a day's sheet.
     pub copy: Option<Title>,
 }

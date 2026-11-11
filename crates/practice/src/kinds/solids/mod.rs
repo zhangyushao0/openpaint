@@ -41,6 +41,10 @@ impl Described for Solids {
         &FACTS
     }
 
+    fn key(&self) -> &'static str {
+        "solids"
+    }
+
     fn variant(&self, kind: Kind) -> Option<u8> {
         match kind {
             Kind::Solid(solid) => Some(place(&Solid::ALL, &solid)),

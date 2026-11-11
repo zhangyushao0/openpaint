@@ -192,7 +192,9 @@ impl PracticeSheet {
         let removed = pictured && self.sheet.pictures[index].is_none();
         let held = self.record.first(index).is_some()
             || (self.pair(index)).is_some_and(|pair| holds_copy(artwork, &pair.copy));
-        if held && !removed {
+        // A free scribble is never compared (S122).
+        let compared = self.facts(index).is_some_and(|facts| facts.compared);
+        if held && !removed && compared {
             Availability::Available
         } else {
             Availability::NothingLeft

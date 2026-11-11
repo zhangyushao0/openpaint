@@ -17,6 +17,7 @@ impl PracticeSheet {
         let before: Vec<&Lesson> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
         let painted = self.painted_overlay();
+        let kind = current.and_then(|index| self.sheet.kinds.get(index).copied());
         let (overlay, card, greys) = current
             .and_then(|_| self.overlay())
             .map_or((None, Vec::new(), None), |(marks, card, greys)| {
@@ -60,6 +61,11 @@ impl PracticeSheet {
             shown: painted.0,
             area: painted.1,
             grey: painted.3,
+            lesson: self.lesson_shown(),
+            kind,
+            how: self.instructions.and(kind),
+            judged: self.judged(),
+            end: self.end(),
         }
     }
 }

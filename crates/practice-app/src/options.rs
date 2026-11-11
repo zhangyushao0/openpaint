@@ -14,6 +14,8 @@ use openpaint_app::{
 };
 use openpaint_practice::{Family, ItemRef, Pack, PictureKind, Tier};
 
+use crate::path::Start;
+
 /// Most bytes a practice pack may have to be imported (read whole, then checked).
 pub const MAX_PACK_BYTES: u64 = 512 << 20;
 
@@ -23,6 +25,11 @@ const PACK: u32 = 0;
 /// What the user can ask of the practice options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionsIntent {
+    /// A lesson started and opened at once (S122: the home's and the path's Start, Review, a
+    /// skill's tile, Full lesson), onto the day's sheet where it takes it; one left unfinished is
+    /// continued by opening its sheet (`PathProjection::open`). In place of `Practice` and
+    /// `Drill`, which go with S122b.
+    Lesson(Start),
     /// A new practice session of the stage given, opened at once (the Today card and its
     /// options; an open one is continued by opening its sheet).
     Practice(u8),
@@ -53,6 +60,8 @@ pub enum OptionsIntent {
 /// A call the practice options need from the store, in the order it must run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionsRequest {
+    /// A lesson started (`PracticeLog::start`) and its sheet, which becomes the open one (S122).
+    Lesson(Start),
     /// A new practice session of the stage given and its sheet, which becomes the open one.
     Practice(u8),
     /// A new drill of the kind given and its sheet, which becomes the open one (S91).
@@ -69,6 +78,18 @@ pub enum OptionsRequest {
     PictureTier(String, Tier),
     /// The sheets of the practice records given (by id) read for the practice book.
     ReadSheets(Vec<u64>),
+}
+
+impl OptionsRequest {
+    /// Whether it makes a sheet that becomes the open one (a lesson, a session, a drill, a copy):
+    /// it holds the gallery until the sheet opens, and failing it is a sheet not made.
+    #[must_use]
+    pub const fn opens(&self) -> bool {
+        matches!(
+            self,
+            Self::Lesson(_) | Self::Practice(_) | Self::Drill(_) | Self::Copy(_)
+        )
+    }
 }
 
 /// A file the user chose for the practice options, for the store to read.
@@ -123,6 +144,7 @@ impl Options {
             OptionsIntent::AddPicture(tier) => {
                 return gallery.choose(HostRequest::OpenImage, u32::from(tier.code()));
             }
+            OptionsIntent::Lesson(start) => OptionsRequest::Lesson(start),
             OptionsIntent::Practice(stage) => OptionsRequest::Practice(stage),
             OptionsIntent::Drill(family) => OptionsRequest::Drill(family),
             OptionsIntent::Copy(picture) => OptionsRequest::Copy(picture),
@@ -141,10 +163,7 @@ impl Options {
                 availability,
             });
         }
-        if matches!(
-            request,
-            OptionsRequest::Practice(_) | OptionsRequest::Drill(_) | OptionsRequest::Copy(_)
-        ) {
+        if request.opens() {
             gallery.opening();
         }
         self.requests.push_back(request);

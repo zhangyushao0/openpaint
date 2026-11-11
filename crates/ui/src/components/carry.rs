@@ -34,7 +34,7 @@ pub(crate) struct Arrival {
     pub(crate) from: Rect,
     /// Its card; `None` for the first card (the artwork changed last).
     pub(crate) id: Option<ProjectId>,
-    /// A mode's sheet, which goes back into the mode's card (`GalleryHook::card`).
+    /// A mode's sheet, which goes back into the mode's card (`HomeHook::column`).
     pub(crate) card: bool,
     /// One motion per return.
     pub(crate) run: u64,

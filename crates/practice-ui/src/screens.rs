@@ -1,13 +1,13 @@
 //! Practice's part of the screen between frames (`PracticeScreens`) and the hooks it fills for
-//! one frame (`Hooked`): the open sheet's on the canvas, the Today card's in the gallery. Its
+//! one frame (`Hooked`): the open sheet's on the canvas, the path's on the home (S122). Its
 //! intents never travel among the painting's (D112): the runtime takes them after the frame's
 //! routing (`take`) and applies them after the frame's painting intents.
 
 use openpaint_practice::ItemRef;
 use openpaint_practice_app::{
-    OptionsIntent, OptionsNotice, PictureImage, PracticeIntent, PracticeProjection, TodayProjection,
+    OptionsIntent, OptionsNotice, PathProjection, PictureImage, PracticeIntent, PracticeProjection,
 };
-use openpaint_ui::{CanvasHook, GalleryHook, Hooks};
+use openpaint_ui::{CanvasHook, HomeHook, Hooks};
 
 use crate::gallery::{GalleryPart, TodayHook};
 use crate::sheet::{SheetHook, SheetPart};
@@ -22,24 +22,27 @@ pub struct PracticeScreens {
     options_taps: Vec<OptionsIntent>,
 }
 
-/// What practice shows in one frame: the open `sheet` on the canvas, or in the gallery the
-/// Today card, its options and the practice book (`today`) with what the options tell.
+/// What practice shows in one frame: the open `sheet` on the canvas, or on the home the path
+/// (its column, the path page, the practice options and book) with what the options tell.
 pub type Shown<'a> = (
     Option<&'a PracticeProjection>,
-    Option<(&'a TodayProjection, Option<OptionsNotice>)>,
+    Option<(&'a PathProjection, Option<OptionsNotice>)>,
 );
 
 impl PracticeScreens {
     /// The hooks practice fills in one frame for what it shows (`shown`).
-    pub fn hooked<'a>(&'a mut self, (sheet, today): Shown<'a>) -> Hooked<'a> {
+    ///
+    /// The skeleton's body: the gallery's card as it was (`PathProjection::today`). S122c: the
+    /// home's column and the path page, from the path itself.
+    pub fn hooked<'a>(&'a mut self, (sheet, path): Shown<'a>) -> Hooked<'a> {
         let sheet = sheet.map(|sheet| SheetHook {
             part: &mut self.sheet,
             sheet,
             taps: &mut self.sheet_taps,
         });
-        let today = today.map(|(today, notice)| TodayHook {
+        let today = path.map(|(path, notice)| TodayHook {
             part: &mut self.gallery,
-            today,
+            today: &path.today,
             notice,
             taps: &mut self.options_taps,
         });
@@ -77,7 +80,7 @@ impl Hooked<'_> {
     pub fn hooks(&mut self) -> Hooks<'_> {
         Hooks {
             canvas: (self.sheet.as_mut()).map(|hook| hook as &mut dyn CanvasHook),
-            gallery: (self.today.as_mut()).map(|hook| hook as &mut dyn GalleryHook),
+            home: (self.today.as_mut()).map(|hook| hook as &mut dyn HomeHook),
         }
     }
 }

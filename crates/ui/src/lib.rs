@@ -49,5 +49,5 @@ mod transform_drag;
 
 pub use crate::brush_strip::StripStrokes;
 pub use crate::components::{CanvasArea, Control, ControlMap, ScreenArea, TOP_BAND, Unresolved};
-pub use crate::hooks::{CanvasHook, Chrome, GalleryHook, Hooks, Page};
+pub use crate::hooks::{CanvasHook, Chrome, HomeHook, Hooks, Page};
 pub use crate::shell::Shell;
