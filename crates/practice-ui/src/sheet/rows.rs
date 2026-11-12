@@ -22,6 +22,8 @@ const ABOVE: f64 = 22.0;
 const MARK: f32 = 11.0;
 const UNDER: f64 = 36.0;
 const LEAST_MARK: f32 = 3.0;
+/// A label's least type size on screen, in points: still read when the view shows the whole day.
+const LEAST_LABEL: f32 = 10.0;
 const MOST_MARK: f32 = 6.0;
 
 /// The rows' labels and the results marked under their pairs, through `mapping` on a screen of
@@ -41,7 +43,7 @@ pub(crate) fn show_rows(
     for row in &practice.sheet.rows {
         let pair = Layout::pair_at(usize::from(row.slot), None);
         let [x, y] = pair.original.origin;
-        let font = FontId::proportional((LABEL * scale).max(1.0));
+        let font = FontId::proportional((LABEL * scale).max(LEAST_LABEL));
         let label = t::row_label(language, row);
         painter.text(
             at([x, y - ABOVE]),

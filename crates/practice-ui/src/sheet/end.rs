@@ -68,14 +68,19 @@ pub(crate) fn end_card(ui: &mut egui::Ui, end: &End, name: Text) -> Option<EndTa
     tapped
 }
 
-/// Each exercise's result as a mark, in a row; one not judged a pencil ring.
+/// Each exercise's result as a mark, in rows as wide as the card (a full lesson's fifteen take
+/// two); one not judged a pencil ring.
 fn results(ui: &mut egui::Ui, end: &End) {
-    let size = Vec2::new(ui.available_width(), 2.0 * MARK + SPACE);
-    let (row, _) = ui.allocate_exact_size(size, Sense::hover());
+    let line = 2.0 * MARK + SPACE;
+    let width = ui.available_width();
+    let across = (((width - 2.0 * MARK) / MARK_PITCH).floor() as usize + 1).max(1);
+    let rows = end.results.len().div_ceil(across);
+    let (block, _) = ui.allocate_exact_size(Vec2::new(width, line * rows as f32), Sense::hover());
     for (place, (_, outcome)) in end.results.iter().enumerate() {
+        let (row, column) = (place / across, place % across);
         let centre = Pos2::new(
-            row.left() + MARK + MARK_PITCH * place as f32,
-            row.center().y,
+            block.left() + MARK + MARK_PITCH * column as f32,
+            block.top() + line * (row as f32 + 0.5),
         );
         match outcome {
             Some(outcome) => paint_result(ui.painter(), (centre, MARK), *outcome, INK),
