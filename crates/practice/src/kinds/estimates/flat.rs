@@ -18,7 +18,7 @@ use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::records::metric::{Metric, Metrics};
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// How far inside its frame a given segment keeps.
 const INSIDE: f64 = 0.08;

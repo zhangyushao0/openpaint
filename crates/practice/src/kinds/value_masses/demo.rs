@@ -11,8 +11,8 @@ use crate::compositions::value_masses::{Value, ValueMasses};
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script};
 use crate::kinds::value_masses::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
 use crate::maths::path::Point;
-use crate::sessions::layout::PictureFit;
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
+use crate::sheets::layout::PictureFit;
 
 /// The example: a landscape four by three, its picture this wide.
 const SEED: u64 = 0xDE30_5EED_0096;

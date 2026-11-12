@@ -8,9 +8,9 @@ use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
 use crate::kinds::{Described, Facts, Kind, Original, place};
 use crate::marks::asked::{Asked, Compare, Painted};
 use crate::marks::mark::SheetMark;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::sheet_picture::SheetPicture;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
+use crate::sheets::sheet_picture::SheetPicture;
 
 /// The side its picture is drawn at, in pixels: one to a frame's canvas pixel.
 pub const AREAS_SIDE: u32 = 400;

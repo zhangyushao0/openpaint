@@ -1,27 +1,33 @@
 //! Divisions (`Kind::Division`, V大's 画面分割, S95): a composition's picture divided by its most
 //! obvious lines in three levels; no answer: its lines read by their pens' levels, joined, counted
 //! and measured (`division.rs`, `marks.rs`), the picture laid under them.
+//!
+//! A lesson holds one division (about 5 minutes): a simple or a medium composition in turn at the
+//! first level, a medium one at the second (four to six masses), a hard one at the third (many
+//! masses, close values; `course/picker.rs`).
 
 pub(crate) mod demo;
 pub(crate) mod division;
 pub(crate) mod marks;
 
+use crate::course::picker::composition;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, Tools, Turn};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, edge};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::sessions::drill::compositions;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 
 pub(crate) struct Divisions;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Division, "division", Work::Divided)
-    .composed()
-    .needs(Needs::Compositions)];
-/// How many divisions a drill holds.
+const FACTS: [Facts; 1] = [
+    Facts::of(Family::Division, "division", Tools::Dividing, 300)
+        .composed()
+        .needs(Needs::Compositions),
+];
+/// How many divisions stage 4's drills held.
 const DRILLED: usize = 3;
 
 impl Described for Divisions {
@@ -56,9 +62,12 @@ impl Described for Divisions {
         Some(demo::division())
     }
 
-    /// A drill: three compositions, the simple and medium tiers in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        compositions(DRILLED, turn, Kind::Division)
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        composition((level, DRILLED), turn, Kind::Division)
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

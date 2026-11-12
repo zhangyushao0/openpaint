@@ -3,20 +3,20 @@
 //! compared by its picture laid over the copy as strongly as the user sets, the eyedropper
 //! comparing a point. No How.
 
-use crate::kinds::{Described, Facts, Kind, Original, Picks, Tools, Work};
+use crate::kinds::{Described, Facts, Kind, Original, Picks, Tools};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::drawing::picture_laid;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, swatch};
 use crate::records::metric::Metrics;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 
 pub(crate) struct Study;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Study, "study", Work::Painted)
-    .tools(Tools::Full)
-    .picks(Picks::Probed)];
+/// A long colour copy runs 10 to 20 hours over many sittings; no lesson counts it.
+const FACTS: [Facts; 1] =
+    [Facts::of(Family::Study, "study", Tools::Full, 36_000).picks(Picks::Probed)];
 
 impl Described for Study {
     fn code(&self) -> u8 {

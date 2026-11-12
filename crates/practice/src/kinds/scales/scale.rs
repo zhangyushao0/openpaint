@@ -1,8 +1,8 @@
 //! Value scales (after Gurney's and Ctrl+Paint's value studies, beside V大's week 2 colour work):
 //! a row of cells between a given dark and light of one hue and purity, the cells between them
 //! filled in even steps of lightness. Nine cells (S97: halved and halved again, the middle, the
-//! halves' middles, then the rest, `halving`), five in a beginner's first two scales
-//! (`FIRST_CELLS`, `session.rs`); generated the same for the same seed: the ends far apart (HSV
+//! halves' middles, then the rest, `halving`), five at a lesson's first level, seven at its second
+//! (`FIRST_CELLS`, `scales/mod.rs`); generated the same for the same seed: the ends far apart (HSV
 //! value 0.12 to 0.3 and 0.78 to 0.95 as the wheel sets them), grey or of a hue (in turn by
 //! session). Compare lays the even scale as a row under the copy's (`EVEN_ROW`), cell under cell.
 //!

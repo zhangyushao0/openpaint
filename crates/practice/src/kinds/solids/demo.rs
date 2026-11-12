@@ -16,7 +16,7 @@ use crate::geometry::ellipse::{Ellipse, EllipseGuide};
 use crate::kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
 use crate::kinds::solids::solid_check::SolidCheck;
 use crate::maths::path::Point;
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The examples' seeds: a cylinder's, a cone's, a sphere's.
 const SEEDS: [u64; 3] = [0xDE30_5EED_0012, 0xDE30_5EED_0013, 0xDE30_5EED_0014];

@@ -3,8 +3,8 @@
 //! one pair shaped as its picture.
 
 use openpaint_practice::{
-    Exercise, FRAME, ItemRef, Kind, Layout, Pack, PackItem, PictureFit, PictureKind, Sheet, Tier,
-    stage_one,
+    Exercise, FRAME, ItemRef, Kind, Layout, Pack, PackItem, PictureFit, PictureKind, Purpose,
+    Sheet, Tier, schedule,
 };
 
 #[test]
@@ -116,16 +116,16 @@ fn a_sheet_s_frames_follow_the_pictures_its_packs_held() {
         pack: "test-frames".to_owned(),
         item: id.to_owned(),
     };
-    let mut plan = stage_one(5, &[]);
-    plan.exercises[1] = Exercise {
+    let mut planned = schedule::first(5);
+    planned.exercises[1].0 = Exercise {
         picture: Some(item("tall")),
         ..Exercise::generated(Kind::Shape(Tier::Entry), 9)
     };
-    plan.exercises[2] = Exercise {
+    planned.exercises[2].0 = Exercise {
         picture: Some(item("gone")),
         ..Exercise::generated(Kind::Shape(Tier::Entry), 9)
     };
-    let record = Sheet::session(1, 1, 0, plan);
+    let record = Sheet::begun(1, (Purpose::Day, 0), planned);
     let pack = Pack {
         id: "test-frames".to_owned(),
         title: "Test frames".to_owned(),

@@ -115,14 +115,11 @@ impl Skill {
         self.described().window()
     }
 
-    /// Its tile's picture on the path, in `TILE`'s units.
-    ///
-    /// Skeleton body: its first topic's tile. S122a: one glyph a folder.
+    /// Its tile's picture on the path, in `TILE`'s units: one glyph a folder
+    /// (`Described::glyph`).
     #[must_use]
     pub fn glyph(self) -> Vec<TileMark> {
-        let described = self.described();
-        let topic = described.facts().first();
-        topic.map_or_else(Vec::new, |facts| described.tile(facts.family))
+        self.described().glyph()
     }
 
     /// Its folder's description.

@@ -10,7 +10,7 @@ use crate::demos::demo::{
 use crate::demos::demo_points::{THIRD_TICK, crossed, moved, read};
 use crate::kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
 use crate::maths::path::{Point, across_frame, distance};
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The examples' seeds: a point's, a proportion's, an angle's.
 const SEEDS: [u64; 3] = [0xDE30_5EED_000A, 0xDE30_5EED_000B, 0xDE30_5EED_000C];

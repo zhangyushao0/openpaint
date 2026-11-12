@@ -1,30 +1,32 @@
 //! Colour combinations (`Kind::Crop`, V大's 临摹色彩组合, S101): a pack's crop, its few colour areas
 //! copied by eye and read against the areas the pack holds (`colour_areas/`, `reading.rs`). Its How
 //! plays on a generated example (`demo.rs`).
+//!
+//! A lesson holds one crop (about 4 minutes), none shown before while any is left, at every
+//! level: a crop is picked by its own sequence whatever its tier (`packs/pictures.rs`), so its
+//! levels differ only in which crop comes.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod reading;
 
+use crate::course::picker::Picker;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, SkillLevel, Tools, Turn};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::records::record::AREAS_ROWS;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::Picker;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 
 pub(crate) struct Crops;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Areas, "combination", Work::Painted)
-    .picks(Picks::Probed)
-    .needs(Needs::Crops)
-    .rows(&AREAS_ROWS)];
-/// How many combinations a drill holds.
-const DRILLED: usize = 2;
+const FACTS: [Facts; 1] = [
+    Facts::of(Family::Areas, "combination", Tools::Painting, 240)
+        .picks(Picks::Probed)
+        .needs(Needs::Crops),
+];
 
 impl Described for Crops {
     fn code(&self) -> u8 {
@@ -58,10 +60,12 @@ impl Described for Crops {
         Some(demo::areas())
     }
 
-    /// A drill: two crops not shown before while any are left.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        let mut picker = Picker::new(turn.seed, turn.before, Tier::Simple);
-        (0..DRILLED).filter_map(|_| picker.crop()).collect()
+    fn lesson(&self, _level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        Picker::new(turn, Tier::Simple).crop().into_iter().collect()
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

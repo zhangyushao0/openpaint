@@ -4,7 +4,7 @@
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, band, rect};
 use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
 use crate::maths::colour::{from_hsv, hsv};
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const COLOUR_SEED: u64 = 0xDE30_5EED_0004;

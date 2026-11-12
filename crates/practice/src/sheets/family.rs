@@ -1,8 +1,8 @@
 //! What an exercise asks for, whatever its variant (`Kind`): its family, as the user meets it (a
-//! tile, a How, a line in the summary). What each family is, its key, work and frames, its kind's
+//! tile, a How, a line of the book). What each family is, its key, tools and frames, its kind's
 //! description says (`Facts`, `kinds/`).
 
-use crate::kinds::{Described, Facts, KINDS, Work};
+use crate::kinds::{Described, Facts, KINDS};
 
 /// An exercise's family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -45,7 +45,7 @@ pub enum Family {
 }
 
 impl Family {
-    /// In a warm-up's order.
+    /// Every family.
     pub const ALL: [Self; 27] = [
         Self::Line,
         Self::Combined,
@@ -98,36 +98,6 @@ impl Family {
         Self::ALL
             .into_iter()
             .find(|family| family.facts().key == key)
-    }
-
-    /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
-    /// shapes, boxes, ellipses, estimates, points in space, solids, objects, divisions and whole
-    /// copies), not coloured.
-    #[must_use]
-    pub fn drawn(self) -> bool {
-        matches!(
-            self.facts().work,
-            Work::Lines | Work::Geometry | Work::Divided
-        )
-    }
-
-    /// Whether its copy is checked as geometry: what it holds found in the lines and set against
-    /// an exact answer or rule, never aligned.
-    #[must_use]
-    pub fn geometric(self) -> bool {
-        self.facts().work == Work::Geometry
-    }
-
-    /// Whether it is drawn with a division's pens in V大's three colours (S95).
-    #[must_use]
-    pub fn divided(self) -> bool {
-        self.facts().work == Work::Divided
-    }
-
-    /// Whether its exercises are painted with brushes and read from the copy's pixels.
-    #[must_use]
-    pub fn painted(self) -> bool {
-        self.facts().work == Work::Painted
     }
 
     /// Whether its answer is built from given parts in the one frame drawn in (S97, S98).

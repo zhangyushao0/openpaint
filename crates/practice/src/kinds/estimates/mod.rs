@@ -1,32 +1,53 @@
 //! Estimates on the flat (`Kind::Flat`, S90): a point, a proportion and an angle, their check,
-//! their How (`demo.rs`), tiles and answers as a hand draws them.
+//! their How (`demo.rs`), tiles, lessons and answers as a hand draws them.
+//!
+//! A lesson (an estimate about 36 seconds) holds six, its topics in the course's order: the first
+//! level points in a frame, the second proportions along a segment with two points among them,
+//! the third angles mixed with the other two.
 
 pub(crate) mod demo;
 pub(crate) mod flat;
 pub(crate) mod marks;
 
+use crate::course::picker::laid;
 use crate::demos::demo::Demo;
 use crate::demos::demo_points::crossed;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, line, square};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use flat::{Estimate, Flat, FlatAnswer};
 use std::sync::Arc;
 
 pub(crate) struct Estimates;
 
 const FACTS: [Facts; 3] = [
-    Facts::of(Family::Point, "point", Work::Geometry),
-    Facts::of(Family::Proportion, "proportion", Work::Geometry),
-    Facts::of(Family::Angle, "angle", Work::Geometry),
+    Facts::of(Family::Point, "point", Tools::Drawing, 36),
+    Facts::of(Family::Proportion, "proportion", Tools::Drawing, 36),
+    Facts::of(Family::Angle, "angle", Tools::Drawing, 36),
 ];
-/// How many estimates a drill holds.
-const DRILLED: usize = 5;
+/// Each level's estimates.
+const FIRST: [Estimate; 6] = [Estimate::Point; 6];
+const SECOND: [Estimate; 6] = [
+    Estimate::Proportion,
+    Estimate::Point,
+    Estimate::Proportion,
+    Estimate::Proportion,
+    Estimate::Point,
+    Estimate::Proportion,
+];
+const THIRD: [Estimate; 6] = [
+    Estimate::Angle,
+    Estimate::Proportion,
+    Estimate::Angle,
+    Estimate::Point,
+    Estimate::Angle,
+    Estimate::Proportion,
+];
 
 impl Described for Estimates {
     fn code(&self) -> u8 {
@@ -84,12 +105,13 @@ impl Described for Estimates {
         demo::estimate(family)
     }
 
-    /// A drill: five of the one estimate.
-    fn drill(&self, family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        (Estimate::ALL.into_iter())
-            .filter(|estimate| estimate.family() == family)
-            .flat_map(|estimate| std::iter::repeat_n((Kind::Flat(estimate), None), DRILLED))
-            .collect()
+    fn lesson(&self, level: SkillLevel, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let estimates = match level {
+            SkillLevel::First => FIRST,
+            SkillLevel::Second => SECOND,
+            SkillLevel::Third => THIRD,
+        };
+        laid(estimates.map(Kind::Flat))
     }
 
     /// A small cross on a point, a stroke along a line.

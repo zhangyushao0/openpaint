@@ -98,7 +98,7 @@ fn an_object_is_the_same_per_seed_and_stored_by_its_carve() {
     }
     let family = Kind::Object(Carve::Cut).family();
     assert_eq!(family, Family::Object);
-    assert!(family.drawn() && family.geometric() && !family.painted());
+    assert!(family.facts().compared && !family.facts().aligned);
 }
 
 #[test]

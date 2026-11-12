@@ -1,16 +1,14 @@
 //! What is kept of a practice sheet (S120): the sheet a hidden project of the library holds, its
 //! purpose (the day's practice, a test's, or a long colour copy), the spans it was practised in
-//! (`time.rs`)
-//! and its lessons, each with how it was picked (a stage's session with its warm-up, or a kind
-//! chosen: a drill, a copy's picture), the exercise in hand and its exercises as laid: each one's
-//! place on the sheet (its slot), its picture's size (its frames' shape), its level, its first
-//! Compare (when, which strokes after it are corrections, its numbers), how often it was compared,
-//! its result and who judged it, and the seconds spent on it. What each exercise printed is kept
-//! beside it once (`givens.rs`), so a generator may change. A lesson appended to a sheet is laid
-//! from the row after the last one used (`append`).
+//! (`time.rs`) and its lessons, each with how it was picked (a skill's lesson, a unit's full one
+//! with its warm-up, the first lesson, or a copy's picture), the exercise in hand and its
+//! exercises as laid: each one's place on the sheet (its slot), its picture's size (its frames'
+//! shape), its level, its first Compare (when, which strokes after it are corrections, its
+//! numbers), how often it was compared, its result and who judged it, and the seconds spent on
+//! it. What each exercise printed is kept beside it once (`givens.rs`), so a generator may change.
+//! A lesson appended to a sheet is laid from the row after the last one used (`append`).
 //!
-//! A lesson's number among its kind (a stage's sessions, a kind's drills, the copies) is never
-//! stored: it is its place among the lessons alike (`lessons.rs`).
+//! A lesson's number is never stored: it is its place among the lessons (`lessons.rs`).
 
 use crate::course::schedule::Planned;
 use crate::kinds::SkillLevel;
@@ -20,9 +18,8 @@ use crate::records::givens::Givens;
 use crate::records::lessons::OnSheet;
 use crate::records::metric::Metrics;
 use crate::records::time::Span;
-use crate::sessions::layout::Layout;
-use crate::sessions::plan::{Exercise, Family, Kind};
-use crate::sessions::session::Plan;
+use crate::sheets::exercise::{Exercise, Kind};
+use crate::sheets::layout::Layout;
 
 /// A practice sheet as it is stored.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,12 +40,11 @@ pub struct Sheet {
 /// What a sheet is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Purpose {
-    /// The day's practice: a stage's session or a drill.
+    /// The day's practice: its lessons, each from a new row.
     Day,
-    /// A long colour copy (V大's 色彩临摹): one exercise, never finished, in no stage or summary.
+    /// A long colour copy (V大's 色彩临摹): one exercise, never finished, in no lesson's count.
     Copy,
-    /// A test session or drill the device chore started (`practice-test`): a day's sheet in all
-    /// else.
+    /// A test lesson the device chore started (`practice-test`): a day's sheet in all else.
     Test,
 }
 
@@ -166,20 +162,6 @@ impl Laid {
 }
 
 impl Sheet {
-    /// A stage's session, the `id`th of all sheets, started at `started`, holding `plan`.
-    #[must_use]
-    pub fn session(id: u64, stage: u8, started: u64, plan: Plan) -> Self {
-        let warm_up = u8::try_from(plan.warm_up).unwrap_or(u8::MAX);
-        let picked = Picked::Full { stage, warm_up };
-        Self::laid_out(id, (Purpose::Day, started), picked, plan.exercises)
-    }
-
-    /// A drill (S91), the `id`th of all sheets, begun at `started`, holding `plan`.
-    #[must_use]
-    pub fn drill(id: u64, started: u64, plan: Plan) -> Self {
-        Self::laid_out(id, (Purpose::Day, started), Picked::Chosen, plan.exercises)
-    }
-
     /// A long colour copy of `picture`, the `id`th of all sheets, seeded `seed`, begun at
     /// `started`.
     #[must_use]
@@ -192,8 +174,7 @@ impl Sheet {
     }
 
     /// A lesson as planned (S122, `schedule`), the `id`th of all sheets, on a sheet for `purpose`
-    /// started at `started`, each exercise at the level it was planned at. Takes the place of
-    /// `session` and `drill`, which go with S122a.
+    /// started at `started`, each exercise at the level it was planned at.
     #[must_use]
     pub fn begun(id: u64, (purpose, started): (Purpose, u64), planned: Planned) -> Self {
         let (exercises, levels): (Vec<Exercise>, Vec<SkillLevel>) =
@@ -328,64 +309,9 @@ impl Sheet {
         self.lesson()?.finished
     }
 
-    /// The stage of the session in hand; none for a drill or a copy.
-    #[must_use]
-    pub fn stage(&self) -> Option<u8> {
-        self.lesson()?.stage()
-    }
-
-    /// The kind the drill in hand drills (its exercises'); none for a session or a copy.
-    #[must_use]
-    pub fn drilled(&self) -> Option<Family> {
-        self.held()?.drilled()
-    }
-
     /// Whether it is a long colour copy.
     #[must_use]
     pub fn is_copy(&self) -> bool {
         self.purpose == Purpose::Copy
-    }
-
-    /// How many of the lesson in hand's first exercises are its warm-up.
-    #[must_use]
-    pub fn warm_up(&self) -> usize {
-        self.lesson().map_or(0, Lesson::warm_up)
-    }
-
-    /// The lesson holding exercise `index`, and the exercise's index in it.
-    fn locate(&self, mut index: usize) -> Option<(&Lesson, usize)> {
-        for lesson in &self.lessons {
-            if index < lesson.exercises.len() {
-                return Some((lesson, index));
-            }
-            index -= lesson.exercises.len();
-        }
-        None
-    }
-
-    /// Whether exercise `index` is part of its lesson's warm-up.
-    #[must_use]
-    pub fn warming_up(&self, index: usize) -> bool {
-        self.locate(index)
-            .is_some_and(|(lesson, at)| at < lesson.warm_up())
-    }
-
-    /// Exercise `index`'s place, from 1, and how many there are: in the warm-up among the
-    /// warm-up's exercises, after it among those of its family after it, in its lesson.
-    #[must_use]
-    pub fn place(&self, index: usize) -> (usize, usize) {
-        let Some((lesson, at)) = self.locate(index) else {
-            return (0, 0);
-        };
-        let exercises = &lesson.exercises;
-        let warm_up = lesson.warm_up().min(exercises.len());
-        if at < warm_up {
-            return (at + 1, warm_up);
-        }
-        let family = exercises[at].exercise.kind.family();
-        let alike = |l: &&Laid| l.exercise.kind.family() == family;
-        let before = exercises[warm_up..at].iter().filter(alike).count();
-        let all = exercises[warm_up..].iter().filter(alike).count();
-        (before + 1, all)
     }
 }

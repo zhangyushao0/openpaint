@@ -6,7 +6,7 @@ use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, band, rect
 use crate::kinds::scales::scale::{ROW, ScaleTone, ValueScale, halving};
 use crate::maths::colour::hsv;
 use crate::maths::path::Point;
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const SCALE_SEED: u64 = 0xDE30_5EED_0006;

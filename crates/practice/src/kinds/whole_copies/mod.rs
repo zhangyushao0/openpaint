@@ -2,28 +2,32 @@
 //! copied whole as a line drawing or in colour blocks over its division dimmed; compared by its
 //! picture laid over the copy as strongly as the user sets, its division hidden, its division's
 //! counts kept (`divisions/`).
+//!
+//! A lesson holds one whole copy (about 8 minutes): a simple or a medium composition in turn at
+//! the first level, a medium one at the second, a hard one at the third (`course/picker.rs`).
 
 pub(crate) mod demo;
 
+use crate::course::picker::composition;
 use crate::demos::demo::Demo;
 use crate::kinds::divisions::marks::division;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, Tools, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, SkillLevel, Tools, Turn};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::drawing::picture_laid;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, curve, edge, square};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::sessions::drill::compositions;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 
 pub(crate) struct WholeCopies;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::WholeCopy, "whole-copy", Work::Divided)
-    .composed()
-    .tools(Tools::Copying)
-    .picks(Picks::Blocks)
-    .needs(Needs::Compositions)];
+const FACTS: [Facts; 1] = [
+    Facts::of(Family::WholeCopy, "whole-copy", Tools::Copying, 480)
+        .composed()
+        .picks(Picks::Blocks)
+        .needs(Needs::Compositions),
+];
 
 impl Described for WholeCopies {
     fn code(&self) -> u8 {
@@ -57,9 +61,12 @@ impl Described for WholeCopies {
         Some(demo::whole_copy())
     }
 
-    /// A drill: one composition, the simple and medium tiers in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        compositions(1, turn, Kind::WholeCopy)
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        composition((level, 1), turn, Kind::WholeCopy)
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     /// Once anything lies in its frame: its picture laid over it, keeping its division's numbers.

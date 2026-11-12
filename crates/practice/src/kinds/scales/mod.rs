@@ -1,33 +1,33 @@
 //! Value scales (`Kind::Scale`, S97): a row of cells between given ends, filled in even steps of
 //! Oklab lightness; read from the copy's pixels (`marks.rs`). Its How plays a scale of the row in
 //! hand's count (`demo.rs`).
+//!
+//! A lesson (a scale about 3 minutes) holds two, a grey one and one of a hue: the first level of
+//! `FIRST_CELLS` cells (a beginner's, S97), the second of `SECOND_CELLS`, the third of `CELLS`:
+//! each level's steps finer, harder to keep even.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod scale;
 
+use crate::course::picker::{laid, rotated};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, Picks, Tools, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, Picks, SkillLevel, Tools, Turn, place};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, square};
 use crate::packs::pack::ItemRef;
-use crate::records::record::SCALE_ROWS;
-use crate::sessions::drill::turned;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::FULL;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use scale::{CELLS, FIRST_CELLS, ScaleTone, ValueScale};
 
 pub(crate) struct Scales;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Scale, "scale", Work::Painted)
+const FACTS: [Facts; 1] = [Facts::of(Family::Scale, "scale", Tools::Cells, 180)
     .constructed()
-    .tools(Tools::Cells)
-    .picks(Picks::Ends)
-    .rows(&SCALE_ROWS)];
-/// How many scales a drill holds.
-const DRILLED: usize = 2;
+    .picks(Picks::Ends)];
+/// The second level's cells, between a beginner's and a full scale's.
+const SECOND_CELLS: usize = 7;
 
 impl Described for Scales {
     fn code(&self) -> u8 {
@@ -78,11 +78,16 @@ impl Described for Scales {
         Some(demo::scale(cells))
     }
 
-    /// A drill: two full scales, their tones in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        turned((&ScaleTone::ALL, DRILLED), turn, |tone| {
-            Kind::Scale(tone, FULL)
-        })
+    /// Grey first at the first level, then each tone first in turn.
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let (cells, from) = match level {
+            SkillLevel::First => (FIRST_CELLS, 0),
+            SkillLevel::Second => (SECOND_CELLS, turn.turn),
+            SkillLevel::Third => (CELLS, turn.turn),
+        };
+        let cells = u8::try_from(cells).unwrap_or(u8::MAX);
+        let tones = rotated(&ScaleTone::ALL, from, ScaleTone::ALL.len());
+        laid(tones.into_iter().map(|tone| Kind::Scale(tone, cells)))
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

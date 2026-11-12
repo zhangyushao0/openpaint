@@ -15,7 +15,7 @@ use crate::kinds::objects::object_design::Carve;
 use crate::kinds::solids::solid_check::SolidCheck;
 use crate::maths::path::Point;
 use crate::maths::random::derived;
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The example: a box with a slope cut down its far end and a notch out of its near corner, seen
 /// from above; of the first 2,000 cuts of its seed's sequence with a second change seen so, the

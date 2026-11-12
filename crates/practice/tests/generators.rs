@@ -1,10 +1,10 @@
 //! The generators: the same seed gives the same exercise, exercises stay in their frames and
-//! vary, and a session holds what stage 1 asks with its warm-up drawn only from the kinds met (the
-//! sheet: `sheet.rs`).
+//! vary, and unit 1's full lesson gives each exercise its own seed, its colours mostly low in
+//! saturation (the sheet: `sheet.rs`).
 
 use openpaint_practice::{
-    Combination, CombinedLines, Exercise, Family, ItemRef, Kind, LineExercise, LineTier, Original,
-    Tier, Tone, WARM_UP, hsv, length, stage_one,
+    Combination, CombinedLines, Exercise, Family, ItemRef, Kind, Learner, LineExercise, LineTier,
+    Original, Pictures, Standing, Tier, Tone, hsv, length, schedule,
 };
 
 #[test]
@@ -123,49 +123,44 @@ fn colours_follow_their_tone_and_the_seed() {
     }
 }
 
-fn families(kinds: &[Exercise]) -> Vec<Family> {
-    kinds.iter().map(|e| e.kind.family()).collect()
-}
-
 #[test]
-fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_saturation() {
-    let plan = stage_one(0x5EED_0045, &[]);
-    assert_eq!(plan, stage_one(0x5EED_0045, &[]));
-    assert_ne!(plan, stage_one(1, &[]));
-    let session = &plan.exercises;
+fn a_unit_s_full_lesson_holds_its_skills_each_exercise_its_own_seed_colours_mostly_low() {
+    let (pictures, learner) = (Pictures::default(), Learner::default());
+    let standing = Standing {
+        pictures: &pictures,
+        learner: &learner,
+    };
+    let planned = schedule::full(1, 0x5EED_0045, &standing).expect("unit 1's");
     assert_eq!(
-        (session.len(), plan.warm_up),
-        (16, 0),
-        "nothing met, no warm-up"
+        Some(&planned),
+        schedule::full(1, 0x5EED_0045, &standing).as_ref()
     );
-    let expected: Vec<Family> = [
-        [Family::Line; 6].as_slice(),
-        &[Family::Combined; 4],
-        &[Family::Colour; 6],
-    ]
-    .concat();
-    assert_eq!(families(session), expected);
-    assert_eq!(session[0].kind, Kind::Line(LineTier::Straight));
-    let arrangements: Vec<Kind> = session[6..10].iter().map(|e| e.kind).collect();
-    let every = Combination::ALL.map(Kind::Combined);
-    assert!(
-        every.iter().all(|k| arrangements.contains(k)),
-        "each arrangement once"
-    );
-    let low = session[10..]
-        .iter()
+    assert_ne!(Some(&planned), schedule::full(1, 1, &standing).as_ref());
+    let lesson: Vec<&Exercise> = planned.exercises.iter().map(|(e, _)| e).collect();
+    let colours: Vec<&&Exercise> = (lesson.iter())
+        .filter(|e| e.kind.family() == Family::Colour)
+        .collect();
+    let low = (colours.iter())
         .filter(|e| match e.original() {
             Original::Colour(colour) => hsv(colour)[1] < 0.36,
             _ => false,
         })
         .count();
-    assert!(low >= 4, "{low} of 6 low in saturation");
-    let seeds: std::collections::HashSet<u64> = session.iter().map(|e| e.seed).collect();
-    assert_eq!(seeds.len(), 16, "every exercise its own seed");
-    for exercise in session {
+    assert!(
+        3 * low >= 2 * colours.len(),
+        "{low} of {} low",
+        colours.len()
+    );
+    let seeds: std::collections::HashSet<u64> = lesson.iter().map(|e| e.seed).collect();
+    assert_eq!(seeds.len(), lesson.len(), "every exercise its own seed");
+    for exercise in lesson {
         let (kind, variant) = exercise.kind.code();
         assert_eq!(Kind::of_code(kind, variant), Some(exercise.kind));
     }
+}
+
+#[test]
+fn a_code_past_a_kind_s_variants_reads_as_none() {
     assert_eq!(Kind::of_code(4, 0), None);
     assert_eq!(Kind::of_code(5, 3), None);
     assert_eq!(Kind::of_code(6, 2), None);
@@ -178,50 +173,6 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
     assert_eq!(Kind::of_code(14, 4), None);
     assert_eq!(Kind::of_code(15, 0), None);
     assert_eq!(Kind::of_code(3, 4), None);
-}
-
-#[test]
-fn the_warm_up_draws_only_from_the_kinds_met_lines_first() {
-    let lines_and_colours = [
-        Kind::Line(LineTier::Arc),
-        Kind::Line(LineTier::Hook),
-        Kind::Colour(Tone::of_code(4).expect("a tone")),
-    ];
-    let mut all = lines_and_colours.to_vec();
-    all.push(Kind::Combined(Combination::Near));
-    for seed in 0..300 {
-        for met in [&lines_and_colours[..], &all[..], &lines_and_colours[2..]] {
-            let plan = stage_one(seed, met);
-            assert_eq!(plan, stage_one(seed, met), "the same per seed");
-            assert_eq!(plan.warm_up as usize, WARM_UP);
-            let warm_up = &plan.exercises[..WARM_UP];
-            assert!(
-                warm_up.iter().all(|e| met.contains(&e.kind)),
-                "{seed} {warm_up:?}"
-            );
-            let mut sorted = families(warm_up);
-            sorted.sort();
-            assert_eq!(families(warm_up), sorted, "lines first");
-            let kinds = |exercises: &[Exercise]| -> Vec<Kind> {
-                exercises.iter().map(|e| e.kind).collect()
-            };
-            let first = stage_one(seed, &[]).exercises;
-            assert_eq!(
-                kinds(&plan.exercises[WARM_UP..]),
-                kinds(&first),
-                "then the mix"
-            );
-        }
-        // Lines and colours met: two of each; combined lines too: two lines, a group, a colour.
-        let two_and_two = families(&stage_one(seed, &lines_and_colours).exercises[..WARM_UP]);
-        assert_eq!(
-            two_and_two,
-            [Family::Line, Family::Line, Family::Colour, Family::Colour]
-        );
-        let with_groups = families(&stage_one(seed, &all).exercises[..WARM_UP]);
-        let expected = [Family::Line, Family::Line, Family::Combined, Family::Colour];
-        assert_eq!(with_groups, expected);
-    }
 }
 
 #[test]

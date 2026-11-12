@@ -109,8 +109,8 @@ impl Learner {
     }
 
     /// Takes `lesson` in: its skills practised, its results by the dot rule, the redos it answers
-    /// and those it leaves, its pictures.
-    fn take(&mut self, lesson: &Lesson) {
+    /// and those it leaves, its pictures (what the seals' tally folds too, `records/seals.rs`).
+    pub(crate) fn take(&mut self, lesson: &Lesson) {
         self.lessons += 1;
         let at = self.lessons;
         let (mut met, mut redone, mut pictures) = (Vec::new(), Vec::new(), Vec::new());

@@ -28,7 +28,7 @@ use crate::kinds::solids::solid_answer::{Body, SolidAnswer, Square, View, answer
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::maths::vector::{Vector, add, sub};
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps
 /// the rules well within).

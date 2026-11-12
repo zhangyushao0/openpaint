@@ -1,26 +1,27 @@
-//! Seals (S89): milestones of practice, stamped in vermilion in the practice book. They are
+//! Seals (S89, S122): milestones of practice, stamped in vermilion in the practice book. They are
 //! derived from the records, never stored: what has been earned is a function of them, so a
-//! record removed (a test session) takes its part with it. Each seal counts what was done, never
+//! record removed (a test lesson) takes its part with it. Each seal counts what was done, never
 //! when: no days in a row, quotas or reminders (the author, 2026-10-28).
 //!
-//! S122a re-bases them on the path, the variants and their names standing through S122 (the
-//! screens' words go by them; S123 may rename): `FirstSession`, `TenSessions` and
-//! `FiftySessions` count finished lessons (a skill's, a full one, the first), `Stage(n)` is
-//! earned when every skill of unit n has its first dot. `Tally::beside`, `sealed` and `earned`
-//! keep their signatures.
+//! On the path (S122) `FirstSession`, `TenSessions` and `FiftySessions` count lessons finished (a
+//! skill's, a full one, the first; a copy's never) and `Stage(n)` is earned when every skill of
+//! unit n has its first dot (the learner as the records tell it, `course/learner.rs`); the names
+//! stand through S122.
 
+use crate::course::learner::Learner;
+use crate::course::unit::UNITS;
 use crate::records::sheet::Sheet;
 use crate::records::time::seconds;
-use crate::sessions::plan::{Family, STAGE_SESSIONS, STAGES};
+use crate::sheets::exercise::Family;
 
 /// A milestone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Seal {
-    /// The first session finished, then ten and fifty.
+    /// The first lesson finished, then ten and fifty.
     FirstSession,
     TenSessions,
     FiftySessions,
-    /// Stage n's sessions finished (`STAGE_SESSIONS` of them).
+    /// Every skill of unit n with its first dot.
     Stage(u8),
     /// A hundred lines compared (single and combined) and a hundred colours.
     HundredLines,
@@ -35,11 +36,10 @@ pub enum Seal {
 const TEN_HOURS: u64 = 10 * 3600;
 
 /// What records add up to.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Tally {
-    /// Sessions finished, in all and per stage (stage n at n - 1).
+    /// Lessons finished, a long colour copy's never.
     pub sessions: u32,
-    pub stages: [u32; STAGES as usize],
     /// Exercises compared: single and combined lines, and colours.
     pub lines: u32,
     pub colours: u32,
@@ -47,14 +47,18 @@ pub struct Tally {
     pub copies: u32,
     /// The time practised, in seconds.
     pub seconds: u64,
+    /// The learner the lessons added tell of: the units whose skills all hold a dot.
+    learner: Learner,
 }
 
 impl Tally {
-    /// What `records` add up to.
+    /// What `records` add up to, taken in the order of their ids.
     #[must_use]
     pub fn of<'a>(records: impl IntoIterator<Item = &'a Sheet>) -> Self {
+        let mut ordered: Vec<&Sheet> = records.into_iter().collect();
+        ordered.sort_by_key(|record| record.id);
         let mut tally = Self::default();
-        for record in records {
+        for record in ordered {
             tally.add(record);
         }
         tally
@@ -93,14 +97,8 @@ impl Tally {
         let Some(lesson) = record.lessons.get(index).filter(|_| !record.is_copy()) else {
             return;
         };
-        // A drill counts what it compared, never as a session (S91).
-        if let Some(stage) = lesson.stage().filter(|_| lesson.finished.is_some()) {
-            self.sessions += 1;
-            let stage = usize::from(stage).wrapping_sub(1);
-            if let Some(done) = self.stages.get_mut(stage) {
-                *done += 1;
-            }
-        }
+        self.sessions += u32::from(lesson.finished.is_some());
+        self.learner.take(lesson);
         for laid in lesson.exercises.iter().filter(|laid| laid.first.is_some()) {
             match laid.exercise.kind.family() {
                 Family::Line | Family::Combined => self.lines += 1,
@@ -122,8 +120,9 @@ impl Tally {
         earn(self.sessions >= 1, Seal::FirstSession);
         earn(self.sessions >= 10, Seal::TenSessions);
         earn(self.sessions >= 50, Seal::FiftySessions);
-        for (stage, done) in (1..=STAGES).zip(self.stages) {
-            earn(done >= STAGE_SESSIONS, Seal::Stage(stage));
+        for unit in UNITS.iter().filter(|unit| unit.built()) {
+            let dotted = (unit.skills.iter()).all(|skill| self.learner.dots(*skill) > 0);
+            earn(dotted, Seal::Stage(unit.number));
         }
         earn(self.lines >= 100, Seal::HundredLines);
         earn(self.colours >= 100, Seal::HundredColours);
@@ -167,7 +166,7 @@ pub fn earned(records: &[Sheet]) -> Vec<Earned> {
 #[must_use]
 pub fn sealed(others: &Tally, record: &Sheet) -> Vec<Seal> {
     let before = others.seals();
-    let mut with = *others;
+    let mut with = others.clone();
     with.add_time(record);
     with.add_lesson(record, record.in_hand());
     (with.seals().into_iter())

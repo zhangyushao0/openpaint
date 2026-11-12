@@ -1,24 +1,56 @@
-//! Single lines (`Kind::Line`): lines from curvature profiles, their How, their tile, and how a
-//! line's or a group's copy is compared (laid over it, fitted for Aligned: `marks.rs`).
+//! Single lines (`Kind::Line`): lines from curvature profiles, their How, their tile, their
+//! lessons, and how a line's or a group's copy is compared (laid over it, fitted for Aligned:
+//! `marks.rs`).
+//!
+//! A lesson (a line about 48 seconds) holds six: the first level stage 1's (a near-straight line,
+//! arcs, S-curves, a hook), the second arcs, S-curves and hooks in even shares, the third
+//! S-curves and hooks alone, the bends hardest to keep.
 
 pub(crate) mod demo;
 pub(crate) mod line;
 pub(crate) mod marks;
 
+use crate::course::picker::laid;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kept, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kept, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, curve};
 use crate::packs::pack::ItemRef;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::LINES;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use line::{LineExercise, LineTier};
 
 pub(crate) struct Lines;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Line, "line", Work::Lines).kept(Kept::Line)];
+const FACTS: [Facts; 1] = [Facts::of(Family::Line, "line", Tools::Drawing, 48)
+    .aligned()
+    .kept(Kept::Line)];
+/// Each level's lines in order.
+const FIRST: [LineTier; 6] = [
+    LineTier::Straight,
+    LineTier::Arc,
+    LineTier::Wave,
+    LineTier::Arc,
+    LineTier::Hook,
+    LineTier::Wave,
+];
+const SECOND: [LineTier; 6] = [
+    LineTier::Arc,
+    LineTier::Wave,
+    LineTier::Hook,
+    LineTier::Arc,
+    LineTier::Wave,
+    LineTier::Hook,
+];
+const THIRD: [LineTier; 6] = [
+    LineTier::Wave,
+    LineTier::Hook,
+    LineTier::Hook,
+    LineTier::Wave,
+    LineTier::Hook,
+    LineTier::Wave,
+];
 
 impl Described for Lines {
     fn code(&self) -> u8 {
@@ -57,9 +89,13 @@ impl Described for Lines {
         Some(demo::line())
     }
 
-    /// A drill: stage 1's six lines.
-    fn drill(&self, _family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        LINES.map(|tier| (Kind::Line(tier), None)).to_vec()
+    fn lesson(&self, level: SkillLevel, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let tiers: &[LineTier] = match level {
+            SkillLevel::First => &FIRST,
+            SkillLevel::Second => &SECOND,
+            SkillLevel::Third => &THIRD,
+        };
+        laid(tiers.iter().copied().map(Kind::Line))
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

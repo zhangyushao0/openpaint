@@ -1,27 +1,20 @@
-//! Practice counted by lesson (S121b): a sheet may hold several lessons (the day's sheet), so
-//! whatever counts sessions, drills or copies walks every lesson of every sheet in the order of
-//! (sheet id, lesson index), each told by its own lesson: a stage's session, a drill of a kind, a
-//! long colour copy. A lesson's number among its kind is its place among the lessons alike; the
+//! Practice counted by lesson (S121b, S122): a sheet may hold several lessons (the day's sheet),
+//! so whatever counts walks every lesson of every sheet in the order of (sheet id, lesson index),
+//! each told by its own lesson: a skill's, a unit's full one, the first one, a long colour copy.
+//! A lesson's number is its place among the learner's lessons (a copy's among the copies); the
 //! lesson in hand is a sheet's last unfinished one, else its last.
 
 use crate::kinds::Skill;
 use crate::records::sheet::{Lesson, Picked, Sheet};
-use crate::sessions::plan::Family;
 
 impl Lesson {
-    /// The stage of a stage's session; none for a drill or a copy.
+    /// The unit of a full lesson (S122); none for a skill's lesson, the first lesson or a copy.
     #[must_use]
-    pub fn stage(&self) -> Option<u8> {
+    pub fn unit(&self) -> Option<u8> {
         match self.picked {
             Picked::Full { stage, .. } => Some(stage),
             Picked::Chosen | Picked::First => None,
         }
-    }
-
-    /// The unit of a full lesson (S122); none for a skill's lesson, the first lesson or a copy.
-    #[must_use]
-    pub fn unit(&self) -> Option<u8> {
-        self.stage()
     }
 
     /// The skill a skill's lesson practises (its first exercise's, S122); none for a full
@@ -35,18 +28,7 @@ impl Lesson {
         Skill::of(first.exercise.kind)
     }
 
-    /// The kind a chosen lesson holds (its first exercise's): a drill's, a copy's study; none for
-    /// a session.
-    #[must_use]
-    pub fn chosen(&self) -> Option<Family> {
-        let first = self
-            .exercises
-            .first()
-            .filter(|_| self.picked == Picked::Chosen)?;
-        Some(first.exercise.kind.family())
-    }
-
-    /// How many of its first exercises are its warm-up.
+    /// How many of its first exercises are a full lesson's warm-up.
     #[must_use]
     pub fn warm_up(&self) -> usize {
         match self.picked {
@@ -77,18 +59,6 @@ impl<'a> OnSheet<'a> {
         })
     }
 
-    /// The stage of a stage's session; none for a drill or a copy.
-    #[must_use]
-    pub fn stage(&self) -> Option<u8> {
-        self.lesson.stage()
-    }
-
-    /// The kind a drill drills; none for a session or a copy.
-    #[must_use]
-    pub fn drilled(&self) -> Option<Family> {
-        self.lesson.chosen().filter(|_| !self.sheet.is_copy())
-    }
-
     /// When it finished.
     #[must_use]
     pub fn finished(&self) -> Option<u64> {
@@ -114,14 +84,6 @@ impl<'a> OnSheet<'a> {
             .map(|lesson| lesson.exercises.len())
             .sum()
     }
-
-    /// Whether `other` is a lesson of its kind: a session of its stage, a drill of its kind, a
-    /// copy.
-    fn alike(&self, other: &Self) -> bool {
-        self.is_copy() == other.is_copy()
-            && self.stage() == other.stage()
-            && self.drilled() == other.drilled()
-    }
 }
 
 /// Every lesson of `sheets`, in the order of (sheet id, lesson index).
@@ -133,20 +95,16 @@ pub fn lessons<'a>(sheets: impl IntoIterator<Item = &'a Sheet>) -> Vec<OnSheet<'
     all
 }
 
-/// Lesson `lesson` of `sheet`'s number among the lessons of its kind in `all` (`sheet` among them
-/// or not), from 1: a session's in its stage, a drill's among its kind's drills, a copy's among
-/// the copies.
-///
-/// S122a: a row's label on the sheet is "lesson n · skill", n this number counted over every
-/// lesson but a copy's (the learner's lessons), a copy's still among the copies: only the stage's
-/// and the drilled kind's part of `alike` goes, the signature stands.
+/// Lesson `lesson` of `sheet`'s number in `all` (`sheet` among them or not), from 1: its place
+/// among every lesson but a copy's (the learner's lessons: a row's label on the sheet, "lesson n ·
+/// skill"), a copy's among the copies.
 #[must_use]
 pub fn number(all: &[Sheet], sheet: &Sheet, lesson: usize) -> u32 {
     let Some(this) = OnSheet::of(sheet, lesson) else {
         return 1;
     };
     let earlier = (lessons(all).iter())
-        .filter(|other| other.order() < this.order() && this.alike(other))
+        .filter(|other| other.order() < this.order() && other.is_copy() == this.is_copy())
         .count();
     u32::try_from(earlier + 1).unwrap_or(u32::MAX)
 }

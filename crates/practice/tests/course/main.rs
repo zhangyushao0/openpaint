@@ -1,11 +1,12 @@
 //! The path's contract (S122): the units' skills and their keys, the dot rule, what a redo is and
-//! when it is answered, what opens a unit, the first lesson, and the First-prefix rule. The parts
-//! build on these; S122a owns them from here (the scheduler's order, each folder's levels).
+//! when it is answered, what opens a unit, the first lesson; the schedule's order, the First-prefix
+//! rule and a unit's full lesson in `order.rs`.
+
+mod order;
 
 use openpaint_practice::{
-    Before, DOTS, Judge, Kind, Learner, Lesson, LineTier, Needs, Outcome, Picked, Pictures,
-    Planned, Purpose, Sheet, Skill, SkillLevel, Standing, TileMark, UNITS, derived, drill,
-    schedule,
+    DOTS, Judge, Kind, Learner, Lesson, LineTier, Needs, Outcome, Picked, Pictures, Planned,
+    Purpose, Sheet, Skill, SkillLevel, Standing, TileMark, UNITS, derived, schedule,
 };
 
 /// 2026-10-05 12:00 UTC.
@@ -149,7 +150,10 @@ fn a_redo_waits_until_its_kind_and_picture_are_laid_again_in_a_later_lesson() {
     // Laid again, it is answered, whatever it ends with; the other still waits.
     let answered = learner.with(&ended(reviewed, &[Redo]));
     assert_eq!(
-        answered.redos().filter(|(of, _)| *of == next.skill).count(),
+        answered
+            .redos()
+            .filter(|(of, _)| *of != review.skill)
+            .count(),
         1
     );
     let again: Vec<Kind> = (answered.redos())
@@ -207,35 +211,4 @@ fn a_unit_opens_by_the_first_dots_of_the_unit_before_it() {
     assert_eq!(learner.unit(&pictures), 2);
     // No unit past the built ones opens, and none there is not.
     assert!(!learner.open(7, &pictures) && !learner.open(9, &pictures));
-}
-
-#[test]
-fn at_the_first_level_a_lesson_of_one_topic_starts_as_its_drill_did() {
-    let (pictures, learner) = (Pictures::default(), Learner::default());
-    let standing = Standing {
-        pictures: &pictures,
-        learner: &learner,
-    };
-    let before = Before {
-        met: &[],
-        pictures: &pictures,
-        used: &[],
-        recent: &[],
-        scales: 0,
-    };
-    for key in [
-        "line", "combined", "colour", "scale", "box", "ellipse", "objects",
-    ] {
-        let lesson = schedule::lesson(skill(key), SkillLevel::First, 11, &standing);
-        let lesson = lesson.expect("a lesson").exercises;
-        let family = lesson[0].0.kind.family();
-        let drilled = drill(family, 1, 11, &before).expect("its drill").exercises;
-        assert!(
-            !lesson.is_empty() && lesson.len() <= drilled.len().min(6),
-            "{key}"
-        );
-        for ((exercise, _), old) in lesson.iter().zip(&drilled) {
-            assert_eq!(exercise, old, "{key}");
-        }
-    }
 }

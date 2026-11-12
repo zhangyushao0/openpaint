@@ -1,7 +1,9 @@
-//! Free boxes' marks (S84, S97, S98): the horizon in their one frame. Compared, where each box's
-//! directions meet ringed red, what of its edges is off, a front corner under 90 degrees an arc;
-//! Construction runs each receding edge on to where its direction meets the horizon and the
-//! horizon across the sheet, faint. The card: how many edges miss, or that none was found.
+//! Free boxes' marks (S84, S97, S98, S114): the horizon in their one frame. Compared, where each
+//! box's directions meet ringed, a vertical that leans its true vertical, a front corner under 90
+//! degrees an arc; Construction runs each receding edge on to where its direction meets the
+//! horizon and the horizon across the sheet, faint. A direction's edges missing one point are no
+//! fault drawn or counted: the eye judges a free page (S114, the author 2026-11-07). The card:
+//! the verticals that lean and the narrow corners, or that no edge was found.
 
 use std::sync::Arc;
 
@@ -61,7 +63,9 @@ impl Compared for FreeCompared {
         for free in &self.check.boxes {
             let rings = free.meets.iter().map(|(_, meet)| Figure::Ring(*meet));
             marks.extend(rings.map(|ring| SheetMark::cut(In::Copy, ring)));
-            let off: Vec<_> = (free.edges.iter()).filter_map(|edge| edge.off).collect();
+            // Only a leaning vertical: a receding edge's miss is the eye's to see (S114).
+            let leaning = free.edges.iter().filter(|edge| edge.leans());
+            let off: Vec<_> = leaning.filter_map(|edge| edge.off).collect();
             marks.extend(off_marks(&off, Clip::Sheet));
             let narrow = free.narrow.iter().map(|corner| Figure::Narrow {
                 at: corner.at,
@@ -79,14 +83,15 @@ impl Compared for FreeCompared {
         let edges: Vec<Checked> = (self.check.boxes.iter())
             .flat_map(|free| free.edges.iter().copied())
             .collect();
-        let counts = counted(&edges, self.check.narrow());
+        let [_, lean, narrow] = counted(&edges, self.check.narrow());
+        let counts = [0, lean, narrow];
         vec![
             CardItem::Says(Say::counting("off", &counts)),
             CardItem::Construction,
         ]
     }
 
-    /// Free boxes have no answer but the rules: the eye judges (S122 takes their red verdict).
+    /// Free boxes have no answer but the rules: the eye judges (S114).
     fn verdict(&self) -> Verdict {
         Verdict::Eye
     }

@@ -1,30 +1,11 @@
-//! What the app and the UI read of a family (S109, S109b, D111): its key, how its copy is made and
-//! compared, its frames, the tools beside its frame, what the eyedropper reads over it, what a
-//! drill of it needs kept, what the practice book keeps of it and the summary's rows. Each kind's
-//! description gives its families' (`Described::facts`); the flow and the screens ask these,
-//! never which family it is.
+//! What the app and the UI read of a family (S109, S109b, D111, S122): its key, whether its copy is
+//! laid over its original and whether it is compared at all, its frames, the tools beside its
+//! frame, what the eyedropper reads over it, what a lesson of it needs kept, what the practice
+//! book keeps of it and about how long one of its exercises takes. Each kind's description gives
+//! its families' (`Described::facts`); the flow and the screens ask these, never which family it
+//! is.
 
-use crate::records::metric::Metric;
-use crate::sessions::family::Family;
-
-/// How a family's copy is made and compared.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Work {
-    /// Figure with the pens as lines and laid over the original, in place or aligned (lines,
-    /// combined lines, single shapes).
-    Lines,
-    /// Figure as lines and checked as geometry against an exact answer or rule, never aligned
-    /// (boxes, ellipses, estimates, points in space, solids, objects).
-    Geometry,
-    /// Figure with a division's pens in V大's three colours: no answer, the picture laid under the
-    /// lines (a division, a whole copy's division, S95).
-    Divided,
-    /// A single colour matched by picking.
-    Colour,
-    /// Painted with brushes and read from the copy's pixels (colour combinations, value scales,
-    /// colour copies, value masses, key shifts).
-    Painted,
-}
+use crate::sheets::family::Family;
 
 /// The exercise's own tools beside its frame (S76, S95, S96, S100, S104).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +50,7 @@ pub enum Picks {
     Locked,
 }
 
-/// What a drill of a family needs kept before it starts (S91, S95, S96, S101, S107).
+/// What a lesson of a family needs kept before it starts (S91, S95, S96, S101, S107).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Needs {
     Nothing,
@@ -94,23 +75,23 @@ pub enum Kept {
 }
 
 /// What the app and the UI read of a family: the key its words go by in the UI's tables
-/// (`ui/src/text/practice/`; its tile, its test drill's name too), how its copy is made and
-/// compared, whether its answer is built from given parts in the one frame drawn in (S97, S98:
-/// the original's frame beside it left empty, room for what Compare draws beyond the frame),
-/// whether it copies a composition's picture (S95, S96), its tools, what the eyedropper reads,
-/// what a drill needs, what the book keeps, whether its picture's ground shows faded in its
-/// original's frame (a single shape's, S99) and the metrics the summary sets side by side.
+/// (`ui/src/text/practice/`; its tile's too), whether its copy is laid over its original as lines
+/// (so Aligned may be offered) and whether it is compared at all, whether its answer is built from
+/// given parts in the one frame drawn in (S97, S98: the original's frame beside it left empty,
+/// room for what Compare draws beyond the frame), whether it copies a composition's picture (S95,
+/// S96), its tools, what the eyedropper reads, what a lesson needs, what the book keeps, whether its
+/// picture's ground shows faded in its original's frame (a single shape's, S99) and about how many
+/// seconds one exercise of it takes, looked at, drawn or painted, compared and corrected once (the
+/// stages' estimates, S75 to S107): what a lesson's minutes are counted from (`schedule::offer`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Facts {
     pub family: Family,
     pub key: &'static str,
-    pub work: Work,
     /// Whether its copy is laid over its original as lines, so Aligned may be offered (lines,
-    /// combined lines, single shapes): what the flow reads in place of `work` (S122b), which
-    /// goes (S122a).
+    /// combined lines, single shapes).
     pub aligned: bool,
     /// Whether its copy is compared at all: Compare is offered and it ends with a result. Not a
-    /// free scribble's (S122): no Compare on its bar, Next alone (S122b, S122c).
+    /// free scribble's (S122): no Compare on its bar, Next alone.
     pub compared: bool,
     pub constructed: bool,
     pub composed: bool,
@@ -119,24 +100,18 @@ pub struct Facts {
     pub needs: Needs,
     pub kept: Kept,
     pub grounded: bool,
-    pub rows: &'static [Metric],
+    pub seconds: u16,
 }
 
 impl Facts {
-    /// A family of `work` keyed `key`, neither constructed nor composed, with the tools its work
-    /// draws or paints with, the eyedropper reading the canvas, nothing needed or kept.
-    pub(crate) const fn of(family: Family, key: &'static str, work: Work) -> Self {
-        let tools = match work {
-            Work::Lines | Work::Geometry => Tools::Drawing,
-            Work::Divided => Tools::Dividing,
-            Work::Colour => Tools::Colour,
-            Work::Painted => Tools::Painting,
-        };
+    /// A family keyed `key` drawn or painted with `tools`, one exercise of which takes about
+    /// `seconds`: compared, neither aligned, constructed nor composed, the eyedropper reading the
+    /// canvas, nothing needed or kept.
+    pub(crate) const fn of(family: Family, key: &'static str, tools: Tools, seconds: u16) -> Self {
         Self {
             family,
             key,
-            work,
-            aligned: matches!(work, Work::Lines),
+            aligned: false,
             compared: true,
             constructed: false,
             composed: false,
@@ -145,7 +120,14 @@ impl Facts {
             needs: Needs::Nothing,
             kept: Kept::Nothing,
             grounded: false,
-            rows: &[],
+            seconds,
+        }
+    }
+
+    pub(crate) const fn aligned(self) -> Self {
+        Self {
+            aligned: true,
+            ..self
         }
     }
 
@@ -170,10 +152,6 @@ impl Facts {
         }
     }
 
-    pub(crate) const fn tools(self, tools: Tools) -> Self {
-        Self { tools, ..self }
-    }
-
     pub(crate) const fn picks(self, picks: Picks) -> Self {
         Self { picks, ..self }
     }
@@ -191,9 +169,5 @@ impl Facts {
             grounded: true,
             ..self
         }
-    }
-
-    pub(crate) const fn rows(self, rows: &'static [Metric]) -> Self {
-        Self { rows, ..self }
     }
 }
