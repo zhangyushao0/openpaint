@@ -6,11 +6,9 @@
 //! Compare opened (the copy read and the answer drawn, at once on the frame loop) and closed: a
 //! line each.
 
-use openpaint_practice::Family;
-
 use super::hand::to_screen;
 use super::motion::{by_pen, drag};
-use super::practice::of_key;
+use super::practice::key_of;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::ToolKind;
@@ -20,7 +18,7 @@ const STROKE_MS: i64 = 300;
 const ROUND_MS: i64 = 900;
 /// How far off the answer the bench draws, frame units.
 const OFF: f64 = 0.02;
-/// The families visited, by their keys: an estimate's two; V大's five tricks, of which the first
+/// The kinds visited, by their keys: an estimate's two; V大's five tricks, of which the first
 /// held is visited; the objects; the three solids, likewise.
 const ESTIMATES: [(&str, &str); 2] = [("point", "point"), ("angle", "angle")];
 const TRICKS: [&str; 5] = ["centre", "halves", "thirds", "next-face", "mirror"];
@@ -32,25 +30,25 @@ impl Runtime {
     pub(super) fn bench_points(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         let first = |keys: &[&str]| {
             self.practice().and_then(|p| {
-                let from = p.current.unwrap_or(p.sheet.families.len());
-                (p.sheet.families.iter().skip(from))
-                    .find(|family| keys.contains(&family.facts().key))
-                    .copied()
+                let from = p.current.unwrap_or(p.sheet.kinds.len());
+                (p.sheet.kinds.iter().skip(from))
+                    .map(|kind| key_of(*kind))
+                    .find(|key| keys.contains(key))
             })
         };
         let (space, solid) = (first(&TRICKS), first(&SOLIDS));
-        let mut families: Vec<(Family, &str)> = Vec::new();
-        for (key, name) in ESTIMATES {
-            families.push((of_key(key)?, name));
-        }
-        let space = space.map(|family| (family, "point in space"));
-        let solid = solid.map(|family| (family, "solid"));
-        // Stage 4's objects come before its solid.
-        let object = [(of_key(OBJECT)?, "object")];
-        let all = families.into_iter().chain(space).chain(object).chain(solid);
-        for (family, name) in all {
-            if !self.bench_on_to(family)? {
-                lines.push(format!("no {name} after this point of the session"));
+        let space = space.map(|key| (key, "point in space"));
+        let solid = solid.map(|key| (key, "solid"));
+        // Unit 4's objects come before its solid.
+        let object = [(OBJECT, "object")];
+        let all = ESTIMATES
+            .into_iter()
+            .chain(space)
+            .chain(object)
+            .chain(solid);
+        for (key, name) in all {
+            if !self.bench_on_to(key)? {
+                lines.push(format!("no {name} after this point of the lesson"));
                 continue;
             }
             self.bench_answer()?;
@@ -62,12 +60,12 @@ impl Runtime {
         Ok(())
     }
 
-    /// The shown exercise's answer as its kind gives it (`Family::answer`) drawn by the pen a little
+    /// The shown exercise's answer as its kind gives it (`Kind::answer`) drawn by the pen a little
     /// off: a cross for a point, a stroke along each line, once round each ellipse.
     fn bench_answer(&mut self) -> Result<(), RuntimeError> {
         let shown = self.practice().and_then(|p| {
             let index = p.current?;
-            let strokes = p.sheet.families[index].answer(p.original.as_deref()?);
+            let strokes = p.sheet.kinds[index].answer(p.original.as_deref()?);
             (!strokes.is_empty()).then(|| (strokes, p.sheet.pairs[index].copy))
         });
         let (strokes, frame) = shown.ok_or(RuntimeError::NotNow("a point shown"))?;

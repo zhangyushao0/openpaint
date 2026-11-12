@@ -18,8 +18,9 @@
 //! variant too) and its picture are laid again in a later lesson, which answers it whatever that
 //! one ends with.
 //!
-//! A unit is open when it is the first, or every skill of the unit before it whose pictures are
-//! kept has its first dot; any unit may still be entered.
+//! A unit is open when it is the first, or it holds a skill, the unit before it is open and every
+//! skill of that one whose pictures are kept has its first dot; a unit without a skill never is.
+//! Any unit may still be entered.
 
 use crate::course::unit::{UNITS, Unit};
 use crate::kinds::{Kind, Skill, SkillLevel};
@@ -233,22 +234,24 @@ impl Learner {
         self.recent.iter().flatten().cloned().collect()
     }
 
-    /// Whether `unit` is open with the `pictures` kept: the first, or every skill of the unit
-    /// before it that can be practised has its first dot (a unit not built opens none).
+    /// Whether `unit` is open with the `pictures` kept: the first always; another when it holds a
+    /// skill, the unit before it is open and each skill of that one that can be practised has its
+    /// first dot. A unit without a skill (6 to 8) is never open.
     #[must_use]
     pub fn open(&self, unit: u8, pictures: &Pictures) -> bool {
+        if !Unit::of(unit).is_some_and(Unit::built) {
+            return false;
+        }
         if unit == 1 {
             return true;
         }
-        let before = unit.checked_sub(1).and_then(Unit::of);
-        let passed = before
-            .filter(|before| before.built())
-            .is_some_and(|before| {
-                (before.skills.iter())
-                    .filter(|skill| skill.lacks(pictures).is_none())
-                    .all(|skill| self.dots(*skill) > 0)
-            });
-        passed && Unit::of(unit).is_some()
+        let Some(before) = unit.checked_sub(1).and_then(Unit::of) else {
+            return false;
+        };
+        let dotted = (before.skills.iter())
+            .filter(|skill| skill.lacks(pictures).is_none())
+            .all(|skill| self.dots(*skill) > 0);
+        dotted && self.open(before.number, pictures)
     }
 
     /// The unit in hand with the `pictures` kept: the first built one holding a skill that can be

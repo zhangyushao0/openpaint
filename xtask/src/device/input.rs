@@ -28,9 +28,9 @@
 //!   the app's `meminfo` before and after;
 //! - `open-file <name>`: the OpenPaint file (or `.pack`) `cargo device-push` put into the test folder opened
 //!   as a new artwork without the picker, its id printed (`open_file.rs`);
-//! - `practice-test start [stage [n]|copy|drill <kind>]|end`: a test practice session (of the
-//!   stage given, else the one practised; as its `n`-th would be when given), a test colour copy
-//!   or a test drill started beside the author's, or removed with its sheet (`practice_test.rs`);
+//! - `practice-test start [lesson <skill> [level] | full [unit] | first | copy] | end`: a test
+//!   lesson (the next one Start starts, a skill's at a level, a unit's full one, the first) or a
+//!   test colour copy started beside the author's, or removed with its sheet (`practice_test.rs`);
 //! - `home`: the system's home key, no instrumentation (the app's memory released when its UI is
 //!   hidden).
 
@@ -50,10 +50,10 @@ pub fn input(args: &[String]) -> Result<()> {
         wake(&adb)?;
         return open_file(&adb, name);
     }
-    if let ["practice-test", what, ref stage @ ..] = args[..] {
+    if let ["practice-test", what, ref given @ ..] = args[..] {
         let adb = Adb::connected()?;
         wake(&adb)?;
-        return practice_test(&adb, what, stage);
+        return practice_test(&adb, what, given);
     }
     // Home as the system's key, outside the instrumentation (whose process keeps its importance
     // while it runs, so the system would not tell the app its UI is hidden).
@@ -163,7 +163,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
                            | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust|ui|practice|book[@fast] \
-                           | open-file <name> | practice-test start [stage [n]|copy|drill <kind>]|end | home";
+                           | open-file <name> | practice-test start [lesson <skill> [level] | full [unit] | first | copy] | end | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none
 /// inside.

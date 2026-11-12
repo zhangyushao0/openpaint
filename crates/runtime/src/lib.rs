@@ -41,13 +41,14 @@ pub use crate::frame::{Runtime, StartOptions};
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
 pub use crate::pacing::Paced;
 pub use crate::painted::{drawn, pile_path, style_of};
-pub use crate::practice::PracticeTest;
+pub use crate::practice::{PracticeTest, skill_start};
 pub use crate::text::{EditKey, TextInput};
 pub use crate::transfer::{Encoded, encoded};
 pub use openpaint_app::{
     BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, Language, PortError,
     ScreenProjection,
 };
+pub use openpaint_practice_app::Start;
 pub use openpaint_render::{Background, Counts, Spent, SurfaceWindow, take_spent};
 pub use openpaint_store::DisplayCache;
 pub use openpaint_ui::design::{FontFile, TextFonts};

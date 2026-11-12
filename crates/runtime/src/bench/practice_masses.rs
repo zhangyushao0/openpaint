@@ -7,7 +7,6 @@
 use openpaint_practice_app::Pen;
 
 use super::motion::drag;
-use super::practice::of_key;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::ToolKind;
@@ -24,8 +23,8 @@ const MASSES: [(Pen, [[f64; 2]; 2]); 3] = [
 impl Runtime {
     /// See the module.
     pub(super) fn bench_masses(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(of_key("value-masses")?)? {
-            lines.push("no whole copy or value masses after this point of the session".to_owned());
+        if !self.bench_on_to("value-masses")? {
+            lines.push("no whole copy or value masses after this point of the lesson".to_owned());
             return Ok(());
         }
         let line = self.bench_tap("Middle", ToolKind::Finger)?;

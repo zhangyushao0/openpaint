@@ -18,7 +18,7 @@ impl Runtime {
         for when in ["first", "again"] {
             let opens = self.bench_tap("Practice book", ToolKind::Finger)?;
             lines.push(format!("book opens, {when}: {opens}"));
-            let closes = self.bench_tap("Gallery", ToolKind::Finger)?;
+            let closes = self.bench_tap("Home", ToolKind::Finger)?;
             lines.push(format!("book closes, {when}: {closes}"));
         }
         Ok(())

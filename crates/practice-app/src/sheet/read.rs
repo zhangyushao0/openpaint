@@ -253,14 +253,14 @@ impl PracticeSheet {
         if self.current().is_none() || sequence <= self.painting_state.since {
             return;
         }
-        let index = self.record.at();
+        let (index, scored) = (self.record.at(), self.scored());
         if let Some(laid) = self.record.laid_mut(index)
             && let Some(first) = &mut laid.first
             && first.metrics.is_empty()
             && let Some(read) = &painted
         {
             first.metrics.clone_from(&read.metrics);
-            if laid.result.is_none() {
+            if laid.result.is_none() && scored {
                 laid.result = judged(read.comparison.verdict());
             }
             self.changed = true;

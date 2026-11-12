@@ -128,7 +128,7 @@ pub fn smoke(args: &[String]) -> Result<()> {
         .screen
         == Screen::Canvas
     {
-        smoke.tap("Gallery")?;
+        smoke.tap("Home")?;
     }
     smoke.until(UP, State::listed)?;
     println!(
@@ -271,7 +271,7 @@ impl Smoke {
     }
 
     fn leave(&mut self) -> Result<()> {
-        self.tap("Gallery")?;
+        self.tap("Home")?;
         let state = self.listed()?;
         self.ours = Some(identify(&self.before, &state).map_err(failed)?);
         Ok(())
@@ -289,7 +289,7 @@ impl Smoke {
 
     fn delete(&mut self) -> Result<()> {
         let ours = self.ours()?;
-        self.tap("Gallery")?;
+        self.tap("Home")?;
         first_is(ours, &self.listed()?).map_err(failed)?;
         self.tap(&format!("{DELETE_CARD} #1"))?;
         self.tap("Delete")?;

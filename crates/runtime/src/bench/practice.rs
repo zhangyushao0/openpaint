@@ -16,7 +16,7 @@
 //! (if one is left), the inline wheel's square dragged round, Fill frame and Compare (the colours
 //! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on.
 
-use openpaint_practice::Family;
+use openpaint_practice::Kind;
 use openpaint_practice_app::PracticeIntent;
 
 use super::Watch;
@@ -31,8 +31,8 @@ use crate::input::ToolKind;
 const LINE_MS: i64 = 400;
 const GROUP_LINE_MS: i64 = 800;
 const WHEEL_MS: i64 = 1000;
-/// The families the walk visits, by their keys (`openpaint_practice::Facts::key`): the bench names
-/// kinds as a test drill does (S109), what it does at each from what its kind gives.
+/// The kinds the walk visits, by their facts' keys (`openpaint_practice::Facts::key`), what it
+/// does at each from what its kind gives.
 const LINE: &str = "line";
 const GROUP: &str = "combined";
 const SHAPE: &str = "shape";
@@ -46,15 +46,15 @@ const PERSPECTIVE: [(&str, &str, bool); 3] = [
     ("ellipse", "ellipse", true),
 ];
 
-/// The family keyed `key`.
-pub(super) fn of_key(key: &str) -> Result<Family, RuntimeError> {
-    Family::of_key(key).ok_or(RuntimeError::NotNow("a practice kind of that key"))
+/// `kind`'s facts' key: what the walk names it by.
+pub(super) fn key_of(kind: Kind) -> &'static str {
+    kind.facts().key
 }
 
 impl Runtime {
     /// `practice`: see the module.
     pub(crate) fn bench_practice(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let Some(family) = self.practice().map(|p| p.family) else {
+        let Some(first) = self.practice().map(|p| p.kind.map(|kind| kind.facts().key)) else {
             return Err(RuntimeError::NotNow("a practice sheet open"));
         };
         let mut watch = Watch::paced(self);
@@ -66,7 +66,7 @@ impl Runtime {
             let line = self.bench_tap("How", ToolKind::Finger)?;
             lines.push(format!("instructions {when}: {line}"));
         }
-        if family.is_some_and(|family| family.facts().key == LINE) {
+        if first == Some(LINE) {
             self.bench_copy()?;
             for (label, control) in [
                 ("compare opens", "Compare"),
@@ -107,8 +107,8 @@ impl Runtime {
     /// line each.
     fn bench_perspective(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         for (key, name, round) in PERSPECTIVE {
-            if !self.bench_on_to(of_key(key)?)? {
-                lines.push(format!("no {name} after this point of the session"));
+            if !self.bench_on_to(key)? {
+                lines.push(format!("no {name} after this point of the lesson"));
                 continue;
             }
             if round {
@@ -124,19 +124,19 @@ impl Runtime {
         Ok(())
     }
 
-    /// Next until an exercise of `family` shows, its instructions closed and the hand at rest;
+    /// Next until an exercise keyed `key` shows, its instructions closed and the hand at rest;
     /// false when none comes after the one shown.
-    pub(super) fn bench_on_to(&mut self, family: Family) -> Result<bool, RuntimeError> {
-        let shown = |runtime: &Self| runtime.practice().and_then(|p| p.family);
+    pub(super) fn bench_on_to(&mut self, key: &str) -> Result<bool, RuntimeError> {
+        let shown = |runtime: &Self| runtime.practice().and_then(|p| p.kind.map(key_of));
         let holds = self.practice().is_some_and(|p| {
-            let from = p.current.unwrap_or(p.sheet.families.len());
-            (p.sheet.families.iter().skip(from)).any(|held| *held == family)
+            let from = p.current.unwrap_or(p.sheet.kinds.len());
+            (p.sheet.kinds.iter().skip(from)).any(|held| key_of(*held) == key)
         });
         if !holds {
             return Ok(false);
         }
         let mut watch = Watch::paced(self);
-        while shown(self) != Some(family) {
+        while shown(self) != Some(key) {
             let viewport = self.bench_viewport()?;
             let next = PracticeIntent::Next(viewport);
             self.bench_practise(vec![next], &mut watch)?;
@@ -175,8 +175,8 @@ impl Runtime {
     /// copy, Compare (the copy's frame read back, the picture over it), another area chosen, the
     /// original shown dragged to full and Compare taken away: a line each.
     fn bench_combination(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(of_key(COMBINATION)?)? {
-            lines.push("no colour combination after this point of the session".to_owned());
+        if !self.bench_on_to(COMBINATION)? {
+            lines.push("no colour combination after this point of the lesson".to_owned());
             return Ok(());
         }
         let line = self.bench_tap("Fill frame", ToolKind::Finger)?;
@@ -200,8 +200,8 @@ impl Runtime {
     /// frame, then Compare (the picture and its outline in place), Aligned (fitted off the frame
     /// loop) and In place, Compare taken away: a line each.
     fn bench_shape(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(of_key(SHAPE)?)? {
-            lines.push("no single shape after this point of the session".to_owned());
+        if !self.bench_on_to(SHAPE)? {
+            lines.push("no single shape after this point of the lesson".to_owned());
             return Ok(());
         }
         self.bench_outline()?;
@@ -221,8 +221,8 @@ impl Runtime {
     /// pen along its original a little moved and smaller (a stroke of `GROUP_LINE_MS`, the pen's
     /// samples 8 ms apart), then compared aligned (`bench_fit_shown`).
     fn bench_group(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(of_key(GROUP)?)? {
-            lines.push("no combined lines after this point of the session".to_owned());
+        if !self.bench_on_to(GROUP)? {
+            lines.push("no combined lines after this point of the lesson".to_owned());
             return Ok(());
         }
         let practice = self.practice();
@@ -313,8 +313,8 @@ impl Runtime {
     /// The session taken on to its first colour (its instructions closed), the inline wheel's
     /// square dragged round, Fill frame and Compare: a line each.
     fn bench_colour(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(of_key(COLOUR)?)? {
-            lines.push("no colour after this point of the session".to_owned());
+        if !self.bench_on_to(COLOUR)? {
+            lines.push("no colour after this point of the lesson".to_owned());
             return Ok(());
         }
         let ([left, top], [width, height]) = self.bench_rect("Saturation and value")?;

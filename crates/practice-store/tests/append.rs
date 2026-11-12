@@ -10,7 +10,10 @@ use openpaint_app::{
     Space, Thumbnail, Title, VersionId,
 };
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{Exercise, Given, Givens, Kind, Layout, LineTier, Plan, Sheet, stage_one};
+use openpaint_practice::{
+    Exercise, Given, Givens, Kind, Layout, LineTier, Picked, Planned, Purpose, Sheet, SkillLevel,
+    schedule,
+};
 use openpaint_practice_store::{GIVENS, append, printed, sheets, start};
 use openpaint_store::Library;
 use test_dir::TestDir;
@@ -18,32 +21,32 @@ use test_dir::TestDir;
 /// 2026-10-05 12:00 UTC.
 const NOON: u64 = 1_791_201_600;
 
-/// A drill of four single lines started in `library` (finished), as stored.
+/// A lesson of four single lines started in `library` (finished), as stored.
 fn started(library: &mut dyn ProjectStore) -> Sheet {
     let exercises = (0..4)
-        .map(|seed| Exercise::generated(Kind::Line(LineTier::Arc), seed))
+        .map(|seed| {
+            let line = Exercise::generated(Kind::Line(LineTier::Arc), seed);
+            (line, SkillLevel::First)
+        })
         .collect();
-    let mut drill = Sheet::drill(
-        1,
-        NOON,
-        Plan {
-            exercises,
-            warm_up: 0,
-        },
-    );
-    let [width, height] = Layout::of_sheet(&drill).size;
+    let planned = Planned {
+        picked: Picked::Chosen,
+        exercises,
+    };
+    let mut lesson = Sheet::begun(1, (Purpose::Day, NOON), planned);
+    let [width, height] = Layout::of_sheet(&lesson).size;
     let artwork = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let givens = Givens::of_lesson(&drill.lessons[0], &[]);
-    let title = Title::new("Drill 1").expect("title");
-    let id = start(library, (&artwork, &title), &drill, &givens).expect("started");
-    drill.canvas = id.get();
-    drill.lessons[0].finished = Some(NOON + 300);
-    drill
+    let givens = Givens::of_lesson(&lesson.lessons[0], &[]);
+    let title = Title::new("Lesson 1").expect("title");
+    let id = start(library, (&artwork, &title), &lesson, &givens).expect("started");
+    lesson.canvas = id.get();
+    lesson.lessons[0].finished = Some(NOON + 300);
+    lesson
 }
 
-/// `sheet` with a first session of stage 1 appended, and what it prints.
+/// `sheet` with the first lesson appended, and what it prints.
 fn appended(mut sheet: Sheet) -> (Sheet, Givens) {
-    let session = Sheet::session(0, 1, NOON + 600, stage_one(5, &[]));
+    let session = Sheet::begun(0, (Purpose::Day, NOON + 600), schedule::first(5));
     let lesson = session.lessons[0].clone();
     let givens = Givens::of_lesson(&lesson, &[]);
     let givens = sheet.append(lesson, givens);

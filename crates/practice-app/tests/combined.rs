@@ -14,7 +14,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Combination, Exercise, Figure, First, Kind, Layout, LinePen, Original, Picked, Planned,
+    Combination, Exercise, Figure, First, Kind, Layout, Lesson, LinePen, Original, Picked, Planned,
     Purpose, Sheet, SkillLevel,
 };
 use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
@@ -235,5 +235,5 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.sheet().save_request().expect("the record changed");
     assert_eq!(record.laid(10).map(|l| l.compares), Some(2));
-    assert_eq!(record.warm_up(), 4);
+    assert_eq!(record.lesson().map(Lesson::warm_up), Some(4));
 }

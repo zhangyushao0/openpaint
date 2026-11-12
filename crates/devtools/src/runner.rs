@@ -27,7 +27,7 @@ use openpaint_runtime::{
 
 use crate::error::ScenarioError;
 use crate::report::{Record, Report, record, view_check};
-use crate::scenario::{Scenario, Step, SystemLanguage};
+use crate::scenario::{Lesson, Scenario, Step, SystemLanguage};
 use crate::system::{self, Written};
 use crate::target::{self, Key, Spot};
 use crate::watched::Watched;
@@ -178,6 +178,7 @@ impl Runner<'_> {
                 self.frame(runtime)?;
                 self.input_ms = self.clock_ms;
             }
+            Step::Lesson(lesson) => self.lesson(runtime, lesson)?,
             Step::Wait { frames } => self.wait(runtime, *frames)?,
             Step::Later { minutes, hidden } => self.later(runtime, (*minutes, *hidden))?,
             Step::Restart => {
@@ -201,6 +202,15 @@ impl Runner<'_> {
             }
         }
         Ok(Vec::new())
+    }
+
+    /// A `lesson` step: the lesson started from the home, then frames until the store wrote its
+    /// sheet and it opened.
+    fn lesson(&mut self, runtime: &mut Runtime, lesson: &Lesson) -> Result<(), ScenarioError> {
+        runtime.start_lesson(lesson.start()?)?;
+        self.frame(runtime)?;
+        self.input_ms = self.clock_ms;
+        Ok(())
     }
 
     /// A step that touches the screen, its spots resolved on the screen the last frame laid

@@ -32,7 +32,7 @@ impl Shell {
         let own = hook.as_deref().is_some_and(|hook| hook.own_tools());
         let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
             let enabled = projection.availability(EditorAction::Gallery).is_offered();
-            if text_button(ui, t::GALLERY, enabled).clicked() {
+            if text_button(ui, t::HOME, enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
             if let Some(hook) = hook.as_deref_mut() {

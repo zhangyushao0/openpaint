@@ -1,15 +1,15 @@
-//! The path page (S122), grown out of All units over the whole home, Gallery (its island) or the
+//! The path page (S122), grown out of All units over the whole home, Home (its island) or the
 //! back button putting it back: its name in the top band; across the top the eight units as rings
 //! on a pencilled line, the one shown ringed in ink, those open in ink and the rest in pencil, each
 //! a tap away (a unit not open yet is entered all the same); under them the unit shown, its skills
 //! as tiles (`components/skill_tile.rs`: each skill's three dots, the next lesson's ringed, one
 //! lacking its pictures greyed with what it lacks; a tile tapped starts its lesson), the seals
 //! earned and Practice book; beside them the next lesson, the review on the side and the unit's
-//! full lesson (about 30 minutes: a warm-up, then each skill of the unit).
+//! full lesson (about as many minutes as its kinds take: a warm-up, then each skill of the unit).
 
 use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Stroke, TextStyle, UiBuilder, Vec2};
 use openpaint_app::Language;
-use openpaint_practice::Unit;
+use openpaint_practice::Offer;
 use openpaint_practice_app::{PathProjection, Start, UnitShown};
 use openpaint_ui::components::chrome::{self, Source};
 use openpaint_ui::components::{
@@ -80,10 +80,10 @@ enum Tapped {
 }
 
 impl HomePart {
-    /// The path page's island: Gallery, which puts the page back.
+    /// The path page's island: Home, which puts the page back.
     pub(super) fn path_island(&mut self, ctx: &egui::Context) {
         let (back, _) = island(ctx, "path island", Place::top_left(), |ui| {
-            text_button(ui, t::GALLERY, true).clicked()
+            text_button(ui, t::HOME, true).clicked()
         });
         if back {
             self.path.close();
@@ -310,7 +310,8 @@ fn offers(ui: &mut egui::Ui, side: Rect, (path, unit): (&PathProjection, u8)) ->
             ui.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
             let next = next_block(ui, path, language);
             let review = review(ui, path).map(|from| Tapped::Start(Start::Review, from));
-            let full = full_block(ui, unit);
+            let full = (path.units.iter()).find(|shown| shown.number == unit);
+            let full = full_block(ui, (unit, full.and_then(|shown| shown.full)));
             next.or(review).or(full)
         })
         .inner
@@ -332,17 +333,20 @@ fn next_block(ui: &mut egui::Ui, path: &PathProjection, language: Language) -> O
         .then_some(Tapped::Start(Start::Next, start.rect))
 }
 
-/// The full lesson of `unit`: about 30 minutes, a warm-up then each skill of the unit.
-fn full_block(ui: &mut egui::Ui, unit: u8) -> Option<Tapped> {
-    let built = Unit::of(unit).is_some_and(Unit::built);
+/// The full lesson of `unit` (its offer, `full`): about how many minutes it takes, a warm-up then
+/// each skill of the unit; Full lesson greyed while it lays none.
+fn full_block(ui: &mut egui::Ui, (unit, full): (u8, Option<Offer>)) -> Option<Tapped> {
+    let language = t::language(ui.ctx());
     ui.add_space(SPACE);
     rule(ui);
     label(ui, t::LONGER);
     let tapped = ui
         .horizontal(|ui| {
-            ui.label(Words::from(t::ABOUT_HALF_AN_HOUR).shown(ui.ctx()));
+            if let Some(full) = full {
+                ui.label(t::about_minutes(language, full.minutes));
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                text_button(ui, t::FULL_LESSON, built)
+                text_button(ui, t::FULL_LESSON, full.is_some())
             })
             .inner
         })

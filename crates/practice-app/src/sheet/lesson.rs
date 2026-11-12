@@ -1,6 +1,8 @@
 //! The lesson in hand as the screen shows it (S122, `crate::lesson`): how the bar names it, the
 //! result the user chooses where the eye judges (once; Next without one leaves none, nothing
-//! asks for it), who judges the shown comparison, and the lesson's end: each exercise's result,
+//! asks for it), who judges the shown comparison (nothing is scored on the first lesson: no
+//! result kept, none chosen, none on its end), and the lesson's end: each exercise's result,
+//! how many exercises it held and the seconds they took,
 //! its skill's dots before it (the learner beside it, `PracticeLog::learner_beside`) and after it
 //! (`Learner::with`), the seals it earned and the lesson One more starts (`schedule::next` on the
 //! learner after it). The end is kept once the lesson is done (`shown`); a result a painted
@@ -44,9 +46,10 @@ impl PracticeSheet {
         Ok(())
     }
 
-    /// Who judges the shown comparison and the result kept; none while nothing is compared.
+    /// Who judges the shown comparison and the result kept; none while nothing is compared, and
+    /// never on the first lesson.
     pub(super) fn judged(&self) -> Option<Judged> {
-        let index = self.current()?;
+        let index = self.current().filter(|_| self.scored())?;
         let verdict = self.compared.as_ref()?.shown().verdict();
         let result = self.record.laid(index)?.result;
         Some(Judged { verdict, result })
@@ -76,22 +79,35 @@ impl PracticeSheet {
             pictures: &self.beside.pictures,
             learner: &after,
         };
+        let seconds = lesson.exercises.iter().map(|laid| laid.seconds).sum();
         Some(End {
             results,
+            exercises: u8::try_from(lesson.exercises.len()).unwrap_or(u8::MAX),
+            seconds,
             skill: (lesson.skill()).map(|skill| (skill, before.dots(skill), after.dots(skill))),
             sealed: sealed(&self.beside.others, &self.record),
             next: schedule::next(&standing),
         })
     }
 
+    /// Whether the lesson in hand's results are kept: on every lesson but the first, where
+    /// nothing is scored.
+    pub(super) fn scored(&self) -> bool {
+        (self.record.lesson()).is_none_or(|lesson| lesson.picked != Picked::First)
+    }
+
     /// Each exercise of the lesson in hand, by its index among the sheet's, and the result it
-    /// ended with; once it is done, never on a long colour copy's sheet.
+    /// ended with (none at all on the first lesson); once it is done, never on a long colour
+    /// copy's sheet.
     fn results(&self) -> Option<Vec<(usize, Option<Outcome>)>> {
         let done = self.current().is_none() && self.record.finished().is_some();
         let held = self
             .record
             .held()
             .filter(|_| done && !self.record.is_copy())?;
+        if !self.scored() {
+            return Some(Vec::new());
+        }
         let first = held.first_exercise();
         let results = (held.lesson.exercises.iter().enumerate())
             .map(|(at, laid)| (first + at, laid.result.map(|(outcome, _)| outcome)))

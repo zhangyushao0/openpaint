@@ -1,19 +1,19 @@
 //! A frame's steps around its UI pass: what the workers finished (a practice sheet left for One
-//! more starts the next session), the canvas that is ready opening, and the frame's intents
+//! more starts the next lesson), the canvas that is ready opening, and the frame's intents
 //! applied to the screen.
 
 use openpaint_app::Intent;
 use openpaint_practice::Purpose;
-use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeSheet};
+use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeSheet, Start};
 
 use super::Runtime;
 use crate::error::RuntimeError;
-use crate::practice::{self, Next, PracticeJob, drill_job, start_job};
+use crate::practice::{self, PracticeJob, lesson_job};
 use crate::screen::{Screen, dispatch_gallery};
 use crate::storage::Job;
 
 impl Runtime {
-    /// Applies everything the workers finished (One more's sheet left: the next session or drill
+    /// Applies everything the workers finished (One more's sheet left: the next lesson
     /// starts; Compare's fit or reading to the open sheet), then opens a canvas that is ready.
     pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
         self.transfer.receive(&mut self.transfers);
@@ -25,14 +25,10 @@ impl Runtime {
                 &mut self.cache,
                 &mut self.practice,
             );
-            if let Some(next) = self.screen.answer(done, after) {
+            if self.screen.answer(done, after) {
                 let now = self.frame_clock.wall_seconds();
                 let (log, seeds) = (&self.practice, &mut self.seeds);
-                let job = match next {
-                    Next::Session => start_job(log, (log.stage(), None, Purpose::Day), seeds, now),
-                    Next::Drill(family) => drill_job(log, (family, Purpose::Day), seeds, now),
-                };
-                match job {
+                match lesson_job(log, (Start::Next, Purpose::Day), seeds, now) {
                     Ok(job) => self.storage.submit(job),
                     Err(error) => {
                         log::error!("One more could not start: {error}");

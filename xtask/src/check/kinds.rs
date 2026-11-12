@@ -1,8 +1,10 @@
 //! A practice kind is told apart only in its own folder (S109, S109b, D111): outside
 //! `crates/practice/` and the tests, no source that names the practice crate matches over its
-//! `Kind` (an arm or a `matches!` naming `Kind::`), names a `Family` or an `Original` variant at
-//! all (an arm, a `matches!`, an `if let`, a comparison: what a family or an original does is its
-//! kind's description's, `Facts` and the description's methods), or names the retired `Overlay`.
+//! `Kind` (an arm or a `matches!` naming `Kind::`), names an `Original` variant at
+//! all (an arm, a `matches!`, an `if let`, a comparison: what an original does is its
+//! kind's description's, `Facts` and the description's methods), names a `Family` at all (S122:
+//! the flow and the screens hold a kind or a skill, the family is the practice crate's own), or
+//! names the retired `Overlay`.
 //! A kind is built outside only where a stored code is read (`Kind::of_code` in the practice
 //! records, `crates/practice-store`). The flow (`crates/practice-app`)
 //! asks the facts as the app did. Core, raster, render, app and the store name no practice at all
@@ -52,11 +54,11 @@ fn matches_in(path: &str, text: &str) -> Vec<Finding> {
             continue;
         }
         let arm = names(code, "Kind::") && (code.contains("=>") || code.contains("matches!("));
-        let told = names_variant(code, "Family::") || names_variant(code, "Original::");
+        let told = word(code, "Family") || names_variant(code, "Original::");
         if arm || told || code.contains("Overlay") {
             let detail = format!(
                 "line {}: a practice kind, family or original told apart; ask its description \
-                 (Kind::facts, Family::facts, Exercise::compare)",
+                 (Kind::facts, Skill, Exercise::compare)",
                 index + 1
             );
             findings.push(Finding::new("kinds", path, detail));
@@ -78,6 +80,14 @@ fn named<'a>(code: &'a str, path: &'a str) -> impl Iterator<Item = usize> + 'a {
 /// Whether `code` names `path`.
 fn names(code: &str, path: &str) -> bool {
     named(code, path).next().is_some()
+}
+
+/// Whether `code` names `name` as a word of its own (`Family`, not `SubFamily` or `Families`).
+fn word(code: &str, name: &str) -> bool {
+    named(code, name).any(|after| {
+        let next = code[after..].chars().next();
+        !next.is_some_and(|c| c.is_alphanumeric() || c == '_')
+    })
 }
 
 /// Whether `code` names a variant of `path` (`Family::Line`; not `Family::ALL` or a function such
@@ -106,20 +116,22 @@ mod tests {
     }
 
     #[test]
-    fn a_family_or_an_original_told_apart_is_refused_its_facts_are_not() {
+    fn a_family_named_or_an_original_told_apart_is_refused_its_facts_are_not() {
         let told = [
             "if family == Some(Family::WholeCopy) {",
             "Some(Family::Division) => level,",
+            "for family in Family::ALL {",
+            "use openpaint_practice::{Family, Kind};",
             "let Original::Scale(scale) = &original else {",
             "matches!(original, Original::Picture(_))",
         ];
         for line in told {
             assert_eq!(matches_in("crates/app/src/a.rs", line).len(), 1, "{line}");
         }
-        let asked = "for family in Family::ALL {\nlet f = Family::of_key(key);\n\
-                     let tools = family.facts().tools;\nlet lines = original.lines();";
+        let asked = "let tools = kind.facts().tools;\nlet lines = original.lines();\n\
+                     let families = 2;";
         assert!(matches_in("crates/ui/src/b.rs", asked).is_empty());
-        let other = "let k = SubFamily::Thing;";
+        let other = "let k = SubFamily::Thing;\nlet f: Families = x;";
         assert!(matches_in("crates/ui/src/c.rs", other).is_empty());
     }
 }

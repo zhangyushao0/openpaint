@@ -131,6 +131,13 @@ impl Kind {
     pub fn how(self, cells: usize) -> Option<Demo> {
         self.described().how_of(self.family(), cells)
     }
+
+    /// `original`'s answer (an exercise of this kind's) as a hand would draw it, a stroke at a
+    /// time (frame units); none for a kind without one.
+    #[must_use]
+    pub fn answer(self, original: &Original) -> Vec<Vec<Point>> {
+        self.family().answer(original)
+    }
 }
 
 /// A lesson's place among its skill's (from 0), its seed, the pictures kept, those every earlier

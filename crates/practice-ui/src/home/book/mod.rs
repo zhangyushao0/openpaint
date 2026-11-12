@@ -80,7 +80,7 @@ impl HomePart {
     /// The book's island: Gallery, which puts the book back.
     pub(in crate::home) fn book_island(&mut self, ctx: &egui::Context) {
         let (back, _) = island(ctx, "book island", Place::top_left(), |ui| {
-            text_button(ui, t::GALLERY, true).clicked()
+            text_button(ui, t::HOME, true).clicked()
         });
         if back {
             self.book.close();

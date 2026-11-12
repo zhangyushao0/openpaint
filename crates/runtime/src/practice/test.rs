@@ -1,46 +1,55 @@
 //! For debug builds only (`cargo device-input practice-test start|end`, DECISIONS D102): a test
-//! practice session (or a test colour copy, `start copy`, or a test drill, `start drill <kind>`)
-//! started beside any open one, and removed afterwards with its sheet, so a practice slice walks
-//! its session on the tablet while the author's sessions, drills, copies, records and the Today
-//! card's progress stay as they were. A test session's or drill's sheet is a `Purpose::Test`
-//! sheet (a day's in all else); a test copy stays a copy.
+//! lesson (the next one, a skill's at a level, a unit's full lesson, the first lesson; or a test
+//! colour copy, `start copy`) started beside any open one, and removed afterwards with its sheet,
+//! so a practice slice walks its lesson on the tablet while the author's lessons, copies, records
+//! and the path's dots stay as they were. A test lesson's sheet is a `Purpose::Test` sheet (a
+//! day's in all else, never continued); a test copy stays a copy.
 //!
-//! The test session is the one Start practice would start now (the next of the log: its number,
-//! its warm-up from the kinds met), or the stage's session of a number given (so a stage's every
-//! other session, stage 2's free boxes, is reached on the tablet), started from the gallery even
-//! while another is open. It is
-//! named by its id, its sheet and when it started (`PracticeTest`), which the chore
-//! keeps on the dev machine between the two calls: `end` removes the session holding all three
-//! and nothing else, also after the app restarted, and a name another session could hold (a
-//! library restored since) matches none.
+//! The test lesson is started from the home even while another is open, as the log starts it
+//! (`PracticeLog::start`). It is named by its id, its sheet and when it started
+//! (`PracticeTest`), which the chore keeps on the dev machine between the two calls: `end`
+//! removes the lesson holding all three and nothing else, also after the app restarted, and a
+//! name another sheet could hold (a library restored since) matches none.
 
 use std::fmt;
 use std::str::FromStr;
 
 use openpaint_app::ProjectId;
-use openpaint_practice::{Family, Purpose, Sheet};
+use openpaint_practice::{Purpose, Sheet, Skill, SkillLevel};
+use openpaint_practice_app::Start;
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::practice::{PracticeJob, copy_job, drill_job, seed, start_job};
+use crate::practice::{PracticeJob, copy_job, lesson_job, seed};
 use crate::storage::Job;
 
-/// What a test drill's kind is named (`practice-test start drill <kind>`, S91: its key,
-/// `Facts::key`), as the refusal of another name says it.
-const DRILL_KINDS: &str = "a drill of line, combined, colour, shape, combination, scale, box, \
-                           free-boxes, ellipse, point, proportion, angle, centre, halves, thirds, \
-                           next-face, mirror, cylinder, cone, sphere, objects, division, \
-                           value-masses, whole-copy or key-shift";
+/// What a skill is named (`practice-test start lesson <skill>`, a scenario's `lesson` step: its
+/// key, `Skill::key`), as the refusal of another name says it.
+const SKILLS: &str = "a skill of line, combined, colour, shape, combination, scale, box, \
+                      free-boxes, ellipse, estimates, points-in-space, solids, objects, division, \
+                      value-masses, whole-copy or key-shift, at level 1, 2 or 3";
 
-/// The kinds a stage drills, in its tiles' order.
-fn drilled() -> Vec<Family> {
-    (1..=openpaint_practice::STAGES_READY)
-        .flat_map(|stage| openpaint_practice::kinds_of(stage).iter().copied())
-        .collect()
+/// The lesson of the skill keyed `key` at `level` (1 to 3), or at the learner's level without
+/// one.
+///
+/// # Errors
+/// `NotNow` for a key no skill has, or a level past 3.
+pub fn skill_start(key: &str, level: Option<u8>) -> Result<Start, RuntimeError> {
+    let skill = Skill::of_key(key).ok_or(RuntimeError::NotNow(SKILLS))?;
+    match level {
+        None => Ok(Start::Skill(skill)),
+        Some(level) => {
+            let at = usize::from(level.checked_sub(1).ok_or(RuntimeError::NotNow(SKILLS))?);
+            let level = SkillLevel::ALL
+                .get(at)
+                .ok_or(RuntimeError::NotNow(SKILLS))?;
+            Ok(Start::At(skill, *level))
+        }
+    }
 }
 
-/// A test session's name: its id, its sheet's project and when it started (seconds since
+/// A test lesson's name: its id, its sheet's project and when it started (seconds since
 /// 1970 UTC). Written `id:sheet:started`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PracticeTest {
@@ -74,7 +83,7 @@ impl FromStr for PracticeTest {
     type Err = RuntimeError;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        let bad = RuntimeError::NotNow("a test session written id:sheet:started");
+        let bad = RuntimeError::NotNow("a test lesson written id:sheet:started");
         let parts: Vec<&str> = text.split(':').collect();
         let [id, sheet, started] = parts[..] else {
             return Err(bad);
@@ -89,45 +98,46 @@ impl FromStr for PracticeTest {
 }
 
 impl Runtime {
-    /// For debug builds only: the next practice session of `stage` (none: the stage practised),
-    /// or the one numbered `number` of it (as that session of the stage would be: its mix by its
-    /// number, its warm-up from the kinds met so far), started from the gallery, beside any open
-    /// one; its sheet opens once the store wrote it (`test_practice` names it then). Returns its
-    /// id.
+    /// For debug builds only: a test lesson as `start` names it (`skill_start` for a skill's),
+    /// started from the home beside any open one on a test's sheet; its sheet opens once the
+    /// store wrote it (`test_practice` names it then). A full lesson without a unit given is the
+    /// learner's unit's. Returns its id.
     ///
     /// # Errors
-    /// `NotNow` when the gallery does not show; a sheet that cannot be made.
-    pub fn start_test_practice(
-        &mut self,
-        stage: Option<u8>,
-        number: Option<u32>,
-    ) -> Result<u64, RuntimeError> {
+    /// `NotNow` when the home does not show, or nothing is there to start (a skill whose
+    /// pictures are not kept, a unit not built); a sheet that cannot be made.
+    pub fn start_test_lesson(&mut self, start: Start) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
-            return Err(RuntimeError::NotNow("the gallery"));
+            return Err(RuntimeError::NotNow("the home"));
         }
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
-        let stage = stage.unwrap_or_else(|| self.practice.stage());
-        let job = start_job(
-            &self.practice,
-            (stage, number, Purpose::Test),
-            &mut self.seeds,
-            now,
-        )?;
+        let start = (start, Purpose::Test);
+        let job = lesson_job(&self.practice, start, &mut self.seeds, now)?;
         self.storage.submit(job);
         Ok(id)
     }
 
-    /// For debug builds only: a test colour copy of an official pack's picture not copied before
-    /// (picked by a seed: a test chooses no picture) begun from the gallery beside the author's;
-    /// its sheet opens once the store wrote it (`test_practice` names it then,
-    /// `end_test_practice` removes it as a session). Returns its id.
+    /// For debug builds only: the full lesson of `unit`, else of the learner's unit (the one the
+    /// path offers), as `start_test_lesson`.
     ///
     /// # Errors
-    /// `NotNow` when the gallery does not show or no official pack holds a picture.
+    /// As `start_test_lesson`.
+    pub fn start_test_full(&mut self, unit: Option<u8>) -> Result<u64, RuntimeError> {
+        let unit = unit.unwrap_or_else(|| self.practice.path().unit);
+        self.start_test_lesson(Start::Full(unit))
+    }
+
+    /// For debug builds only: a test colour copy of an official pack's picture not copied before
+    /// (picked by a seed: a test chooses no picture) begun from the home beside the author's;
+    /// its sheet opens once the store wrote it (`test_practice` names it then,
+    /// `end_test_practice` removes it as a lesson). Returns its id.
+    ///
+    /// # Errors
+    /// `NotNow` when the home does not show or no official pack holds a picture.
     pub fn start_test_copy(&mut self) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
-            return Err(RuntimeError::NotNow("the gallery"));
+            return Err(RuntimeError::NotNow("the home"));
         }
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
@@ -138,29 +148,7 @@ impl Runtime {
         Ok(id)
     }
 
-    /// For debug builds only: a test drill of the kind keyed `kind` (`Facts::key`), begun from
-    /// the gallery beside the author's sessions and drills (S91); its sheet opens once the store
-    /// wrote it (`test_practice` names it then, `end_test_practice` removes it). Returns its id.
-    ///
-    /// # Errors
-    /// `NotNow` when the gallery does not show, the kind is not named so, or (shapes) no pack
-    /// holds a picture.
-    pub fn start_test_drill(&mut self, kind: &str) -> Result<u64, RuntimeError> {
-        if self.screen.gallery_mut().is_none() {
-            return Err(RuntimeError::NotNow("the gallery"));
-        }
-        let family = Family::of_key(kind)
-            .filter(|family| drilled().contains(family))
-            .ok_or(RuntimeError::NotNow(DRILL_KINDS))?;
-        let now = self.frame_clock.wall_seconds();
-        let id = self.practice.next_id();
-        let purpose = (family, Purpose::Test);
-        let job = drill_job(&self.practice, purpose, &mut self.seeds, now)?;
-        self.storage.submit(job);
-        Ok(id)
-    }
-
-    /// Test session (or colour copy) `id`'s name, once its sheet is stored and shows.
+    /// Test lesson (or colour copy) `id`'s name, once its sheet is stored and shows.
     #[must_use]
     pub fn test_practice(&self, id: u64) -> Option<PracticeTest> {
         let session = self.practice.session(id).filter(|s| s.canvas != 0)?;
@@ -168,20 +156,20 @@ impl Runtime {
         shows.then(|| PracticeTest::of(session))
     }
 
-    /// For debug builds only: the test session `test` removed from the gallery, its record and
-    /// its sheet; the log forgets it once the store did (`holds_practice`).
+    /// For debug builds only: the test lesson `test` removed from the home, its record and its
+    /// sheet; the log forgets it once the store did (`holds_practice`).
     ///
     /// # Errors
-    /// `NotNow` when the gallery does not show, or no session holds `test`'s name.
+    /// `NotNow` when the home does not show, or no sheet holds `test`'s name.
     pub fn end_test_practice(&mut self, test: &PracticeTest) -> Result<(), RuntimeError> {
         if self.screen.gallery_mut().is_none() {
-            return Err(RuntimeError::NotNow("the gallery"));
+            return Err(RuntimeError::NotNow("the home"));
         }
         let session = (self.practice.session(test.id))
             .filter(|session| test.names(session))
             .cloned()
             .ok_or(RuntimeError::NotNow(
-                "a session of that name (`names_practice`)",
+                "a lesson of that name (`names_practice`)",
             ))?;
         self.cache
             .submit(CacheJob::Delete(ProjectId::new(session.canvas)));
@@ -190,13 +178,13 @@ impl Runtime {
         Ok(())
     }
 
-    /// Whether the practice log holds session `id`.
+    /// Whether the practice log holds sheet `id`.
     #[must_use]
     pub fn holds_practice(&self, id: u64) -> bool {
         self.practice.session(id).is_some()
     }
 
-    /// Whether the practice log holds a session of the name `test`.
+    /// Whether the practice log holds a sheet of the name `test`.
     #[must_use]
     pub fn names_practice(&self, test: &PracticeTest) -> bool {
         self.practice
@@ -225,11 +213,18 @@ mod tests {
     }
 
     #[test]
-    fn every_kind_drilled_has_one_plain_name_the_refusal_lists() {
-        for family in drilled() {
-            let name = family.facts().key;
-            assert_eq!(Family::of_key(name), Some(family));
-            assert!(DRILL_KINDS.contains(name), "{name}");
+    fn every_skill_has_one_plain_name_the_refusal_lists() {
+        for skill in Skill::all() {
+            let name = skill.key();
+            assert_eq!(skill_start(name, None), Ok(Start::Skill(skill)));
+            assert_eq!(
+                skill_start(name, Some(3)),
+                Ok(Start::At(skill, SkillLevel::Third))
+            );
+            assert!(SKILLS.contains(name), "{name}");
         }
+        assert!(skill_start("line", Some(0)).is_err());
+        assert!(skill_start("line", Some(4)).is_err());
+        assert!(skill_start("stage", None).is_err());
     }
 }

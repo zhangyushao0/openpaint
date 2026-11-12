@@ -4,7 +4,7 @@
 //! precision check on and off (`gradient on|off`), loses the GPU device on purpose
 //! (`lose-device`), runs the app's scenario benchmarks (`bench`), opens a pushed
 //! OpenPaint file without the picker (`open-file`) and starts and removes a test practice
-//! session beside the author's (`practice-test start|end`, D102).
+//! lesson beside the author's (`practice-test start|end`, D102).
 //! Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
@@ -17,7 +17,9 @@ use jni::errors::LogErrorAndDefault;
 use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
 
-use openpaint_runtime::{PracticeTest, Runtime, SCENARIOS, ScreenProjection};
+use openpaint_runtime::{
+    PracticeTest, Runtime, RuntimeError, SCENARIOS, ScreenProjection, Start, skill_start,
+};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
@@ -194,11 +196,12 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input practice-test start [stage [n]|copy|drill <kind>]|end`: `start`
-/// starts a test practice session (or a test colour copy or drill) beside any open one, from the
-/// gallery, and answers "started <name>" once its sheet shows; `end:<name>` removes the session
-/// of that name, its record and sheet, from the gallery, and answers "removed <name>" once the
-/// store did, or "no such session". Otherwise why not.
+/// For `cargo device-input practice-test start [lesson <skill> [level] | full [unit] | first |
+/// copy] | end`:
+/// `start` starts a test lesson (or a test colour copy) beside any open one, from the
+/// home, and answers "started <name>" once its sheet shows; `end:<name>` removes the lesson
+/// of that name, its record and sheet, from the home, and answers "removed <name>" once the
+/// store did, or "no such lesson". Otherwise why not.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     mut env: EnvUnowned<'local>,
@@ -217,33 +220,33 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// `command` (`start`, `start:<stage>`, `start:<stage>:<n>`, `start:copy`, `start:drill:<kind>`
-/// or `end:<name>`) on `runtime`, frames run here until it is done, at most a minute: the answer.
+/// The test lesson or copy `given` (what follows `start`) asks for on `runtime`: its id, or why
+/// not; none when `given` is not understood.
+fn test_start(runtime: &mut Runtime, given: &str) -> Option<Result<u64, RuntimeError>> {
+    let parts: Vec<&str> = given.split(':').skip(1).collect();
+    let number = |part: &str| part.parse::<u8>().ok();
+    Some(match parts[..] {
+        [] => runtime.start_test_lesson(Start::Next),
+        ["first"] => runtime.start_test_lesson(Start::First),
+        ["copy"] => runtime.start_test_copy(),
+        ["full"] => runtime.start_test_full(None),
+        ["full", unit] => runtime.start_test_full(Some(number(unit)?)),
+        ["lesson", skill] => skill_start(skill, None).and_then(|s| runtime.start_test_lesson(s)),
+        ["lesson", skill, level] => skill_start(skill, Some(number(level)?))
+            .and_then(|start| runtime.start_test_lesson(start)),
+        _ => return None,
+    })
+}
+
+/// `command` (`start`, `start:first`, `start:copy`, `start:full[:<unit>]`,
+/// `start:lesson:<skill>[:<level>]` or `end:<name>`) on `runtime`, frames run here until it is
+/// done, at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
-    // A session of the stage given (none: the one practised), its number given or the next, or a
-    // colour copy (`Err(None)`) or a drill of a kind (`Err(Some(kind))`).
-    type Start<'a> = Result<(Option<u8>, Option<u32>), Option<&'a str>>;
-    let start: Option<Start<'_>> = match command.strip_prefix("start") {
-        Some("") => Some(Ok((None, None))),
-        Some(":copy") => Some(Err(None)),
-        Some(given) if given.starts_with(":drill:") => Some(Err(given.strip_prefix(":drill:"))),
-        Some(given) => {
-            let mut parts = given.strip_prefix(':').unwrap_or("-").split(':');
-            let stage = parts.next().and_then(|s| s.parse::<u8>().ok());
-            let number = parts.next().map(str::parse::<u32>);
-            match (stage, number, parts.next()) {
-                (Some(stage), None, None) => Some(Ok((Some(stage), None))),
-                (Some(stage), Some(Ok(number)), None) => Some(Ok((Some(stage), Some(number)))),
-                _ => None,
-            }
-        }
-        None => None,
-    };
-    if let Some(start) = start {
-        let started = match start {
-            Ok((stage, number)) => runtime.start_test_practice(stage, number),
-            Err(None) => runtime.start_test_copy(),
-            Err(Some(kind)) => runtime.start_test_drill(kind),
+    let start =
+        (command.strip_prefix("start")).filter(|given| given.is_empty() || given.starts_with(':'));
+    if let Some(given) = start {
+        let Some(started) = test_start(runtime, given) else {
+            return Ok(format!("not understood: {command}"));
         };
         let id = match started {
             Ok(id) => id,
@@ -259,7 +262,7 @@ fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostErr
         return Ok(format!("not understood: {command}"));
     };
     if !runtime.names_practice(&test) {
-        return Ok("no such session".to_owned());
+        return Ok("no such lesson".to_owned());
     }
     if let Err(error) = runtime.end_test_practice(&test) {
         return Ok(format!("not removed: {error}"));

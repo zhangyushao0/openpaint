@@ -17,7 +17,7 @@ use openpaint_ui::CanvasArea;
 use crate::canvas::{Canvas, Content, Held, Leaving, Then};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
-use crate::practice::{Next, submit_options};
+use crate::practice::submit_options;
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
 
@@ -134,13 +134,13 @@ impl Screen {
 
     /// Applies what the storage worker finished; the stored toolbox goes to `toolbox` and the
     /// practice sessions to `practice`. After a save the canvas's pixels may go to the display
-    /// cache (`cache`, from `core`). Returns the next practice session or drill to start now (One
-    /// more, once the sheet left was stored).
+    /// cache (`cache`, from `core`). Returns whether the next lesson is to start now (One more,
+    /// once the sheet left was stored: `Start::Next`).
     pub(crate) fn answer(
         &mut self,
         done: Done,
         (toolbox, core, cache, practice): Answered<'_>,
-    ) -> Option<Next> {
+    ) -> bool {
         match done {
             Done::Started(opened, editor, (sessions, titles, packs)) => {
                 if let Some(state) = editor
@@ -176,7 +176,7 @@ impl Screen {
             Done::Gallery(answer) => self.gallery_answer(answer),
             Done::Practice(done) => self.practice(done, practice),
         }
-        None
+        false
     }
 
     /// One more's next session or drill could not be asked for: the gallery shows, saying a new
@@ -224,19 +224,20 @@ impl Screen {
 
     /// The canvas's last version and thumbnail were handed to the store: its pixels may go to
     /// the display cache (complete, as the thumbnail evaluated it); on success the gallery
-    /// replaces the canvas (its history goes with it), or for One more the next session's or
-    /// drill's sheet is on its way (returns which); on failure the canvas stays and shows that
-    /// saving failed.
+    /// replaces the canvas (its history goes with it), or for One more the next lesson's sheet is
+    /// on its way (returns true); on failure the canvas stays and shows that saving failed.
     fn left(
         &mut self,
         version: Option<&Artwork>,
         (result, closed): (&Result<Option<Stored>, PortError>, bool),
         (core, cache): (&Arc<Core>, &mut CacheWorker),
-    ) -> Option<Next> {
+    ) -> bool {
         if let Err(error) = result {
             log::error!("saving before leaving failed: {error}");
         }
-        let canvas = self.canvas_mut()?;
+        let Some(canvas) = self.canvas_mut() else {
+            return false;
+        };
         if let Some(version) = version {
             canvas
                 .session_mut()
@@ -248,18 +249,18 @@ impl Screen {
         canvas.keep_cache(core, cache);
         if !closed {
             canvas.leaving = Leaving::Staying;
-            return None;
+            return false;
         }
         match canvas.then {
             Then::Gallery => {
                 log::info!("left the artwork for the gallery");
                 *self = Self::gallery(Gallery::new());
-                None
+                false
             }
-            Then::Practice(next) => {
-                log::info!("left the practice sheet for the next ({next:?})");
+            Then::Practice => {
+                log::info!("left the practice sheet for the next lesson");
                 *self = Self::Opening(None);
-                Some(next)
+                true
             }
         }
     }

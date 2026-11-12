@@ -17,7 +17,6 @@ use openpaint_ui::{CanvasArea, ScreenArea};
 
 use crate::error::RuntimeError;
 use crate::pictures::Drawn;
-use crate::practice::Next;
 use crate::seeds::Seeds;
 
 /// The paper under the layers until artworks carry their own background; exports show it too.
@@ -52,8 +51,8 @@ pub(crate) enum Leaving {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Then {
     Gallery,
-    /// The next practice session's or drill's sheet (One more).
-    Practice(Next),
+    /// The next lesson's sheet (One more: `Start::Next`).
+    Practice,
 }
 
 /// A practice sheet: its session record, the finished sessions of its stage before it and the

@@ -201,7 +201,7 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
 /// To the gallery and back by the artwork's card: the gallery's opening reads the cache too,
 /// and the canvas is complete from the frame it opens.
 fn to_the_gallery_and_back(runtime: &mut Runtime, hand: &mut Hand) {
-    hand.tap(runtime, "Gallery");
+    hand.tap(runtime, "Home");
     settle(runtime, hand);
     assert!(runtime.artwork().is_none(), "in the gallery");
     hand.tap(runtime, ("Open artwork", [0.5, 0.5]));

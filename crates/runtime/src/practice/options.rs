@@ -1,13 +1,13 @@
-//! The practice options beside the gallery (`openpaint_practice_app::Options`, D112): their
-//! intents applied after the gallery's, their requests turned into the store's jobs (a new
-//! session, drill or copy holding the gallery until its sheet opens), the file a picker of theirs
+//! The practice options beside the home (`openpaint_practice_app::Options`, D112): their
+//! intents applied after the home's, their requests turned into the store's jobs (a new
+//! lesson or copy holding the home until its sheet opens), the file a picker of theirs
 //! gave, and the store's answers to their pickers.
 
 use openpaint_app::{Gallery, ImageSource, LibraryAnswer, PortError};
 use openpaint_practice::Purpose;
 use openpaint_practice_app::{Options, OptionsFile, OptionsIntent, OptionsRequest, PracticeLog};
 
-use super::jobs::{PracticeJob, copy_job, drill_job, start_job};
+use super::jobs::{PracticeJob, copy_job};
 use super::lesson::lesson_job;
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
@@ -53,7 +53,7 @@ pub(crate) fn submit_options(
     }
 }
 
-/// The store's job for an options request: a new session the next of `log`, seeded from `seeds`,
+/// The store's job for an options request: a lesson `log` starts, seeded from `seeds`,
 /// at `now`.
 pub(crate) fn options_job(
     request: OptionsRequest,
@@ -62,12 +62,6 @@ pub(crate) fn options_job(
     Ok(Job::Practice(match request {
         OptionsRequest::Lesson(start) => {
             return lesson_job(log, (start, Purpose::Day), seeds, now);
-        }
-        OptionsRequest::Practice(stage) => {
-            return start_job(log, (stage, None, Purpose::Day), seeds, now);
-        }
-        OptionsRequest::Drill(family) => {
-            return drill_job(log, (family, Purpose::Day), seeds, now);
         }
         OptionsRequest::Copy(picture) => return copy_job(log, &picture, seeds, now),
         OptionsRequest::RenameCopy(sheet, title) => PracticeJob::Rename(sheet, title),

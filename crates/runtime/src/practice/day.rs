@@ -1,5 +1,5 @@
 //! The day's sheet in the runtime (S121c, `openpaint_practice_app::PracticeLog::day_sheet`): a
-//! session or drill started from the gallery or the options goes onto today's sheet, the store
+//! lesson started from the home or the options goes onto today's sheet, the store
 //! reading its canvas first (the rows left must hold the lesson; a sheet from before holds only
 //! the rows it uses) and falling back to a new sheet; One more appends the next lesson to the
 //! open sheet in place where it takes it, its record and givens written in one call, the answer
@@ -7,17 +7,17 @@
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Viewport};
 use openpaint_practice::{Givens, Layout, Lesson, Sheet};
-use openpaint_practice_app::{PracticeLog, append_lesson};
+use openpaint_practice_app::{PracticeLog, Start, append_lesson};
 use openpaint_practice_store::{Packs, append};
 use openpaint_store::DisplayCache;
 
-use super::jobs::{Next, PracticeDone, PracticeJob, run, seed};
+use super::jobs::{PracticeDone, PracticeJob, run, seed};
 use crate::canvas::Canvas;
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Kept, Storage, loaded};
 
 /// `job` (a new sheet's `Start`) onto today's sheet of `log`, when `day` allows it (a day's
-/// lesson started from the gallery or the options) and one is there.
+/// lesson started from the home or the options) and one is there.
 pub(super) fn onto_day(log: &PracticeLog, job: Job, day: bool) -> Job {
     match (job, log.day_sheet().filter(|_| day)) {
         (Job::Practice(start @ PracticeJob::Start { .. }), Some(sheet)) => {
@@ -94,21 +94,18 @@ fn onto(
     }))
 }
 
-/// One more on `canvas`'s sheet: the next lesson (`next`, seeded from `seeds`, begun at `now`
-/// by `log`) appended in place where the sheet takes it, the view gliding to it in `viewport`,
-/// its record kept in `log` and written by `storage`. Returns whether it was; else the sheet is
-/// left for a new one.
+/// One more on `canvas`'s sheet: the next lesson (`Start::Next`: what the lesson's end names,
+/// the log holding the finished record, `save_record`; seeded from `seeds`, begun at `now` by
+/// `log`) appended in place where the sheet takes it, the view gliding to it in `viewport`, its
+/// record kept in `log` and written by `storage`. Returns whether it was; else the sheet is left
+/// for a new one.
 pub(crate) fn one_more(
     canvas: &mut Canvas,
-    next: Next,
     (log, seeds, storage): (&mut PracticeLog, &mut Seeds, &mut Storage),
     (now, viewport): (u64, &Viewport),
 ) -> bool {
     let seed = seed(seeds);
-    let begun = match next {
-        Next::Session => Some(log.begin((log.stage(), None), seed, now).0),
-        Next::Drill(family) => log.begin_drill(family, seed, now).map(|(sheet, _)| sheet),
-    };
+    let begun = log.start(Start::Next, seed, now).map(|(sheet, _)| sheet);
     let Some(lesson) = begun.and_then(|sheet| sheet.lessons.into_iter().last()) else {
         return false;
     };

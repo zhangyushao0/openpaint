@@ -8,8 +8,7 @@
 //! (`options.rs`); practice's part of the screen (`Shown`) fills the shell's hooks through its
 //! screens (`openpaint_practice_ui::PracticeScreens`). The store's jobs are `jobs.rs` and
 //! `files.rs`, Compare's worker `compare.rs`, the options' pictures `pack_pictures.rs`, the test
-//! sessions of debug builds `test.rs`. The path's lessons (S122) start in `lesson.rs`, beside the
-//! sessions and drills that go at the package's integration.
+//! lessons of debug builds `test.rs`. Every lesson of the path (S122) starts in `lesson.rs`.
 
 mod compare;
 mod day;
@@ -22,7 +21,7 @@ mod test;
 
 use openpaint_practice_app::{
     OptionsNotice, PathProjection, PracticeIntent, PracticeLog, PracticeProjection, PracticeSheet,
-    TodayProjection, practise,
+    practise,
 };
 use openpaint_practice_ui::{Hooked, PracticeScreens};
 
@@ -34,14 +33,14 @@ use crate::storage::{Job, Storage};
 pub(crate) use compare::CompareWorker;
 pub(crate) use day::appended;
 pub(crate) use jobs::{
-    Next, PracticeDone, PracticeJob, copy_job, drill_job, gallery_list, run, seed, sheet_printed,
-    start_job, stopped,
+    PracticeDone, PracticeJob, copy_job, gallery_list, run, seed, sheet_printed, stopped,
 };
+pub(crate) use lesson::lesson_job;
 pub(crate) use options::{chosen, dispatch_options, submit_options};
 
 use crate::frame::Runtime;
 pub(crate) use pack_pictures::PackPictureWorker;
-pub use test::PracticeTest;
+pub use test::{PracticeTest, skill_start};
 
 /// The practice sheet `canvas`'s session holds, if it holds one: the one place the runtime
 /// reaches it.
@@ -59,8 +58,8 @@ pub(crate) fn save_record(canvas: &mut Canvas, (log, storage): (&mut PracticeLog
 }
 
 /// The frame's sheet intents at `now` (seconds since 1970 UTC), after its painting intents, each
-/// applied as one of them is (`Canvas::by_mode`); One more lays the next session (or after a
-/// drill another drill of its kind) on the same sheet where it takes it (`day.rs`, the lesson
+/// applied as one of them is (`Canvas::by_mode`); One more lays the next lesson (`Start::Next`)
+/// on the same sheet where it takes it (`day.rs`, the lesson
 /// begun from `log` seeded from `seeds`, written by `storage`), else leaves for a new one.
 pub(crate) fn apply(
     canvas: &mut Canvas,
@@ -71,19 +70,17 @@ pub(crate) fn apply(
     for intent in intents {
         let applied = canvas.by_mode(|session| practise(session, intent, now));
         if let (true, PracticeIntent::OneMore(viewport)) = (applied, intent) {
-            let drill = sheet(canvas).and_then(|sheet| sheet.drill());
-            let next = drill.map_or(Next::Session, Next::Drill);
             let app = (&mut *log, &mut *seeds, &mut *storage);
-            if !day::one_more(canvas, next, app, (now, &viewport)) {
+            if !day::one_more(canvas, app, (now, &viewport)) {
                 canvas.leaving = Leaving::Waiting;
-                canvas.then = Then::Practice(next);
+                canvas.then = Then::Practice;
             }
         }
     }
 }
 
-/// Practice's part of the screen for one frame: the open sheet's, or on the home the path (the
-/// gallery's card within it until S122's integration) and the options' notice.
+/// Practice's part of the screen for one frame: the open sheet's, or on the home the path and
+/// the options' notice.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct Shown {
     sheet: Option<PracticeProjection>,
@@ -120,12 +117,6 @@ impl Runtime {
     #[must_use]
     pub fn practice(&self) -> Option<PracticeProjection> {
         PracticeProjection::of(self.screen.canvas()?.session())
-    }
-
-    /// The Today card, its options and the practice book, while the gallery shows.
-    #[must_use]
-    pub fn today(&self) -> Option<TodayProjection> {
-        matches!(self.screen, Screen::Gallery(..)).then(|| self.practice.today())
     }
 
     /// The path (S122: the home's practice column, the path page, the practice book), while the

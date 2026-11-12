@@ -15,7 +15,7 @@ const COLUMN: Rect = Rect::from_min_max(egui::pos2(32.0, 56.0), egui::pos2(632.0
 
 /// A fresh learner's path, and one with a next lesson and a review waiting.
 fn paths() -> (PathProjection, PathProjection) {
-    let fresh = PracticeLog::default().path();
+    let fresh = PracticeLog::new(Vec::new(), Vec::new(), Vec::new()).path();
     let skill = |key| Skill::of_key(key).expect("a skill");
     let offer = |key, exercises, redo| Offer {
         skill: skill(key),
@@ -95,7 +95,7 @@ fn the_path_page_shows_the_units_the_skills_and_the_offers() {
             hook.page(ui.ctx(), &mut taps);
         });
         let named = [
-            t::GALLERY.id(),
+            t::HOME.id(),
             t::LINES_SKILL.id(),
             t::COMBINED_SKILL.id(),
             t::COLOURS_SKILL.id(),

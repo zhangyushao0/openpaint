@@ -1,6 +1,6 @@
 //! Sheets of S82's generated colour combinations (`Kind::Areas`, painted from 1.5.0 to 1.18.1;
 //! never planned since S101), frozen (`tests/samples/areas-records.bin`) as S120 writes them
-//! beside a painting: a stage-2 session holding two among its mix and a drill of them, each with
+//! beside a painting: a unit-2 full lesson holding two among its mix and a lesson of them, each with
 //! its project, its lesson's givens, its firsts, results and time. Read by this build, every count
 //! the practice book, the time and the seals take from them is what it was, each combination's
 //! original its generated picture again. The sample is what an upgrade retiring the kind must
@@ -22,8 +22,9 @@ use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{
-    Arrangement, Book, Combination, Exercise, Family, First, GeneratedAreas, Givens, Judge, Kind,
-    Layout, LineTier, Metric, Original, Outcome, Plan, ScaleTone, Sheet, Span, Tally, summary,
+    Arrangement, Book, Combination, Exercise, First, GeneratedAreas, Givens, Judge, Kind, Layout,
+    Lesson, LineTier, Metric, Original, Outcome, Picked, Planned, Purpose, ScaleTone, Sheet, Skill,
+    SkillLevel, Span, Tally,
 };
 use openpaint_practice_store::{GIVENS, decode_givens, save, sheets, start};
 use openpaint_store::Library;
@@ -64,21 +65,32 @@ fn areas(delta: f64, weak: f64, strong: f64) -> Vec<(Metric, f64)> {
     ]
 }
 
-/// Session 3 of stage 2: a line as its warm-up, then combined lines, two generated combinations
-/// and a value scale, finished; both combinations compared (near, clean), one corrected and
-/// compared again.
+/// `exercises` as a lesson picked `picked`, each at the first level.
+fn planned(picked: Picked, exercises: Vec<Exercise>) -> Planned {
+    Planned {
+        picked,
+        exercises: (exercises.into_iter())
+            .map(|exercise| (exercise, SkillLevel::First))
+            .collect(),
+    }
+}
+
+/// A full lesson of unit 2: a line as its warm-up, then combined lines, two generated
+/// combinations and a value scale, finished; both combinations compared (near, clean), one
+/// corrected and compared again.
 fn session() -> Sheet {
-    let plan = Plan {
-        exercises: vec![
-            Exercise::generated(Kind::Line(LineTier::ALL[1]), 0x5EED_0108_0001),
-            Exercise::generated(Kind::Combined(Combination::ALL[0]), 0x5EED_0108_0002),
-            Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0108_0003),
-            Exercise::generated(Kind::Areas(Arrangement::Blocks), 0x5EED_0108_0004),
-            Exercise::generated(Kind::Scale(ScaleTone::ALL[1], 9), 0x5EED_0108_0005),
-        ],
+    let exercises = vec![
+        Exercise::generated(Kind::Line(LineTier::ALL[1]), 0x5EED_0108_0001),
+        Exercise::generated(Kind::Combined(Combination::ALL[0]), 0x5EED_0108_0002),
+        Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0108_0003),
+        Exercise::generated(Kind::Areas(Arrangement::Blocks), 0x5EED_0108_0004),
+        Exercise::generated(Kind::Scale(ScaleTone::ALL[1], 9), 0x5EED_0108_0005),
+    ];
+    let picked = Picked::Full {
+        stage: 2,
         warm_up: 1,
     };
-    let mut sheet = Sheet::session(1, 2, BEGUN, plan);
+    let mut sheet = Sheet::begun(1, (Purpose::Day, BEGUN), planned(picked, exercises));
     compared(&mut sheet, (0, BEGUN + 120, 3), Vec::new(), None);
     compared(&mut sheet, (1, BEGUN + 400, 9), Vec::new(), None);
     let near = Some(Outcome::Near);
@@ -112,18 +124,16 @@ fn session() -> Sheet {
     sheet
 }
 
-/// Drill 1 of colour combinations, two generated ones, the first compared (redo: two weak
+/// A lesson of colour combinations, two generated ones, the first compared (redo: two weak
 /// contrasts made strong).
 fn drill() -> Sheet {
-    let plan = Plan {
-        exercises: vec![
-            Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0108_0011),
-            Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0108_0012),
-        ],
-        warm_up: 0,
-    };
+    let exercises = vec![
+        Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0108_0011),
+        Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0108_0012),
+    ];
     let started = BEGUN + 86_400;
-    let mut drill = Sheet::drill(2, started, plan);
+    let picked = planned(Picked::Chosen, exercises);
+    let mut drill = Sheet::begun(2, (Purpose::Day, started), picked);
     let metrics = vec![(Metric::AreasDelta, 0.08), (Metric::AreasMadeStrong, 2.0)];
     compared(
         &mut drill,
@@ -215,26 +225,26 @@ fn generated_combinations_count_and_show_as_they_did() {
 
     let book = Book::of(&read, 480);
     assert_eq!((book.sessions, book.seconds), (1, 1600 + 420));
-    assert_eq!(book.road.done_in(2), 1);
     assert_eq!(book.days.len(), 2);
     let tally = Tally::of(&read);
-    assert_eq!(
-        (tally.sessions, tally.stages[1], tally.lines, tally.colours),
-        (1, 1, 2, 0)
-    );
+    assert_eq!((tally.sessions, tally.lines, tally.colours), (1, 2, 0));
     assert_eq!(book.seals.len(), tally.seals().len());
 
-    let rows = summary(&read[0].lessons[0], &[]);
-    let areas = rows.iter().find(|row| row.family == Family::Areas);
-    let areas = areas.expect("combinations in the summary");
-    assert_eq!((areas.checked, areas.held), (2, 2));
-    let delta = areas
-        .rows
-        .iter()
-        .find(|(metric, ..)| *metric == Metric::AreasDelta);
-    let mean = delta.and_then(|(_, this, _)| *this).expect("a mean");
+    let deltas: Vec<f64> = (read[0].exercises())
+        .filter(|laid| matches!(laid.exercise.kind, Kind::Areas(_)))
+        .filter_map(|laid| laid.first.as_ref())
+        .flat_map(|first| first.metrics.iter())
+        .filter_map(|(metric, value)| (*metric == Metric::AreasDelta).then_some(*value))
+        .collect();
+    assert_eq!(deltas.len(), 2, "both combinations' first Compares");
+    let mean = deltas.iter().sum::<f64>() / 2.0;
     assert!((mean - 0.0515).abs() < 1e-12, "{mean}");
-    assert_eq!(read[1].drilled(), Some(Family::Areas));
+    let combinations = Skill::of(Kind::Areas(Arrangement::Patches));
+    assert!(
+        combinations.is_some(),
+        "a generated combination is a combination"
+    );
+    assert_eq!(read[1].lesson().and_then(Lesson::skill), combinations);
 
     for laid in read.iter().flat_map(Sheet::exercises) {
         let Kind::Areas(arrangement) = laid.exercise.kind else {

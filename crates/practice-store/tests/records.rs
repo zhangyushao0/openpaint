@@ -2,7 +2,7 @@
 //! and its lesson's givens in one write, its record round-trips and is replaced whole (its givens
 //! as they were written), its project (one its record owns, the runtime's gallery list leaves out)
 //! opens as the last artwork, the records before practice keep their bytes, and a sheet removed
-//! (the test-session chore's) takes its record, its givens and its project with it and leaves
+//! (the test-lesson chore's) takes its record, its givens and its project with it and leaves
 //! every other byte; a record that cannot be read, or does not begin with a sheet's tag, is left
 //! out; its givens read back whole or refuse it.
 
@@ -12,7 +12,10 @@ mod common;
 use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectId, ProjectStore, Record, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{First, Given, Givens, Layout, Metric, Sheet, met, stage_one};
+use openpaint_practice::{
+    First, Given, Givens, Layout, Learner, Lesson, Metric, Pictures, Purpose, Sheet, Standing,
+    schedule,
+};
 use openpaint_practice_store::{
     GIVENS, decode_givens, encode_givens, printed, remove, save, sheets, start,
 };
@@ -23,9 +26,14 @@ fn artwork() -> Artwork {
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 
-/// A first session of stage 1, the `id`th sheet, seeded `seed`, after the kinds of `met`.
-fn session(id: u64, seed: u64, started: u64, met: &[openpaint_practice::Kind]) -> Sheet {
-    Sheet::session(id, 1, started, stage_one(seed, met))
+/// Unit 1's full lesson, the `id`th sheet, seeded `seed`, after the lessons of `before`.
+fn session(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
+    let standing = Standing {
+        pictures: &Pictures::default(),
+        learner: &Learner::of(before),
+    };
+    let planned = schedule::full(1, seed, &standing).expect("unit 1 is built");
+    Sheet::begun(id, (Purpose::Day, started), planned)
 }
 
 /// What `sheet`'s lesson printed, as it starts with.
@@ -152,7 +160,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
             &untitled(),
         )
         .expect("an artwork");
-    // The author's session, part done, then the gallery.
+    // The author's lesson, part done, then the home.
     let mut theirs = session(1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let printed = givens(&theirs);
@@ -169,13 +177,13 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
     drop(library);
     let before = records(&dir);
 
-    // A test session beside it, worked on, then removed.
+    // A test lesson beside it, worked on, then removed.
     let mut library = Library::at(&dir);
     let read = sheets(&mut library).expect("practice");
-    let mut test = session(2, 77, 1_791_202_000, &met(&read));
+    let mut test = session(2, 77, 1_791_202_000, &read);
     assert_eq!(
-        test.warm_up(),
-        4,
+        test.lesson().map(Lesson::warm_up),
+        Some(3),
         "beside the author's, as their next would be"
     );
     let test_title = Title::new("Practice 2").expect("title");

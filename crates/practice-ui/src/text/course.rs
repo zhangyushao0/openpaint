@@ -19,7 +19,6 @@ texts! { PRACTICE_COURSE;
     ON_THE_SIDE = "Review on the side", "顺手复习";
     REDO_WAITS = "Again last time", "上次有题重来";
     LONGER = "To practise longer", "想坐下来多练";
-    ABOUT_HALF_AN_HOUR = "About 30 minutes", "约 30 分钟";
     UNIT_IN_THE_MAKING = "Its lessons are still being made", "这一单元的课还在准备中";
     FULL_LINE = "A warm-up, then each skill of this unit", "热身，再把这一单元的各项练一遍";
     FIRST_LESSON = "First lesson", "第一课";
@@ -169,6 +168,14 @@ pub(crate) fn exercises_line(language: Language, (exercises, minutes): (u8, u8))
     }
 }
 
+/// About how long a full lesson takes: "About 28 minutes", "约 28 分钟".
+pub(crate) fn about_minutes(language: Language, minutes: u8) -> String {
+    match language {
+        Language::English => format!("About {minutes} minutes"),
+        Language::Chinese => format!("约 {minutes} 分钟"),
+    }
+}
+
 /// An offer's line under its skill: its level, its exercises and minutes.
 pub(crate) fn offer_line(language: Language, offer: &Offer) -> String {
     let counts = exercises_line(language, (offer.exercises, offer.minutes));
@@ -184,7 +191,20 @@ pub(crate) fn exercise_count(language: Language, count: u8) -> String {
     }
 }
 
-/// The review's row: "Lines · 2 exercises", "线条 · 2 题".
+/// A lesson's end, how many exercises and how long they took: "5 exercises · 3 min 12 s",
+/// "5 题 · 3 分 12 秒"; under a minute only its seconds.
+pub(crate) fn lesson_took(language: Language, (count, seconds): (u8, u32)) -> String {
+    let (minutes, seconds) = (seconds / 60, seconds % 60);
+    let took = match language {
+        Language::English if minutes == 0 => format!("{seconds} s"),
+        Language::English => format!("{minutes} min {seconds} s"),
+        Language::Chinese if minutes == 0 => format!("{seconds} 秒"),
+        Language::Chinese => format!("{minutes} 分 {seconds} 秒"),
+    };
+    format!("{} · {took}", exercise_count(language, count))
+}
+
+/// The review's row:"Lines · 2 exercises", "线条 · 2 题".
 pub(crate) fn review_line(language: Language, offer: &Offer) -> String {
     let name = skill_name(offer.skill).get(language);
     format!("{name} · {}", exercise_count(language, offer.exercises))
@@ -293,5 +313,15 @@ mod tests {
             in_hand(Language::English, FIRST_LESSON, (2, 3)),
             "First lesson 2/3"
         );
+    }
+
+    #[test]
+    fn a_lesson_s_end_says_its_exercises_and_time_and_a_full_lesson_its_minutes() {
+        assert_eq!(
+            lesson_took(Language::English, (5, 192)),
+            "5 exercises · 3 min 12 s"
+        );
+        assert_eq!(lesson_took(Language::Chinese, (3, 45)), "3 题 · 45 秒");
+        assert_eq!(about_minutes(Language::English, 28), "About 28 minutes");
     }
 }

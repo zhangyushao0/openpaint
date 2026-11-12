@@ -13,7 +13,6 @@ use openpaint_practice_app::{Pen, PracticeIntent};
 use super::Watch;
 use super::hand::to_screen;
 use super::motion::{by_pen, drag};
-use super::practice::of_key;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::ToolKind;
@@ -37,8 +36,8 @@ const DIVISION: [(Pen, [[f64; 2]; 2]); 8] = [
 impl Runtime {
     /// See the module.
     pub(super) fn bench_division(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(of_key("division")?)? {
-            lines.push("no division after this point of the session".to_owned());
+        if !self.bench_on_to("division")? {
+            lines.push("no division after this point of the lesson".to_owned());
         } else {
             for (pen, line) in DIVISION {
                 self.bench_pen_line(pen, line)?;
@@ -48,7 +47,7 @@ impl Runtime {
                 lines.push(format!("division compare {when}: {line}"));
             }
         }
-        if !self.bench_on_to(of_key("whole-copy")?)? {
+        if !self.bench_on_to("whole-copy")? {
             // Value masses in the sessions without a whole copy (S96).
             return self.bench_masses(lines);
         }

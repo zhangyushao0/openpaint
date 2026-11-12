@@ -1,9 +1,9 @@
-//! A lesson of the path started (S122): the store's job for what the home, the path page or a
-//! scenario asks (`openpaint_practice_app::Start`), the lesson the log starts
-//! (`PracticeLog::start`: the next one offered, the review, a skill's, a unit's full lesson, the
-//! first), seeded from the strokes' seed source, on a sheet for the day or a test, onto today's
-//! sheet where that takes it (`day.rs`). At S122's integration this is the one way a lesson
-//! starts: `start_job`, `drill_job` and `Next` go, One more starts `Start::Next`.
+//! A lesson of the path started (S122), the one way a lesson starts: the store's job for what
+//! the home, the path page, One more, a scenario or the test chore asks
+//! (`openpaint_practice_app::Start`), the lesson the log starts (`PracticeLog::start`: the next
+//! one offered, the review, a skill's, a unit's full lesson, the first), seeded from the strokes'
+//! seed source, on a sheet for the day or a test, onto today's sheet where that takes it
+//! (`day.rs`).
 
 use openpaint_app::Title;
 use openpaint_core::{Artwork, CanvasSize};
@@ -13,6 +13,7 @@ use openpaint_practice_app::{PracticeLog, Start};
 use super::day;
 use super::jobs::{PracticeJob, seed};
 use crate::error::RuntimeError;
+use crate::frame::Runtime;
 use crate::seeds::Seeds;
 use crate::storage::Job;
 
@@ -61,4 +62,22 @@ pub(crate) fn lesson_job(
     );
     let job = started(log, lesson, title)?;
     Ok(day::onto_day(log, job, purpose == Purpose::Day))
+}
+
+impl Runtime {
+    /// A lesson started from the home as `start` names it, for the day, as a tap there starts
+    /// one: what a scenario's `lesson` step does. Its sheet opens once the store wrote it.
+    ///
+    /// # Errors
+    /// `NotNow` when the home does not show, or there is nothing to start (`lesson_job`).
+    pub fn start_lesson(&mut self, start: Start) -> Result<(), RuntimeError> {
+        if self.screen.gallery_mut().is_none() {
+            return Err(RuntimeError::NotNow("the home"));
+        }
+        let now = self.frame_clock.wall_seconds();
+        let start = (start, Purpose::Day);
+        let job = lesson_job(&self.practice, start, &mut self.seeds, now)?;
+        self.storage.submit(job);
+        Ok(())
+    }
 }

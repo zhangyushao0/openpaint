@@ -4,7 +4,7 @@
 //! them the packs kept, the long colour copies, the pictures a copy can be begun of and the
 //! practice book. The home's column shows the next lesson
 //! (its skill, level, exercises and minutes; Start), the review while a redo waits (Review), All
-//! units and Practice book; the path page the units, the next lesson, the review and the unit's
+//! units and Practice book; the path page the units, the next lesson, the review and a unit's
 //! full lesson (Full lesson). And how a lesson is started from them (`Start`).
 
 use std::sync::Arc;
@@ -71,6 +71,9 @@ pub struct UnitShown {
     pub open: bool,
     /// Its skills in the course's order; none while its kinds are not built.
     pub skills: Vec<SkillShown>,
+    /// Its full lesson (`Start::Full`): how many exercises and about how many minutes they take
+    /// (`schedule::full_offer`); none while it lays none.
+    pub full: Option<Offer>,
 }
 
 /// A skill's tile on the path.

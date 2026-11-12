@@ -66,6 +66,8 @@ fn a_lesson_s_end_offers_one_more_and_that_s_all_for_today() {
             (1, Some(Outcome::Near)),
             (2, None),
         ],
+        exercises: 3,
+        seconds: 192,
         skill: Some((skill, 1, 2)),
         sealed: vec![Seal::TenSessions],
         next: Some(Offer {

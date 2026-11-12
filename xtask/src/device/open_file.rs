@@ -33,7 +33,7 @@ fn import_pack(adb: &Adb, stem: &str) -> Result<()> {
     super::plain(stem)?;
     let path = format!("{PUSHED}/{stem}.pack");
     if until(adb, WAIT, |s| s.screen != Screen::Starting)?.screen == Screen::Canvas {
-        tap(adb, "Gallery")?;
+        tap(adb, "Home")?;
     }
     until(adb, WAIT, State::listed)?;
     let started = Instant::now();
@@ -59,7 +59,7 @@ pub(super) fn open_file(adb: &Adb, name: &str) -> Result<()> {
     super::plain(stem)?;
     let path = format!("{PUSHED}/{stem}.openpaint");
     if until(adb, WAIT, |s| s.screen != Screen::Starting)?.screen == Screen::Canvas {
-        tap(adb, "Gallery")?;
+        tap(adb, "Home")?;
     }
     let before = until(adb, WAIT, State::listed)?;
     before.every_card_shown().map_err(failed)?;

@@ -6,6 +6,7 @@
 mod diff;
 mod error;
 mod gesture;
+mod lesson;
 mod pen;
 mod report;
 mod runner;
@@ -23,7 +24,7 @@ pub use crate::pen::Pen;
 pub use crate::report::{Checkpoint, Record, Report, Screenshot, ViewCheck};
 pub use crate::runner::run;
 pub use crate::scenario::{
-    Interruption, Lands, Palm, Scenario, Step, SystemAnswer, Tool, is_file_name,
+    Interruption, Lands, Lesson, Palm, Scenario, Step, SystemAnswer, Tool, is_file_name,
 };
 pub use crate::system::{Export, TEST_BANDS};
 pub use crate::target::{Key, Place, Spot};

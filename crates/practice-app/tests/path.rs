@@ -7,8 +7,8 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, ProjectId, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Given, ItemRef, Kind, Layout, Needs, Outcome, Pack, PackItem, Picked, PictureKind, Sheet,
-    Skill, SkillLevel, Tier,
+    Given, ItemRef, Judge, Kind, Layout, Needs, Outcome, Pack, PackItem, Picked, PictureKind,
+    Sheet, Skill, SkillLevel, Tier,
 };
 use openpaint_practice_app::{
     PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start, open_sheet, practise,
@@ -135,7 +135,11 @@ fn the_lesson_in_hand_is_named_judged_and_ended() {
     practise(&mut session, PracticeIntent::Next(VIEWPORT), NOON + 30).expect("its end");
     let practice = shown(&session);
     let end = practice.end.expect("the lesson's end");
-    assert_eq!(end.results, [(0, None), (1, None), (2, None)]);
+    assert!(
+        end.results.is_empty(),
+        "nothing is scored on the first lesson"
+    );
+    assert_eq!((end.exercises, end.seconds), (3, 0));
     assert_eq!(end.skill, None, "the first lesson's");
     assert!(end.next.is_some(), "the lesson One more starts");
     assert!(practice.kind.is_none() && practice.lesson.is_some());
@@ -201,4 +205,41 @@ fn the_path_follows_the_log_as_lessons_and_packs_are_kept() {
     };
     let laid = lesson.exercises().next().expect("an exercise");
     assert_eq!(laid.exercise.picture.as_ref(), Some(&teapot));
+}
+
+#[test]
+fn a_skill_tapped_lays_its_redo_waiting_first() {
+    let mut log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
+    let at = Start::At(lines(), SkillLevel::First);
+    let (mut sheet, _) = log.start(at, 5, NOON).expect("a lesson of lines");
+    let lesson = &mut sheet.lessons[0];
+    assert!(lesson.exercises.len() >= 2, "more than the redo");
+    let last = lesson.exercises.len() - 1;
+    for (index, laid) in lesson.exercises.iter_mut().enumerate() {
+        let outcome = if index == last {
+            Outcome::Redo
+        } else {
+            Outcome::Clean
+        };
+        laid.result = Some((outcome, Judge::App));
+    }
+    lesson.finished = Some(NOON + 300);
+    let redone = lesson.exercises[last].exercise.clone();
+    log.keep(Sheet {
+        canvas: 40,
+        ..sheet
+    });
+    let waiting = log.learner().redo(lines()).expect("a redo waits").clone();
+    assert_eq!(
+        (waiting.kind, &waiting.picture),
+        (redone.kind, &redone.picture)
+    );
+    assert!(log.path().units[0].skills[0].redo, "its tile says so");
+    // Tapped again (A's real `schedule::chosen`): the redo first, the same kind and picture.
+    let (again, _) = log
+        .start(Start::Skill(lines()), 9, NOON + 600)
+        .expect("lines again");
+    let first = &again.lessons[0].exercises[0].exercise;
+    assert_eq!((first.kind, &first.picture), (redone.kind, &redone.picture));
+    assert_eq!(again.lessons[0].picked, Picked::Chosen);
 }

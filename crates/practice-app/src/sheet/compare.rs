@@ -110,6 +110,7 @@ impl PracticeSheet {
         }
         self.forget_probe();
         let compared = self.compared_now(index, artwork, &frame)?;
+        let scored = self.scored();
         let Some(laid) = self.record.laid_mut(index) else {
             return Err(nothing());
         };
@@ -119,7 +120,7 @@ impl PracticeSheet {
             let shown = compared.shown();
             let next = artwork.next_stroke_id();
             laid.compared(First::of(now, next, shown.metrics()));
-            laid.result = judged(shown.verdict());
+            laid.result = judged(shown.verdict()).filter(|_| scored);
         }
         self.changed = true;
         if matches!(compared, Compared::Drawn(..) | Compared::Checked(_)) {

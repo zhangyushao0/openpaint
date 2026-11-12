@@ -1,15 +1,15 @@
 //! The lessons offered and laid (S122), from where the learner stands and the pictures kept:
 //! the next lesson (`next`), the review on the side when a redo waits (`review`), a lesson of a
-//! skill tapped (`offer`, `chosen`), a unit's full lesson (`full`) and the first lesson
-//! (`first`). An `Offer` is what the home and the path show before anything is laid; a `Planned`
-//! is a lesson's exercises, each with the level it is laid at, for `Sheet::begun` or
+//! skill tapped (`offer`, `chosen`), a unit's full lesson (`full_offer`, `full`) and the first
+//! lesson (`first`). An `Offer` is what the home and the path show before anything is laid; a
+//! `Planned` is a lesson's exercises, each with the level it is laid at, for `Sheet::begun` or
 //! `Sheet::append`.
 //!
 //! A lesson is one skill at its level, 1 to 6 exercises by its kind's minutes
-//! (`Described::lesson`), a few minutes in all; a full lesson is about 30 minutes: a warm-up of
-//! three from the skills longest unpractised, then each skill of the unit. Everything follows
-//! from the seed, the learner and the pictures, the same for the same three. No streak, quota or
-//! gate: any skill of any unit may be tapped.
+//! (`Described::lesson`), a few minutes in all; a full lesson is about 30 minutes (its offer
+//! says how many its kinds take): a warm-up of three from the skills longest unpractised, then
+//! each skill of the unit. Everything follows from the seed, the learner and the pictures, the
+//! same for the same three. No streak, quota or gate: any skill of any unit may be tapped.
 
 use crate::course::learner::Learner;
 use crate::course::unit::{UNITS, Unit};
@@ -95,18 +95,41 @@ pub fn review(standing: &Standing<'_>) -> Option<Offer> {
 #[must_use]
 pub fn offer(skill: Skill, standing: &Standing<'_>) -> Option<Offer> {
     let level = standing.learner.level(skill);
-    let planned = lesson(skill, level, 0, standing)?;
-    let exercises = u8::try_from(planned.exercises.len()).unwrap_or(u8::MAX);
-    let seconds: u32 = (planned.exercises.iter())
-        .map(|(exercise, _)| u32::from(exercise.kind.facts().seconds))
-        .sum();
+    let (exercises, minutes) = timed(&lesson(skill, level, 0, standing)?);
     Some(Offer {
         skill,
         level,
         exercises,
-        minutes: u8::try_from(seconds.div_ceil(60).max(1)).unwrap_or(u8::MAX),
+        minutes,
         redo: standing.learner.redo(skill).is_some(),
     })
+}
+
+/// The full lesson of `unit` as the path offers it before it is laid: its exercises and about
+/// how many minutes they take (each kind's `Facts::seconds`), its skill and level the first of
+/// the unit's skills that can be practised; none where `full` lays none.
+#[must_use]
+pub fn full_offer(unit: u8, standing: &Standing<'_>) -> Option<Offer> {
+    let (exercises, minutes) = timed(&full(unit, 0, standing)?);
+    let skill = (Unit::of(unit)?.skills.iter().copied())
+        .find(|skill| skill.lacks(standing.pictures).is_none())?;
+    Some(Offer {
+        skill,
+        level: standing.learner.level(skill),
+        exercises,
+        minutes,
+        redo: false,
+    })
+}
+
+/// How many exercises `planned` holds, and about how many minutes they take.
+fn timed(planned: &Planned) -> (u8, u8) {
+    let exercises = u8::try_from(planned.exercises.len()).unwrap_or(u8::MAX);
+    let seconds: u32 = (planned.exercises.iter())
+        .map(|(exercise, _)| u32::from(exercise.kind.facts().seconds))
+        .sum();
+    let minutes = u8::try_from(seconds.div_ceil(60).max(1)).unwrap_or(u8::MAX);
+    (exercises, minutes)
 }
 
 /// The lesson of `skill` seeded `seed` at the learner's level (`Picked::Chosen`): its oldest redo
@@ -165,7 +188,7 @@ pub fn reviewed(seed: u64, standing: &Standing<'_>) -> Option<Planned> {
 /// The full lesson of `unit` seeded `seed` (`Picked::Full`, its `stage` the unit): a warm-up of
 /// one exercise from each of the three skills longest unpractised (those of the units before it
 /// first, never practised the longest; the unit's own where fewer are there), then each skill of
-/// the unit, each at the learner's level, about 30 minutes; none for a unit not built or without
+/// the unit, each at the learner's level (about 30 minutes); none for a unit not built or without
 /// anything to practise. No picture comes twice in it while others are left.
 #[must_use]
 pub fn full(unit: u8, seed: u64, standing: &Standing<'_>) -> Option<Planned> {

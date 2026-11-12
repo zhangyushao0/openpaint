@@ -61,7 +61,8 @@ pub struct LessonShown {
 /// What the shown comparison says of the exercise's result: who judges it and what is kept.
 /// `Verdict::App`: `result` holds the app's outcome, shown ringed among the three.
 /// `Verdict::Eye` with no result yet: the three show as buttons (`PracticeIntent::Judge`); with
-/// one, the user's choice shows ringed. `Verdict::Incomplete`: nothing to show yet.
+/// one, the user's choice shows ringed. `Verdict::Incomplete`: nothing to show yet. Never on the
+/// first lesson, where nothing is scored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Judged {
     pub verdict: Verdict,
@@ -72,8 +73,12 @@ pub struct Judged {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct End {
     /// Each exercise of the lesson, by its index among the sheet's, and what it ended with (none:
-    /// not judged): a small mark on its frames.
+    /// not judged): a small mark on its frames. None at all on the first lesson, where nothing is
+    /// scored.
     pub results: Vec<(usize, Option<Outcome>)>,
+    /// How many exercises the lesson held, and the seconds practised on them.
+    pub exercises: u8,
+    pub seconds: u32,
     /// A skill's lesson: its skill, its dots before the lesson and after it (a level reached
     /// where they differ).
     pub skill: Option<(Skill, u8, u8)>,

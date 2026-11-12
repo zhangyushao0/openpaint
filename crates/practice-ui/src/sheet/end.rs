@@ -1,8 +1,9 @@
 //! A lesson's end on its card (S122), the rows it used in view over the sheet, each exercise's
-//! result a small mark under its pair (`rows.rs`): the lesson's name and its exercises; their
-//! results in a row of marks; under a rule the skill's three dots, the one just earned inking in
-//! with the level it reached named ("Up to “Fluent”"), each seal the lesson earned stamping down
-//! beside them; under another rule One more in its pill with what it will be (the skill, its
+//! result a small mark under its pair (`rows.rs`): the lesson's name, its exercises and the time
+//! they took ("5 exercises · 3 min 12 s"); their results in a row of marks (none on the first
+//! lesson, which scores nothing); under a rule the skill's three dots, the one just earned
+//! inking in with the level it reached named ("Up to “Fluent”"), each seal the lesson earned
+//! stamping down beside them; under another rule One more in its pill with what it will be (the skill, its
 //! exercises and minutes, on the next row of this sheet) and That's all for today, which goes
 //! home. No counts of days, no quotas.
 
@@ -42,9 +43,12 @@ pub(crate) enum EndTap {
 pub(crate) fn end_card(ui: &mut egui::Ui, end: &End, name: Text) -> Option<EndTap> {
     let language = language(ui.ctx());
     ui.heading(Words::from(name).shown(ui.ctx()));
-    let count = u8::try_from(end.results.len()).unwrap_or(u8::MAX);
-    card_text(ui, Words::made(&t::exercise_count(language, count)), true);
-    results(ui, end);
+    let took = t::lesson_took(language, (end.exercises, end.seconds));
+    card_text(ui, Words::made(&took), true);
+    // The first lesson scores nothing: no row of marks.
+    if !end.results.is_empty() {
+        results(ui, end);
+    }
     // The first lesson earns no dot; a lesson without a dot or a seal shows none of them.
     if end.skill.is_some() || !end.sealed.is_empty() {
         rule(ui);

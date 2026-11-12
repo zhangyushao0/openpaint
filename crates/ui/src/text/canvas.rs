@@ -8,7 +8,7 @@ use openpaint_core::ToneChannel;
 use super::{Language, Text};
 
 texts! { CANVAS;
-    GALLERY = "Gallery", "图库";
+    HOME = "Home", "首页";
     ACTIONS = "Actions", "操作";
     ADJUSTMENTS = "Adjustments", "调整";
     SELECTION = "Selection", "选区";

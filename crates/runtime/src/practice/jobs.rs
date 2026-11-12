@@ -1,20 +1,19 @@
-//! Practice on the storage worker (G9): a new session's or colour copy's sheet and record are
-//! written in one call and the sheet becomes the open artwork, or a session or drill goes onto
-//! today's sheet, or One more's lesson is appended in place (`day.rs`); a record is written again after
+//! Practice on the storage worker (G9): a new lesson's or colour copy's sheet and record are
+//! written in one call and the sheet becomes the open artwork, or a lesson goes onto today's
+//! sheet, or One more's lesson is appended in place (`day.rs`); a record is written again after
 //! each change on its sheet; a colour copy renamed (its sheet's title) or removed with its sheet
-//! (S83), and a test session or copy removed so (`test.rs`); a pack imported, a picture of the
+//! (S83), and a test lesson or copy removed so (`test.rs`); a pack imported, a picture of the
 //! user's own added (`files.rs`), removed or moved to another tier in their pack; a picture read
 //! for the screen; what a sheet's exercises printed, read when it opens and for the book (S120d).
-//! And the job a new one starts with: the next
-//! session in the app's practice log, a drill of the kind chosen (S91), or a colour copy of the
-//! picture chosen, seeded from the strokes' seed source (fixed in the harness), its sheet the size
-//! its layout asks. And the gallery's list, which leaves the practice sheets out (D112).
+//! And the job a colour copy of the picture chosen starts with, seeded from the strokes' seed
+//! source (fixed in the harness), its sheet the size its layout asks (a lesson's: `lesson.rs`).
+//! And the home's list, which leaves the practice sheets out (D112).
 
 use std::collections::HashSet;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
 use openpaint_core::Artwork;
-use openpaint_practice::{Family, Given, Givens, ItemRef, Pack, Purpose, Sheet, Tier};
+use openpaint_practice::{Given, Givens, ItemRef, Pack, Sheet, Tier};
 use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
 use openpaint_practice_store::{Packs, append, printed, remove, save, sheets, start};
 use openpaint_store::DisplayCache;
@@ -292,65 +291,6 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
     })
 }
 
-/// The job that starts the next session of `stage` in `log` (or the one numbered `number`: a
-/// test session's) on a sheet for `purpose` (the day's, or a test's), seeded from `seeds`, at
-/// `now` (seconds since 1970 UTC).
-pub(crate) fn start_job(
-    log: &PracticeLog,
-    (stage, number, purpose): (u8, Option<u32>, Purpose),
-    seeds: &mut Seeds,
-    now: u64,
-) -> Result<Job, RuntimeError> {
-    let seed = seed(seeds);
-    let (session, title) = log.begin((stage, number), seed, now);
-    let session = Sheet { purpose, ..session };
-    log::info!(
-        "practice session {} (stage {}, number {}) seeded {seed:016x}",
-        session.id,
-        session.stage().unwrap_or(0),
-        log.number(&session)
-    );
-    let job = started(log, session, title)?;
-    Ok(day::onto_day(
-        log,
-        job,
-        purpose == Purpose::Day && number.is_none(),
-    ))
-}
-
-/// What One more starts once the sheet left is stored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Next {
-    /// The next session of the stage practised.
-    Session,
-    /// Another drill of the kind (S91).
-    Drill(Family),
-}
-
-/// The job that begins the next drill of `family` in `log` (S91) on a sheet for `purpose` (the
-/// day's, or a test's), seeded from `seeds`, at `now`.
-///
-/// # Errors
-/// `NotNow` for a kind no stage drills, or shapes while no pack holds a picture.
-pub(crate) fn drill_job(
-    log: &PracticeLog,
-    (family, purpose): (Family, Purpose),
-    seeds: &mut Seeds,
-    now: u64,
-) -> Result<Job, RuntimeError> {
-    let seed = seed(seeds);
-    let (drill, title) = (log.begin_drill(family, seed, now))
-        .ok_or(RuntimeError::NotNow("a kind to drill with its pictures"))?;
-    let drill = Sheet { purpose, ..drill };
-    log::info!(
-        "practice drill {} of {family:?} (number {}) seeded {seed:016x}",
-        drill.id,
-        log.number(&drill)
-    );
-    let job = started(log, drill, title)?;
-    Ok(day::onto_day(log, job, purpose == Purpose::Day))
-}
-
 /// The job that begins a long colour copy of `picture` (the user chose it) from the packs of
 /// `log`, seeded from `seeds`, at `now`.
 ///
@@ -366,9 +306,8 @@ pub(crate) fn copy_job(
     let (copy, title) =
         (log.begin_copy(picture, seed, now)).ok_or(RuntimeError::NotNow("a picture to copy"))?;
     log::info!(
-        "colour copy {} (number {}) of {}/{}",
+        "colour copy {} of {}/{}",
         copy.id,
-        log.number(&copy),
         picture.pack,
         picture.item
     );

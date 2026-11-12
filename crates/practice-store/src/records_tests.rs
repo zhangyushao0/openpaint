@@ -1,26 +1,43 @@
 use openpaint_practice::{
-    Arrangement, BoxView, Carve, Combination, Estimate, Guide, Horizon, ItemRef, Lean, LineTier,
-    Plan, ScaleTone, Solid, Tendency, Tier, Trick, stage_one,
+    Arrangement, BoxView, Carve, Estimate, Guide, Horizon, ItemRef, Lean, LineTier, Planned,
+    ScaleTone, Skill, SkillLevel, Solid, Tendency, Tier, Tone, Trick,
 };
 
 use super::*;
 
 const NOON: u64 = 1_791_201_600;
 
-/// A first session part done: its warm-up, two exercises compared (one judged by the app, one by
-/// the eye), a picture laid in a frame of its shape, time on it.
+/// `exercises` as a lesson picked `picked`, each at the first level.
+fn planned(picked: Picked, exercises: Vec<Exercise>) -> Planned {
+    Planned {
+        picked,
+        exercises: (exercises.into_iter())
+            .map(|exercise| (exercise, SkillLevel::First))
+            .collect(),
+    }
+}
+
+/// A unit's full lesson part done: its warm-up, two exercises compared (one judged by the app,
+/// one by the eye), a picture laid in a frame of its shape, time on it.
 fn session() -> Sheet {
-    let met = [Kind::Line(LineTier::Arc), Kind::Combined(Combination::Near)];
-    let mut plan = stage_one(0x5EED_0045, &met);
-    plan.exercises[1] = Exercise {
+    let mut exercises: Vec<Exercise> = (0..16)
+        .map(|seed| Exercise::generated(Kind::Line(LineTier::Arc), seed))
+        .collect();
+    exercises[1] = Exercise {
         picture: Some(ItemRef {
             pack: "openpaint-shapes".to_owned(),
             item: "teapot-bail".to_owned(),
         }),
         ..Exercise::generated(Kind::Shape(Tier::Simple), 9)
     };
-    let mut sheet = Sheet::session(7, 1, NOON, plan);
-    assert_eq!(sheet.warm_up(), 4);
+    let tone = Tone::of_code(1).expect("a tone");
+    exercises[14] = Exercise::generated(Kind::Colour(tone), 14);
+    let picked = Picked::Full {
+        stage: 1,
+        warm_up: 4,
+    };
+    let mut sheet = Sheet::begun(7, (Purpose::Day, NOON), planned(picked, exercises));
+    assert_eq!(sheet.lesson().map(Lesson::warm_up), Some(4));
     sheet.canvas = 12;
     sheet.spans = vec![
         Span {
@@ -97,7 +114,7 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     assert_eq!(
         bytes[picked..picked + 3],
         [3, 1, 4],
-        "a stage-1 session, four warming up"
+        "unit 1's full lesson, four warming up"
     );
     let mut unpicked = bytes.clone();
     unpicked[picked] = 1;
@@ -136,18 +153,12 @@ fn the_first_lesson_round_trips_with_its_free_scribble_and_a_result_by_eye() {
 
 #[test]
 fn a_first_compare_s_metric_and_a_result_of_codes_unknown_are_refused() {
-    let mut sheet = Sheet::session(
-        3,
-        2,
-        NOON,
-        Plan {
-            exercises: vec![Exercise::generated(
-                Kind::Colour(openpaint_practice::Tone::of_code(1).expect("a tone")),
-                4,
-            )],
-            warm_up: 0,
-        },
-    );
+    let colour = Exercise::generated(Kind::Colour(Tone::of_code(1).expect("a tone")), 4);
+    let picked = Picked::Full {
+        stage: 2,
+        warm_up: 0,
+    };
+    let mut sheet = Sheet::begun(3, (Purpose::Day, NOON), planned(picked, vec![colour]));
     let laid = sheet.laid_mut(0).expect("a colour");
     laid.compared(First::of(NOON, 9, vec![(Metric::FinalDelta, 0.5)]));
     laid.result = Some((Outcome::Redo, Judge::App));
@@ -223,15 +234,11 @@ fn many_kinds() -> Vec<Exercise> {
 fn every_kind_s_exercises_round_trip_with_their_pictures_and_numbers() {
     let exercises = many_kinds();
     let count = exercises.len();
-    let mut sheet = Sheet::session(
-        15,
-        4,
-        NOON,
-        Plan {
-            exercises,
-            warm_up: 0,
-        },
-    );
+    let picked = Picked::Full {
+        stage: 4,
+        warm_up: 0,
+    };
+    let mut sheet = Sheet::begun(15, (Purpose::Day, NOON), planned(picked, exercises));
     for index in 0..count {
         let laid = sheet.laid_mut(index).expect("an exercise");
         laid.compared(First::of(
@@ -245,30 +252,28 @@ fn every_kind_s_exercises_round_trip_with_their_pictures_and_numbers() {
 }
 
 #[test]
-fn a_drill_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are() {
-    let plan = Plan {
-        exercises: (0..3)
-            .map(|seed| Exercise::generated(Kind::Space(Trick::Thirds), seed))
-            .collect(),
-        warm_up: 0,
-    };
-    let mut drill = Sheet::drill(14, NOON, plan);
-    drill.canvas = 30;
-    drill.spans.push(Span {
+fn a_skill_s_lesson_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are() {
+    let exercises = (0..3)
+        .map(|seed| Exercise::generated(Kind::Space(Trick::Thirds), seed))
+        .collect();
+    let mut lesson = Sheet::begun(14, (Purpose::Day, NOON), planned(Picked::Chosen, exercises));
+    lesson.canvas = 30;
+    lesson.spans.push(Span {
         from: NOON,
         to: NOON + 400,
     });
-    let read = round_trip(&drill).expect("read");
-    assert_eq!(read.drilled(), Some(openpaint_practice::Family::Thirds));
-    assert_eq!(read, drill);
-    // A test's drill (the device chore's, S121b): its purpose's byte 3, a drill all the same.
+    let skill = Skill::of(Kind::Space(Trick::Thirds));
+    let read = round_trip(&lesson).expect("read");
+    assert_eq!(read.lesson().and_then(Lesson::skill), skill);
+    assert_eq!(read, lesson);
+    // A test's lesson (the device chore's, S121b): its purpose's byte 3, a lesson all the same.
     let test = Sheet {
         purpose: Purpose::Test,
-        ..drill
+        ..lesson
     };
     assert_eq!(encode_sheet(&test)[1 + 8 + 8], 3);
     let read = round_trip(&test).expect("read");
-    assert_eq!(read.drilled(), Some(openpaint_practice::Family::Thirds));
+    assert_eq!(read.lesson().and_then(Lesson::skill), skill);
     assert_eq!(read, test);
     let picture = ItemRef {
         pack: "openpaint-shapes".to_owned(),
@@ -277,6 +282,6 @@ fn a_drill_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are() {
     let mut copy = Sheet::copy(10, (5, NOON), picture);
     copy.laid_mut(0).expect("the copy").frame = [1200, 900];
     let read = round_trip(&copy).expect("read");
-    assert!(read.is_copy() && read.drilled().is_none() && read.stage().is_none());
+    assert!(read.is_copy() && read.lesson().and_then(Lesson::unit).is_none());
     assert_eq!(read, copy);
 }

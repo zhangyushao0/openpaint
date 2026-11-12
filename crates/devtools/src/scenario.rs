@@ -22,6 +22,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Deserializer};
 
 use crate::error::ScenarioError;
+pub use crate::lesson::Lesson;
 pub use crate::pen::Pen;
 pub use crate::system::SystemAnswer;
 use crate::target::{Key, Spot};
@@ -201,6 +202,8 @@ pub enum Step {
     },
     /// The user answers the system picker, dialog or share sheet the app asked for.
     System(SystemAnswer),
+    /// A lesson started from the home, its sheet open after it (`lesson.rs` for its shapes).
+    Lesson(Lesson),
     /// The file the last export wrote, decoded: `scale` times the canvas's size (default 1); at
     /// 1x a PNG must equal the canvas pixel for pixel, above it and as a JPEG come close to it
     /// (reduced by the scale); with `pixels`, its decoded pixels must hash to that.
@@ -347,6 +350,9 @@ fn misshapen(step: &Step) -> Option<&'static str> {
         }
         Step::Expect { shown, absent } if shown.is_empty() && absent.is_empty() => {
             Some("an expect step names what is shown or absent")
+        }
+        Step::Lesson(lesson) if lesson.start().is_err() => {
+            Some("a lesson's skill goes by its key, its level 1 to 3")
         }
         _ => None,
     }

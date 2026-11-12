@@ -64,6 +64,7 @@ impl PracticeLog {
                 number: unit.number,
                 open: learner.open(unit.number, &pictures),
                 skills: unit.skills.iter().copied().map(shown).collect(),
+                full: schedule::full_offer(unit.number, &standing),
             })
             .collect();
         let first = learner.fresh();

@@ -212,3 +212,48 @@ fn a_unit_opens_by_the_first_dots_of_the_unit_before_it() {
     // No unit past the built ones opens, and none there is not.
     assert!(!learner.open(7, &pictures) && !learner.open(9, &pictures));
 }
+
+#[test]
+fn a_unit_opens_only_after_the_one_before_it_opened_and_never_one_without_a_skill() {
+    let pictures = Pictures::default();
+    let fresh = Learner::default();
+    // Unit 5's one skill lacks its pack; that opens nothing past it on a fresh learner.
+    assert!(skill("key-shift").lacks(&pictures).is_some());
+    let open = |learner: &Learner| -> Vec<u8> {
+        (1..=8)
+            .filter(|unit| learner.open(*unit, &pictures))
+            .collect()
+    };
+    assert_eq!(open(&fresh), [1]);
+    // Every skill that can be practised without a pack with its first dot: units 1 to 5 open,
+    // unit 5 though its skill cannot be practised, and never 6 to 8.
+    let mut learner = fresh;
+    for practised in Skill::all().filter(|skill| skill.lacks(&pictures).is_none()) {
+        // Lessons until the window fills: as many as it takes a lesson's size.
+        for _ in 0..6 {
+            let level = learner.level(practised);
+            learner = after(&learner, practised.key(), level, &CLEAN);
+        }
+        assert!(learner.dots(practised) >= 1, "{}", practised.key());
+    }
+    assert_eq!(open(&learner), [1, 2, 3, 4, 5]);
+    // A unit's dots alone open nothing while the one before it is shut.
+    let mut skipped = Learner::default();
+    for key in [
+        "shape",
+        "combination",
+        "scale",
+        "box",
+        "free-boxes",
+        "ellipse",
+    ] {
+        if skill(key).lacks(&pictures).is_some() {
+            continue;
+        }
+        for _ in 0..6 {
+            let level = skipped.level(skill(key));
+            skipped = after(&skipped, key, level, &CLEAN);
+        }
+    }
+    assert_eq!(open(&skipped), [1]);
+}

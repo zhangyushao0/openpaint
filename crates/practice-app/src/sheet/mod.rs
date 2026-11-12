@@ -273,7 +273,13 @@ impl PracticeSheet {
             _ => self.drawing,
         };
         self.painted_shown();
-        let warming_up = current.is_some_and(|index| self.record.warming_up(index));
+        let warming_up = current
+            .zip(self.record.held())
+            .is_some_and(|(index, held)| {
+                index
+                    .checked_sub(held.first_exercise())
+                    .is_some_and(|at| at < held.lesson.warm_up())
+            });
         if let Some(kind) = kind.filter(|_| !warming_up)
             && self.told.insert(kind.facts().key)
         {
