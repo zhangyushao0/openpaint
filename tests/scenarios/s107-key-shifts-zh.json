@@ -53,7 +53,7 @@
     { "lesson": { "skill": "key-shift", "level": 1 } },
     { "screenshot": { "name": "key-second" } },
     { "tap": { "at": "Home" } },
-    { "tap": { "at": "Start" } },
+    { "tap": { "at": "Continue" } },
     { "screenshot": { "name": "key-lesson-reopened" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "full": 5 } },

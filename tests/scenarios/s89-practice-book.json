@@ -5,7 +5,7 @@
     "Monday 5 October: a lesson of Lines at level 1. I copy the first line and compare it, a few minutes at it, Next to the sixth, then Finish. The lesson's end at the right: Lines, 6 exercises and the time, a dot for each, the skill's dots, a vermilion seal stamping down, FIRST STEP (初练 in Chinese). Home.",
     "Tuesday 6 October (I left the app overnight): a lesson of Colours at level 1. I pick and fill the first colour after two minutes, compare three minutes later; then I put the tablet down with the app open for two hours. Back, Next to the second colour: I fill it after two minutes, compare a minute later, and go home, the lesson under way.",
     "The book: at the right 1 lesson · 13 min or so. The calendar: the 5th and the 6th each a wash behind its number, the 6th ringed (today). Beside it the colour's first pick as a point with its ΔE × 100 over it, lesson 1's first line with its original in thin see-through red, the FIRST STEP seal. The 6th tapped: its card, a few minutes (the two hours count nothing). The 5th: Lesson 1 · Lines; tapped, its sheet opens, done, its end at the right.",
-    "Wednesday 7 October: Start continues the colours lesson at Colours 2/3. Next to the third; I fill it, leave the app half an hour (it counts nothing), come back, compare, and Finish.",
+    "Wednesday 7 October: Continue (the home's Start while a lesson is under way) continues the colours lesson at Colours 2/3. Next to the third; I fill it, leave the app half an hour (it counts nothing), come back, compare, and Finish.",
     "The book: three days washed, each by its time, 2 lessons; a swipe to the right across the calendar shows September (empty); Later month brings October back. The 7th tapped shows Lesson 2 · Colours (painted over two days, it shows on both) with its colour pairs. The back button goes home.",
     "Not here: a colour copy painted over two days and a record from before 1.7.0 timed by its compares (the practice crate's and the store's tests); the 100 lines and 100 colours, ten-session and stage seals (the seals' tests)."
   ],
@@ -66,7 +66,7 @@
     { "screenshot": { "name": "sheet-opened" } },
     { "tap": { "at": "Home" } },
     { "later": { "minutes": 1320, "hidden": true } },
-    { "tap": { "at": "Start" } },
+    { "tap": { "at": "Continue" } },
     { "later": { "minutes": 1 } },
     { "screenshot": { "name": "continued" } },
     { "tap": { "at": "Next" } },
