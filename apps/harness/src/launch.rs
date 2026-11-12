@@ -93,11 +93,20 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), HarnessError> {
     Ok(())
 }
 
+/// What the harness starts the app with: a library listing no artwork opens on a blank canvas,
+/// the harness's first artwork (the app itself opens on the home).
+pub(crate) fn first_artwork() -> StartOptions {
+    StartOptions {
+        blank: true,
+        ..StartOptions::default()
+    }
+}
+
 /// The app at `pixels_per_point` on a fresh library `artifacts/harness/<name>-library`, with
 /// its canvas open on a screen of `size` pixels.
 pub fn launch(name: &str, pixels_per_point: f32, size: [u32; 2]) -> Result<Runtime, HarnessError> {
     let library = Library::at(fresh_library(library_dir(name))?);
-    let mut runtime = Runtime::start(pixels_per_point, Box::new(library), StartOptions::default())?;
+    let mut runtime = Runtime::start(pixels_per_point, Box::new(library), first_artwork())?;
     open(&mut runtime, size)?;
     Ok(runtime)
 }

@@ -24,9 +24,11 @@ pub(crate) struct Loaded {
 pub(crate) enum Opened {
     /// The artwork open when the app was left.
     Last(Box<Loaded>),
-    /// No artwork was open: the user was in the gallery, which lists these.
+    /// No artwork was open: the user was on the home, which lists these (none on a first launch:
+    /// the home is the app's front door).
     Gallery(Result<Vec<ProjectSummary>, PortError>),
-    /// An empty library: start blank.
+    /// A library listing no artwork, opened for a host that asks for a blank canvas then
+    /// (`StartOptions::blank`: the harness's and the tests' first artwork): start blank.
     Empty,
     /// The last artwork could not be read; it stays in the library untouched and the app
     /// starts blank, saving into a new project.
@@ -65,7 +67,7 @@ pub(crate) fn loaded(
 }
 
 /// What opening the library finds: the artwork open when the app was left (it becomes the open
-/// one), else the gallery's list.
+/// one), else the home's list (a blank canvas instead for a host that asks, `Kept::blank`).
 pub(super) fn start(
     store: &mut dyn ProjectStore,
     kept: &mut Kept,
@@ -80,7 +82,7 @@ pub(super) fn start(
             Err(error) => Opened::Failed(error),
         },
         Ok(None) => match practice::gallery_list(store).map(|listed| listed.artworks) {
-            Ok(items) if items.is_empty() => Opened::Empty,
+            Ok(items) if items.is_empty() && kept.blank => Opened::Empty,
             listed => Opened::Gallery(listed),
         },
         // A library of another format: the gallery says so; nothing is written to it.

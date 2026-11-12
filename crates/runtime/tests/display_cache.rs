@@ -85,6 +85,7 @@ fn open(dirs: &Dirs) -> (Runtime, Hand, bool) {
     let options = StartOptions {
         core: Some(core),
         cache: Some(DisplayCache::at(&dirs.cache)),
+        blank: true,
         ..StartOptions::default()
     };
     let store = Box::new(Library::at(&dirs.library));

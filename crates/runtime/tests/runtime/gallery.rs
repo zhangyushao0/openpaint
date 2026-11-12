@@ -1,12 +1,13 @@
 //! GPU test of the gallery through the whole frame loop on a real library: leaving the canvas
 //! stores a thumbnail that matches the canvas, the title field asks for the keyboard and takes
-//! typed text, and an artwork opened again equals a cold evaluation.
+//! typed text, and an artwork opened again equals a cold evaluation; a first launch opens on the
+//! home.
 
 use openpaint_render::{thumbnail_reference, thumbnail_size};
-use openpaint_runtime::{EditKey, TextInput, ToolKind};
+use openpaint_runtime::{EditKey, Runtime, StartOptions, TextInput, ToolKind};
 use openpaint_store::Library;
 
-use crate::support::{TestDir, assert_cold, core, gallery, start, until};
+use crate::support::{Hand, TestDir, assert_cold, core, gallery, start, until};
 
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
@@ -67,4 +68,19 @@ fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
     assert_cold(&core, &mut runtime, "reopened from the gallery");
     let reopened = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(reopened.content_hash(), canvas.content_hash());
+}
+
+#[test]
+fn a_first_launch_opens_on_the_home() {
+    let dir = TestDir::new("gallery-first-launch");
+    let options = StartOptions {
+        core: Some(core()),
+        ..StartOptions::default()
+    };
+    let store = Box::new(Library::at(&dir));
+    let mut runtime = Runtime::start(PIXELS_PER_POINT, store, options).expect("the runtime starts");
+    let mut hand = Hand::new(SIZE);
+    until(&mut runtime, &mut hand, |r| gallery(r).is_some());
+    let home = gallery(&runtime).expect("the home");
+    assert!(home.items().is_empty() && runtime.artwork().is_none());
 }

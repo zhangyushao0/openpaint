@@ -73,7 +73,7 @@ pub(crate) fn apply(
             let app = (&mut *log, &mut *seeds, &mut *storage);
             if !day::one_more(canvas, app, (now, &viewport)) {
                 canvas.leaving = Leaving::Waiting;
-                canvas.then = Then::Practice;
+                canvas.then = Then::Practice(day::named(canvas));
             }
         }
     }

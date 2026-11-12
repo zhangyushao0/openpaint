@@ -5,7 +5,7 @@
 //! seed source, on a sheet for the day or a test, onto today's sheet where that takes it
 //! (`day.rs`).
 
-use openpaint_app::Title;
+use openpaint_app::{GalleryIntent, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{Givens, Layout, Purpose, Sheet};
 use openpaint_practice_app::{PracticeLog, Start};
@@ -66,13 +66,18 @@ pub(crate) fn lesson_job(
 
 impl Runtime {
     /// A lesson started from the home as `start` names it, for the day, as a tap there starts
-    /// one: what a scenario's `lesson` step does. Its sheet opens once the store wrote it.
+    /// one: what a scenario's `lesson` step does. Its sheet opens once the store wrote it; the
+    /// next lesson while today's is under way opens that one's sheet instead, as Continue does.
     ///
     /// # Errors
-    /// `NotNow` when the home does not show, or there is nothing to start (`lesson_job`).
+    /// `NotNow` when the home does not show, or there is nothing to start (`lesson_job`); `App`
+    /// while the home opens something else.
     pub fn start_lesson(&mut self, start: Start) -> Result<(), RuntimeError> {
-        if self.screen.gallery_mut().is_none() {
-            return Err(RuntimeError::NotNow("the home"));
+        let open = (self.practice.path().open).filter(|_| start == Start::Next);
+        let gallery = (self.screen.gallery_mut()).ok_or(RuntimeError::NotNow("the home"))?;
+        if let Some(open) = open {
+            gallery.dispatch(GalleryIntent::Open(open.sheet))?;
+            return Ok(());
         }
         let now = self.frame_clock.wall_seconds();
         let start = (start, Purpose::Day);

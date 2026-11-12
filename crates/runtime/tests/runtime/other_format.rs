@@ -137,6 +137,7 @@ fn a_library_of_another_format_starts_the_app_in_the_gallery_saying_so_and_write
     let writes = Arc::clone(&store.writes);
     let options = StartOptions {
         core: Some(core()),
+        blank: true,
         ..StartOptions::default()
     };
     let mut runtime = Runtime::start(PIXELS_PER_POINT, Box::new(store), options).expect("starts");

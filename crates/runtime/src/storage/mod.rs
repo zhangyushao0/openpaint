@@ -106,6 +106,9 @@ pub(crate) struct Kept {
     pub(crate) open: Option<ProjectId>,
     /// The open artwork was saved since it opened or since a version of it was last kept.
     pub(crate) changed: bool,
+    /// A library that lists no artwork opens on a blank canvas, not the home
+    /// (`StartOptions::blank`).
+    pub(crate) blank: bool,
 }
 
 pub(crate) struct Storage {
@@ -115,12 +118,16 @@ pub(crate) struct Storage {
 impl Storage {
     /// Starts the worker with `store` and asks it to open the library. An artwork it opens comes
     /// with its canvas from `cache`, if one is kept there; practice packs are kept in `packs`
-    /// (none: there are none, and none can be imported).
+    /// (none: there are none, and none can be imported); with `blank`, a library listing no
+    /// artwork opens on a blank canvas.
     pub(crate) fn start(
         mut store: Box<dyn ProjectStore>,
-        (cache, packs): (Option<DisplayCache>, Option<Packs>),
+        (cache, packs, blank): (Option<DisplayCache>, Option<Packs>, bool),
     ) -> Result<Self, RuntimeError> {
-        let mut kept = Kept::default();
+        let mut kept = Kept {
+            blank,
+            ..Kept::default()
+        };
         let mut worker = Queue::spawn("openpaint-store", move |job| {
             serve(
                 (store.as_mut(), cache.as_ref(), packs.as_ref()),
@@ -232,10 +239,8 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
         } => leave(store, kept, (version, thumbnail.as_ref()), kept_at, close),
         Job::Create { artwork, title } => match store.create(&artwork, &title) {
             Ok(id) => {
-                *kept = Kept {
-                    open: Some(id),
-                    changed: false,
-                };
+                kept.open = Some(id);
+                kept.changed = false;
                 Done::Created(artwork, title, id)
             }
             Err(error) => Done::Gallery(LibraryAnswer::CreateFailed(error)),
@@ -313,10 +318,8 @@ fn library(
         }
         LibraryCall::Load(id) => match (store.load(id)).and_then(|p| loaded((store, cache), p)) {
             Ok(loaded) => {
-                *kept = Kept {
-                    open: Some(id),
-                    changed: false,
-                };
+                kept.open = Some(id);
+                kept.changed = false;
                 return Done::Loaded(loaded);
             }
             Err(error) => LibraryAnswer::OpenFailed(error),

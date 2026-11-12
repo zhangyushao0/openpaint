@@ -7,7 +7,7 @@
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Viewport};
 use openpaint_practice::{Givens, Layout, Lesson, Sheet};
-use openpaint_practice_app::{PracticeLog, Start, append_lesson};
+use openpaint_practice_app::{PracticeLog, PracticeProjection, Start, append_lesson};
 use openpaint_practice_store::{Packs, append};
 use openpaint_store::DisplayCache;
 
@@ -78,10 +78,8 @@ fn onto(
     (append(store, &day, &givens))
         .inspect_err(|error| log::error!("practice sheet {} took no lesson: {error}", day.id))
         .ok()?;
-    *kept = Kept {
-        open: Some(id),
-        changed: false,
-    };
+    kept.open = Some(id);
+    kept.changed = false;
     Some(Done::Practice(match loaded((store, cache), project) {
         Ok(loaded) => PracticeDone::Continued {
             session: day,
@@ -94,7 +92,8 @@ fn onto(
     }))
 }
 
-/// One more on `canvas`'s sheet: the next lesson (`Start::Next`: what the lesson's end names,
+/// One more on `canvas`'s sheet: the lesson its end names (`End::next`: a skill of a unit ahead
+/// again, else the next lesson; `Start::Next` where the end names none,
 /// the log holding the finished record, `save_record`; seeded from `seeds`, begun at `now` by
 /// `log`) appended in place where the sheet takes it, the view gliding to it in `viewport`, its
 /// record kept in `log` and written by `storage`. Returns whether it was; else the sheet is left
@@ -105,7 +104,8 @@ pub(crate) fn one_more(
     (now, viewport): (u64, &Viewport),
 ) -> bool {
     let seed = seed(seeds);
-    let begun = log.start(Start::Next, seed, now).map(|(sheet, _)| sheet);
+    let begun = log.start(named(canvas), seed, now);
+    let begun = begun.map(|(sheet, _)| sheet);
     let Some(lesson) = begun.and_then(|sheet| sheet.lessons.into_iter().last()) else {
         return false;
     };
@@ -145,4 +145,12 @@ pub(crate) fn appended(
     if let Some(canvas) = canvas {
         openpaint_practice_app::append_stored(canvas.session_mut(), id, result.is_ok());
     }
+}
+
+/// The lesson One more starts from `canvas`'s sheet: what its end names (`End::next`, a skill of
+/// a unit ahead of the learner's again), the next lesson where it names none.
+pub(crate) fn named(canvas: &Canvas) -> Start {
+    (PracticeProjection::of(canvas.session()))
+        .and_then(|shown| shown.end?.next)
+        .map_or(Start::Next, |offer| Start::Skill(offer.skill))
 }

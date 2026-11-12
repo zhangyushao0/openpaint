@@ -70,7 +70,7 @@ fn a_test_lesson_beside_the_authors_leaves_theirs_as_it_was() {
     hand.tap(&mut runtime, "Got it");
     copy_and_compare(&mut runtime, &mut hand);
     let theirs = path(&runtime);
-    let sheet = theirs.open.expect("their lesson open");
+    let sheet = theirs.open.expect("their lesson open").sheet;
     drop(runtime);
     let mut library = Library::at(&dir);
     let records = sheets(&mut library).expect("their records");
@@ -95,7 +95,7 @@ fn a_test_lesson_beside_the_authors_leaves_theirs_as_it_was() {
     );
     copy_and_compare(&mut runtime, &mut hand);
     assert_eq!(
-        path(&runtime).open,
+        path(&runtime).open.map(|open| open.sheet),
         Some(sheet),
         "a test's sheet is never the day's"
     );
@@ -148,10 +148,16 @@ fn a_test_lesson_of_a_skill_at_a_level_is_kept_apart_and_one_more_follows_on_its
     until(&mut runtime, &mut hand, |r| {
         in_hand(r).is_some_and(|(_, number)| number == 2)
     });
+    // What its end named: a skill of a unit ahead of the learner's again, not the first lesson.
+    assert_eq!(
+        in_hand(&runtime),
+        Some((skill, 2)),
+        "One more lays what its card names"
+    );
     assert!(runtime.back(), "back to the home");
     until(&mut runtime, &mut hand, |r| gallery(r).is_some());
     assert_eq!(
-        path(&runtime).open,
+        path(&runtime).open.map(|open| open.sheet),
         None,
         "a test's sheet is never the day's"
     );
@@ -167,4 +173,26 @@ fn a_test_lesson_of_a_skill_at_a_level_is_kept_apart_and_one_more_follows_on_its
     runtime.end_test_practice(&test).expect("ended");
     until(&mut runtime, &mut hand, |r| !r.holds_practice(id));
     assert_eq!(path(&runtime).units, before.units, "no dot from it");
+}
+
+#[test]
+fn the_next_lesson_while_one_is_under_way_opens_it() {
+    let dir = TestDir::new("practice-under-way");
+    let (mut runtime, mut hand) = on_the_home(&dir);
+    runtime.start_lesson(Start::Next).expect("the first lesson");
+    until(&mut runtime, &mut hand, |r| in_hand(r).is_some());
+    assert!(runtime.back(), "to the home");
+    until(&mut runtime, &mut hand, |r| gallery(r).is_some());
+    let open = path(&runtime).open.expect("under way");
+    assert_eq!((open.place, open.row.first), ((1, 3), true));
+    // As Continue does: its sheet opens on it, nothing new is laid.
+    runtime.start_lesson(Start::Next).expect("continued");
+    until(&mut runtime, &mut hand, |r| in_hand(r).is_some());
+    assert_eq!(in_hand(&runtime), Some((None, 1)));
+    drop(runtime);
+    let mut library = Library::at(&dir);
+    let lessons: Vec<usize> = (sheets(&mut library).expect("records").iter())
+        .map(|sheet| sheet.lessons.len())
+        .collect();
+    assert_eq!(lessons, [1]);
 }

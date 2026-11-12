@@ -52,6 +52,7 @@ pub fn on_the_pile() -> (TestDir, Runtime, Hand) {
     let options = StartOptions {
         core: Some(core()),
         cache: Some(DisplayCache::at(root.join("cache"))),
+        blank: true,
         ..StartOptions::default()
     };
     let mut runtime =

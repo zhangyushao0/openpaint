@@ -21,8 +21,7 @@ use openpaint_app::{HISTORY_BUDGET, KEPT_VERSIONS, ProjectStore};
 use openpaint_devtools::{Watched, Wrote};
 use openpaint_render::OWN_BUDGET;
 use openpaint_runtime::{
-    ARENA_SHARE, Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, StartOptions,
-    ToolKind,
+    ARENA_SHARE, Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
 use openpaint_store::Library;
 
@@ -141,7 +140,11 @@ impl Painter {
             move |library, wrote| watch(library, wrote, (&versions, &fjall))
         });
         let mut painter = Self {
-            runtime: Runtime::start(PIXELS_PER_POINT, Box::new(store), StartOptions::default())?,
+            runtime: Runtime::start(
+                PIXELS_PER_POINT,
+                Box::new(store),
+                crate::launch::first_artwork(),
+            )?,
             clock: 0,
             versions,
             fjall,

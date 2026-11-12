@@ -67,6 +67,7 @@ fn a_dense_artwork_fills_in_over_frames_while_taps_work_and_ends_exact() {
     };
     let options = StartOptions {
         core: Some(Arc::clone(&core)),
+        blank: true,
         ..StartOptions::default()
     };
     let mut runtime =

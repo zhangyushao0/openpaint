@@ -4,7 +4,7 @@
 
 use openpaint_app::Intent;
 use openpaint_practice::Purpose;
-use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeSheet, Start};
+use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeSheet};
 
 use super::Runtime;
 use crate::error::RuntimeError;
@@ -25,10 +25,10 @@ impl Runtime {
                 &mut self.cache,
                 &mut self.practice,
             );
-            if self.screen.answer(done, after) {
+            if let Some(start) = self.screen.answer(done, after) {
                 let now = self.frame_clock.wall_seconds();
                 let (log, seeds) = (&self.practice, &mut self.seeds);
-                match lesson_job(log, (Start::Next, Purpose::Day), seeds, now) {
+                match lesson_job(log, (start, Purpose::Day), seeds, now) {
                     Ok(job) => self.storage.submit(job),
                     Err(error) => {
                         log::error!("One more could not start: {error}");

@@ -55,6 +55,10 @@ pub struct StartOptions {
     /// Where practice packs are kept (the Android host's `filesDir/packs`, beside the library).
     /// `None`: there are none, and none can be imported.
     pub packs: Option<Packs>,
+    /// A library that lists no artwork opens on a blank canvas instead of the home: the
+    /// harness's and the tests' first artwork, their canvases as they always began. The app
+    /// leaves it off: a first launch opens on the home, its front door (S122).
+    pub blank: bool,
 }
 
 impl Runtime {
@@ -74,7 +78,7 @@ impl Runtime {
         };
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
         let pack_pictures = PackPictureWorker::start(options.packs.clone())?;
-        let storage = Storage::start(store, (cache.clone(), options.packs))?;
+        let storage = Storage::start(store, (cache.clone(), options.packs, options.blank))?;
         log::info!("GPU adapter: {}", core.adapter());
         core.catch_errors();
         let ui = egui::Context::default();

@@ -41,7 +41,22 @@ pub struct Scenario {
     /// Controls keep their English names in either (D100).
     #[serde(default)]
     pub system_language: SystemLanguage,
+    /// Where a library listing no artwork opens: a blank canvas, every scenario's first artwork
+    /// (the default), or with `"start": "home"` the home, as the app's first launch does (S122).
+    #[serde(default)]
+    pub start: StartOn,
     pub steps: Vec<Step>,
+}
+
+/// Where a scenario's library listing no artwork opens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StartOn {
+    /// A blank canvas: the scenario's first artwork.
+    #[default]
+    Canvas,
+    /// The home, the app's front door.
+    Home,
 }
 
 /// The system language a scenario's host reports.

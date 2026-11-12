@@ -17,6 +17,7 @@ pub fn start(
 ) -> (Runtime, Hand) {
     let options = StartOptions {
         core: Some(super::gpu::core()),
+        blank: true,
         ..StartOptions::default()
     };
     let mut runtime = Runtime::start(pixels_per_point, store, options).expect("the runtime starts");

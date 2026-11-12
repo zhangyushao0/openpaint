@@ -166,10 +166,8 @@ fn begun(store: &mut dyn ProjectStore, kept: &mut Kept, job: PracticeJob) -> Pra
     };
     match start(store, (&sheet, &title), &session, &givens) {
         Ok(id) => {
-            *kept = Kept {
-                open: Some(id),
-                changed: false,
-            };
+            kept.open = Some(id);
+            kept.changed = false;
             let session = Sheet {
                 canvas: id.get(),
                 ..session

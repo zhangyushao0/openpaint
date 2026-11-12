@@ -27,7 +27,7 @@ use openpaint_runtime::{
 
 use crate::error::ScenarioError;
 use crate::report::{Record, Report, record, view_check};
-use crate::scenario::{Lesson, Scenario, Step, SystemLanguage};
+use crate::scenario::{Lesson, Scenario, StartOn, Step, SystemLanguage};
 use crate::system::{self, Written};
 use crate::target::{self, Key, Spot};
 use crate::watched::Watched;
@@ -133,6 +133,7 @@ impl Runner<'_> {
             core: Some(Arc::clone(&self.core)),
             language,
             packs: Some(Packs::at(self.packs)),
+            blank: self.scenario.start == StartOn::Canvas,
             ..StartOptions::default()
         };
         let mut runtime = Runtime::start(self.scenario.density, Box::new(store), options)?;
