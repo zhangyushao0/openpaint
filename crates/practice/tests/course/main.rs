@@ -191,6 +191,15 @@ fn the_first_lesson_is_a_scribble_a_straight_line_and_an_arc() {
         (learner.lessons(), learner.lessons_of(skill("line"))),
         (1, 1)
     );
+    // It leaves its lines unpractised: the next lesson is the course's first skill, Lines.
+    assert_eq!(learner.practised(skill("line")), None);
+    let pictures = Pictures::default();
+    let standing = Standing {
+        pictures: &pictures,
+        learner: &learner,
+    };
+    let next = schedule::next(&standing).map(|offer| offer.skill);
+    assert_eq!(next, Some(skill("line")));
 }
 
 #[test]

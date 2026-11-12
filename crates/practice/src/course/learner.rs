@@ -29,7 +29,7 @@ use crate::packs::pack::ItemRef;
 use crate::packs::pictures::Pictures;
 use crate::records::lessons::lessons;
 use crate::records::record::RECENT;
-use crate::records::sheet::{Lesson, Sheet};
+use crate::records::sheet::{Lesson, Picked, Sheet};
 
 /// The dots a skill can hold: one a level.
 pub const DOTS: u8 = 3;
@@ -133,7 +133,10 @@ impl Learner {
             if !met.contains(&skill) {
                 met.push(skill);
                 practised.lessons += 1;
-                practised.last = at;
+                // The first lesson leaves its skill as unpractised: the next starts the course.
+                if lesson.picked != Picked::First {
+                    practised.last = at;
+                }
             }
             if let Some((outcome, _)) = laid.result {
                 practised.judged(laid.level, outcome, skill.window());
@@ -204,10 +207,10 @@ impl Learner {
     }
 
     /// The last lesson that held `skill`, its number among all lessons from 1; none while it was
-    /// never practised (which is longer unpractised than any number).
+    /// never practised but in the first lesson (which is longer unpractised than any number).
     #[must_use]
     pub fn practised(&self, skill: Skill) -> Option<u32> {
-        self.practised_of(skill).map(|kept| kept.last)
+        (self.practised_of(skill).map(|kept| kept.last)).filter(|last| *last > 0)
     }
 
     /// `skill`'s oldest redo waiting.
