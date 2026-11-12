@@ -1,8 +1,9 @@
-//! A session from the second on: it opens on its warm-up (kinds met before, their instructions
-//! told), then the mix, where combined lines come with their own instructions and are drawn with
-//! the pens; a group is compared in place and aligned, its lines fitted together as one shape (the
-//! sketch pen's marks left out), and corrected in blue.
+//! A full lesson after a first that compared a line and a colour: it opens on its warm-up (no How
+//! in a warm-up), then the mix, where the kinds compared before come without their How and
+//! combined lines with theirs, drawn with the pens; a group is compared in place and aligned, its
+//! lines fitted together as one shape (the sketch pen's marks left out), and corrected in blue.
 
+mod mixed;
 mod support;
 
 use std::sync::Arc;
@@ -12,8 +13,11 @@ use openpaint_app::{
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{Family, Figure, First, Layout, LinePen, Original, Sheet};
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
+use openpaint_practice::{
+    Combination, Exercise, Figure, First, Kind, Layout, LinePen, Original, Picked, Planned,
+    Purpose, Sheet, SkillLevel,
+};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -26,37 +30,45 @@ fn pens() -> PracticePens {
     PracticePens::built_in().expect("pens")
 }
 
-/// The second session after a first that compared a line and a colour.
+/// The full lesson after a first that compared a line and a colour.
 fn second() -> Session {
     after_first(true)
 }
 
-/// The session after a first that compared a line and a colour, finished or still open (the
-/// test-session chore's: the summary's earlier sessions are the finished ones only).
+/// A full lesson of unit 1 on sheet 2, its warm-up two of the first mix's lines and two of its
+/// colours, then a mix seeded anew.
+fn full_lesson() -> Sheet {
+    let first = mixed::mixed(5);
+    let warm_up = [0, 1, 10, 11].map(|at| first[at].clone());
+    let exercises = (warm_up.into_iter().chain(mixed::mixed(0x5EED_0079)))
+        .map(|exercise: Exercise| (exercise, SkillLevel::First))
+        .collect();
+    let picked = Picked::Full {
+        stage: 1,
+        warm_up: 4,
+    };
+    let planned = Planned { picked, exercises };
+    Sheet::begun(2, (Purpose::Day, 1_791_290_000), planned)
+}
+
+/// The full lesson after a first that compared a line and a colour, finished or still open.
 fn after_first(finished: bool) -> Session {
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
-    let mut first = Sheet::session(1, 1, 1_791_201_600, openpaint_practice::stage_one(5, &[]));
+    let mut first = support::laid(mixed::mixed(5), 1_791_201_600);
     first.canvas = 3;
     first.lessons[0].finished = finished.then_some(1_791_202_600);
     for (index, at, next) in [(0, 1_791_201_700, 2), (10, 1_791_201_800, 4)] {
         let laid = first.laid_mut(index).expect("an exercise");
         laid.compared(First::of(at, next, Vec::new()));
     }
-    let log = PracticeLog::new(vec![first.clone()], Vec::new(), Vec::new());
-    let (record, _) = log.begin((1, None), 0x5EED_0079, 1_791_290_000);
-    let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
-    let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let before = if finished { first.lessons } else { Vec::new() };
-    let view = support::view(&record, &[], [width, height]);
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens()),
-        (record, before, view, openpaint_practice::Tally::default()),
-        &VIEWPORT,
-    )
+    let record = full_lesson();
+    let size = Layout::of(&vec![None; record.exercises().count()]).size;
+    let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
+    let opening = support::opening(&record, (&[], vec![first]), size);
+    openpaint_practice_app::open_sheet(sheet, (brush, pens()), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.
@@ -93,9 +105,16 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
     }
 }
 
-fn shown(session: &Session) -> (Option<Family>, bool, (usize, usize), Option<Family>) {
+/// The shown exercise's kind, whether it warms up, its place and the How shown.
+fn shown(session: &Session) -> (Option<Kind>, bool, (usize, usize), Option<Kind>) {
     let p = PracticeProjection::of(session).expect("a practice sheet");
-    (p.family, p.warming_up, p.place, p.instructions)
+    let lesson = p.lesson.expect("the lesson in hand");
+    (p.kind, lesson.warming_up, lesson.place, p.how)
+}
+
+/// The kind of exercise `index` of the first mix.
+fn first_kind(index: usize) -> Option<Kind> {
+    Some(mixed::mixed(5)[index].kind)
 }
 
 /// The original's lines laid over the copy (canvas pixels), while they show.
@@ -124,28 +143,24 @@ fn close(a: [f32; 2], b: [f32; 2], within: f32) -> bool {
 }
 
 #[test]
-fn a_second_session_warms_up_then_meets_combined_lines_with_their_instructions() {
+fn a_full_lesson_warms_up_then_meets_combined_lines_with_their_how() {
     let mut session = second();
-    let warm_up = (Some(Family::Line), true, (1, 4), None);
-    assert_eq!(shown(&session), warm_up, "lines met: no instructions");
+    let warm_up = (first_kind(0), true, (1, 4), None);
+    assert_eq!(shown(&session), warm_up, "lines met: no How");
     for _ in 0..2 {
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    assert_eq!(shown(&session), (Some(Family::Colour), true, (3, 4), None));
+    assert_eq!(shown(&session), (first_kind(10), true, (3, 4), None));
     for _ in 0..2 {
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    assert_eq!(shown(&session), (Some(Family::Line), false, (1, 6), None));
+    assert_eq!(shown(&session), (first_kind(0), false, (1, 6), None));
     for _ in 0..6 {
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    let group = (
-        Some(Family::Combined),
-        false,
-        (1, 4),
-        Some(Family::Combined),
-    );
-    assert_eq!(shown(&session), group, "their instructions by themselves");
+    let joined = Some(Kind::Combined(Combination::Joined));
+    let group = (joined, false, (1, 4), joined);
+    assert_eq!(shown(&session), group, "their How by itself");
     let pen = PracticeProjection::of(&session).and_then(|p| p.pen);
     assert_eq!(
         pen.map(|(pen, _)| pen),
@@ -155,10 +170,13 @@ fn a_second_session_warms_up_then_meets_combined_lines_with_their_instructions()
 }
 
 #[test]
-fn a_warm_up_tells_no_instructions_after_a_session_still_open() {
-    let session = after_first(false);
-    let warm_up = (Some(Family::Line), true, (1, 4), None);
-    assert_eq!(shown(&session), warm_up, "its kinds were met, so known");
+fn a_kind_compared_on_a_sheet_still_open_is_told_too() {
+    let mut session = after_first(false);
+    for _ in 0..4 {
+        practise(&mut session, PracticeIntent::Next(VIEWPORT));
+    }
+    let line = (first_kind(0), false, (1, 6), None);
+    assert_eq!(shown(&session), line, "its kinds were compared, so known");
 }
 
 #[test]

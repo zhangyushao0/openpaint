@@ -24,12 +24,9 @@ texts! { PRACTICE_COLOUR;
     OUT_OF_ORDER = "Out of order", "明暗颠倒";
     COLOUR_COPIES = "Colour copies (long projects)", "色彩临摹（大作业）";
     OPEN = "Open", "打开";
-    COPIES_NOTE = "A long copy in colour, worked on whenever you like over 10 to 20 hours; it never \
-        counts as a session.",
-        "一幅慢慢画的色彩临摹，总共约 10 到 20 小时，什么时候画都行；不计入练习次数。";
-    DRILL_NEEDS_CROPS = "Colour combinations and key shifts copy crops of real pictures: import \
-        the Colour combinations or the Compositions pack under Practice packs.",
-        "色彩组合和变调都要临摹真实图片的局部：请在“素材包”下导入“色彩组合”或“构图”素材包。";
+    COPIES_NOTE = "A long copy in colour, worked on whenever you like over 10 to 20 hours; it is \
+        no lesson.",
+        "一幅慢慢画的色彩临摹，总共约 10 到 20 小时，什么时候画都行；不算作一课。";
 }
 
 /// A value scale compared (S97): how many of its cells are uneven.

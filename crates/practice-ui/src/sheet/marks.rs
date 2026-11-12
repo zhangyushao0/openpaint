@@ -197,7 +197,11 @@ pub(crate) fn show_marks(
             draw(&painter, (practice, index), mark, (marks, widths), pictures);
         }
         // A kind built from given parts has the one frame drawn in (S97).
-        if !sheet.families[index].constructed() {
+        if !sheet
+            .kinds
+            .get(index)
+            .is_some_and(|kind| kind.facts().constructed)
+        {
             painter.add(Shape::closed_line(original.to_vec(), frame));
         }
         painter.add(Shape::closed_line(copy.to_vec(), frame));

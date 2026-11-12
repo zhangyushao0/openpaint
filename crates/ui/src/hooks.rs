@@ -103,8 +103,7 @@ pub enum Page {
 }
 
 /// A mode's part of the home (S122): the home is two entrances side by side, the mode's column
-/// and the studio's artworks, and the mode's pages lie over it whole. Until S122c lays the home
-/// out so, the shell gives the column the first card's place in the grid.
+/// and the studio's artworks, and the mode's pages lie over it whole.
 pub trait HomeHook {
     /// Its page over the home, if one shows, drawn here with its own island (the top band holds
     /// nothing else then); the home's taps to `taps`. Called first in the pass.

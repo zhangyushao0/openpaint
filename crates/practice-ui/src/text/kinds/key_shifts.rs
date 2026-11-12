@@ -6,11 +6,7 @@
 use super::{COMPARE_STEP, How, KindWords, words};
 use crate::text::Language;
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "key-shift",
-    (KEY_SHIFT_EXERCISE, KEY_SHIFTS_COUNTED),
-    KEY_SHIFT,
-)];
+pub(super) const WORDS: [KindWords; 1] = [words("key-shift", KEY_SHIFT_EXERCISE, KEY_SHIFT)];
 
 const KEY_SHIFT: How = How {
     heading: SHIFT_THE_KEY,
@@ -29,15 +25,10 @@ const KEY_SHIFT: How = How {
 
 texts! { PRACTICE_KEY_SHIFTS;
     KEY_SHIFT_EXERCISE = "Key shift", "变调";
-    KEY_SHIFTS_STAGE = "Key shifts", "变调";
-    KEY_SHIFTS_COUNTED = "Key shifts", "变调";
     TENDENCY = "Tendency", "倾向色";
     GREY_VIEW = "Grey", "看黑白";
     ORIGINAL_LOCKED = "A key shift's original can't be picked: judge its colours by eye.",
         "变调的原图不能吸色：用眼睛判断它的颜色。";
-    LIGHTNESS_LEFT = "Lightness left", "明度偏离";
-    NOT_TOWARD = "Not toward the tendency", "没往倾向色走";
-    MERGED_PAIRS = "Merged", "混成一块";
     SHIFT_THE_KEY = "Shift the key", "变调";
     KEY_TRAINS = "Week 5 · a crop painted again as if seen in another light: every colour moved \
         toward a tendency, its lightness kept.",

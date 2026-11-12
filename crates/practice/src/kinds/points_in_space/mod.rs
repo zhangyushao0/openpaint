@@ -1,35 +1,42 @@
 //! Points in space (`Kind::Space`, S90, V大's 点定位): a box's face and the five tricks, their check,
-//! their How (`demo.rs`), tiles and answers as a hand draws them.
+//! their How (`demo.rs`), tiles, lessons and answers as a hand draws them.
+//!
+//! A lesson (a point about 2 minutes) holds two, the tricks in the course's order: the first
+//! level the face's centre and its halves (both by its diagonals), the second its thirds and the
+//! next face, the third a mirror with one of the four before in turn.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod space;
 pub(crate) mod space_check;
 
+use crate::course::picker::laid;
 use crate::demos::demo::Demo;
 use crate::demos::demo_points::crossed;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{FACE, TileMark, boxed};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use space::{SpaceAnswer, SpaceTask, Trick};
 use std::sync::Arc;
 
 pub(crate) struct PointsInSpace;
 
 const FACTS: [Facts; 5] = [
-    Facts::of(Family::Centre, "centre", Work::Geometry).constructed(),
-    Facts::of(Family::Halves, "halves", Work::Geometry).constructed(),
-    Facts::of(Family::Thirds, "thirds", Work::Geometry).constructed(),
-    Facts::of(Family::Step, "next-face", Work::Geometry).constructed(),
-    Facts::of(Family::Mirror, "mirror", Work::Geometry).constructed(),
+    Facts::of(Family::Centre, "centre", Tools::Drawing, 120).constructed(),
+    Facts::of(Family::Halves, "halves", Tools::Drawing, 120).constructed(),
+    Facts::of(Family::Thirds, "thirds", Tools::Drawing, 120).constructed(),
+    Facts::of(Family::Step, "next-face", Tools::Drawing, 120).constructed(),
+    Facts::of(Family::Mirror, "mirror", Tools::Drawing, 120).constructed(),
 ];
-/// How many of a trick a drill holds.
-const DRILLED: usize = 3;
+/// The first two levels' tricks; the four a mirror takes in turn at the third.
+const FIRST: [Trick; 2] = [Trick::Centre, Trick::Halves];
+const SECOND: [Trick; 2] = [Trick::Thirds, Trick::Step];
+const BESIDE: [Trick; 4] = [Trick::Centre, Trick::Halves, Trick::Thirds, Trick::Step];
 
 impl Described for PointsInSpace {
     fn code(&self) -> u8 {
@@ -89,12 +96,21 @@ impl Described for PointsInSpace {
         demo::trick(family)
     }
 
-    /// A drill: three of the one trick.
-    fn drill(&self, family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        (Trick::ALL.into_iter())
-            .filter(|trick| trick.family() == family)
-            .flat_map(|trick| std::iter::repeat_n((Kind::Space(trick), None), DRILLED))
-            .collect()
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let tricks = match level {
+            SkillLevel::First => FIRST,
+            SkillLevel::Second => SECOND,
+            SkillLevel::Third => [Trick::Mirror, BESIDE[turn.turn % BESIDE.len()]],
+        };
+        laid(tricks.map(Kind::Space))
+    }
+
+    /// The box with its front face shaded, a point on it.
+    fn glyph(&self) -> Vec<TileMark> {
+        let mut marks = vec![TileMark::Tint(FACE.to_vec(), 0.18)];
+        marks.extend(boxed([0.0, 0.0], 1.0));
+        marks.push(TileMark::Dot([20.0, 22.2]));
+        marks
     }
 
     /// A small cross on a point, a stroke along each line.

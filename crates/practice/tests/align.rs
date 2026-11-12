@@ -1,10 +1,11 @@
 //! The alignment on known cases: a copy moved and evenly sized from its original gives back that
 //! shift and scale, also drawn in pieces, shaky, overshooting or with a stray mark; a group of
 //! combined lines is fitted together, its lines drawn in any order; a turned copy is never
-//! turned back; a copy with no length gives no fit.
+//! turned back; a copy with no length gives no fit. A single shape's outline lands on its copy
+//! whatever lies inside it (S80).
 
 use openpaint_practice::{
-    Combination, CombinedLines, Fit, LineExercise, LineTier, Point, align, distance,
+    Combination, CombinedLines, Fit, LineExercise, LineTier, Point, align, align_shape, distance,
 };
 
 fn line(tier: LineTier, seed: u64) -> Vec<Point> {
@@ -186,4 +187,60 @@ fn a_copy_with_no_length_gives_no_fit() {
     assert_eq!(align(&[&original], &[]), None);
     assert_eq!(align(&[&original], &[&[[0.5, 0.5]]]), None);
     assert_eq!(align(&[&original], &[&[[0.5, 0.5], [0.5, 0.5]]]), None);
+}
+
+/// A closed outline in frame units: a vase-like shape with a neck.
+fn vase() -> Vec<Point> {
+    let mut points = Vec::new();
+    for k in 0..=120 {
+        let t = f64::from(k) / 120.0 * std::f64::consts::TAU;
+        let neck = 0.12 + 0.05 * (2.0 * t).cos().abs();
+        let r = if t.sin() < -0.5 { neck } else { 0.3 };
+        points.push([0.5 + r * t.cos(), 0.5 + 0.35 * t.sin()]);
+    }
+    points
+}
+
+#[test]
+fn a_shape_s_outline_lands_on_a_moved_and_sized_copy_whatever_lies_inside() {
+    let outline = vase();
+    let truth = Fit {
+        scale: 0.8,
+        shift: [0.07, -0.04],
+    };
+    let copy = moved(&outline, truth);
+    // Lines inside the copy: a fold down the middle, a band across, a small mark.
+    let fold: Vec<Point> = (0..20)
+        .map(|k| [0.47 + 0.002 * f64::from(k), 0.3 + 0.02 * f64::from(k)])
+        .collect();
+    let band: Vec<Point> = (0..20)
+        .map(|k| [0.35 + 0.015 * f64::from(k), 0.5])
+        .collect();
+    let mark: Vec<Point> = vec![[0.5, 0.62], [0.52, 0.64]];
+    let inside: Vec<Vec<Point>> = [fold, band, mark].iter().map(|l| moved(l, truth)).collect();
+    let mut lines: Vec<&[Point]> = vec![copy.as_slice()];
+    lines.extend(inside.iter().map(Vec::as_slice));
+    let fit = align_shape(&[&outline], &lines).expect("a fit");
+    assert!((fit.scale - truth.scale).abs() < 0.02, "{fit:?}");
+    let error = (fit.shift[0] - truth.shift[0]).hypot(fit.shift[1] - truth.shift[1]);
+    assert!(error < 0.015, "{fit:?}");
+    // Drawn in three pieces with a gap, it still lands.
+    let pieces: Vec<&[Point]> = vec![&copy[..40], &copy[45..90], &copy[95..]];
+    let fit = align_shape(&[&outline], &pieces).expect("a fit");
+    assert!((fit.scale - truth.scale).abs() < 0.03, "{fit:?}");
+    // A copy turned 12 degrees is never turned back: about its size, no turn in a fit.
+    let (cos, sin) = (12f64.to_radians().cos(), 12f64.to_radians().sin());
+    let turned: Vec<Point> = (outline.iter())
+        .map(|p| {
+            let [x, y] = [p[0] - 0.5, p[1] - 0.5];
+            [0.5 + cos * x - sin * y, 0.5 + sin * x + cos * y]
+        })
+        .collect();
+    let fit = align_shape(&[&outline], &[&turned]).expect("a fit");
+    assert!((fit.scale - 1.0).abs() < 0.1, "{fit:?}");
+    assert_eq!(
+        align_shape(&[&outline], &[&[[0.5, 0.5]]]),
+        None,
+        "no extent"
+    );
 }

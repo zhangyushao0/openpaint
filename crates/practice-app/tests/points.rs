@@ -1,7 +1,7 @@
 //! Stage 3 on a practice sheet (S90): an estimate marked with the pens and compared against its
 //! exact answer (the last mark read, its error kept at the first Compare, a correction read in its
-//! place), an angle's line, a point in space marked on its box's face; never aligned; and the log
-//! beginning stage 3's sessions.
+//! place), an angle's line, a point in space marked on its box's face; never aligned; and a
+//! lesson of estimates as the path starts it.
 
 mod support;
 
@@ -13,10 +13,12 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Compared, Estimate, Exercise, Family, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off,
-    Original, Plan, Point, Sheet, SpaceAnswer, SpaceCompared, Trick, value,
+    Compared, Estimate, Exercise, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off,
+    Original, Point, Skill, SkillLevel, SpaceAnswer, SpaceCompared, Trick, value,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
+use openpaint_practice_app::{
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start,
+};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -26,30 +28,21 @@ const VIEWPORT: Viewport = Viewport {
 };
 
 fn opened() -> Session {
-    let plan = Plan {
-        exercises: vec![
-            Exercise::generated(Kind::Flat(Estimate::Point), 0x5EED_0090),
-            Exercise::generated(Kind::Flat(Estimate::Angle), 0x5EED_0091),
-            Exercise::generated(Kind::Space(Trick::Centre), 0x5EED_0092),
-        ],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 3, 0, plan);
+    let exercises = vec![
+        Exercise::generated(Kind::Flat(Estimate::Point), 0x5EED_0090),
+        Exercise::generated(Kind::Flat(Estimate::Angle), 0x5EED_0091),
+        Exercise::generated(Kind::Space(Trick::Centre), 0x5EED_0092),
+    ];
+    let record = support::laid(exercises, 0);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &[], [width, height]);
+    let opening = support::opening(&record, (&[], Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let tally = openpaint_practice::Tally::default();
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, Vec::new(), view, tally),
-        &VIEWPORT,
-    )
+    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (frame units of `frame`), sampled finely.
@@ -107,12 +100,9 @@ fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
 fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     let mut session = opened();
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Point));
-    assert_eq!(
-        practice.instructions,
-        Some(Family::Point),
-        "told the first time"
-    );
+    let point = Kind::Flat(Estimate::Point);
+    assert_eq!(practice.kind, Some(point));
+    assert_eq!(practice.how, Some(point), "told the first time");
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
@@ -160,7 +150,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Angle));
+    assert_eq!(practice.kind, Some(Kind::Flat(Estimate::Angle)));
     let frame = practice.sheet.pairs[1].copy;
     let Original::Flat(flat @ Flat::Angle { .. }) = *practice.original.as_deref().expect("in hand")
     else {
@@ -178,7 +168,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     assert!(off.abs() < 0.5, "drawn along the answer: {off}");
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Centre));
+    assert_eq!(practice.kind, Some(Kind::Space(Trick::Centre)));
     let frame = practice.sheet.pairs[2].copy;
     let Original::Space(task) = practice.original.as_deref().expect("in hand") else {
         panic!("a point in space")
@@ -250,21 +240,18 @@ fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
 }
 
 #[test]
-fn the_log_begins_stage_three_and_offers_it_after_stage_two() {
+fn a_lesson_of_estimates_and_one_of_points_in_space_start_at_a_level_without_a_pack() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    let (record, title) = log.begin((3, None), 0x5EED_0090, 1_791_900_000);
-    assert_eq!((record.stage(), log.number(&record)), (Some(3), 1));
-    assert_eq!(title.as_str(), "Practice 1");
-    let families: Vec<Family> = record
-        .exercises()
-        .map(|l| &l.exercise)
-        .map(|e| e.kind.family())
-        .collect();
-    assert_eq!(
-        families[..3],
-        [Family::Point, Family::Proportion, Family::Angle]
-    );
-    // No pack: no shapes, no crop for a combination (S101); the solids last.
-    assert_eq!(families.last(), Some(&Family::Cone));
-    assert!(log.today().ready >= 3);
+    for key in ["estimates", "points-in-space"] {
+        let skill = Skill::of_key(key).expect("a skill");
+        let start = Start::At(skill, SkillLevel::Second);
+        let (record, title) = (log.start(start, 0x5EED_0090, 1_791_900_000)).expect(key);
+        assert_eq!(title.as_str(), "Lesson 1");
+        let laid: Vec<_> = record.exercises().collect();
+        assert!(!laid.is_empty() && laid.len() <= 6, "{key}");
+        for laid in laid {
+            assert_eq!(Skill::of(laid.exercise.kind), Some(skill), "{key}");
+            assert_eq!(laid.level, SkillLevel::Second.code(), "{key}");
+        }
+    }
 }

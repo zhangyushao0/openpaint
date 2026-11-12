@@ -14,9 +14,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
-    Arrangement, Exercise, Given, Kind, LineTier, Pack, Plan, ScaleTone, Sheet,
+    Arrangement, Exercise, Given, Kind, LineTier, Pack, Picked, Planned, Purpose, ScaleTone, Sheet,
+    SkillLevel,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection, SheetView};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -127,15 +128,10 @@ fn opened(record: Sheet, packs: &[Pack], toolbox: &Toolbox) -> Session {
     let record = record.framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(
-        &record,
-        &Given::of_sheet(&record, packs),
-        packs,
-        ([width, height], &Title::untitled(), 1),
-    );
+    let log = PracticeLog::new(Vec::new(), Vec::new(), packs.to_vec());
+    let printed = Given::of_sheet(&record, packs);
+    let opening = log.practising(&record, &printed, ([width, height], &Title::untitled()));
     let brush = toolbox.style().expect("style");
-    let tally = openpaint_practice::Tally::default();
-    let opening = (record, Vec::new(), view, tally);
     let mut session =
         openpaint_practice_app::open_sheet(sheet, (brush, pens()), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
@@ -144,13 +140,14 @@ fn opened(record: Sheet, packs: &[Pack], toolbox: &Toolbox) -> Session {
 
 fn session_of(kinds: &[Kind], toolbox: &Toolbox) -> Session {
     let exercises = (kinds.iter())
-        .map(|kind| Exercise::generated(*kind, 0x5EED_0100))
+        .map(|kind| (Exercise::generated(*kind, 0x5EED_0100), SkillLevel::First))
         .collect();
-    let plan = Plan {
-        exercises,
+    let picked = Picked::Full {
+        stage: 1,
         warm_up: 0,
     };
-    opened(Sheet::session(1, 2, 0, plan), &[], toolbox)
+    let planned = Planned { picked, exercises };
+    opened(Sheet::begun(1, (Purpose::Day, 0), planned), &[], toolbox)
 }
 
 fn practise(session: &mut Session, intent: PracticeIntent) {

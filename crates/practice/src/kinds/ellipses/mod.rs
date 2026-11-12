@@ -1,27 +1,39 @@
 //! Ellipses (`Kind::Ellipse`, S84): the fit of a hand's ellipse and its check. The guide and its
 //! exact ellipse are `geometry/ellipse.rs`; its How `demo.rs`.
+//!
+//! A lesson (an ellipse about a minute): the first level four, in a plain frame and in a square
+//! in perspective by turns (stage 2's drills), the second five, three of them in perspective,
+//! the third five in perspective, whose tilt and roundness the plane sets.
 
 pub(crate) mod demo;
 pub(crate) mod ellipse_check;
 pub(crate) mod marks;
 
+use crate::course::picker::{laid, turned};
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::{EllipseGuide, Guide};
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, curve, line};
 use crate::packs::pack::ItemRef;
-use crate::sessions::drill::turned;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use std::sync::Arc;
 
 pub(crate) struct Ellipses;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Ellipse, "ellipse", Work::Geometry).constructed()];
-/// How many ellipses a drill holds.
-const DRILLED: usize = 4;
+const FACTS: [Facts; 1] = [Facts::of(Family::Ellipse, "ellipse", Tools::Drawing, 60).constructed()];
+/// The first level's ellipses; the others'.
+const FIRST: usize = 4;
+const SECOND: [Guide; 5] = [
+    Guide::Plane,
+    Guide::Frame,
+    Guide::Plane,
+    Guide::Frame,
+    Guide::Plane,
+];
+const THIRD: [Guide; 5] = [Guide::Plane; 5];
 
 impl Described for Ellipses {
     fn code(&self) -> u8 {
@@ -70,9 +82,12 @@ impl Described for Ellipses {
         Some(demo::ellipse())
     }
 
-    /// A drill: four ellipses, their guides in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        turned((&Guide::ALL, DRILLED), turn, Kind::Ellipse)
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        match level {
+            SkillLevel::First => turned((&Guide::ALL, FIRST), turn, Kind::Ellipse),
+            SkillLevel::Second => laid(SECOND.map(Kind::Ellipse)),
+            SkillLevel::Third => laid(THIRD.map(Kind::Ellipse)),
+        }
     }
 
     /// An ellipse in a square in perspective.

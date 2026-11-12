@@ -4,8 +4,8 @@
 //! the lines shown.
 
 use openpaint_practice::{
-    Book, Day, Family, First, ItemRef, LineShown, Metric, PAUSE, STAGE_SESSIONS, Seal, Sheet, Span,
-    Tally, earned, practised, sealed, seconds, stage_one,
+    Book, Day, Family, First, ItemRef, Judge, Learner, LineShown, Metric, Outcome, PAUSE, Pictures,
+    Purpose, Seal, Sheet, Span, Standing, Tally, earned, practised, schedule, sealed, seconds,
 };
 
 /// 2026-10-05 12:00 UTC, a Monday.
@@ -14,8 +14,16 @@ const DAY: u64 = 86_400;
 /// The device's offset in Beijing, minutes.
 const BEIJING: i32 = 8 * 60;
 
+/// Unit 1's full lesson for a learner who has practised nothing: five lines, four groups and four
+/// colours.
 fn session(id: u64, started: u64) -> Sheet {
-    Sheet::session(id, 1, started, stage_one(0x5EED_0045 + id, &[]))
+    let (pictures, learner) = (Pictures::default(), Learner::default());
+    let standing = Standing {
+        pictures: &pictures,
+        learner: &learner,
+    };
+    let planned = schedule::full(1, 0x5EED_0045 + id, &standing).expect("unit 1's");
+    Sheet::begun(id, (Purpose::Day, started), planned)
 }
 
 /// The index of `session`'s `nth` exercise of `family`.
@@ -123,7 +131,7 @@ fn a_copy_painted_over_two_days_shows_on_both() {
     );
 }
 
-/// A finished session of stage 1 holding `lines` single lines and `colours` colours compared,
+/// A finished full lesson of unit 1 holding `lines` single lines and `colours` colours compared,
 /// each colour's first pick `first` off, practised `minutes`.
 fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> Sheet {
     let at = NOON + id * DAY;
@@ -149,32 +157,31 @@ fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> 
 }
 
 #[test]
-fn seals_are_earned_from_what_was_done_and_stamp_on_the_session_that_did_it() {
-    let records: Vec<Sheet> = (1..=10).map(|id| done(id, (6, 6), 0.05, 40)).collect();
+fn seals_are_earned_from_what_was_done_and_stamp_on_the_lesson_that_did_it() {
+    let records: Vec<Sheet> = (1..=10).map(|id| done(id, (5, 4), 0.05, 40)).collect();
     let seals = earned(&records);
     let by = |seal: Seal| seals.iter().find(|e| e.seal == seal).map(|e| e.by);
     assert_eq!(by(Seal::FirstSession), Some(1));
     assert_eq!(by(Seal::TenSessions), Some(10));
-    assert_eq!(by(Seal::HundredLines), None, "60 lines");
-    assert_eq!(by(Seal::FirstCopy), None);
+    assert_eq!(by(Seal::HundredLines), None, "50 lines");
+    assert_eq!((by(Seal::FirstCopy), by(Seal::Stage(1))), (None, None));
     let others = Tally::of(&records[..9]);
     assert_eq!(sealed(&others, &records[9]), [Seal::TenSessions]);
     assert!(
         sealed(&Tally::of(&records), &records[9]).is_empty(),
         "earned once"
     );
-    // 400 minutes so far; four more sessions of an hour pass ten hours, and seventeen
-    // sessions of six lines make a hundred lines.
+    // 400 minutes so far; four more lessons of an hour pass ten hours, and twenty lessons of
+    // five lines make a hundred lines.
     let mut more = records.clone();
-    more.extend((11..=STAGE_SESSIONS + 2).map(|id| done(u64::from(id), (6, 1), 0.04, 60)));
+    more.extend((11..=20).map(|id| done(id, (5, 1), 0.04, 60)));
     let seals = earned(&more);
     let by = |seal: Seal| seals.iter().find(|e| e.seal == seal).map(|e| e.by);
-    assert_eq!(by(Seal::Stage(1)), Some(u64::from(STAGE_SESSIONS)));
-    assert_eq!(by(Seal::HundredLines), Some(17));
+    assert_eq!(by(Seal::HundredLines), Some(20));
     assert_eq!(
         by(Seal::TenHours),
         Some(14),
-        "400 minutes, then an hour a session"
+        "400 minutes, then an hour a lesson"
     );
     assert_eq!(by(Seal::HundredColours), None);
     let mut unfinished = done(30, (0, 0), 0.0, 1);
@@ -183,10 +190,35 @@ fn seals_are_earned_from_what_was_done_and_stamp_on_the_session_that_did_it() {
 }
 
 #[test]
-fn the_book_shows_the_road_the_first_picks_and_the_first_and_latest_lines() {
+fn a_unit_s_seal_is_earned_when_each_of_its_skills_holds_its_first_dot() {
+    // Every exercise of two full lessons of unit 1 clean: each skill's window fills.
+    let clean = |id: u64| {
+        let mut record = done(id, (0, 0), 0.0, 30);
+        for laid in record
+            .lessons
+            .iter_mut()
+            .flat_map(|l| l.exercises.iter_mut())
+        {
+            laid.result = Some((Outcome::Clean, Judge::App));
+        }
+        record
+    };
+    let records = [clean(1), clean(2)];
+    let seals = earned(&records);
+    let by = |seal: Seal| seals.iter().find(|e| e.seal == seal).map(|e| e.by);
+    assert_eq!(by(Seal::Stage(1)), Some(2));
+    assert_eq!(by(Seal::Stage(2)), None);
+    assert_eq!(
+        sealed(&Tally::of(&records[..1]), &records[1]),
+        [Seal::Stage(1)]
+    );
+}
+
+#[test]
+fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
     let mut records: Vec<Sheet> = vec![
-        done(1, (2, 6), 0.08, 30),
-        done(2, (0, 6), 0.06, 30),
+        done(1, (2, 4), 0.08, 30),
+        done(2, (0, 4), 0.06, 30),
         done(3, (1, 0), 0.0, 30),
     ];
     // An open session with a line compared: the latest.
@@ -196,9 +228,6 @@ fn the_book_shows_the_road_the_first_picks_and_the_first_and_latest_lines() {
     records.push(open);
     let book = Book::of(&records, 0);
     assert_eq!(book.sessions, 3);
-    assert_eq!(book.road.stage, 1);
-    assert_eq!(book.road.done_in(1), 3);
-    assert_eq!(book.road.done_in(2), 0);
     assert_eq!(
         book.colour,
         [0.08, 0.06],

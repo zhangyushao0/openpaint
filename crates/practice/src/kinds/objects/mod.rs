@@ -2,6 +2,11 @@
 //! construction, rules and picture, and its How. An object is V大's box simplified, so it builds
 //! on the solids (`solids/`): its answer is a solid's kind (`SolidAnswer`) and its check theirs
 //! (`SolidCheck::of_object`).
+//!
+//! A lesson holds one object (about 4.5 minutes): the first level each carve in turn (stage 4's
+//! drills' first), the second a cut or a top drawn in, slanted planes, the third a round part or a
+//! top drawn in, an ellipse or a slant on top of the box. Whether an object has one change or two
+//! is its seed's.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
@@ -16,27 +21,30 @@ pub(crate) mod object_picture;
 pub(crate) mod object_rays;
 pub(crate) mod object_rules;
 
+use crate::course::picker::{laid, turned};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::asked::Painted;
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, arc, boxed};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
-use crate::sessions::drill::turned;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::sheet_picture::SheetPicture;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
+use crate::sheets::sheet_picture::SheetPicture;
 use object::ObjectTask;
 use object_design::Carve;
 use std::sync::Arc;
 
 pub(crate) struct Objects;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Object, "objects", Work::Geometry)];
-/// How many objects a drill holds.
-const DRILLED: usize = 3;
+const FACTS: [Facts; 1] = [Facts::of(Family::Object, "objects", Tools::Drawing, 270)];
+/// The carves the first level turns through, three a lesson's place (stage 4's drills), of which
+/// it lays the first; the carves the second and the third take in turn.
+const TURNED: usize = 3;
+const SECOND: [Carve; 2] = [Carve::Cut, Carve::Taper];
+const THIRD: [Carve; 2] = [Carve::Round, Carve::Taper];
 /// The side its picture is drawn at, in pixels: one to a frame's canvas pixel.
 pub const OBJECT_SIDE: u32 = 400;
 
@@ -87,9 +95,21 @@ impl Described for Objects {
         demo::object()
     }
 
-    /// A drill: three objects, their carves in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        turned((&Carve::ALL, DRILLED), turn, Kind::Object)
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let carves = match level {
+            SkillLevel::First => {
+                let mut objects = turned((&Carve::ALL, TURNED), turn, Kind::Object);
+                objects.truncate(1);
+                return objects;
+            }
+            SkillLevel::Second => SECOND,
+            SkillLevel::Third => THIRD,
+        };
+        laid([Kind::Object(carves[turn.turn % carves.len()])])
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     /// Its picture, `OBJECT_SIDE` square (S94).

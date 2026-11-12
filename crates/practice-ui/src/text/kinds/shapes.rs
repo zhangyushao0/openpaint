@@ -1,10 +1,9 @@
-//! A single shape's words: its name, its summary's line and its How card, in V大's terms (单体图形,
+//! A single shape's words: its name and its How card, in V大's terms (单体图形,
 //! 外轮廓, 负形, 叠图对比).
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] =
-    [words("shape", (SHAPE_EXERCISE, SHAPES_COUNTED), SHAPE_HOW)];
+pub(super) const WORDS: [KindWords; 1] = [words("shape", SHAPE_EXERCISE, SHAPE_HOW)];
 
 const SHAPE_HOW: How = How {
     heading: COPY_A_SHAPE,
@@ -21,7 +20,6 @@ const SHAPE_HOW: How = How {
 
 texts! { PRACTICE_SHAPES;
     SHAPE_EXERCISE = "Shape", "单体图形";
-    SHAPES_COUNTED = "Shapes", "单体图形";
     COPY_A_SHAPE = "Copy a single shape", "临摹单体图形";
     SHAPE_TRAINS = "Weeks 1 and 2 · an object's outline as a line drawing: big shapes before \
         small turns, checked by the negative shapes.",

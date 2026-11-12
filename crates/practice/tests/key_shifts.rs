@@ -1,16 +1,16 @@
 //! Key shifts (S107): tendencies kept in their kind's code, warm or cool and never near the crop's
 //! own hue; the rule a painter shifts by (lightness kept, greys moving most, opposites a little,
 //! the lightest barely, near hues turning the short way, neighbours kept apart); the three checks
-//! on shifts made by rule and made wrong on purpose; stage 5's sessions and drills; the How.
+//! on shifts made by rule and made wrong on purpose; a lesson at each level; the How.
 //! The checks are judged by eye on real crops too: `openpaint-harness key-shifts`.
 
 use std::sync::Arc;
 
 use openpaint_practice::{
-    APART, AWAY, Areas, Arrangement, Before, Demo, Family, GeneratedAreas, ItemRef, KeyCheck, Kind,
-    LIGHTNESS_OFF, Lean, MERGED, Metric, Pack, PackItem, PictureKind, Pictures, Random, Rgb8,
-    STAGES_READY, Tendency, Tier, delta_e, drill, from_oklab, kinds_of, main_hue, oklab, oklch,
-    plan, toward, turn,
+    APART, AWAY, Areas, Arrangement, Demo, Family, GeneratedAreas, KeyCheck, Kind, LIGHTNESS_OFF,
+    Lean, Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures, Random, Rgb8,
+    Skill, SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab, main_hue, oklab, oklch,
+    schedule, toward, turn,
 };
 
 fn lab(colour: Rgb8) -> [f64; 3] {
@@ -194,68 +194,41 @@ fn crops(count: usize) -> Pack {
     }
 }
 
-fn before<'a>(met: &'a [Kind], pictures: &'a Pictures, used: &'a [ItemRef]) -> Before<'a> {
-    Before {
-        met,
-        pictures,
-        used,
-        recent: used,
-        scales: 0,
-    }
-}
-
 #[test]
-fn stage_five_is_a_warm_up_then_three_key_shifts_of_crops_their_leans_in_turn() {
-    assert_eq!(STAGES_READY, 5);
-    assert_eq!(kinds_of(5), [Family::KeyShift]);
+fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue() {
     let pictures = Pictures::of(&[crops(8)]);
-    let met = [
-        Kind::Line(openpaint_practice::LineTier::Arc),
-        Kind::Crop(Tier::Simple),
-    ];
-    let first = plan(5, 1, 0x5EED_0107, &before(&met, &pictures, &[]));
-    let shifts: Vec<Tendency> = (first.exercises.iter())
-        .filter_map(|e| match e.kind {
-            Kind::KeyShift(tendency) => Some(tendency),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(first.warm_up, 3, "three of the kinds met");
-    assert_eq!(first.exercises.len(), first.warm_up as usize + 3);
-    let leans: Vec<Lean> = shifts.iter().map(|t| t.lean).collect();
-    assert_eq!(leans, Lean::ALL[..3]);
-    let second = plan(5, 2, 0x5EED_0107, &before(&met, &pictures, &[]));
-    let leans: Vec<Lean> = (second.exercises.iter())
-        .filter_map(|e| match e.kind {
-            Kind::KeyShift(t) => Some(t.lean),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(leans, [Lean::ALL[3], Lean::ALL[0], Lean::ALL[1]]);
-    // Every key shift has its crop, none twice while others are left; the crops' main hue is
-    // orange-brown, so no warm tendency lies within `AWAY` of it.
-    let items: Vec<&ItemRef> = first
-        .exercises
-        .iter()
-        .filter_map(|e| e.picture.as_ref())
-        .collect();
-    let mut distinct = items.clone();
-    distinct.dedup();
-    assert_eq!(items.len(), distinct.len());
+    let learner = Learner::default();
+    let standing = Standing {
+        pictures: &pictures,
+        learner: &learner,
+    };
+    let skill = Skill::of_key("key-shift").expect("the key shifts");
+    assert_eq!(skill.needs(), Needs::Crops);
+    // The first level warm, the second cool, the third grey.
+    let leans = [Lean::WarmPure, Lean::CoolPure, Lean::CoolGrey];
     let main = main_hue(&crops(1).items[0].areas.clone().unwrap()).unwrap();
-    assert!(
-        shifts
-            .iter()
-            .all(|t| turn(f64::from(t.hue), main).abs() >= AWAY)
-    );
+    for (level, lean) in SkillLevel::ALL.into_iter().zip(leans) {
+        let planned = schedule::lesson(skill, level, 0x5EED_0107, &standing).expect("a lesson");
+        let [(exercise, _)] = planned.exercises.as_slice() else {
+            panic!("{level:?}: one key shift");
+        };
+        let Kind::KeyShift(tendency) = exercise.kind else {
+            panic!("{level:?}: a key shift");
+        };
+        assert_eq!(tendency.lean, lean, "{level:?}");
+        assert!(exercise.picture.is_some(), "its crop");
+        // The crops' main hue is orange-brown: no tendency lies within `AWAY` of it.
+        assert!(turn(f64::from(tendency.hue), main).abs() >= AWAY);
+    }
     // Without crops: no key shift.
     let none = Pictures::of(&[]);
-    let bare = plan(5, 1, 7, &before(&[], &none, &[]));
-    assert!(bare.exercises.is_empty());
-    // A drill: two key shifts, none without crops.
-    let drilled = drill(Family::KeyShift, 1, 7, &before(&[], &pictures, &[])).expect("a drill");
-    assert_eq!(drilled.exercises.len(), 2);
-    assert!(drill(Family::KeyShift, 1, 7, &before(&[], &none, &[])).is_none());
+    let bare = Standing {
+        pictures: &none,
+        learner: &learner,
+    };
+    assert_eq!(skill.lacks(&none), Some(Needs::Crops));
+    assert!(schedule::lesson(skill, SkillLevel::First, 7, &bare).is_none());
+    assert_eq!(skill.window(), 3, "a lesson of one");
 }
 
 #[test]

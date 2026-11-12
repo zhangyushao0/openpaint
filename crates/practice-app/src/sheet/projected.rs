@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, StrokeStyle};
-use openpaint_practice::{Lesson, summary};
 
 use super::PracticeSheet;
 use crate::projection::PracticeProjection;
@@ -13,11 +12,8 @@ impl PracticeSheet {
         let current = self.current();
         let result = current.and_then(|index| self.record.first(index));
         let compare = self.compare_offered(current, artwork);
-        let place = current.map_or((0, 0), |index| self.record.place(index));
-        let before: Vec<&Lesson> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
         let painted = self.painted_overlay();
-        let kind = current.and_then(|index| self.sheet.kinds.get(index).copied());
         let (overlay, card, greys) = current
             .and_then(|_| self.overlay())
             .map_or((None, Vec::new(), None), |(marks, card, greys)| {
@@ -27,14 +23,8 @@ impl PracticeSheet {
             sheet: Arc::clone(&self.sheet),
             revealed: self.revealed(),
             original: current.and_then(|index| self.original(index).cloned()),
-            stage: self.record.stage(),
             copy: self.record.is_copy(),
-            number: self.sheet.number,
-            drill: self.record.drilled(),
             current,
-            family: current.and_then(|index| self.family(index)),
-            warming_up: current.is_some_and(|index| self.record.warming_up(index)),
-            place,
             last: current.is_some_and(|index| self.ends(index)),
             compare,
             comparing: self.compared.is_some(),
@@ -46,10 +36,6 @@ impl PracticeSheet {
             overlay,
             card,
             greys,
-            instructions: self.instructions,
-            summary: (self.record.lesson().filter(|_| current.is_none()))
-                .map(|this| summary(this, &before)),
-            finished: self.finished(),
             notice: self.notice,
             aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
             fitting: self.fitting(),
@@ -62,8 +48,8 @@ impl PracticeSheet {
             area: painted.1,
             grey: painted.3,
             lesson: self.lesson_shown(),
-            kind,
-            how: self.instructions.and(kind),
+            kind: current.and_then(|index| self.kind(index)),
+            how: self.instructions,
             judged: self.judged(),
             end: self.end(),
         }

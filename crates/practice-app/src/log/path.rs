@@ -1,23 +1,22 @@
-//! The path from the log (S122, `crate::path`): the learner the records tell of, the units with
-//! their skills' dots, the lessons offered, a lesson started (`start`) and a sheet opened on its
-//! lesson in hand (`practising`).
-//!
-//! The skeleton's bodies. S122b: `begin`, `begin_drill`, the stage and the gallery's card go, the
-//! path is made again only as the log changes, and a sheet opens with the learner beside its
-//! lesson in hand.
+//! The path from the log (S122, `crate::path`): the learner the records tell of, the path made
+//! again as they change (the units with their skills' dots, the lessons offered, the open day's
+//! lesson), a lesson started (`start`), a sheet opened on its lesson in hand (`practising`, with
+//! what its lesson is set beside: `beside`) and each lesson's label (`rows`).
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use openpaint_app::{ProjectId, Title};
 use openpaint_practice::{
-    Given, Learner, Pictures, Purpose, Sheet, Standing, UNITS, lessons, number, schedule,
+    Given, Learner, Pictures, Purpose, Sheet, Standing, Tally, UNITS, lessons, number, schedule,
 };
 
 use super::PracticeLog;
 use crate::lesson::LessonRow;
 use crate::path::{PathProjection, SkillShown, Start, UnitShown};
+use crate::pictures::PackShown;
 use crate::projection::SheetView;
-use crate::sheet::Practising;
+use crate::sheet::{Beside, Practising};
 
 impl PracticeLog {
     /// The learner the records tell of.
@@ -39,9 +38,15 @@ impl PracticeLog {
         Learner::of(others.chain([&own]))
     }
 
-    /// The home's practice column, the path page and the practice book.
+    /// The home's practice column, the path page and the practice book, as the log last made
+    /// them.
     #[must_use]
     pub fn path(&self) -> PathProjection {
+        self.path.clone()
+    }
+
+    /// The path made again from the records, the packs and the clock.
+    pub(super) fn pathed(&mut self) {
         let pictures = Pictures::of(&self.packs);
         let learner = &self.learner;
         let standing = Standing {
@@ -61,21 +66,19 @@ impl PracticeLog {
                 skills: unit.skills.iter().copied().map(shown).collect(),
             })
             .collect();
-        let today = self.today();
         let first = learner.fresh();
-        PathProjection {
+        self.path = PathProjection {
             units,
             unit: learner.unit(&pictures),
             next: schedule::next(&standing).filter(|_| !first),
             review: schedule::review(&standing),
             first,
             open: self.open_lesson(),
-            packs: today.packs.clone(),
-            copies: today.copies.clone(),
-            pictures: Arc::clone(&today.pictures),
-            book: today.book.clone(),
-            today,
-        }
+            packs: self.packs.iter().map(PackShown::of).collect(),
+            copies: self.copies(),
+            pictures: Arc::clone(&self.pictures),
+            book: self.book(),
+        };
     }
 
     /// The day's sheet whose lesson in hand is unfinished, the newest.
@@ -120,20 +123,48 @@ impl PracticeLog {
         Some((record.framed(&self.packs), title))
     }
 
-    /// The sheet of `session` opening on its lesson in hand, on its canvas of `size` pixels,
-    /// titled `title`, what each exercise printed as `printed` holds it: what `open_sheet` takes.
-    /// The one place a `Practising` is made, so its shape is the flow's own.
+    /// The sheet of `sheet` opening on its lesson in hand, on its canvas of `size` pixels, titled
+    /// `title`, what each exercise printed as `printed` holds it: what `open_sheet` takes. The
+    /// one place a `Practising` is made.
     #[must_use]
     pub fn practising(
         &self,
-        session: &Sheet,
+        sheet: &Sheet,
         printed: &[Given],
         (size, title): ([u32; 2], &Title),
     ) -> Practising {
-        let numbered = (size, title, self.number(session));
-        let mut view = SheetView::of(session, printed, &self.packs, numbered);
-        view.rows = LessonRow::of_sheet(session, |lesson| number(&self.sheets, session, lesson));
-        let before = self.before(session);
-        (session.clone(), before, view, self.tally_beside(session))
+        let rows = self.rows(sheet);
+        Practising {
+            record: sheet.clone(),
+            view: SheetView::of(sheet, printed, &self.packs, (size, title, rows)),
+            beside: self.beside(sheet),
+            told: self.told(sheet),
+        }
+    }
+
+    /// What `sheet`'s lesson in hand is set beside: what every other lesson adds up to, the
+    /// learner every other lesson tells of and the pictures kept.
+    pub(crate) fn beside(&self, sheet: &Sheet) -> Beside {
+        Beside {
+            others: Tally::beside(&self.sheets, sheet),
+            learner: self.learner_beside(sheet),
+            pictures: Pictures::of(&self.packs),
+        }
+    }
+
+    /// Each lesson of `sheet` as its row's label names it, numbered among the learner's lessons
+    /// (`openpaint_practice::number`); none on a long colour copy's.
+    pub(crate) fn rows(&self, sheet: &Sheet) -> Vec<LessonRow> {
+        LessonRow::of_sheet(sheet, |lesson| number(&self.sheets, sheet, lesson))
+    }
+
+    /// The kinds whose How need not show by itself on `sheet`: compared on any sheet (it among
+    /// them), by their facts' keys.
+    fn told(&self, sheet: &Sheet) -> HashSet<&'static str> {
+        (self.sheets.iter().chain([sheet]))
+            .flat_map(Sheet::exercises)
+            .filter(|laid| laid.first.is_some())
+            .map(|laid| laid.exercise.kind.facts().key)
+            .collect()
     }
 }

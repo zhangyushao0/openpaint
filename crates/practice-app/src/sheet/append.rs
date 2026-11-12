@@ -2,14 +2,14 @@
 //! next lesson is laid on the same sheet from the row after the last one used, where the rows left
 //! on its canvas hold it, and the view glides to its first pair. Its record and what it prints go
 //! to the store in one write; until the store answers the record waits (`save_request`), and a
-//! write that failed rolls the lesson back: the sheet, its summary and the view as they were, the
+//! write that failed rolls the lesson back: the sheet, the end and the view as they were, the
 //! notice a failed save shows.
 
 use std::sync::Arc;
 
-use openpaint_practice::{Given, Givens, Layout, Lesson, Purpose, Sheet, Tally};
+use openpaint_practice::{Given, Givens, Layout, Lesson, Purpose, Sheet};
 
-use super::{Painting, PracticeSheet, told};
+use super::{Beside, Painting, PracticeSheet};
 use crate::log::PracticeLog;
 use crate::projection::{PracticeNotice, SheetView};
 use openpaint_app::{CanvasView, Viewport};
@@ -18,8 +18,7 @@ use openpaint_app::{CanvasView, Viewport};
 #[derive(Debug)]
 pub(super) struct Appending {
     sheet: Arc<SheetView>,
-    before: Vec<Lesson>,
-    others: Tally,
+    beside: Beside,
     view: CanvasView,
 }
 
@@ -40,32 +39,27 @@ impl PracticeSheet {
 
     /// `lesson` (as begun on a sheet of its own) and `givens`, what it prints, appended from the
     /// row after the last one used, the view `view` gliding to its first pair in `viewport`; its
-    /// number, its summary's earlier lessons and the seals beside it from `log`. Returns the
-    /// record and the givens, moved to their slots, for the store.
+    /// row's label and what it is set beside from `log`. Returns the record and the givens, moved
+    /// to their slots, for the store.
     pub(crate) fn append(
         &mut self,
         (lesson, givens): (Lesson, Givens),
         log: &PracticeLog,
         (view, viewport): (&mut CanvasView, &Viewport),
     ) -> (Sheet, Givens) {
+        let moved = self.record.append(lesson, givens);
         let kept = Appending {
             sheet: Arc::clone(&self.sheet),
-            before: std::mem::take(&mut self.before),
-            others: self.others,
+            beside: std::mem::replace(&mut self.beside, log.beside(&self.record)),
             view: *view,
         };
-        let moved = self.record.append(lesson, givens);
         let printed: Vec<Given> = (self.record.lessons.last().into_iter())
             .flat_map(|lesson| lesson.exercises.iter())
             .map(|laid| moved.of(laid.slot).cloned().unwrap_or_default())
             .collect();
-        let number = log.number(&self.record);
-        let sheet = self
-            .sheet
-            .appended(&self.record, &printed, log.packs(), number);
+        let rows = log.rows(&self.record);
+        let sheet = (self.sheet).appended(&self.record, &printed, log.packs(), rows);
         self.sheet = Arc::new(sheet);
-        self.before = log.before(&self.record);
-        self.others = log.tally_beside(&self.record);
         self.appending = Some(Box::new(kept));
         self.anew();
         *view = self.one_more_view(viewport);
@@ -88,8 +82,7 @@ impl PracticeSheet {
         }
         self.record.lessons.pop();
         self.sheet = kept.sheet;
-        self.before = kept.before;
-        self.others = kept.others;
+        self.beside = kept.beside;
         *view = kept.view;
         self.anew();
         self.notice = Some(PracticeNotice::NotSaved);
@@ -97,7 +90,6 @@ impl PracticeSheet {
 
     /// The lesson in hand shown afresh, as a sheet opening on it shows it.
     fn anew(&mut self) {
-        self.told = told(&self.record, &self.before);
         (self.compared, self.instructions, self.notice) = (None, None, None);
         (self.fit_job, self.aligned, self.construction) = (None, false, false);
         self.painting_state = Painting::default();

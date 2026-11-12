@@ -1,4 +1,4 @@
-//! The points in space's words (stage 3, V大's 点定位): his five tricks' names, summary lines and
+//! The points in space's words (stage 3, V大's 点定位): his five tricks' names and
 //! How cards, after his method in our own words (diagonals for the centre, the line to the
 //! vanishing point halving, equal parts by the near edge shown true, equal steps by the far edge's
 //! middle, a mirror by the rectangle to the middle; every point needs a reason). In his terms:
@@ -10,31 +10,11 @@ use super::{COMPARE_STEP, How, KindWords, words};
 use crate::text::Text;
 
 pub(super) const WORDS: [KindWords; 5] = [
-    words(
-        "centre",
-        (CENTRE_EXERCISE, CENTRES_COUNTED),
-        trick(Trick::Centre),
-    ),
-    words(
-        "halves",
-        (HALVES_EXERCISE, HALVES_COUNTED),
-        trick(Trick::Halves),
-    ),
-    words(
-        "thirds",
-        (THIRDS_EXERCISE, THIRDS_COUNTED),
-        trick(Trick::Thirds),
-    ),
-    words(
-        "next-face",
-        (STEP_EXERCISE, STEPS_COUNTED),
-        trick(Trick::Step),
-    ),
-    words(
-        "mirror",
-        (MIRROR_EXERCISE, MIRRORS_COUNTED),
-        trick(Trick::Mirror),
-    ),
+    words("centre", CENTRE_EXERCISE, trick(Trick::Centre)),
+    words("halves", HALVES_EXERCISE, trick(Trick::Halves)),
+    words("thirds", THIRDS_EXERCISE, trick(Trick::Thirds)),
+    words("next-face", STEP_EXERCISE, trick(Trick::Step)),
+    words("mirror", MIRROR_EXERCISE, trick(Trick::Mirror)),
 ];
 
 /// A trick's How card.
@@ -105,11 +85,6 @@ texts! { PRACTICE_POINTS_IN_SPACE;
     THIRDS_EXERCISE = "Thirds", "三等分";
     STEP_EXERCISE = "Next face", "等距扩展";
     MIRROR_EXERCISE = "Mirror", "对称点";
-    CENTRES_COUNTED = "Centres", "中心";
-    HALVES_COUNTED = "Halves", "二等分";
-    THIRDS_COUNTED = "Thirds", "三等分";
-    STEPS_COUNTED = "Next faces", "等距扩展";
-    MIRRORS_COUNTED = "Mirrors", "对称点";
     FIND_THE_CENTRE = "Find the face's centre", "找面的中心";
     HALVE_THE_FACE = "Halve the face", "把面二等分";
     THIRDS_IN_DEPTH = "Thirds in depth", "纵深三等分";

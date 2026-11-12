@@ -75,7 +75,7 @@ fn state<R>(ctx: &egui::Context, f: impl FnOnce(&mut State) -> R) -> R {
 }
 
 /// Starts a pass: the chrome's layer goes under every other surface in front.
-pub(crate) fn begin(ctx: &egui::Context) {
+pub fn begin(ctx: &egui::Context) {
     egui::Area::new(Id::new(LAYER))
         .order(Order::Foreground)
         .interactable(false)
@@ -164,7 +164,7 @@ fn closed() -> Growth {
 
 /// Ends a pass: moves every surface by the time since the last pass, then draws the chrome
 /// pass and the paper.
-pub(crate) fn finish(ctx: &egui::Context) {
+pub fn finish(ctx: &egui::Context) {
     let time = now(ctx);
     let (moving, frame) = state(ctx, |state| {
         let dt = state

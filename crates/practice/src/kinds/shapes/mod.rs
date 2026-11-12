@@ -1,29 +1,34 @@
 //! Single shapes (`Kind::Shape`): a pack picture of a tier copied as a line drawing by its outline,
 //! its ground faded in the original's frame (S99, `ground.rs`); compared by the picture and its
 //! outline laid over the copy, fitted for Aligned (`marks.rs`).
+//!
+//! A lesson holds one shape (about 3.5 minutes an easy one, 5.5 a hard one): the first level the
+//! easiest of three tiers in turn (entry mostly, as stage 2's first drills), the second a medium
+//! picture, the third a hard one; at those two every second lesson the user's own of that tier
+//! or an easier one, when they have some.
 
 pub(crate) mod demo;
 pub(crate) mod ground;
 pub(crate) mod marks;
 
+use crate::course::picker::{Picker, in_turn};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, Tools, Turn};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, line};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::sessions::drill::in_turn;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::Picker;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 
 pub(crate) struct Shapes;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Shape, "shape", Work::Lines)
+const FACTS: [Facts; 1] = [Facts::of(Family::Shape, "shape", Tools::Drawing, 240)
+    .aligned()
     .needs(Needs::Pictures)
     .grounded()];
-/// How many shapes a drill holds.
-const DRILLED: usize = 3;
+/// The tiers the first level's shape is the easiest of, three in turn (stage 2's drills).
+const TURNED: usize = 3;
 /// A jug's outline, the shape's tile.
 const JUG: [[f32; 2]; 10] = [
     [22.0, 8.0],
@@ -70,14 +75,27 @@ impl Described for Shapes {
         Some(demo::shape())
     }
 
-    /// A drill: three tiers in turn from entry to hard, easiest first, the last the user's own of
-    /// the hardest or an easier one when they have one (as stage 2's); fewer, or none, where no
-    /// picture of a tier is left.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        let mut tiers = in_turn(&Tier::ALL, turn.turn, DRILLED);
-        tiers.sort();
-        let mut picker = Picker::new(turn.seed, turn.before, tiers[tiers.len() - 1]);
-        picker.shapes(&tiers)
+    /// None where no picture is left.
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let tier = match level {
+            SkillLevel::First => {
+                let mut tiers = in_turn(&Tier::ALL, turn.turn, TURNED);
+                tiers.sort();
+                let mut picker = Picker::new(turn, tiers[tiers.len() - 1]);
+                let mut shapes = picker.shapes(&tiers);
+                shapes.truncate(1);
+                return shapes;
+            }
+            SkillLevel::Second => Tier::Medium,
+            SkillLevel::Third => Tier::Hard,
+        };
+        let mut picker = Picker::new(turn, tier);
+        let own = picker.has_own() && turn.turn % 2 == 1;
+        picker.shape(tier, own).into_iter().collect()
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

@@ -1,4 +1,4 @@
-//! The screen: the canvas (or the gallery) on the whole screen, with the controls floating over
+//! The screen: the canvas (or the home) on the whole screen, with the controls floating over
 //! it as islands (D40). On the canvas: Gallery and Actions in the left island; Brush, Eraser,
 //! Layers and the colour in the right one; a notice (a failed save or open, an export, the
 //! reference image) in a pill left of it; the side bar (size, eyedropper, opacity, undo, redo)
@@ -6,8 +6,8 @@
 //! and brush panels under the islands, one at a time. While the fingers move the view, a quiet
 //! pill in the top band tells its zoom and turn, then fades. The pen hovering over the canvas
 //! shows the brush's outline, the eraser shows it while it erases, and a contact picking a
-//! colour shows the loupe (`pen_marks`). In the gallery: its name, "+" in an island, the cards.
-//! What comes and goes moves (D44): panels, pills, dialogs, the loupe and the reference window
+//! colour shows the loupe (`pen_marks`). On the home: a mode's column beside the studio's cards,
+//! "+" and the search in the top band (`home/`). What comes and goes moves (D44): panels, pills, dialogs, the loupe and the reference window
 //! grow out of where they come from; an artwork grows out of its card and goes back into it; a
 //! quick pinch settles the view at fit. A mode's screens come in through the frame's hooks
 //! (`hooks.rs`), each called where its part of the screen lies.
@@ -27,7 +27,7 @@ use crate::components::{
 use crate::copy_bar::CopyBar;
 use crate::design::motion::OPEN;
 use crate::drop_bar;
-use crate::gallery::GalleryScreen;
+use crate::home::HomeScreen;
 use crate::hooks::{CanvasHook, Chrome, HomeHook, Hooks};
 use crate::panels::Panels;
 use crate::pen_marks;
@@ -50,7 +50,7 @@ pub(crate) use shown::Shown;
 /// The screen's UI-local state between frames.
 #[derive(Debug, Default)]
 pub struct Shell {
-    /// Where the canvas shows and fits, or the gallery's cards.
+    /// Where the canvas shows and fits, or the home.
     canvas: Option<CanvasArea>,
     showing: Showing,
     shown: Option<Shown>,
@@ -78,7 +78,7 @@ pub struct Shell {
     drop_bar: Option<ScreenArea>,
     /// Where the top islands and the notice pill lie, from the last pass.
     islands: Vec<ScreenArea>,
-    gallery: GalleryScreen,
+    home: HomeScreen,
     /// Intents from taps on the chrome since the last `route` (a mode keeps its own).
     taps: Vec<Intent>,
     /// The view the screen shows while it settles, and the artwork on its way from its card.
@@ -126,7 +126,7 @@ impl Shell {
             }
             ScreenProjection::Canvas(session) => self.canvas_screen(ui, session, canvas),
             ScreenProjection::Gallery(projection) => {
-                (self.gallery).show(ui, projection, (home, &mut self.taps))
+                (self.home).show(ui, projection, (home, &mut self.taps))
             }
         };
         self.canvas = Some(CanvasArea::from_points(rect, self.pixels_per_point));
@@ -141,14 +141,14 @@ impl Shell {
         &self.controls
     }
 
-    /// A new screen starts with its panels and dialogs closed (a mode's in the gallery too,
-    /// `gallery`). An artwork opened from its card grows out of it; the canvas left goes back
+    /// A new screen starts with its panels and dialogs closed (a mode's on the home too,
+    /// `home`). An artwork opened from its card grows out of it; the canvas left goes back
     /// into its card.
     fn switch(
         &mut self,
         ctx: &egui::Context,
         showing: Showing,
-        gallery: Option<&mut (dyn HomeHook + '_)>,
+        home: Option<&mut (dyn HomeHook + '_)>,
     ) {
         chrome::forget(ctx);
         self.panels.close();
@@ -161,20 +161,20 @@ impl Shell {
         self.view.stop();
         match (self.showing, showing) {
             (Showing::Gallery, _) => {
-                self.opening = self.gallery.take_opening();
+                self.opening = self.home.take_opening();
                 self.came_from = self.opening.as_ref().and_then(|opening| opening.id);
             }
             (Showing::Canvas, Showing::Gallery) => {
                 // The last canvas pass's: a mode's sheet goes back into the mode's card.
                 let card = self.shown.is_some_and(|shown| shown.mode);
                 if let Some(from) = self.shown_at.take() {
-                    self.gallery.arrive(from, (self.came_from, card));
+                    self.home.arrive(from, (self.came_from, card));
                 }
             }
             _ => {}
         }
         if showing != Showing::Starting {
-            self.gallery.back(gallery);
+            self.home.back(home);
         }
         self.showing = showing;
     }
@@ -300,9 +300,9 @@ impl Shell {
         self.now_ms = now_ms;
     }
 
-    /// The device's offset from UTC in minutes, for the dates the gallery shows.
+    /// The device's offset from UTC in minutes, for the dates the home shows.
     pub fn set_utc_offset(&mut self, minutes: i32) {
-        self.gallery.utc_offset = minutes;
+        self.home.utc_offset = minutes;
     }
 
     /// The app's version and storage format, which Actions' last line shows.
@@ -353,7 +353,7 @@ impl Shell {
         self.moving
     }
 
-    /// The system's back button: from the canvas it goes to the gallery; in the gallery it
+    /// The system's back button: from the canvas it goes to the home; on the home it
     /// closes an open dialog (a mode's through `hooks`). Returns whether it was used; otherwise
     /// the system's back applies.
     pub fn back(&mut self, projection: &ScreenProjection, hooks: Hooks<'_>) -> bool {
@@ -364,7 +364,7 @@ impl Shell {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
                 true
             }
-            ScreenProjection::Gallery(_) => self.gallery.back(hooks.home),
+            ScreenProjection::Gallery(_) => self.home.back(hooks.home),
             ScreenProjection::Starting => false,
         }
     }

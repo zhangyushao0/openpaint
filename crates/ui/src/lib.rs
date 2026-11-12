@@ -23,7 +23,7 @@ mod copy_bar;
 pub mod dates;
 pub mod design;
 mod drop_bar;
-mod gallery;
+mod home;
 mod hooks;
 mod layer_drag;
 mod layer_options;

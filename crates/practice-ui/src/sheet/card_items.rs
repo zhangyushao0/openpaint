@@ -3,22 +3,18 @@
 //! Construction (看画法) and Grey (看黑白), how strongly the original shows (a slider), a chip for
 //! each area (the original's colour over yours, failing ones outlined red, a tap choosing one), a
 //! lightness bar (the original's tick over it, yours under it, red when off, the two in numbers
-//! with their difference) and a division's table of its levels; and, in a session's summary, the
-//! combinations' and scales' means beside the earlier sessions'.
+//! with their difference) and a division's table of its levels.
 
 use egui::{Align2, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, TextStyle, Vec2};
-use openpaint_practice::{
-    KindSummary, LIGHTNESS_OFF, Level, LevelRow, MOST_MAIN, Rgb8, Say, from_oklab, oklab,
-};
+use openpaint_practice::{LIGHTNESS_OFF, Level, LevelRow, MOST_MAIN, Rgb8, Say, from_oklab, oklab};
 use openpaint_practice_app::PracticeIntent;
 
 use openpaint_ui::components::{
-    Choices, SettingSlider, card_columns, card_text, choices, controls, setting_slider, text_choice,
+    Choices, SettingSlider, card_text, choices, controls, setting_slider, text_choice,
 };
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, Outline, PANEL, SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
 
-use super::card::metric_text;
 use super::marks::{colour, level_colour};
 use crate::palette::CORRECTION;
 use crate::text::{self as t, Language, Text, Words, language};
@@ -219,26 +215,5 @@ fn row(
     for (text, colour, before) in columns {
         let at = egui::pos2(rect.right() - before, middle);
         painter.text(at, Align2::RIGHT_CENTER, text, font.clone(), colour);
-    }
-}
-
-/// The summary's rows of the kinds it does not judge (colour combinations, value scales: S109b,
-/// their head their kind's words'): this session's means beside the earlier sessions'.
-pub(crate) fn summary_rows(ui: &mut egui::Ui, kinds: &[KindSummary]) {
-    let language = language(ui.ctx());
-    let shown = |kind: &&KindSummary| !kind.rows.is_empty() && kind.judgement.is_none();
-    for kind in kinds.iter().filter(shown) {
-        let Some(head) = t::kind_words(kind.family).rows else {
-            continue;
-        };
-        let heads = [head, t::THIS_SESSION, t::BEFORE].map(|head| head.get(language));
-        card_columns(ui, &heads, true);
-        for (metric, this, before) in &kind.rows {
-            let shown = |mean: &Option<f64>| {
-                mean.map_or_else(|| "—".to_owned(), |v| metric_text(*metric, v))
-            };
-            let name = t::metric(*metric).get(language);
-            card_columns(ui, &[name, &shown(this), &shown(before)], false);
-        }
     }
 }

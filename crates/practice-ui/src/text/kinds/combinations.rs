@@ -1,14 +1,11 @@
-//! A colour combination's words: its name, its summary's line and rows' head, and its How card,
+//! A colour combination's words: its name and its How card,
 //! after V大's method in our own words (squint for the overall tone and cover the frame first, the
 //! big areas by colour, each against its neighbours, weak contrasts kept weak), its pens named in
 //! the order its hand uses them (S100). In his terms: 色彩组合, 眯眼, 色调, 弱对比, 叠图对比.
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [KindWords {
-    rows: Some(COMBINATIONS),
-    ..words("combination", (AREAS_EXERCISE, COMBINATIONS_COUNTED), AREAS)
-}];
+pub(super) const WORDS: [KindWords; 1] = [words("combination", AREAS_EXERCISE, AREAS)];
 
 /// A combination's How names its pens in the order its hand uses them (S100).
 const AREAS: How = How {
@@ -27,8 +24,6 @@ const AREAS: How = How {
 
 texts! { PRACTICE_COMBINATIONS;
     AREAS_EXERCISE = "Colour combination", "色彩组合";
-    COMBINATIONS_COUNTED = "Colour combinations", "色彩组合";
-    COMBINATIONS = "Combinations", "色彩组合";
     AREAS_TRAINS = "Week 2 · a corner of a rusted old thing or an abstract painting, a few colours \
         side by side: the overall tone first, each judged against its neighbours.",
         "第 2 周 · 生锈旧物或抽象画的一角，几块颜色挨在一起：先定整体色调，每块都和相邻的比。";

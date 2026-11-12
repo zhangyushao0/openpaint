@@ -1,6 +1,9 @@
 //! Solids in boxes (`Kind::Solid`, S93): a cylinder, a cone or a sphere, its exact answer, its
 //! check (an object's too: objects are boxes simplified, their answer and check these, `objects/`)
-//! and its How.
+//! and its How, and its lessons.
+//!
+//! A lesson (a solid about 2.5 minutes) holds two, in V大's order: the first level cylinders, the
+//! second cones, the third a sphere with a cylinder or a cone in turn.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
@@ -8,27 +11,28 @@ pub(crate) mod solid;
 pub(crate) mod solid_answer;
 pub(crate) mod solid_check;
 
+use crate::course::picker::laid;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, arc};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use solid::{Solid, SolidTask};
 use std::sync::Arc;
 
 pub(crate) struct Solids;
 
 const FACTS: [Facts; 3] = [
-    Facts::of(Family::Cylinder, "cylinder", Work::Geometry).constructed(),
-    Facts::of(Family::Cone, "cone", Work::Geometry).constructed(),
-    Facts::of(Family::Sphere, "sphere", Work::Geometry).constructed(),
+    Facts::of(Family::Cylinder, "cylinder", Tools::Drawing, 150).constructed(),
+    Facts::of(Family::Cone, "cone", Tools::Drawing, 150).constructed(),
+    Facts::of(Family::Sphere, "sphere", Tools::Drawing, 150).constructed(),
 ];
-/// How many of a solid a drill holds.
-const DRILLED: usize = 3;
+/// The solids a sphere takes in turn at the third level.
+const BESIDE: [Solid; 2] = [Solid::Cylinder, Solid::Cone];
 /// An ellipse of an answer as a hand draws it once round, in pieces.
 const ROUND: usize = 48;
 
@@ -90,12 +94,14 @@ impl Described for Solids {
         demo::solid(family)
     }
 
-    /// A drill: three of the one solid (its pose by its seed).
-    fn drill(&self, family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        (Solid::ALL.into_iter())
-            .filter(|solid| solid.family() == family)
-            .flat_map(|solid| std::iter::repeat_n((Kind::Solid(solid), None), DRILLED))
-            .collect()
+    /// Each solid's pose by its seed.
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let solids = match level {
+            SkillLevel::First => [Solid::Cylinder; 2],
+            SkillLevel::Second => [Solid::Cone; 2],
+            SkillLevel::Third => [Solid::Sphere, BESIDE[turn.turn % BESIDE.len()]],
+        };
+        laid(solids.map(Kind::Solid))
     }
 
     /// Once round each ellipse, a stroke along each side.

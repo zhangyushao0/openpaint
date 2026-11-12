@@ -11,7 +11,8 @@ use egui::{Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
 use crate::components::{Choices, choices, controls};
 use crate::design::{
-    INK, INK_ACTIVE, INK_DISABLED, Outline, SPACE, TOUCH_TARGET, paint_divider, paint_pressed,
+    INK, INK_ACTIVE, INK_DISABLED, MARK_LINE, Outline, SPACE, TOUCH_TARGET, paint_divider,
+    paint_pressed,
 };
 use crate::text::Words;
 
@@ -21,7 +22,7 @@ pub fn text_button<'a>(
     words: impl Into<Words<'a>>,
     enabled: bool,
 ) -> egui::Response {
-    button(ui, words.into(), (enabled, None), TOUCH_TARGET)
+    button(ui, words.into(), (enabled, None), TOUCH_TARGET, false)
 }
 
 /// A page's heading that is also a command (a brush's name, which renames it): the words
@@ -34,7 +35,7 @@ pub fn heading_button<'a>(ui: &mut egui::Ui, words: impl Into<Words<'a>>) -> egu
         if let Some(font) = heading {
             style.text_styles.insert(TextStyle::Button, font);
         }
-        button(ui, words, (true, None), TOUCH_TARGET)
+        button(ui, words, (true, None), TOUCH_TARGET, false)
     })
     .inner
 }
@@ -51,7 +52,18 @@ pub fn text_choice<'a>(
         words.into(),
         (true, Some((group, chosen))),
         TOUCH_TARGET,
+        false,
     )
+}
+
+/// The one thing to do on a page (Start, One more): a command whose word stands in its ink pill;
+/// unavailable, word and pill fade to pencil grey.
+pub fn pill_button<'a>(
+    ui: &mut egui::Ui,
+    words: impl Into<Words<'a>>,
+    enabled: bool,
+) -> egui::Response {
+    button(ui, words.into(), (enabled, None), TOUCH_TARGET, true)
 }
 
 /// As `text_choice`, at least `width` wide (options in even columns); unavailable ones grey.
@@ -62,7 +74,13 @@ pub fn text_choice_wide<'a>(
     (enabled, chosen): (bool, bool),
     width: f32,
 ) -> egui::Response {
-    button(ui, words.into(), (enabled, Some((group, chosen))), width)
+    button(
+        ui,
+        words.into(),
+        (enabled, Some((group, chosen))),
+        width,
+        false,
+    )
 }
 
 /// What lies left of two columns of words.
@@ -139,12 +157,14 @@ pub fn divider(ui: &mut egui::Ui) {
     );
 }
 
-/// `choice` is `None` for a command, its group and whether it is chosen for a choice.
+/// `choice` is `None` for a command, its group and whether it is chosen for a choice; a `pilled`
+/// command stands in its pill.
 fn button(
     ui: &mut egui::Ui,
     words: Words<'_>,
     (enabled, choice): (bool, Option<(&mut Choices, bool)>),
     min_width: f32,
+    pilled: bool,
 ) -> egui::Response {
     let sense = if enabled {
         Sense::click()
@@ -160,12 +180,14 @@ fn button(
     };
     let shown = words.shown(ui.ctx());
     let galley = ui.painter().layout_no_wrap(shown.to_owned(), font, color);
-    let width = (galley.size().x + 4.0 * SPACE).max(min_width);
+    // A pilled word stands well inside its pill.
+    let pad = if pilled { 7.0 * SPACE } else { 4.0 * SPACE };
+    let width = (galley.size().x + pad).max(min_width);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, TOUCH_TARGET), sense);
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, enabled, on, shown));
     controls::register(ui, words.id(), rect);
     // The pill holds the word, not the whole column of a wide choice.
-    let hug = Vec2::new(width.min(galley.size().x + 4.0 * SPACE), TOUCH_TARGET);
+    let hug = Vec2::new(width.min(galley.size().x + pad), TOUCH_TARGET);
     let outline = Outline::pill(Rect::from_center_size(rect.center(), hug));
     if let Some((group, true)) = choice {
         group.chosen(outline);
@@ -174,6 +196,11 @@ fn button(
         let painter = ui.painter();
         if enabled && response.is_pointer_button_down_on() {
             paint_pressed(painter, outline);
+        }
+        if pilled {
+            let line = egui::Stroke::new(MARK_LINE, color);
+            let kind = egui::StrokeKind::Middle;
+            painter.rect_stroke(outline.rect, outline.corner, line, kind);
         }
         let text = Rect::from_center_size(rect.center(), galley.size());
         painter.galley(text.min, galley, color);

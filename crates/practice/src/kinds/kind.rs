@@ -1,8 +1,8 @@
 //! What a kind is and what its description tells (S109, S109b, D111): `Kind` names an exercise's
 //! kind with what varies its look, `Described` what each kind's folder implements: its stored
-//! code, its families' facts (`facts.rs`), its generator, How, drill, givens, how its copy is
-//! compared, the picture it draws, the answer a hand would draw, its tile, its summary's colour
-//! judgement. Every call here goes through `KINDS`.
+//! code, its families' facts (`facts.rs`), its generator, How, a lesson at each level, givens, how
+//! its copy is compared, the picture it draws, the answer a hand would draw, its tile and glyph.
+//! Every call here goes through `KINDS`.
 
 use std::sync::Arc;
 
@@ -15,7 +15,6 @@ use crate::demos::demo::Demo;
 use crate::geometry::ellipse::Guide;
 use crate::geometry::perspective::{BoxView, Horizon};
 use crate::kinds::colours::colour_match::Tone;
-use crate::kinds::colours::judgement::Judgement;
 use crate::kinds::combined_lines::combined::Combination;
 use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::key_shifts::key_shift::Tendency;
@@ -30,11 +29,10 @@ use crate::marks::mark::SheetMark;
 use crate::marks::tile::TileMark;
 use crate::maths::path::Point;
 use crate::packs::pack::{ItemRef, Tier};
-use crate::records::metric::Metrics;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::Before;
-use crate::sessions::sheet_picture::SheetPicture;
+use crate::packs::pictures::Pictures;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
+use crate::sheets::sheet_picture::SheetPicture;
 
 /// The kind of an exercise, with what varies its look; each variant's folder in `kinds/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -135,11 +133,15 @@ impl Kind {
     }
 }
 
-/// A lesson's (a drill's) place among its skill's (from 0), its seed and what came before it.
+/// A lesson's place among its skill's (from 0), its seed, the pictures kept, those every earlier
+/// lesson showed (what it picks others than) and those the last `RECENT` lessons showed (what a
+/// composition is picked others than).
 pub(crate) struct Turn<'a> {
     pub(crate) turn: usize,
     pub(crate) seed: u64,
-    pub(crate) before: &'a Before<'a>,
+    pub(crate) pictures: &'a Pictures,
+    pub(crate) used: &'a [ItemRef],
+    pub(crate) recent: &'a [ItemRef],
 }
 
 /// What a kind's folder tells of it (S109, S109b, D111).
@@ -167,39 +169,30 @@ pub(crate) trait Described: Sync {
     fn how_of(&self, family: Family, _cells: usize) -> Option<Demo> {
         self.how(family)
     }
-    /// A drill of `family` at `turn` (S91, D110): its kinds and their pictures; none for a kind
-    /// no stage drills.
-    fn drill(&self, _family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        Vec::new()
-    }
     /// The key it goes by as a skill (`Skill::key`): its one topic's, or its own where it holds
     /// several topics.
     fn key(&self) -> &'static str {
         self.facts().first().map_or("", |facts| facts.key)
     }
     /// How many of its last judged exercises at its level its next dot is earned from
-    /// (`Skill::window`).
-    ///
-    /// Skeleton body: 6. S122a: 3 in a folder whose lesson holds one exercise.
+    /// (`Skill::window`): 6, or 3 in a folder whose lesson holds one exercise.
     fn window(&self) -> usize {
         6
     }
     /// A lesson of it at `level`, the `turn`th of its skill (S122): its kinds and their pictures,
-    /// 1 to 6 exercises by its minutes (6 lines, 3 colours, 1 whole copy); none where it finds no
-    /// picture to practise on. A level is harder variants, mixing or volume, the folder's own to
-    /// say. Exercise `i` is seeded `derived(seed, i)` (`session::seeded`).
+    /// 1 to 6 exercises by its minutes (6 lines, 3 colours, 1 whole copy), about four to five
+    /// minutes; none for a kind that is no skill, or where it finds no picture to practise on.
+    /// The first level is its plainest variants, the second harder ones or its topics mixed, the
+    /// third its hardest, mixed, at the lesson's full count; a folder of several topics spreads
+    /// them over the levels in the course's order. Exercise `i` is seeded `derived(seed, i)`
+    /// (`schedule::lesson`).
     ///
     /// The First-prefix rule: at `SkillLevel::First` a folder of one topic lays a prefix of what
-    /// its `drill` laid at the same turn (the same kinds in the same order), so a sheet started
-    /// before and after S122a holds the same first exercises.
-    ///
-    /// Skeleton body: its first topic's drill at every level. S122a: each folder's own, and
-    /// `drill` goes.
-    fn lesson(&self, _level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        match self.facts().first() {
-            Some(facts) => self.drill(facts.family, turn),
-            None => Vec::new(),
-        }
+    /// its drill laid at the same turn before S122 (the same kinds in the same order, its pictures
+    /// picked alike), so a sheet started before and after S122 holds the same first exercises
+    /// (`tests/course.rs` pins them).
+    fn lesson(&self, _level: SkillLevel, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        Vec::new()
     }
     /// What `exercise` gives in its frames before Compare (its `original`); a pack's picture is
     /// the sheet's to lay.
@@ -235,10 +228,12 @@ pub(crate) trait Described: Sync {
     fn tile(&self, _family: Family) -> Vec<TileMark> {
         Vec::new()
     }
-    /// The summary's judgement of `results` of its family (a colour's radar, D108); none for a
-    /// kind the summary does not judge.
-    fn judgement(&self, _results: &[(Kind, &Metrics)]) -> Option<Judgement> {
-        None
+    /// Its glyph as a skill on the path (`Skill::glyph`): its first topic's tile, or a picture of
+    /// its own where it holds several topics.
+    fn glyph(&self) -> Vec<TileMark> {
+        self.facts()
+            .first()
+            .map_or_else(Vec::new, |facts| self.tile(facts.family))
     }
 }
 

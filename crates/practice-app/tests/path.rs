@@ -1,12 +1,15 @@
-//! The path's contract in the flow (S122): what the log shows of the path before anything is
-//! practised, the lessons it starts (`Start`), and a lesson in hand as the bar, its result and
-//! its end name it. The skeleton's plumbing; S122b owns it from here.
+//! The path in the flow (S122): what the log shows of the path before anything is practised and
+//! as the records and packs change, the lessons it starts (`Start`), and the first lesson as the
+//! bar, its scribble and its end show it.
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, ProjectId, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{Given, Kind, Layout, Outcome, Picked, Sheet, Skill, SkillLevel};
+use openpaint_practice::{
+    Given, ItemRef, Kind, Layout, Needs, Outcome, Pack, PackItem, Picked, PictureKind, Sheet,
+    Skill, SkillLevel, Tier,
+};
 use openpaint_practice_app::{
     PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start, open_sheet, practise,
 };
@@ -112,11 +115,16 @@ fn the_lesson_in_hand_is_named_judged_and_ended() {
     assert!(lesson.row.first && lesson.row.skill.is_none());
     assert_eq!((lesson.row.number, lesson.row.slot), (1, 0));
     assert_eq!((lesson.place, lesson.level), ((1, 3), SkillLevel::First));
-    assert_eq!(practice.kind, Some(Kind::Free));
+    assert_eq!(
+        (practice.kind, practice.how),
+        (Some(Kind::Free), Some(Kind::Free))
+    );
     assert_eq!(practice.sheet.kinds.len(), 3);
     assert_eq!(practice.sheet.rows, [lesson.row]);
     assert!(practice.judged.is_none() && practice.end.is_none());
-    // No result is chosen while nothing is compared.
+    // A scribble has no Compare and no result; none is chosen while nothing is compared.
+    assert!(!practice.compare.is_available());
+    assert!(practise(&mut session, PracticeIntent::Compare(true), NOON + 5).is_err());
     let judge = PracticeIntent::Judge(Outcome::Clean);
     assert!(practise(&mut session, judge, NOON + 10).is_err());
     for place in 2..=3 {
@@ -128,5 +136,69 @@ fn the_lesson_in_hand_is_named_judged_and_ended() {
     let practice = shown(&session);
     let end = practice.end.expect("the lesson's end");
     assert_eq!(end.results, [(0, None), (1, None), (2, None)]);
+    assert_eq!(end.skill, None, "the first lesson's");
+    assert!(end.next.is_some(), "the lesson One more starts");
     assert!(practice.kind.is_none() && practice.lesson.is_some());
+}
+
+/// A pack of one shape's picture.
+fn shapes() -> Pack {
+    Pack {
+        id: "test-shapes".to_owned(),
+        title: "Test shapes".to_owned(),
+        items: vec![PackItem {
+            id: "teapot".to_owned(),
+            kind: PictureKind::Shape,
+            tier: Tier::Simple,
+            size: [800, 600],
+            title: "Teapot".to_owned(),
+            credit: None,
+            outline: None,
+            masses: None,
+            areas: None,
+        }],
+    }
+}
+
+#[test]
+fn the_path_follows_the_log_as_lessons_and_packs_are_kept() {
+    let mut log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
+    let shape = Skill::of_key("shape").expect("the shapes' skill");
+    let tile = |log: &PracticeLog, skill: Skill| {
+        let path = log.path();
+        let found = (path.units.iter().flat_map(|unit| &unit.skills)).find(|t| t.skill == skill);
+        found.copied().expect("its tile")
+    };
+    assert_eq!(tile(&log, shape).lacks, Some(Needs::Pictures));
+    // The first lesson kept, unfinished: its sheet is what Start continues.
+    let (first, _) = log.start(Start::Next, 5, NOON).expect("the first lesson");
+    log.keep(Sheet {
+        canvas: 40,
+        ..first
+    });
+    let path = log.path();
+    assert!(!path.first && !log.learner().fresh());
+    assert_eq!(path.open, Some(ProjectId::new(40)));
+    let next = path.next.expect("the next lesson");
+    assert_eq!((next.level, next.redo), (SkillLevel::First, false));
+    assert!(path.review.is_none(), "no redo waits");
+    // Finished: nothing left open; the book names its row.
+    let mut done = log.session(1).expect("kept").clone();
+    done.lessons[0].finished = Some(NOON + 300);
+    log.keep(done);
+    let path = log.path();
+    assert_eq!(path.open, None);
+    let rows = &path.book.record(1).expect("in the book").rows;
+    assert!(rows.len() == 1 && rows[0].first && rows[0].number == 1);
+    // A pack kept: shapes lack nothing and a lesson of them lays its picture.
+    log.set_packs(vec![shapes()]);
+    assert_eq!(tile(&log, shape).lacks, None);
+    let (lesson, title) = (log.start(Start::Skill(shape), 6, NOON)).expect("a lesson of shapes");
+    assert_eq!(title.as_str(), "Lesson 2");
+    let teapot = ItemRef {
+        pack: "test-shapes".to_owned(),
+        item: "teapot".to_owned(),
+    };
+    let laid = lesson.exercises().next().expect("an exercise");
+    assert_eq!(laid.exercise.picture.as_ref(), Some(&teapot));
 }

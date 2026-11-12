@@ -14,13 +14,13 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    AreasCompared, Arrangement, Compared, Exercise, Family, Figure, GeneratedAreas, ItemRef, Kind,
-    Layout, Metric, Original, Pack, PackItem, Pair, PictureCompared, PictureKind, Plan,
-    ScaleCompared, ScaleTone, Sheet, Tally, Tier, ValueScale, value,
+    AreasCompared, Arrangement, Compared, Exercise, Figure, GeneratedAreas, ItemRef, Kind, Layout,
+    Metric, Original, Pack, PackItem, Pair, Picked, PictureCompared, PictureKind, ScaleCompared,
+    ScaleTone, Sheet, Tier, ValueScale, value,
 };
 use openpaint_practice_app::{
     Pen, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, Probe,
+    PracticeProjection, Probe, Start,
 };
 use support::OnSheet;
 
@@ -45,9 +45,8 @@ fn opened(record: Sheet, packs: &[Pack]) -> Session {
     let record = record.framed(packs);
     let [width, height] = Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, packs, [width, height]);
+    let opening = support::opening(&record, (packs, Vec::new()), [width, height]);
     let tools = (brush(Color::rgb(0.2, 0.4, 0.6).expect("colour")), pens());
-    let opening = (record, Vec::new(), view, Tally::default());
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
 }
 
@@ -89,14 +88,11 @@ fn colour([r, g, b]: [u8; 3]) -> Color {
 }
 
 fn colour_work() -> Session {
-    let plan = Plan {
-        exercises: vec![
-            Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
-            Exercise::generated(Kind::Scale(ScaleTone::Grey, 9), 0x5EED_0083),
-        ],
-        warm_up: 0,
-    };
-    opened(Sheet::session(1, 2, 0, plan), &[])
+    let exercises = vec![
+        Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
+        Exercise::generated(Kind::Scale(ScaleTone::Grey, 9), 0x5EED_0083),
+    ];
+    opened(support::laid(exercises, 0), &[])
 }
 
 /// The copy's frame as the runtime reads it: `pixels` of the frame's size.
@@ -130,8 +126,8 @@ fn seen(session: &Session) -> (f32, usize, bool) {
 /// picked) and compared.
 fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
     let practice = PracticeProjection::of(session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Areas));
-    assert_eq!(practice.instructions, Some(Family::Areas));
+    let patches = Some(Kind::Areas(Arrangement::Patches));
+    assert_eq!((practice.kind, practice.how), (patches, patches));
     assert_eq!(practice.pen, Some((Pen::Big, 64.0)));
     assert!(
         practice.sheet.painted[0].is_some(),
@@ -234,8 +230,12 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
     let mut session = colour_work();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Scale));
-    assert_eq!(practice.cell, Some(1), "the first cell between the ends");
+    let grey = Some(Kind::Scale(ScaleTone::Grey, 9));
+    assert_eq!(
+        (practice.kind, practice.cell),
+        (grey, Some(1)),
+        "its first cell"
+    );
     let pair = practice.sheet.pairs[1];
     let Original::Scale(scale) = *practice.original.as_deref().expect("in hand") else {
         panic!("a value scale")
@@ -312,10 +312,8 @@ fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
         pack: "personal".to_owned(),
         ..teapot()
     };
-    assert!(
-        log.begin_copy(&elsewhere, 1, 2).is_none(),
-        "a picture no pack holds"
-    );
+    let none = log.begin_copy(&elsewhere, 1, 2);
+    assert!(none.is_none(), "a picture no pack holds");
     let (mut record, title) = log.begin_copy(&teapot(), 1, 2).expect("a picture");
     assert_eq!(title.as_str(), "Colour copy 1");
     assert!(record.is_copy());
@@ -325,7 +323,8 @@ fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
     // The full interface only, painted with the toolbox's own brushes: no pen (S104).
     assert!(practice.all_tools, "the full interface");
     assert_eq!(practice.pen, None);
-    assert_eq!(practice.instructions, Some(Family::Study));
+    assert_eq!(practice.how, Some(Kind::Study));
+    assert!(practice.lesson.is_none() && practice.sheet.rows.is_empty());
     let pair = practice.sheet.pairs[0];
     assert_eq!(pair.copy.size, [1600.0, 1200.0]);
     let item = session
@@ -383,18 +382,18 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
 }
 
 #[test]
-fn a_long_colour_copy_is_kept_beside_the_sessions_and_counts_in_none() {
+fn a_long_colour_copy_is_kept_beside_the_lessons_and_counts_in_none() {
     let (mut log, record, _, _) = copy_opened();
     log.keep(record);
-    let today = log.today();
-    assert_eq!((today.stage, today.done, today.open), (1, 0, None));
-    assert_eq!(today.copies.len(), 1);
-    assert_eq!(today.copies[0].name.as_str(), "Colour copy 1");
-    assert_eq!(today.copies[0].picture, Some(teapot()));
-    let shown = today.picture(&teapot()).expect("the picture offered");
+    let path = log.path();
+    assert!(path.first && log.learner().fresh(), "no lesson");
+    let copy = &path.copies[..];
+    assert_eq!((copy.len(), copy[0].name.as_str()), (1, "Colour copy 1"));
+    assert_eq!(copy[0].picture, Some(teapot()));
+    let shown = path.picture(&teapot()).expect("the picture offered");
     assert_eq!((shown.copies, shown.sessions), (1, 0));
-    let (next, _) = log.begin((1, None), 9, 3);
-    assert_eq!((log.number(&next), next.warm_up()), (1, 0), "a first");
-    let (second, title) = log.begin_copy(&teapot(), 4, 5).expect("a picture again");
-    assert_eq!((log.number(&second), title.as_str()), (2, "Colour copy 2"));
+    let (next, _) = log.start(Start::Next, 9, 3).expect("the first lesson");
+    assert_eq!(next.lessons[0].picked, Picked::First);
+    let (_, title) = log.begin_copy(&teapot(), 4, 5).expect("a picture again");
+    assert_eq!(title.as_str(), "Colour copy 2");
 }

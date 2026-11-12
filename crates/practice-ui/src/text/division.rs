@@ -10,8 +10,6 @@ texts! { PRACTICE_DIVISION;
     THIRD_PEN = "Third", "三级分割";
     LINES_DRAWN = "Lines", "条数";
     MEAN_LENGTH = "Length", "平均长度";
-    DRILL_NEEDS_COMPOSITIONS = "Divisions and whole copies use the composition pack: import it \
-        under Practice packs.", "画面分割和整图复制要用构图素材包：请在“素材包”下导入。";
 }
 
 /// A level's pen's name, as its row on the card names it too.

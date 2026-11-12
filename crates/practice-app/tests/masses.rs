@@ -4,8 +4,8 @@
 //! runtime's worker
 //! (the answer's greys under the slider, the hatching where the copy differs, the share at the
 //! answer's value kept); a whole copy painted in colour blocks on a layer under its division, the
-//! division dimmed over them, a point of the blocks compared by the eyedropper; stage 4 from the
-//! log with value masses and whole copies in turn.
+//! division dimmed over them, a point of the blocks compared by the eyedropper; a lesson of value
+//! masses as the path starts it, only once a pack holds a composition whose masses read.
 
 mod support;
 
@@ -14,12 +14,12 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, Family, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Pack, PackItem,
-    PictureKind, Plan, Sheet, Tier, Value, ValueMasses, value,
+    Exercise, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Needs, Pack, PackItem,
+    PictureKind, Skill, SkillLevel, Tier, Value, ValueMasses, value,
 };
 use openpaint_practice_app::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent, PracticeLog,
-    PracticePens, PracticePick, PracticeProjection, value_colour,
+    PracticePens, PracticePick, PracticeProjection, Start, value_colour,
 };
 use support::OnSheet;
 
@@ -66,27 +66,16 @@ fn opened(kind: Kind) -> Session {
         }),
         ..Exercise::generated(kind, 0x5EED_0096)
     };
-    let plan = Plan {
-        exercises: vec![exercise],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 4, 0, plan);
-    let record = record.framed(&packs);
+    let record = support::laid(vec![exercise], 0).framed(&packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &packs, [width, height]);
+    let opening = support::opening(&record, (&packs, Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let tally = openpaint_practice::Tally::default();
-    let mut session = openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, Vec::new(), view, tally),
-        &VIEWPORT,
-    );
+    let mut session = openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }
@@ -122,7 +111,7 @@ fn painted(masses: &ValueMasses, [origin, size]: [[f64; 2]; 2], frame: [u32; 2])
 fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     let mut session = opened(Kind::ValueMasses(Tier::Simple));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::ValueMasses));
+    assert_eq!(practice.kind, Some(Kind::ValueMasses(Tier::Simple)));
     // Middle first: Fill frame lays the overall tone before Dark and Light (S100).
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Middle));
     assert!(practice.sheet.painted[0].is_some(), "the answer's greys");
@@ -252,30 +241,26 @@ fn a_whole_copy_in_colour_blocks_paints_under_its_division_and_compares_a_point(
 }
 
 #[test]
-fn stage_four_holds_value_masses_and_whole_copies_in_turn_and_drills_them() {
+fn a_lesson_of_value_masses_starts_once_a_pack_holds_masses_on_the_picture_whose_masses_read() {
+    let skill = Skill::of_key("value-masses").expect("value masses' skill");
+    let start = Start::At(skill, SkillLevel::First);
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![compositions()]);
-    assert!(log.today().masses);
-    let (record, _) = log.begin((4, None), 0x5EED_0096, NOW);
-    let families: Vec<Family> = record
-        .exercises()
-        .map(|l| &l.exercise)
-        .map(|e| e.kind.family())
-        .collect();
-    assert_eq!(&families[3..], [Family::Division, Family::ValueMasses]);
-    // Only the picture whose masses read is offered for value masses.
-    let masses = (record.laid(4).expect("value masses").exercise)
-        .picture
-        .as_ref()
-        .map(|item| item.item.as_str());
-    assert_eq!(masses, Some("harbour"));
-    let (drill, _) = (log.begin_drill(Family::ValueMasses, 7, NOW)).expect("a value masses drill");
-    assert_eq!(drill.exercises().count(), 3);
-    assert!(
-        drill
-            .exercises()
-            .all(|l| l.exercise.kind.family() == Family::ValueMasses)
-    );
+    let (record, _) = (log.start(start, 7, NOW)).expect("a lesson of value masses");
+    assert!(record.exercises().count() > 0);
+    for laid in record.exercises() {
+        assert_eq!(Skill::of(laid.exercise.kind), Some(skill));
+        // Only the picture whose masses read is laid for value masses.
+        let picture = laid
+            .exercise
+            .picture
+            .as_ref()
+            .map(|item| item.item.as_str());
+        assert_eq!(picture, Some("harbour"));
+    }
     let bare = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    assert!(!bare.today().masses);
-    assert!(bare.begin_drill(Family::ValueMasses, 7, NOW).is_none());
+    assert!(bare.start(start, 7, NOW).is_none());
+    let lacks = (bare.path().units.iter().flat_map(|unit| &unit.skills))
+        .find(|tile| tile.skill == skill)
+        .and_then(|tile| tile.lacks);
+    assert_eq!(lacks, Some(Needs::Masses));
 }

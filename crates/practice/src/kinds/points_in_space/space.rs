@@ -16,7 +16,7 @@ use crate::geometry::perspective::{Direction, PerspectiveBox, level, place};
 use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing, projected};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps the
 /// rules well within).

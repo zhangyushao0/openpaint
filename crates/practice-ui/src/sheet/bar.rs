@@ -1,13 +1,14 @@
-//! A practice sheet's chrome (G9): the practice bar in the middle of the top band ("Warm-up 1 of
-//! 4", "Line 3 of 6", How, Compare carrying the ink pill while the comparison shows, Next or
-//! Finish; once done "Session 3 done" and One more; on a long colour copy "Colour copy 2", How
-//! and Compare, never an end), the exercise's own tools beside its frame (`tools.rs`), and
-//! under them the card, grown out of the word that asked for it: the instructions (by
-//! themselves the first time a kind comes up), the comparison, or the session's summary
-//! (`card.rs`). The sheet itself is `marks.rs`.
+//! A practice sheet's chrome (G9, S122): the practice bar in the middle of the top band (the
+//! lesson in hand and its place, "Lines 3/5", "First lesson 2/3", "Warm-up 1/3"; How, Compare
+//! carrying the ink pill while the comparison shows, Next or Finish; a scribble Next alone; once
+//! the lesson is done "Lines · lesson done"; on a long colour copy its name, How and Compare,
+//! never an end), the exercise's own tools beside its frame (`tools.rs`), and under them the card,
+//! grown out of the word that asked for it: the How (by itself the first time a kind comes up;
+//! the first lesson's own), the comparison with its result, or the lesson's end (`card.rs`,
+//! `first.rs`, `result.rs`, `end.rs`). The sheet itself is `marks.rs` and `rows.rs`.
 
 use egui::Align;
-use openpaint_app::Viewport;
+use openpaint_app::{GalleryIntent, Intent, Viewport};
 use openpaint_practice_app::{PracticeIntent, PracticeProjection};
 use openpaint_ui::components::{
     Place, ScreenArea, Source, UNDER_ISLANDS, card, choices, divider, pill, ring_of, text_button,
@@ -16,10 +17,12 @@ use openpaint_ui::components::{
 use openpaint_ui::design::SPACE;
 use openpaint_ui::taps::push_once;
 
-use super::SheetTaps;
 use super::card as practice_card;
 use super::demo::Demonstrations;
+use super::end::{EndTap, end_card};
+use super::first::first_how;
 use super::tools::exercise_tools;
+use super::{SheetTaps, lesson_name};
 use crate::text as t;
 
 #[derive(Debug, Default)]
@@ -37,8 +40,8 @@ pub(crate) struct PracticeBar {
 impl PracticeBar {
     /// The bar, the exercise's tools (a colour's wheel the colour panel's, lent with the canvas's
     /// projection and the painting's taps) and the card on the open practice sheet, their taps
-    /// pushed to `taps`; Next moves the view within the canvas the shell lends. The tools and the
-    /// card lie at the right under the islands, in the room the view leaves them
+    /// pushed to `taps`; Next and One more move the view within the canvas the shell lends. The
+    /// tools and the card lie at the right under the islands, in the room the view leaves them
     /// (`PRACTICE_ROOM`).
     pub(crate) fn show(
         &mut self,
@@ -61,15 +64,28 @@ impl PracticeBar {
         self.tools = tools.map(|rect| ScreenArea::from_points(rect, ppp));
         let top = tools.map_or(UNDER_ISLANDS, |rect| rect.bottom() + SPACE);
         let opened = (ring_of(self.source.unwrap_or(bar)), top);
-        let card = if let Some(kinds) = &practice.summary {
-            card(ctx, "practice card", opened, |ui| {
-                practice_card::summary(ui, practice, kinds);
-            })
-            .1
-        } else if let Some(family) = practice.instructions {
-            let (demos, of) = (&mut self.demos, practice_card::how_of(practice, family));
+        let card = if let Some(end) = &practice.end {
+            let name = lesson_name(practice.lesson, practice.kind);
+            let (tapped, rect) = card(ctx, "practice card", opened, |ui| end_card(ui, end, name));
+            match (tapped, viewport) {
+                (Some(EndTap::OneMore), Some(viewport)) => {
+                    push_once(taps.sheet, PracticeIntent::OneMore(viewport));
+                }
+                (Some(EndTap::Enough), _) => {
+                    push_once(taps.lent.taps, Intent::Gallery(GalleryIntent::Show));
+                }
+                _ => {}
+            }
+            rect
+        } else if let Some(kind) = practice.how {
+            let first = practice.lesson.is_some_and(|lesson| lesson.row.first);
+            let (demos, of) = (&mut self.demos, practice_card::how_of(practice, kind));
             let (done, rect) = card(ctx, "practice card", opened, |ui| {
-                practice_card::instructions(ui, of, demos)
+                if first {
+                    first_how(ui)
+                } else {
+                    practice_card::instructions(ui, of, demos)
+                }
             });
             if done {
                 push_once(taps.sheet, PracticeIntent::Instructions(false));
@@ -96,29 +112,47 @@ impl PracticeBar {
     ) {
         // A label, then the commands, as far apart as a notice's message and its answer.
         let language = t::language(ui.ctx());
+        let name = lesson_name(practice.lesson, practice.kind);
         if practice.current.is_none() {
-            ui.label(practice_card::done_heading(language, practice));
-            ui.add_space(2.0 * SPACE);
-            divider(ui);
-            let tapped = text_button(ui, t::ONE_MORE, viewport.is_some());
-            if let (true, Some(viewport)) = (tapped.clicked(), viewport) {
-                push_once(taps, PracticeIntent::OneMore(viewport));
-            }
+            ui.label(t::lesson_done(language, name));
             return;
         }
         let study = practice.copy;
         if study {
             // Its name: its sheet's title, "Colour copy n" until renamed.
             ui.label(t::shown_name(ui.ctx(), practice.sheet.name.as_str()));
-        } else if let Some(family) = practice.family {
-            let called = (family, practice.warming_up);
-            ui.label(t::exercise_of(language, called, practice.place));
+        } else if let Some(lesson) = practice.lesson {
+            ui.label(t::in_hand(language, name, lesson.place));
         }
         ui.add_space(2.0 * SPACE);
         divider(ui);
+        // A scribble is never compared: Next alone.
+        let compared = practice.kind.is_none_or(|kind| kind.facts().compared);
+        if compared {
+            self.how_and_compare(ui, practice, taps);
+        }
+        if study {
+            // A colour copy is worked on whenever the user likes: no Next, no end.
+            return;
+        }
+        let next = if practice.last { t::FINISH } else { t::NEXT };
+        let tapped = text_button(ui, next, viewport.is_some());
+        if let (true, Some(viewport)) = (tapped.clicked(), viewport) {
+            push_once(taps, PracticeIntent::Next(viewport));
+            self.source = Some(tapped.rect);
+        }
+    }
+
+    /// How, and Compare carrying the ink pill while the comparison shows.
+    fn how_and_compare(
+        &mut self,
+        ui: &mut egui::Ui,
+        practice: &PracticeProjection,
+        taps: &mut Vec<PracticeIntent>,
+    ) {
         let how = text_button(ui, t::HOW, true);
         if how.clicked() {
-            let show = practice.instructions.is_none();
+            let show = practice.how.is_none();
             push_once(taps, PracticeIntent::Instructions(show));
             self.source = Some(how.rect);
         }
@@ -131,16 +165,6 @@ impl PracticeBar {
                 self.source = Some(compare.rect);
             }
         });
-        if study {
-            // A colour copy is worked on whenever the user likes: no Next, no end.
-            return;
-        }
-        let next = if practice.last { t::FINISH } else { t::NEXT };
-        let tapped = text_button(ui, next, viewport.is_some());
-        if let (true, Some(viewport)) = (tapped.clicked(), viewport) {
-            push_once(taps, PracticeIntent::Next(viewport));
-            self.source = Some(tapped.rect);
-        }
     }
 
     /// Where the bar, the exercise's tools and the card lie, which the canvas must not take contacts

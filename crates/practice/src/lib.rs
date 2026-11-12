@@ -1,9 +1,10 @@
 //! Practice (G9): the course's exercises as pure math. Generators lay out exercises that carry
-//! their own answers, the same for the same seed; a session draws its warm-up from the kinds met
-//! before; the alignment lays an original line or group onto a copy for Compare's overlay; colour
-//! matches, colour combinations and value scales are measured and judged; records keep what a
-//! session (or a long colour copy) did. The app turns the strokes and pixels on a practice sheet
-//! into copies and the store keeps the records.
+//! their own answers, the same for the same seed; the course is a path of units and skills, each
+//! skill's lesson laid at the learner's level and the next lesson chosen from what the records
+//! tell (`course/`); the alignment lays an original line or group onto a copy for Compare's
+//! overlay; colour matches, colour combinations and value scales are measured and judged; records
+//! keep what each lesson (or a long colour copy) did. The app turns the strokes and pixels on a
+//! practice sheet into copies and the store keeps the records.
 //!
 //! Pure by rule: no GPU, no UI, no file system, no threads, no clock (`cargo repo-check`).
 #![forbid(unsafe_code)]
@@ -20,7 +21,7 @@ mod maths;
 mod outlines;
 mod packs;
 mod records;
-mod sessions;
+mod sheets;
 
 pub use colour_areas::areas::{Areas, GRID, MOST_AREAS, STRONG, WEAK};
 pub use colour_areas::areas_found::{Found, SQUINT};
@@ -106,9 +107,7 @@ pub use kinds::value_masses::marks::{MassesCompared, MassesReading};
 pub use kinds::value_masses::value_masses_read::{
     BARE_LEFT, HATCH_GAP, MassesCheck, NEAR_MATCHED, VALUE_PEN,
 };
-pub use kinds::{
-    DrawnCopy, Facts, Kept, Kind, Needs, Original, Picks, Skill, SkillLevel, Tools, Work,
-};
+pub use kinds::{DrawnCopy, Facts, Kept, Kind, Needs, Original, Picks, Skill, SkillLevel, Tools};
 pub use marks::asked::{Asked, Compare, Copied, Painted, Read, Reading, Reads, ToFit};
 pub use marks::card::{Arg, CardItem, Say, WheelSize};
 pub use marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};
@@ -136,22 +135,14 @@ pub use packs::pack::{
     PackProblem, PictureKind, Tier, valid_id,
 };
 pub use packs::pictures::Pictures;
-pub use records::book::{Book, Day, LineShown, Road};
+pub use records::book::{Book, Day, LineShown};
 pub use records::givens::{Given, Givens};
 pub use records::lessons::{OnSheet, lessons, number};
 pub use records::metric::{Metric, Metrics, value};
-pub use records::record::{
-    AREAS_ROWS, COLOUR_ROWS, KindSummary, RECENT, SCALE_ROWS, met, recent, scales_met, summary,
-    used,
-};
+pub use records::record::{RECENT, recent, used};
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
 pub use records::sheet::{First, Judge, Laid, Lesson, Picked, Purpose, Sheet};
 pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds};
-pub use sessions::drill::{drill, kinds_of, stage_needs};
-pub use sessions::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, ROWS, STUDY_SIDE};
-pub use sessions::plan::{Exercise, Family, STAGE_SESSIONS, STAGES, STAGES_READY};
-pub use sessions::session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
-pub use sessions::session_five::stage_five;
-pub use sessions::session_four::stage_four;
-pub use sessions::session_three::stage_three;
-pub use sessions::sheet_picture::{MassesShown, SheetPicture};
+pub use sheets::exercise::{Exercise, Family, STAGES};
+pub use sheets::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, ROWS, STUDY_SIDE};
+pub use sheets::sheet_picture::{MassesShown, SheetPicture};

@@ -13,7 +13,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use egui::{Rect, Sense, TextureHandle, Vec2};
-use openpaint_practice::{Demo, DemoLayout, Drawn, Family, Marker, On, Rgb8, ValueMasses};
+use openpaint_practice::{Demo, DemoLayout, Drawn, Kind, Marker, On, Rgb8, ValueMasses};
 
 use openpaint_ui::components::{Alpha, card_step, keep_moving, picture_texture};
 use openpaint_ui::design::{INK, SPACE};
@@ -69,20 +69,39 @@ impl fmt::Debug for Demonstrations {
     }
 }
 
-/// Which How a card shows: its family's, a value scale's for the cells of the row in hand (S97:
-/// its example and steps of that count; every other family's the same whatever is in hand).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Which How a card shows: its topic's (by its key: the kinds of one topic share one), a value
+/// scale's for the cells of the row in hand (S97: its example and steps of that count; every
+/// other topic's the same whatever is in hand).
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct HowOf {
-    pub(crate) family: Family,
+    kind: Kind,
+    key: &'static str,
     cells: usize,
 }
 
+impl PartialEq for HowOf {
+    fn eq(&self, other: &Self) -> bool {
+        (self.key, self.cells) == (other.key, other.cells)
+    }
+}
+
+impl Eq for HowOf {}
+
 impl HowOf {
-    /// `family`'s How with a value scale of `cells` in hand.
-    pub(crate) fn new(family: Family, cells: usize) -> Self {
-        let made = crate::text::kind_words(family).made.is_some();
+    /// `kind`'s How with a value scale of `cells` in hand.
+    pub(crate) fn new(kind: Kind, cells: usize) -> Self {
+        let made = crate::text::kind_words(kind).made.is_some();
         let cells = if made { cells } else { 0 };
-        Self { family, cells }
+        Self {
+            kind,
+            key: kind.facts().key,
+            cells,
+        }
+    }
+
+    /// The kind it was asked for.
+    pub(crate) const fn kind(self) -> Kind {
+        self.kind
     }
 
     /// The cells a value scale's How shows.
@@ -149,7 +168,7 @@ impl Demonstrations {
         if let Some((_, made)) = self.made.iter().find(|(made, _)| *made == of) {
             return Some(Arc::clone(made));
         }
-        let demo = Demo::of_cells(of.family, of.cells)?;
+        let demo = of.kind.how(of.cells)?;
         let made = Arc::new(demo);
         self.made.push((of, Arc::clone(&made)));
         Some(made)

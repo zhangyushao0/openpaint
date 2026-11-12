@@ -6,8 +6,8 @@ use crate::marks::asked::Painted;
 use crate::marks::mark::SheetMark;
 use crate::packs::pack::Pack;
 use crate::records::sheet::{Lesson, Sheet};
-use crate::sessions::plan::Exercise;
-use crate::sessions::sheet_picture::SheetPicture;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::sheet_picture::SheetPicture;
 
 /// What one exercise printed: its marks before Compare, and the picture its kind drew for it.
 #[derive(Debug, Clone, PartialEq, Default)]

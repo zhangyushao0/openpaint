@@ -1,13 +1,9 @@
-//! Combined lines' words: their name, their summary's line and their How card, in V大's terms
+//! Combined lines' words: their name and their How card, in V大's terms
 //! (组合线条, 关键点, 叠图对比).
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "combined",
-    (COMBINED_LINES, COMBINED_COUNTED),
-    COMBINED_HOW,
-)];
+pub(super) const WORDS: [KindWords; 1] = [words("combined", COMBINED_LINES, COMBINED_HOW)];
 
 const COMBINED_HOW: How = How {
     heading: COPY_COMBINED,
@@ -18,7 +14,6 @@ const COMBINED_HOW: How = How {
 
 texts! { PRACTICE_COMBINED_LINES;
     COMBINED_LINES = "Combined lines", "组合线条";
-    COMBINED_COUNTED = "Combined lines", "组合线条";
     COPY_COMBINED = "Copy combined lines", "临摹组合线条";
     GROUP_TRAINS = "Week 1 · several lines seen as one shape: the key points first, then each \
         line.", "第 1 周 · 几根线看成一个形状：先定关键点，再画每根线。";

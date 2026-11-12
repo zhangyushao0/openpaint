@@ -1,31 +1,34 @@
 //! Value masses (`Kind::ValueMasses`, V大's 黑白灰, S96): a composition's picture painted as its few
 //! big masses in three greys, read against the answer its pack holds (`marks.rs`), the answer drawn
 //! in its greys for Compare to lay.
+//!
+//! A lesson holds one picture's value masses (about 6 minutes): a simple or a medium composition
+//! in turn at the first level, a medium one at the second, a hard one at the third, each among
+//! those whose masses read (`course/picker.rs`).
 
 pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod value_masses_read;
 
+use crate::course::picker::composition;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Tools, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, Tools, Turn};
 use crate::marks::asked::{Asked, Compare, Painted};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, edge, square};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::sessions::drill::compositions;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::sheet_picture::SheetPicture;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
+use crate::sheets::sheet_picture::SheetPicture;
 
 pub(crate) struct ValueMasses;
 
 const FACTS: [Facts; 1] = [
-    Facts::of(Family::ValueMasses, "value-masses", Work::Painted)
+    Facts::of(Family::ValueMasses, "value-masses", Tools::Greys, 360)
         .composed()
-        .tools(Tools::Greys)
         .needs(Needs::Masses),
 ];
-/// How many value masses a drill holds.
+/// How many value masses stage 4's drills held.
 const DRILLED: usize = 3;
 /// The tile's tints: the middle and the dark, shares of the tile's colour.
 const MIDDLE: f32 = 0.3;
@@ -63,9 +66,12 @@ impl Described for ValueMasses {
         Some(demo::value_masses())
     }
 
-    /// A drill: three compositions whose masses read, the simple and medium tiers in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        compositions(DRILLED, turn, Kind::ValueMasses)
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        composition((level, DRILLED), turn, Kind::ValueMasses)
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

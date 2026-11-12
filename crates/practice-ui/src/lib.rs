@@ -1,6 +1,6 @@
 //! Practice's screens (G9, D112): a practice sheet's marks, bar, tools, card and How on the canvas,
-//! and in the gallery the Today card, the practice options and the practice book, with their words
-//! in English and Chinese. The ui offers hooks a mode fills (`openpaint_ui::Hooks`); this crate
+//! and on the home its column, the path page, the practice options and the practice book, with
+//! their words in English and Chinese. The ui offers hooks a mode fills (`openpaint_ui::Hooks`); this crate
 //! fills them (`PracticeScreens::hooked`), and the runtime composes the two: it takes practice's
 //! taps after the frame's routing and applies them after the frame's painting intents.
 //!
@@ -12,8 +12,10 @@
 extern crate openpaint_ui;
 
 mod components;
-mod gallery;
+mod home;
 mod palette;
+#[cfg(test)]
+mod passes;
 mod screens;
 mod sheet;
 mod text;

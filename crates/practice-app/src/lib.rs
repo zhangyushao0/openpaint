@@ -1,14 +1,16 @@
-//! Practice's flow (G9, D112): the open practice sheet as the session's mode, its pens, Compare,
-//! a painted copy's reading, the eyedropper and the views it glides to; the log of every session,
-//! drill and colour copy, the Today card and the practice book; the practice options in the
-//! gallery. A practice sheet is stored like an artwork (its strokes and fills through the same
-//! history, autosave and library), but the gallery never lists it: it belongs to its session's
-//! record, which `openpaint-practice-store` keeps in the library's record space.
+//! Practice's flow (G9, D112, S122): the open practice sheet as the session's mode, its pens,
+//! Compare, a painted copy's reading, the eyedropper and the views it glides to, a lesson's
+//! results and its end; the log of every practice sheet, the learner and the path it tells of,
+//! the practice book; the practice options on the home. A practice sheet is stored like an
+//! artwork (its strokes and fills through the same history, autosave and library), but the
+//! gallery never lists it: it belongs to its record, which `openpaint-practice-store` keeps in
+//! the library's record space.
 //!
 //! Depends on core, practice and app. No GPU, no UI, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
 mod book;
+mod copies;
 mod copy;
 mod layers;
 mod lesson;
@@ -22,9 +24,9 @@ mod projection;
 mod refused;
 mod sheet;
 mod shown;
-mod today;
 
 pub use crate::book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
+pub use crate::copies::{CopyShown, PictureShown};
 pub use crate::layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
 pub use crate::lesson::{End, Judged, LessonRow, LessonShown};
 pub use crate::log::PracticeLog;
@@ -40,5 +42,4 @@ pub use crate::projection::{
     SheetView,
 };
 pub use crate::refused::Refused;
-pub use crate::sheet::{Finished, PRACTICE_ROOM, PracticePick, PracticeSheet, Practising, ReadJob};
-pub use crate::today::{CopyShown, DrillShown, PictureShown, TodayProjection};
+pub use crate::sheet::{PRACTICE_ROOM, PracticePick, PracticeSheet, Practising, ReadJob};

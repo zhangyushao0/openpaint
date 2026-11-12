@@ -1,24 +1,43 @@
 //! Combined lines (`Kind::Combined`): two to four lines copied as one shape, in four arrangements;
 //! given, compared and fitted as a single line's lines are (`lines/marks.rs`).
+//!
+//! A lesson (a group about 2 minutes) holds three: the first level joined, crossing and branched
+//! lines (stage 1's first three), the second the branched and the near ones with a crossing, the
+//! third near lines, whose gaps are the proportions to keep, twice with a crossing; the
+//! arrangements in turn by the lesson.
 
 pub(crate) mod combined;
 pub(crate) mod demo;
 
+use crate::course::picker::{laid, rotated};
 use crate::demos::demo::Demo;
 use crate::kinds::lines::marks as line_marks;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, curve};
 use crate::packs::pack::ItemRef;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::COMBINED;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use combined::Combination;
 
 pub(crate) struct CombinedLines;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Combined, "combined", Work::Lines)];
+const FACTS: [Facts; 1] = [Facts::of(Family::Combined, "combined", Tools::Drawing, 120).aligned()];
+/// A lesson's groups.
+const COUNT: usize = 3;
+/// Each level's arrangements: the first's in order, the others' in turn from the lesson's place.
+const FIRST: [Combination; 3] = [
+    Combination::Joined,
+    Combination::Crossing,
+    Combination::Branched,
+];
+const SECOND: [Combination; 3] = [
+    Combination::Branched,
+    Combination::Near,
+    Combination::Crossing,
+];
+const THIRD: [Combination; 3] = [Combination::Near, Combination::Crossing, Combination::Near];
 
 impl Described for CombinedLines {
     fn code(&self) -> u8 {
@@ -56,9 +75,13 @@ impl Described for CombinedLines {
         Some(demo::combined())
     }
 
-    /// A drill: each arrangement once.
-    fn drill(&self, _family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        COMBINED.map(|c| (Kind::Combined(c), None)).to_vec()
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let arrangements = match level {
+            SkillLevel::First => FIRST.to_vec(),
+            SkillLevel::Second => rotated(&SECOND, turn.turn, COUNT),
+            SkillLevel::Third => rotated(&THIRD, turn.turn, COUNT),
+        };
+        laid(arrangements.into_iter().map(Kind::Combined))
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {

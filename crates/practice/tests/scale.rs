@@ -4,8 +4,8 @@
 //! The order to paint (S97): halved and halved again; the even row cell under cell.
 
 use openpaint_practice::{
-    Before, CELLS, EVEN_ROW, FIRST_CELLS, Family, Kind, Metric, Pictures, Plan, ROW, Rgb8,
-    ScaleTone, ValueScale, drill, from_hsv, halving, hsv, oklab, stage_two, value,
+    CELLS, EVEN_ROW, FIRST_CELLS, Kind, Learner, Metric, Pictures, ROW, Rgb8, ScaleTone, Skill,
+    SkillLevel, Standing, ValueScale, from_hsv, halving, hsv, oklab, schedule, value,
 };
 
 const PAPER: Rgb8 = [255, 255, 255];
@@ -14,7 +14,7 @@ const SIDE: u32 = 400;
 #[test]
 fn the_same_seed_gives_the_same_scale_between_a_far_dark_and_light() {
     for tone in ScaleTone::ALL {
-        for (seed, cells) in (0..300).zip([FIRST_CELLS, CELLS].into_iter().cycle()) {
+        for (seed, cells) in (0..300).zip([FIRST_CELLS, 7, CELLS].into_iter().cycle()) {
             let scale = ValueScale::generate(tone, cells, seed);
             assert_eq!(scale, ValueScale::generate(tone, cells, seed));
             assert_eq!(scale.cells, cells, "{tone:?} {seed}");
@@ -43,46 +43,27 @@ fn the_same_seed_gives_the_same_scale_between_a_far_dark_and_light() {
     }
 }
 
-/// S97: a value scale has nine cells, but the first two a beginner meets (in sessions and drills
-/// alike) five; a plan's own scales count in order after those met before; stored as (6, tone +
-/// 2 x cells).
+/// S97, S122: a scale's lesson is a grey one and one of a hue, of five cells at the first level (a
+/// beginner's), seven at the second and nine at the third; stored as (6, tone + 2 x cells).
 #[test]
-fn the_first_two_scales_met_have_five_cells_the_rest_nine() {
-    let none = Pictures::default();
-    let before = |met, scales| Before {
-        met,
-        pictures: &none,
-        used: &[],
-        recent: &[],
-        scales,
+fn a_scale_s_cells_grow_with_its_level() {
+    let (pictures, learner) = (Pictures::default(), Learner::default());
+    let standing = Standing {
+        pictures: &pictures,
+        learner: &learner,
     };
-    let scales = |plan: Plan| -> Vec<Kind> {
-        (plan.exercises.into_iter())
-            .filter(|e| e.kind.family() == Family::Scale)
-            .map(|e| e.kind)
-            .collect()
-    };
-    let cells = |met: usize, number| scales(stage_two(number, 9, &before(&[], met)));
-    assert_eq!(cells(0, 1), [Kind::Scale(ScaleTone::Grey, 5)]);
-    assert_eq!(cells(1, 2), [Kind::Scale(ScaleTone::Hue, 5)]);
-    assert_eq!(cells(2, 3), [Kind::Scale(ScaleTone::Grey, 9)]);
-    // A drill of two after one met: the second of the beginner's, then a full one.
-    let drill = drill(Family::Scale, 1, 4, &before(&[], 1)).expect("a drill");
-    let full = [
-        Kind::Scale(ScaleTone::Grey, 5),
-        Kind::Scale(ScaleTone::Hue, 9),
-    ];
-    assert_eq!(scales(drill), full);
-    // A warm-up drawing on a beginner's scale met gives it its full nine once two were met.
-    let met = [Kind::Scale(ScaleTone::Hue, 5)];
-    let warm = scales(stage_two(3, 5, &before(&met, 2)));
-    assert!(
-        warm.iter().all(|k| matches!(k, Kind::Scale(_, 9))),
-        "{warm:?}"
-    );
-    for kind in full {
-        let (code, variant) = kind.code();
-        assert_eq!(Kind::of_code(code, variant), Some(kind));
+    let scale = Skill::of_key("scale").expect("the scales");
+    for (level, cells) in SkillLevel::ALL.into_iter().zip([FIRST_CELLS, 7, CELLS]) {
+        let planned = schedule::lesson(scale, level, 9, &standing).expect("a lesson");
+        let kinds: Vec<Kind> = planned.exercises.iter().map(|(e, _)| e.kind).collect();
+        let held = |tone| Kind::Scale(tone, u8::try_from(cells).expect("cells"));
+        assert_eq!(kinds, ScaleTone::ALL.map(held), "{level:?}");
+        for kind in kinds {
+            let (code, variant) = kind.code();
+            assert_eq!(Kind::of_code(code, variant), Some(kind));
+            let generated = ValueScale::generate(ScaleTone::Hue, cells, 3);
+            assert_eq!(generated.targets().len(), cells);
+        }
     }
     assert_eq!(Kind::Scale(ScaleTone::Hue, 9).code(), (6, 19));
     assert_eq!(

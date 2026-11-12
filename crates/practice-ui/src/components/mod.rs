@@ -1,17 +1,12 @@
 //! Practice's own widgets, composed of the ui's (`openpaint_ui::components`) and drawn as they
-//! are: the Today card, the road of a stage's sessions, the seals, a kind's tile, the colour table
-//! and the radar.
+//! are: a skill's tile with its dots, a result's mark, the seals and the colour table.
 
 mod colour_table;
-mod kind_tile;
-mod radar;
-mod road;
+mod marks;
 mod seal;
-mod today_card;
+mod skill_tile;
 
 pub(crate) use colour_table::colour_table;
-pub(crate) use kind_tile::{KindTile, kind_tile};
-pub(crate) use radar::{RadarAxis, radar};
-pub(crate) use road::{Dot, curve, curve_y, inked, paint_dot, paint_stretch, pencilled};
+pub(crate) use marks::{DOTS, paint_dots, paint_result};
 pub(crate) use seal::{paint_seal, seal_turn};
-pub(crate) use today_card::{TodayCard, today_card};
+pub(crate) use skill_tile::{SkillTile, skill_tile};

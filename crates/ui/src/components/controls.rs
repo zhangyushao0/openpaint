@@ -120,7 +120,7 @@ fn state<R>(ctx: &egui::Context, f: impl FnOnce(&mut ControlMap) -> R) -> R {
 }
 
 /// Starts a pass with no controls.
-pub(crate) fn begin(ctx: &egui::Context) {
+pub fn begin(ctx: &egui::Context) {
     state(ctx, |map| *map = ControlMap::default());
 }
 
@@ -149,7 +149,7 @@ pub fn register(ui: &egui::Ui, name: &str, rect: Rect) {
 }
 
 /// The pass's map, once every component is laid out.
-pub(crate) fn take(ctx: &egui::Context) -> ControlMap {
+pub fn take(ctx: &egui::Context) -> ControlMap {
     state(ctx, std::mem::take)
 }
 

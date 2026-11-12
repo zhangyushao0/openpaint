@@ -23,7 +23,7 @@ use crate::compositions::levels::Level;
 use crate::compositions::value_masses::{Value, ValueMasses};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::{Point, length};
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 // Each kind's How lives in its kind's folder (`kinds/`); the hand they share is here.
 #[path = "demo_hand.rs"]

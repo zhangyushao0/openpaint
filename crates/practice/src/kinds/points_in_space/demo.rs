@@ -12,7 +12,7 @@ use crate::demos::demo_points::{THIRD_TICK, crossed, moved, read};
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 use crate::kinds::points_in_space::space_check::SpaceCheck;
 use crate::maths::path::Point;
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The examples' seeds: Centre's, Halves', Thirds', Next face's, Mirror's.
 const SEEDS: [u64; 5] = [

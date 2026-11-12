@@ -14,10 +14,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, Exercise, Family, Frame,
-    FreeCompared, Guide, Horizon, Kind, Original, Plan, Point, Roundness, Sheet,
+    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, Exercise, Frame, FreeCompared, Guide,
+    Horizon, Kind, Original, Point, Roundness,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -27,34 +27,21 @@ const VIEWPORT: Viewport = Viewport {
 };
 
 fn opened() -> Session {
-    let plan = Plan {
-        exercises: vec![
-            Exercise::generated(Kind::Box(BoxView::TwoPoint), 0x5EED_0084),
-            Exercise::generated(Kind::FreeBoxes(Horizon::Middle), 0x5EED_0085),
-            Exercise::generated(Kind::Ellipse(Guide::Frame), 0x5EED_0086),
-        ],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 2, 0, plan);
+    let exercises = vec![
+        Exercise::generated(Kind::Box(BoxView::TwoPoint), 0x5EED_0084),
+        Exercise::generated(Kind::FreeBoxes(Horizon::Middle), 0x5EED_0085),
+        Exercise::generated(Kind::Ellipse(Guide::Frame), 0x5EED_0086),
+    ];
+    let record = support::laid(exercises, 0);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &[], [width, height]);
+    let opening = support::opening(&record, (&[], Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (
-            record,
-            Vec::new(),
-            view,
-            openpaint_practice::Tally::default(),
-        ),
-        &VIEWPORT,
-    )
+    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (frame units of `frame`), sampled finely.
@@ -126,12 +113,9 @@ fn completed(session: &mut Session) -> Frame {
 fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     let mut session = opened();
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Box));
-    assert_eq!(
-        practice.instructions,
-        Some(Family::Box),
-        "told the first time"
-    );
+    let two_point = Kind::Box(BoxView::TwoPoint);
+    assert_eq!(practice.kind, Some(two_point));
+    assert_eq!(practice.how, Some(two_point), "told the first time");
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered, "geometry is never aligned");
     let frame = completed(&mut session);
@@ -209,7 +193,7 @@ fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::FreeBoxes));
+    assert_eq!(practice.kind, Some(Kind::FreeBoxes(Horizon::Middle)));
     let frame = practice.sheet.pairs[1].copy;
     let Original::FreeBoxes(example) = *practice.original.as_deref().expect("in hand") else {
         panic!("a page")
@@ -239,7 +223,7 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Ellipse));
+    assert_eq!(practice.kind, Some(Kind::Ellipse(Guide::Frame)));
     let frame = practice.sheet.pairs[2].copy;
     let Original::Ellipse(guide) = *practice.original.as_deref().expect("in hand") else {
         panic!("an ellipse")
@@ -262,19 +246,4 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
         panic!("the ellipse's check")
     };
     assert_eq!(check.roundness, Some(Roundness::Flatter));
-}
-
-#[test]
-fn a_session_begun_as_the_stages_second_holds_its_free_boxes() {
-    // The test session's chore (`practice-test start 2 2`) asks the log for stage 2's second.
-    let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    let begun = |number: Option<u32>| {
-        let (record, title) = log.begin((2, number), 0x5EED_0088, 1_791_290_000);
-        let free =
-            (record.exercises().map(|l| &l.exercise)).any(|e| matches!(e.kind, Kind::FreeBoxes(_)));
-        (free, title.as_str().to_owned())
-    };
-    assert_eq!(begun(None), (false, "Practice 1".to_owned()), "the next");
-    assert_eq!(begun(Some(2)), (true, "Practice 2".to_owned()));
-    assert!(!begun(Some(3)).0, "a box and an ellipse again");
 }

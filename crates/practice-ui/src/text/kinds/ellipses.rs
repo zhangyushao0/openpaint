@@ -1,14 +1,10 @@
-//! An ellipse's words (week 2, for week 3's cylinders): its name, its summary's line and its How
+//! An ellipse's words (week 2, for week 3's cylinders): its name and its How
 //! card, after Drawabox (an ellipse through its frame's middles, ghosted first) and V大 (in
 //! perspective a side's middle lies nearer its far end). In his terms: 椭圆, 对角线, 叠图对比.
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "ellipse",
-    (ELLIPSE_EXERCISE, ELLIPSES_COUNTED),
-    ELLIPSE_HOW,
-)];
+pub(super) const WORDS: [KindWords; 1] = [words("ellipse", ELLIPSE_EXERCISE, ELLIPSE_HOW)];
 
 const ELLIPSE_HOW: How = How {
     heading: DRAW_AN_ELLIPSE,
@@ -25,7 +21,6 @@ const ELLIPSE_HOW: How = How {
 
 texts! { PRACTICE_ELLIPSES;
     ELLIPSE_EXERCISE = "Ellipse", "椭圆";
-    ELLIPSES_COUNTED = "Ellipses", "椭圆";
     DRAW_AN_ELLIPSE = "Draw an ellipse in its frame", "在方框里画椭圆";
     ELLIPSE_TRAINS = "Week 2, for week 3's cylinders · an ellipse that fits a square in \
         perspective.", "第 2 周，为第 3 周的圆柱打基础 · 切于透视方形的椭圆。";

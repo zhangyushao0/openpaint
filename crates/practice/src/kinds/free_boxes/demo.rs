@@ -5,7 +5,7 @@
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line};
 use crate::demos::demo_space::{horizon, point, red_rings, rule_edges, ruled, within_reach};
 use crate::geometry::perspective::{Direction, EDGES, Horizon, PerspectiveBox};
-use crate::sessions::plan::Family;
+use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const FREE_SEED: u64 = 0xDE30_5EED_0008;

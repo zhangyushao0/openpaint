@@ -1,27 +1,33 @@
 //! Boxes to complete (`Kind::Box`, V大's 透视盒子): the check of a completed box's edges, and the
-//! How and tile of boxes. The box itself is `geometry/perspective.rs`.
+//! How, tile and lessons of boxes. The box itself is `geometry/perspective.rs`.
+//!
+//! A lesson (a box about 2.5 minutes) holds two: the first level a two-point and a three-point
+//! box, their order in turn (stage 2's drills' first two), the second and the third two
+//! three-point boxes, whose third vanishing point is the harder to keep; a box has no third view.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod perspective_check;
 
+use crate::course::picker::{laid, turned};
 use crate::demos::demo::Demo;
 use crate::geometry::perspective::{BoxView, PerspectiveBox};
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
-use crate::sessions::drill::turned;
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 use std::sync::Arc;
 
 pub(crate) struct Boxes;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Box, "box", Work::Geometry).constructed()];
-/// How many boxes a drill holds.
-const DRILLED: usize = 3;
+const FACTS: [Facts; 1] = [Facts::of(Family::Box, "box", Tools::Drawing, 150).constructed()];
+/// The views the first level turns through, three a lesson's place (stage 2's drills), of which
+/// it lays the first `COUNT`.
+const TURNED: usize = 3;
+const COUNT: usize = 2;
 
 impl Described for Boxes {
     fn code(&self) -> u8 {
@@ -70,9 +76,15 @@ impl Described for Boxes {
         Some(demo::perspective_box())
     }
 
-    /// A drill: three boxes, their views in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        turned((&BoxView::ALL, DRILLED), turn, Kind::Box)
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        match level {
+            SkillLevel::First => {
+                let mut boxes = turned((&BoxView::ALL, TURNED), turn, Kind::Box);
+                boxes.truncate(COUNT);
+                boxes
+            }
+            SkillLevel::Second | SkillLevel::Third => laid([Kind::Box(BoxView::ThreePoint); COUNT]),
+        }
     }
 
     /// A box seen from above, its front corner nearest.

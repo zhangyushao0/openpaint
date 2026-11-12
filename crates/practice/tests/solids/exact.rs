@@ -106,7 +106,7 @@ fn every_solid_keeps_its_rules_and_is_the_same_per_seed() {
         assert_eq!(code, 13);
         assert_eq!(Kind::of_code(code, variant), Some(Kind::Solid(solid)));
         let family = solid.family();
-        assert!(family.drawn() && family.geometric() && !family.painted());
+        assert!(family.facts().compared && !family.facts().aligned);
         let exercise = Exercise::generated(Kind::Solid(solid), 5);
         assert!(
             matches!(exercise.original(), Original::Solid(task) if *task == SolidTask::generate(solid, 5))

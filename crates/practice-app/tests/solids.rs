@@ -1,7 +1,7 @@
 //! Solids on a practice sheet (S93): a cylinder found in its box, its construction with Sketch
 //! never read, its ends and sides drawn with Draw and compared against the exact solid (each end
 //! fitted, the sides read, the error kept at the first Compare), an end corrected in place of what
-//! it redraws; stage 3's sessions holding two solids.
+//! it redraws.
 
 mod support;
 
@@ -13,10 +13,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Ellipse, Exercise, FRAME, Family, Frame, Kind, Metric, Original, PEN_WIDTH, Plan, Point, Sheet,
-    Solid, distance, resample, value,
+    Ellipse, Exercise, FRAME, Frame, Kind, Metric, Original, PEN_WIDTH, Point, Solid, distance,
+    resample, value,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -26,29 +26,17 @@ const VIEWPORT: Viewport = Viewport {
 };
 
 fn opened() -> Session {
-    let plan = Plan {
-        exercises: vec![Exercise::generated(
-            Kind::Solid(Solid::Cylinder),
-            0x5EED_0093,
-        )],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 3, 0, plan);
+    let cylinder = Exercise::generated(Kind::Solid(Solid::Cylinder), 0x5EED_0093);
+    let record = support::laid(vec![cylinder], 0);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &[], [width, height]);
+    let opening = support::opening(&record, (&[], Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let tally = openpaint_practice::Tally::default();
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, Vec::new(), view, tally),
-        &VIEWPORT,
-    )
+    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke along `points` (frame units of `frame`), sampled every half pixel or so.
@@ -99,8 +87,11 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     assert!((f64::from(openpaint_practice_app::INK_DIAMETER) / FRAME - PEN_WIDTH).abs() < 1e-12);
     let mut session = opened();
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Cylinder));
-    assert_eq!(practice.instructions, Some(Family::Cylinder));
+    let cylinder = Kind::Solid(Solid::Cylinder);
+    assert_eq!(
+        (practice.kind, practice.how),
+        (Some(cylinder), Some(cylinder))
+    );
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
     let Original::Solid(task) = practice.original.as_deref().expect("in hand") else {
@@ -151,15 +142,4 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(value(&result.metrics, Metric::SolidOff), Some(first));
-}
-
-#[test]
-fn stage_three_s_sessions_hold_two_solids_in_turn() {
-    let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    let (record, _) = log.begin((3, None), 0x5EED_0093, 1_791_900_000);
-    let solids: Vec<Family> = (record.exercises().map(|l| &l.exercise))
-        .map(|e| e.kind.family())
-        .filter(|f| matches!(f, Family::Cylinder | Family::Cone | Family::Sphere))
-        .collect();
-    assert_eq!(solids, [Family::Cylinder, Family::Cone]);
 }

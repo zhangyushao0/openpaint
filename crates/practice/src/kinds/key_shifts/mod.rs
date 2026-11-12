@@ -1,5 +1,10 @@
 //! Key shifts (`Kind::KeyShift`, S107, V大's 变调): tendencies, a shift by rule, the check, how a
-//! copy is read (`reading.rs`), the How and the tile.
+//! copy is read (`reading.rs`), the How, the tile and the lessons.
+//!
+//! A lesson holds one key shift (about 6 minutes), a crop none shown before while any is left,
+//! its tendency's hue never near the crop's own main hue: the first level a warm tendency, pure
+//! and grey in turn (stage 5's drills' first), the second a cool one, pure and grey in turn, the
+//! third the grey ones, warm and cool, whose shift is the subtlest to hold.
 
 pub(crate) mod demo;
 pub(crate) mod key_shift;
@@ -8,25 +13,30 @@ pub(crate) mod key_shift_rule;
 pub(crate) mod marks;
 pub(crate) mod reading;
 
+use crate::course::picker::{Picker, in_turn};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, SkillLevel, Tools, Turn};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, square};
+use crate::maths::random::{Random, derived};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
-use crate::sessions::session::Picker;
-use crate::sessions::session_five::key_shifts;
-use key_shift::Tendency;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
+use key_shift::{Lean, Tendency};
 
 pub(crate) struct KeyShifts;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::KeyShift, "key-shift", Work::Painted)
-    .picks(Picks::Locked)
-    .needs(Needs::Crops)];
-/// How many key shifts a drill holds.
+const FACTS: [Facts; 1] = [
+    Facts::of(Family::KeyShift, "key-shift", Tools::Painting, 360)
+        .picks(Picks::Locked)
+        .needs(Needs::Crops),
+];
+/// How many key shifts stage 5's drills held, the leans in turn across them.
 const DRILLED: usize = 2;
+/// The second level's leans and the third's, in turn.
+const COOL: [Lean; 2] = [Lean::CoolPure, Lean::CoolGrey];
+const GREY: [Lean; 2] = [Lean::CoolGrey, Lean::WarmGrey];
 
 impl Described for KeyShifts {
     fn code(&self) -> u8 {
@@ -63,10 +73,17 @@ impl Described for KeyShifts {
         Some(demo::key_shift())
     }
 
-    /// A drill: two crops, their leans in turn.
-    fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        let mut picker = Picker::new(turn.seed, turn.before, Tier::Simple);
-        key_shifts(&mut picker, (DRILLED, turn.turn), (turn.seed, turn.before))
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let lean = match level {
+            SkillLevel::First => in_turn(&Lean::ALL, turn.turn, DRILLED)[0],
+            SkillLevel::Second => COOL[turn.turn % COOL.len()],
+            SkillLevel::Third => GREY[turn.turn % GREY.len()],
+        };
+        key_shift(lean, turn).into_iter().collect()
+    }
+
+    fn window(&self) -> usize {
+        3
     }
 
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
@@ -99,4 +116,14 @@ impl Described for KeyShifts {
             TileMark::Line(closed(&disc)),
         ]
     }
+}
+
+/// A key shift of `lean` on a crop `turn`'s picker picks, its tendency's hue picked by the seed's
+/// own sequence among those away from the crop's main hue; none without crops.
+fn key_shift(lean: Lean, turn: &Turn<'_>) -> Option<(Kind, Option<ItemRef>)> {
+    let mut random = Random::new(derived(turn.seed, u64::MAX - 3));
+    let (_, item) = Picker::new(turn, Tier::Simple).picked_crop()?;
+    let main = turn.pictures.crop_hue(&item);
+    let tendency = Tendency::chosen(lean, main, &mut random);
+    Some((Kind::KeyShift(tendency), Some(item)))
 }

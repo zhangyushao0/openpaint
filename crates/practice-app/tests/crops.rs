@@ -1,8 +1,8 @@
 //! Colour combinations of real crops (S101): a crop of a pack beside an empty frame of its shape,
 //! filled and compared, its copy read against the areas the pack holds (the outline and the
 //! weak contrasts made strong in the frame's units), the eyedropper reading the pack's picture;
-//! Compare unavailable once the crop is removed; and the practice options knowing whether a
-//! pack kept holds crops, a combinations drill only then.
+//! Compare unavailable once the crop is removed; and the path knowing whether a pack kept holds
+//! crops, a lesson of combinations only then.
 
 mod support;
 
@@ -11,11 +11,12 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, AreasCompared, Exercise, Family, Figure, ItemRef, Kind, Pack, PackItem, PictureKind,
-    Plan, Sheet, SheetPicture, Tier,
+    Areas, AreasCompared, Exercise, Figure, ItemRef, Kind, Needs, Pack, PackItem, PictureKind,
+    SheetPicture, Skill, SkillLevel, Tier,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, PracticeProjection,
+    Start,
 };
 use support::OnSheet;
 
@@ -70,27 +71,16 @@ fn opened(packs: &[Pack]) -> Session {
         picture: Some(rust()),
         ..Exercise::generated(Kind::Crop(Tier::Simple), 7)
     };
-    let plan = Plan {
-        exercises: vec![combination],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 2, 0, plan);
-    let record = record.framed(packs);
+    let record = support::laid(vec![combination], 0).framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, packs, [width, height]);
+    let opening = support::opening(&record, (packs, Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush = StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK);
     let tools = (
         brush.expect("style"),
         PracticePens::built_in().expect("pens"),
-    );
-    let opening = (
-        record,
-        Vec::new(),
-        view,
-        openpaint_practice::Tally::default(),
     );
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
 }
@@ -140,7 +130,7 @@ fn read_wide_copy(session: &mut Session) {
 fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas() {
     let mut session = opened(&[crops()]);
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Areas));
+    assert_eq!(practice.kind, Some(Kind::Crop(Tier::Simple)));
     let pair = practice.sheet.pairs[0];
     let height = 400.0 * 400.0 / 600.0;
     assert!((pair.copy.size[1] - height).abs() < 1e-9 && pair.copy.size[0] == 400.0);
@@ -214,21 +204,26 @@ fn a_removed_crop_shows_no_areas_and_compares_nothing() {
 
 #[test]
 fn combinations_are_offered_only_where_a_pack_holds_crops() {
+    let combinations = Skill::of_key("combination").expect("combinations' skill");
+    let start = Start::At(combinations, SkillLevel::First);
+    let lacks = |log: &PracticeLog| {
+        let path = log.path();
+        let tile = (path.units.iter().flat_map(|unit| &unit.skills))
+            .find(|tile| tile.skill == combinations)
+            .copied();
+        tile.map(|tile| tile.lacks)
+    };
     let without = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    assert!(!without.today().crops);
-    assert!(without.begin_drill(Family::Areas, 3, 4).is_none());
+    assert_eq!(lacks(&without), Some(Some(Needs::Crops)));
+    assert!(without.start(start, 3, 4).is_none());
     let with = PracticeLog::new(Vec::new(), Vec::new(), vec![crops()]);
-    assert!(with.today().crops);
-    let (drill, _) = with.begin_drill(Family::Areas, 3, 4).expect("a drill");
+    assert_eq!(lacks(&with), Some(None));
+    let (lesson, _) = with.start(start, 3, 4).expect("a lesson");
+    assert!(lesson.exercises().count() > 0);
     assert!(
-        drill
+        lesson
             .exercises()
             .map(|l| &l.exercise)
             .all(|e| e.picture == Some(rust()))
     );
-    // A stage-2 session takes the crop for its combination.
-    let (session, _) = with.begin((2, None), 3, 4);
-    let combination =
-        (session.exercises().map(|l| &l.exercise)).find(|e| e.kind.family() == Family::Areas);
-    assert_eq!(combination.and_then(|e| e.picture.clone()), Some(rust()));
 }

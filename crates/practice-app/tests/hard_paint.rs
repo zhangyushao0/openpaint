@@ -11,10 +11,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
-    Exercise, Given, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Plan, Sheet, Tally, Tier,
+    Given, ItemRef, Pack, PackItem, PictureKind, Sheet, Skill, SkillLevel, Tier,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView, copy_brush,
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start, copy_brush,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -170,19 +170,14 @@ fn vase_pack() -> Pack {
     }
 }
 
-/// `record`'s sheet as it opens: its canvas and what the session opens with.
-fn sheet(record: Sheet) -> (Artwork, openpaint_practice_app::Practising) {
-    let packs = [vase_pack()];
-    let record = record.framed(&packs);
+/// `record`'s sheet as `log` opens it: its canvas and what the session opens with.
+fn sheet(record: Sheet, log: &PracticeLog) -> (Artwork, openpaint_practice_app::Practising) {
+    let record = record.framed(log.packs());
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let artwork = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(
-        &record,
-        &Given::of_sheet(&record, &packs),
-        &packs,
-        ([width, height], &Title::untitled(), 1),
-    );
-    (artwork, (record, Vec::new(), view, Tally::default()))
+    let printed = Given::of_sheet(&record, log.packs());
+    let size = ([width, height], &Title::untitled());
+    (artwork, log.practising(&record, &printed, size))
 }
 
 /// A pen stroke from `at` 60 pixels right at `pressure`.
@@ -218,7 +213,7 @@ fn copy_of_the_vase() -> (Artwork, openpaint_practice_app::Practising) {
         item: "vase".to_owned(),
     };
     let (record, _) = log.begin_copy(&vase, 1, 2).expect("a picture");
-    sheet(record)
+    sheet(record, &log)
 }
 
 #[test]
@@ -226,12 +221,10 @@ fn a_long_copy_opens_on_hard_paint_at_a_size_for_its_frame_as_the_hand_would_cho
     let (key, size) = copy_brush(&copy_of_the_vase().1).expect("a copy opens on a brush");
     // As large to its 1,600-pixel frame as Big is to an exercise's 400.
     assert_eq!((key.as_str(), size), (HARD_PAINT, 256.0));
-    let lines = Plan {
-        exercises: vec![Exercise::generated(Kind::Line(LineTier::Arc), 7)],
-        warm_up: 0,
-    };
-    let session = Sheet::session(1, 1, 0, lines);
-    assert_eq!(copy_brush(&sheet(session).1), None, "a session's sheet");
+    let log = PracticeLog::new(Vec::new(), Vec::new(), vec![vase_pack()]);
+    let lines = Skill::of_key("line").expect("the lines' skill");
+    let (lesson, _) = (log.start(Start::At(lines, SkillLevel::First), 7, 0)).expect("a lesson");
+    assert_eq!(copy_brush(&sheet(lesson, &log).1), None, "a lesson's sheet");
     // The brush tool, Hard Paint, its size; the eraser chosen before.
     let mut toolbox = toolbox();
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Eraser));

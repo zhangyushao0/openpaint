@@ -15,8 +15,8 @@ use crate::marks::compared::{Comparison, DrawnCopy};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
 use crate::records::metric::Metrics;
-use crate::sessions::plan::Exercise;
-use crate::sessions::sheet_picture::SheetPicture;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::sheet_picture::SheetPicture;
 
 /// The copy in an exercise's empty frame as the app reads it off the artwork.
 pub trait Copied {

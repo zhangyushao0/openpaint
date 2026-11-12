@@ -14,8 +14,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, Figure, ItemRef, Kind, Outline, Pack, PackItem, PictureKind, Plan, SHAPE_SHOWN,
-    ShapeCompared, Sheet, Tier,
+    Exercise, Figure, ItemRef, Kind, Outline, Pack, PackItem, PictureKind, SHAPE_SHOWN,
+    ShapeCompared, Tier,
 };
 use openpaint_practice_app::{
     GROUND_SHOWN, PictureImage, PracticeIntent, PracticePens, PracticeProjection,
@@ -68,27 +68,16 @@ fn opened(picture: &str) -> Session {
         }),
         ..Exercise::generated(Kind::Shape(Tier::Entry), 0x5EED_0099)
     };
-    let plan = Plan {
-        exercises: vec![exercise],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 2, 0, plan);
-    let record = record.framed(&packs);
+    let record = support::laid(vec![exercise], 0).framed(&packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &packs, [width, height]);
+    let opening = support::opening(&record, (&packs, Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let tally = openpaint_practice::Tally::default();
-    let mut session = openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, Vec::new(), view, tally),
-        &VIEWPORT,
-    );
+    let mut session = openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }

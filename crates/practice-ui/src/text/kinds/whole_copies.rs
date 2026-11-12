@@ -1,14 +1,10 @@
-//! A whole copy's words (S95): its name, its summary's line and its How card, after V大's method in
+//! A whole copy's words (S95): its name and its How card, after V大's method in
 //! our own words: the division dimmed and the whole picture copied over it at low completion, the
 //! big shapes right, small errors fine. In his terms: 整图复制, 画面分割, 眯眼.
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "whole-copy",
-    (WHOLE_COPY_EXERCISE, WHOLE_COPIES_COUNTED),
-    WHOLE_COPY,
-)];
+pub(super) const WORDS: [KindWords; 1] = [words("whole-copy", WHOLE_COPY_EXERCISE, WHOLE_COPY)];
 
 const WHOLE_COPY: How = How {
     heading: COPY_A_WHOLE_PICTURE,
@@ -20,7 +16,6 @@ const WHOLE_COPY: How = How {
 texts! { PRACTICE_WHOLE_COPIES;
     WHOLE_COPY_EXERCISE = "Whole copy", "整图复制";
     COPY_A_WHOLE_PICTURE = "Copy a whole picture", "整图复制";
-    WHOLE_COPIES_COUNTED = "Whole copies", "整图复制";
     WHOLE_COPY_TRAINS = "Weeks 3 and 4 · a division continued into a copy of the whole picture: \
         the big shapes right, no details.",
         "第 3、4 周 · 在画面分割的基础上整图复制：大形准确，不画细节。";

@@ -1,8 +1,8 @@
 //! Key shifts on a practice sheet (S107): a crop beside an empty frame of its shape and its
 //! tendency; its original never picked, the copy's own paint picked; Compare reading the copy on
 //! the worker against the crop's areas and the tendency (what is off, the marked areas' outlines,
-//! both frames in grey), its numbers kept; the Grey view only while compared; stage 5 offered
-//! once a pack holds crops.
+//! both frames in grey), its numbers kept; the Grey view only while compared; a lesson of key
+//! shifts started once a pack holds crops.
 
 mod support;
 
@@ -11,12 +11,12 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Exercise, Family, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack,
-    PackItem, PictureKind, Plan, Sheet, SheetPicture, Tendency, Tier, value,
+    Areas, Exercise, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack, PackItem,
+    PictureKind, SheetPicture, Skill, SkillLevel, Tendency, Tier, value,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection,
+    PracticeProjection, Start,
 };
 use support::OnSheet;
 
@@ -71,27 +71,16 @@ fn opened(packs: &[Pack]) -> Session {
         }),
         ..Exercise::generated(Kind::KeyShift(BLUE), 7)
     };
-    let plan = Plan {
-        exercises: vec![exercise],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 5, 0, plan);
-    let record = record.framed(packs);
+    let record = support::laid(vec![exercise], 0).framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, packs, [width, height]);
+    let opening = support::opening(&record, (packs, Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush = StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK);
     let tools = (
         brush.expect("style"),
         PracticePens::built_in().expect("pens"),
-    );
-    let opening = (
-        record,
-        Vec::new(),
-        view,
-        openpaint_practice::Tally::default(),
     );
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
 }
@@ -126,7 +115,7 @@ fn overlay(session: &Session) -> Option<(KeyCompared, bool, bool)> {
 fn a_key_shift_shows_its_tendency_and_its_original_is_never_picked() {
     let mut session = read_sheet();
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::KeyShift));
+    assert_eq!(practice.kind, Some(Kind::KeyShift(BLUE)));
     let tendency = practice.sheet.givens[0]
         .iter()
         .find_map(|mark| match mark.drawn {
@@ -203,25 +192,16 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
 }
 
 #[test]
-fn stage_five_and_its_tile_are_offered_once_a_pack_holds_crops() {
+fn a_lesson_of_key_shifts_starts_once_a_pack_holds_crops() {
+    let shifts = Skill::of_key("key-shift").expect("key shifts' skill");
+    let start = Start::At(shifts, SkillLevel::First);
     let without = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    assert!(without.begin_drill(Family::KeyShift, 3, 4).is_none());
+    assert!(without.start(start, 3, 4).is_none());
     let with = PracticeLog::new(Vec::new(), Vec::new(), vec![crops()]);
-    let (drill, _) = with.begin_drill(Family::KeyShift, 3, 4).expect("a drill");
-    assert_eq!(drill.exercises().count(), 2);
+    let (lesson, _) = with.start(start, 3, 4).expect("a lesson");
+    assert!(lesson.exercises().count() > 0);
     assert!(
-        (drill.exercises().map(|l| &l.exercise))
+        (lesson.exercises().map(|l| &l.exercise))
             .all(|e| matches!(e.kind, Kind::KeyShift(_)) && e.picture.is_some())
-    );
-    let (session, _) = with.begin((5, None), 3, 4);
-    assert_eq!(session.stage(), Some(5));
-    let shifts =
-        (session.exercises().map(|l| &l.exercise)).filter(|e| e.kind.family() == Family::KeyShift);
-    assert_eq!(shifts.count(), 3);
-    assert!(
-        with.today()
-            .drills
-            .iter()
-            .any(|t| t.stage == 5 && t.family == Family::KeyShift)
     );
 }

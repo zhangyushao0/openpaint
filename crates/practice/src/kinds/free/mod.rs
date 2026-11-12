@@ -1,17 +1,18 @@
 //! A free scribble (`Kind::Free`, S122): the first lesson's first exercise, one empty frame the
-//! hand draws in as it likes to meet the pen. It has no original, gives nothing, compares nothing
-//! and ends with no result; it is no skill (`Skill::of`), so no level, dot or redo counts it.
-//!
-//! The skeleton's least: its stored code and its one topic. S122a: whatever else it needs.
+//! hand draws in as it likes to meet the pen (about half a minute). It has no original, gives
+//! nothing, compares nothing (`Facts::compared` false: no Compare, Next alone) and ends with no
+//! result; it is no skill (`Skill::of`), so no level, dot or redo counts it and it lays no lesson.
+//! Its one frame is the copy's (constructed), its tile a loop of scribble; it has no How (nothing
+//! is copied).
 
-use crate::kinds::{Described, Facts, Kind, Original, Work};
+use crate::kinds::{Described, Facts, Kind, Original, Tools};
 use crate::marks::tile::{TileMark, curve};
-use crate::sessions::family::Family;
-use crate::sessions::plan::Exercise;
+use crate::sheets::exercise::Exercise;
+use crate::sheets::family::Family;
 
 pub(crate) struct Free;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Free, "free", Work::Geometry)
+const FACTS: [Facts; 1] = [Facts::of(Family::Free, "free", Tools::Drawing, 30)
     .constructed()
     .uncompared()];
 
