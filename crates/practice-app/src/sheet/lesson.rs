@@ -90,6 +90,18 @@ impl PracticeSheet {
         })
     }
 
+    /// Each result marked under its pair on the sheet, by the exercise's index among the sheet's:
+    /// those of the lessons before the one in hand, and its own once it is done.
+    pub(super) fn marked(&self) -> Vec<(usize, Outcome)> {
+        let held = self.record.held();
+        let before = held.map_or(usize::MAX, |held| held.first_exercise());
+        let done = self.results().is_some();
+        (self.record.exercises().enumerate())
+            .filter(|(index, _)| *index < before || done)
+            .filter_map(|(index, laid)| Some((index, laid.result?.0)))
+            .collect()
+    }
+
     /// Whether the lesson in hand's results are kept: on every lesson but the first, where
     /// nothing is scored.
     pub(super) fn scored(&self) -> bool {

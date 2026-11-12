@@ -233,6 +233,9 @@ pub struct PracticeProjection {
     pub judged: Option<Judged>,
     /// Once the lesson is done: its end (S122), shown over the rows it used.
     pub end: Option<End>,
+    /// Each result marked under its pair, by the exercise's index among the sheet's: every
+    /// lesson's before the one in hand, and its own once it is done (S122).
+    pub marked: Vec<(usize, Outcome)>,
 }
 
 /// A practice sheet as the screen draws it.

@@ -196,9 +196,15 @@ fn the_end_shows_each_result_the_dot_earned_and_the_lesson_one_more_starts() {
     )
     .expect("chosen");
     assert!(shown(&session).end.is_none(), "not done yet");
+    assert!(
+        shown(&session).marked.is_empty(),
+        "marked once the lesson ends"
+    );
     while shown(&session).current.is_some() {
         next(&mut session);
     }
+    // The sheet marks the result under its pair, and keeps it there under the lessons after.
+    assert_eq!(shown(&session).marked, [(0, Outcome::Clean)]);
     let end = shown(&session).end.expect("the lesson's end");
     assert_eq!(end.results.len(), record.lessons[0].exercises.len());
     assert_eq!(end.results[0], (0, Some(Outcome::Clean)));

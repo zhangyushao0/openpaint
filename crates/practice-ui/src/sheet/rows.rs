@@ -1,7 +1,7 @@
 //! What the day's sheet says of its lessons (S122), over the canvas through the view: each
-//! lesson's label above the row it starts ("Lesson 3 · Lines"), quiet, and once a lesson ends each
-//! of its exercises' results as a small mark under its pair (a dot, a ring half filled, an empty
-//! ring). Never drawn into the artwork.
+//! lesson's label above the row it starts ("Lesson 3 · Lines"), quiet, and each result of the
+//! lessons before the one in hand, and its own once it ends, as a small mark under its pair (a dot,
+//! a ring half filled, an empty ring). Never drawn into the artwork.
 
 use egui::{Align2, FontId, Order, Pos2};
 use openpaint_app::ViewMapping;
@@ -15,14 +15,16 @@ use crate::components::paint_result;
 use crate::text as t;
 
 /// A label's type size, how far above its row it stands, a result's mark's radius and how far
-/// under its frames, in canvas pixels; a mark's least radius on screen, in points.
+/// under its frames, in canvas pixels; a mark's least and most radius on screen, in points (the
+/// most: an earlier lesson's marks stay small while the view is close on the pair in hand).
 const LABEL: f32 = 26.0;
 const ABOVE: f64 = 22.0;
 const MARK: f32 = 11.0;
 const UNDER: f64 = 36.0;
 const LEAST_MARK: f32 = 3.0;
+const MOST_MARK: f32 = 6.0;
 
-/// The rows' labels and, once a lesson ends, its results, through `mapping` on a screen of
+/// The rows' labels and the results marked under their pairs, through `mapping` on a screen of
 /// `pixels_per_point`.
 pub(crate) fn show_rows(
     ctx: &egui::Context,
@@ -49,12 +51,9 @@ pub(crate) fn show_rows(
             INK_SECONDARY,
         );
     }
-    let Some(end) = &practice.end else {
-        return;
-    };
-    let radius = (MARK * scale).max(LEAST_MARK);
-    for (index, outcome) in &end.results {
-        let (Some(pair), Some(outcome)) = (practice.sheet.pairs.get(*index), outcome) else {
+    let radius = (MARK * scale).clamp(LEAST_MARK, MOST_MARK);
+    for (index, outcome) in &practice.marked {
+        let Some(pair) = practice.sheet.pairs.get(*index) else {
             continue;
         };
         let [middle, _] = pair.centre();
