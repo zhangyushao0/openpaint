@@ -75,17 +75,17 @@ pub fn next(standing: &Standing<'_>) -> Option<Offer> {
 }
 
 /// The review on the side: the skill holding the oldest redo waiting, other than the skill `next`
-/// offers; two exercises. None while no such redo waits.
+/// offers; its redo alone where the skill's lesson holds one exercise (a division, a whole copy),
+/// else two (`reviewed`), and about how many minutes they take. None while no such redo waits.
 #[must_use]
 pub fn review(standing: &Standing<'_>) -> Option<Offer> {
-    let offered = next(standing).map(|offer| offer.skill);
-    let learner = standing.learner;
-    let (skill, _) = learner.redos().find(|(skill, _)| Some(*skill) != offered)?;
+    let (skill, level, held) = review_held(0, standing)?;
+    let (exercises, minutes) = timed(&chosen_of(0, held, level));
     Some(Offer {
         skill,
-        level: learner.level(skill),
-        exercises: 2,
-        minutes: 2,
+        level,
+        exercises,
+        minutes,
         redo: true,
     })
 }
@@ -168,21 +168,30 @@ pub fn lesson(
 }
 
 /// The review's lesson seeded `seed` (`Picked::Chosen`): the redo `review` offers, the same kind
-/// and picture, then one more of its kind at the skill's level (its level's first of the redo's
-/// family and another picture, else its first; none where the skill lays nothing now). None while
-/// `review` offers none.
+/// and picture, then, where the skill's lesson holds more than one exercise, one more of its kind
+/// at the skill's level (its level's first of the redo's family and another picture, else its
+/// first; none where the skill lays nothing now). None while `review` offers none.
 #[must_use]
 pub fn reviewed(seed: u64, standing: &Standing<'_>) -> Option<Planned> {
-    let offer = review(standing)?;
-    let redo = standing.learner.redo(offer.skill)?;
+    let (_, level, held) = review_held(seed, standing)?;
+    Some(chosen_of(seed, held, level))
+}
+
+/// The review's skill, its level and its exercises seeded `seed` (`reviewed`).
+fn review_held(seed: u64, standing: &Standing<'_>) -> Option<(Skill, SkillLevel, Vec<Held>)> {
+    let offered = next(standing).map(|offer| offer.skill);
+    let learner = standing.learner;
+    let (skill, redo) = learner.redos().find(|(skill, _)| Some(*skill) != offered)?;
+    let level = learner.level(skill);
     let family = redo.kind.family();
-    let held = laid(offer.skill, offer.level, seed, standing);
+    let held = laid(skill, level, seed, standing);
     let other = |picture: &Option<ItemRef>| picture.is_none() || *picture != redo.picture;
     let more = (held.iter())
         .find(|(kind, picture)| kind.family() == family && other(picture))
-        .or_else(|| held.first());
+        .or_else(|| held.first())
+        .filter(|_| held.len() > 1);
     let exercises = std::iter::once((redo.kind, redo.picture.clone())).chain(more.cloned());
-    Some(chosen_of(seed, exercises.collect(), offer.level))
+    Some((skill, level, exercises.collect()))
 }
 
 /// The full lesson of `unit` seeded `seed` (`Picked::Full`, its `stage` the unit): a warm-up of

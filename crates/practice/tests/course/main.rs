@@ -1,8 +1,9 @@
 //! The path's contract (S122): the units' skills and their keys, the dot rule, what a redo is and
 //! when it is answered, what opens a unit, the first lesson; the schedule's order, the First-prefix
-//! rule and a unit's full lesson in `order.rs`.
+//! rule and a unit's full lesson in `order.rs`; how a lesson's pictures turn in `pictures.rs`.
 
 mod order;
+mod pictures;
 
 use openpaint_practice::{
     DOTS, Judge, Kind, Learner, Lesson, LineTier, Needs, Outcome, Picked, Pictures, Planned,
