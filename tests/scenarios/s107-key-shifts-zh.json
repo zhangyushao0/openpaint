@@ -1,6 +1,6 @@
 {
   "walkthrough": [
-    "s107-key-shifts on a Chinese tablet, the same steps and canvas: the walk-through of key shifts (变调) with every word in Chinese as V大 says it. The practice options: 第 5 阶段 · 变调 and the 变调 tile, the note without crops: 色彩组合和变调都要临摹真实图片的局部. The How: 变调, 第 5 周, its steps (先看倾向色：偏暖还是偏冷，纯还是灰 … 偏完各色仍要分得开) and its paragraph, the strip's 倾向色. The sheet: 倾向色 small and grey under the disc beside the empty frame; the locked crop's notice 变调的原图不能吸色. Compare: the card's lines (… 块明度偏亮, … 块没往倾向色走, … 块混成了一块), 看黑白, 色块 swatches, the disc and the lightness bar's numbers; nothing clipped.",
+    "s107-key-shifts on a Chinese tablet, the same steps and canvas: the walk-through of key shifts (变调) with every word in Chinese as V大 says it. The practice options: 第 5 阶段 · 变调 and the 变调 tile, the note without crops: 色彩组合和变调都要临摹真实图片的局部. The How: 变调, its steps (先看倾向色：偏暖还是偏冷，纯还是灰 … 偏完各色仍要分得开) and its paragraph, the strip's 倾向色. The sheet: 倾向色 small and grey under the disc beside the empty frame; the locked crop's notice 变调的原图不能吸色. Compare: the card's lines (… 块明度偏亮, … 块没往倾向色走, … 块混成了一块), 看黑白, 色块 swatches, the disc and the lightness bar's numbers; nothing clipped.",
     "Not here: the author's hand on the tablet."
   ],
   "screen": [2880, 1800],
@@ -49,8 +49,8 @@
     { "screenshot": { "name": "key-compared-again" } },
     { "tap": { "at": "Finish" } },
     { "screenshot": { "name": "key-lesson-done" } },
-    { "tap": { "at": "That's all for today" } },
-    { "lesson": { "skill": "key-shift", "level": 1 } },
+    { "tap": { "at": "One more" } },
+    { "checkpoint": { "name": "one-more-key-shift", "canvas": "b66fe549c58307bd" } },
     { "screenshot": { "name": "key-second" } },
     { "tap": { "at": "Home" } },
     { "tap": { "at": "Continue" } },

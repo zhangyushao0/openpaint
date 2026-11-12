@@ -5,10 +5,10 @@
   ],
   "screen": [2880, 1800],
   "density": 1.75,
+  "start": "home",
   "system_language": "chinese",
   "steps": [
-    { "tap": { "at": "Home" } },
-    { "expect": { "shown": ["Practice options", "Start", "All units", "Practice book"], "absent": ["Review", "Continue practice"] } },
+    { "expect": { "shown": ["Practice options", "Start", "Lines", "Combined lines", "Colours", "All units", "Practice book"], "absent": ["Review", "Continue"] } },
     { "screenshot": { "name": "home-fresh" } },
     { "tap": { "at": "Start" } },
     { "expect": { "shown": ["Home", "Next", "Got it"], "absent": ["Compare", "Accurate"] } },
@@ -40,7 +40,6 @@
     { "expect": { "shown": ["Start", "All units"], "absent": ["Review", "One more"] } },
     { "screenshot": { "name": "home-offers-lines" } },
     "restart",
-    { "tap": { "at": "Home" } },
     { "expect": { "shown": ["Start", "All units", "Practice book"], "absent": ["Review"] } },
     { "screenshot": { "name": "home-after-restart" } }
   ]

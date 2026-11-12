@@ -53,7 +53,7 @@
     { "lesson": { "skill": "combination", "level": 1 } },
     { "screenshot": { "name": "second-crop" } },
     { "tap": { "at": "Home" } },
-    { "tap": { "at": "Start" } },
+    { "tap": { "at": "Continue" } },
     { "screenshot": { "name": "lesson-reopened" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "skill": "combination", "level": 1 } },

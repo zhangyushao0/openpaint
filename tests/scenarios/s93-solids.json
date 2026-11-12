@@ -18,7 +18,7 @@
     { "lesson": { "skill": "solids", "level": 1 } },
     { "screenshot": { "name": "cylinder-how-mid", "after_ms": 4500 } },
     { "screenshot": { "name": "cylinder-how-end" } },
-    { "expect": { "shown": ["Again", "Got it"], "absent": [] } },
+    { "expect": { "shown": ["Watch again", "Got it"], "absent": [] } },
     { "tap": { "at": "Got it" } },
     { "expect": { "shown": ["Compare", "Sketch", "Draw", "Undo", "Redo"], "absent": ["Aligned", "Correct", "Fill frame"] } },
     { "screenshot": { "name": "cylinder-given" } },
