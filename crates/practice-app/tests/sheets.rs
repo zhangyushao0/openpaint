@@ -3,8 +3,9 @@
 //! original over the copy in place or aligned and stores the result once, the pen turns blue and
 //! corrections are marked, Compare comes again, Next keeps the zoom, an original is picked only
 //! once compared, a colour's frame is filled from beside it, the full interface draws with the
-//! toolbox's brush, and the last Next ends the session with its summary.
+//! toolbox's brush, and the last Next ends the lesson with each exercise's result.
 
+mod mixed;
 mod support;
 
 use std::sync::Arc;
@@ -15,8 +16,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    ColourCompared, Family, Figure, Judge, Layout, Metric, Metrics, Original, Outcome, Pair, Sheet,
-    Tally, stage_one, value,
+    ColourCompared, Figure, Judge, Kind, Layout, Lightness, LineTier, Metric, Metrics, Original,
+    Outcome, Pair, Purity, Tone, value,
 };
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, PracticeProjection,
@@ -42,12 +43,11 @@ fn pens() -> PracticePens {
 }
 
 fn practising() -> Session {
-    let record = Sheet::session(1, 1, 1_791_201_600, stage_one(0x5EED_0045, &[]));
+    let record = support::laid(mixed::mixed(0x5EED_0045), 1_791_201_600);
     let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
-    let view = support::view(&record, &[], [width, height]);
-    let opening = (record, Vec::new(), view, Tally::default());
+    let opening = support::opening(&record, (&[], Vec::new()), [width, height]);
     openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
 }
 
@@ -143,11 +143,8 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
         practice.original.as_deref().cloned(),
     );
     assert!(close(on_screen(&session, pair.centre()), ROOM_MIDDLE, 0.5));
-    assert_eq!(
-        practice.instructions,
-        Some(Family::Line),
-        "lines' instructions first"
-    );
+    let straight = Some(Kind::Line(LineTier::Straight));
+    assert_eq!(practice.how, straight, "lines' How first");
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     // On the original: nothing drawn.
     draw(&mut session, &[[150.0, 150.0], [300.0, 300.0]]);
@@ -251,7 +248,8 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     assert_eq!(session.view().zoom(), zoom, "the zoom kept");
     let practice = PracticeProjection::of(&session).expect("a practice sheet");
-    assert_eq!((practice.current, practice.place), (Some(1), (2, 6)));
+    let place = practice.lesson.map(|lesson| lesson.place);
+    assert_eq!((practice.current, place), (Some(1), Some((2, 6))));
     assert_eq!(
         practice.pen.map(|p| p.0),
         Some(Pen::Draw),
@@ -305,15 +303,13 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
     let practice = PracticeProjection::of(&session).expect("a practice sheet");
-    assert_eq!(
-        (practice.family, practice.place),
-        (Some(Family::Colour), (1, 6))
-    );
-    assert_eq!(
-        practice.instructions,
-        Some(Family::Colour),
-        "colours' instructions first"
-    );
+    let muted = Kind::Colour(Tone {
+        purity: Purity::Muted,
+        lightness: Lightness::Middle,
+    });
+    let place = practice.lesson.map(|lesson| lesson.place);
+    assert_eq!((practice.kind, place), (Some(muted), Some((1, 6))));
+    assert_eq!(practice.how, Some(muted), "colours' How first");
     assert_eq!(practice.pen, None, "colours have no pens");
     let pair = practice.sheet.pairs[10];
     let Original::Colour(swatch) = *practice.original.as_deref().expect("in hand") else {
@@ -365,8 +361,9 @@ fn filled_again(session: &mut Session, metrics: &Metrics) {
     assert_eq!(*last, [255; 3], "the overlay shows the copy as it is now");
 }
 
-/// `session`, its eleventh exercise compared, taken past its last: the summary shows with the
-/// colour judgement, One more is offered and the pen draws nowhere (`at`: a place it lands).
+/// `session`, its eleventh exercise compared, taken past its last: the end shows each exercise's
+/// result (the colour's the app's, the rest none), One more is offered and the pen draws nowhere
+/// (`at`: a place it lands).
 fn finished(session: &mut Session, at: [f32; 2]) {
     let more = PracticeIntent::OneMore(VIEWPORT);
     assert!(session.practise(more, 30).is_err(), "not done yet");
@@ -375,10 +372,12 @@ fn finished(session: &mut Session, at: [f32; 2]) {
     }
     let practice = PracticeProjection::of(session).expect("a practice sheet");
     assert_eq!(practice.current, None);
-    let summary = practice.summary.as_ref().expect("the summary");
-    assert_eq!((summary[2].checked, summary[2].held), (1, 6));
-    let [this, before] = summary[2].judgement.expect("a judgement");
-    assert!(!this.is_empty() && before.is_empty());
+    let end = practice.end.as_ref().expect("the end");
+    let judged: Vec<(usize, Option<Outcome>)> = (0..16)
+        .map(|index| (index, (index == 10).then_some(Outcome::Clean)))
+        .collect();
+    assert_eq!(end.results, judged);
+    assert_eq!(end.skill, None, "a full lesson's");
     assert!(
         session
             .practise(PracticeIntent::Fill(Color::BLACK), 40)

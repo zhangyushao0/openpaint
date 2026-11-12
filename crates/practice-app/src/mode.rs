@@ -64,9 +64,9 @@ impl PracticeSheet {
     }
 }
 
-/// The practice sheet `artwork` of `sheet` (its session's record, the finished sessions of its
-/// stage before it and the sheet as drawn), opening on its shown pair in `viewport`; `brush` is
-/// the toolbox's, `pens` the practice pens.
+/// The practice sheet `artwork` of `sheet` (`PracticeLog::practising`: its record, the sheet as
+/// drawn and what its lesson in hand is set beside), opening on its shown pair in `viewport`;
+/// `brush` is the toolbox's, `pens` the practice pens.
 #[must_use]
 pub fn open_sheet(
     artwork: Artwork,
@@ -85,8 +85,9 @@ pub fn open_sheet(
 /// # Errors
 /// `Unavailable` off a practice sheet, for Compare with nothing to compare, the blue pen before
 /// Compare, a pen the exercise does not offer, a long colour copy's own tools (it has none,
-/// S104), a fill but on a colour's frame (or of a hidden or locked layer, which the notice says)
-/// and One more before the session is done; `Core` when the artwork refuses the fill.
+/// S104), a fill but on a colour's frame (or of a hidden or locked layer, which the notice says),
+/// a result chosen where the app judges, before Compare or twice, and One more before the lesson
+/// is done; `Core` when the artwork refuses the fill.
 pub fn practise(session: &mut Session, intent: PracticeIntent, now: u64) -> Result<(), Refused> {
     session
         .lend::<PracticeSheet, _>(|sheet, lent| sheet.apply(intent, lent, now))

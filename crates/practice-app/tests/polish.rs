@@ -14,8 +14,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Arrangement, Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, Plan,
-    Sheet, Tier,
+    Arrangement, Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, Sheet,
+    Tier,
 };
 use openpaint_practice_app::{PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
 use support::OnSheet;
@@ -30,23 +30,13 @@ const NOW: u64 = 1_791_400_000;
 /// The sheet of `record` with `packs` on a canvas of `size`, opened.
 fn opened(record: Sheet, packs: &[Pack], size: [u32; 2]) -> Session {
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
-    let view = support::view(&record, packs, size);
+    let opening = support::opening(&record, (packs, Vec::new()), size);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (
-            record,
-            Vec::new(),
-            view,
-            openpaint_practice::Tally::default(),
-        ),
-        &VIEWPORT,
-    )
+    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels).
@@ -92,13 +82,10 @@ fn line_in_frame(session: &mut Session) {
 }
 
 fn lines(count: usize) -> Sheet {
-    let plan = Plan {
-        exercises: (0..count)
-            .map(|k| Exercise::generated(Kind::Line(LineTier::Arc), k as u64))
-            .collect(),
-        warm_up: 0,
-    };
-    Sheet::session(1, 1, 0, plan)
+    let exercises = (0..count)
+        .map(|k| Exercise::generated(Kind::Line(LineTier::Arc), k as u64))
+        .collect();
+    support::laid(exercises, 0)
 }
 
 #[test]
@@ -145,14 +132,11 @@ fn undo_and_redo_reach_only_the_exercise_shown() {
 
 #[test]
 fn a_reading_that_arrives_after_its_exercise_was_left_is_dropped() {
-    let plan = Plan {
-        exercises: vec![
-            Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
-            Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0084),
-        ],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 2, 0, plan);
+    let exercises = vec![
+        Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
+        Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0084),
+    ];
+    let record = support::laid(exercises, 0);
     let size = openpaint_practice::Layout::of_sheet(&record).size;
     let mut session = opened(record, &[], size);
     let fill = Color::rgb(0.5, 0.4, 0.3).expect("colour");
@@ -271,26 +255,26 @@ fn the_log_keeps_a_copy_s_name_and_the_user_s_own_pictures_as_their_pack_holds_t
     copy.canvas = 12;
     log.keep(copy.clone());
     log.name(ProjectId::new(12), title);
-    let today = log.today();
-    assert_eq!(today.copies[0].name.as_str(), "Colour copy 1");
-    let own: Vec<&ItemRef> = today.pictures_of(None).map(|p| &p.item).collect();
+    let path = log.path();
+    assert_eq!(path.copies[0].name.as_str(), "Colour copy 1");
+    let own: Vec<&ItemRef> = path.pictures_of(None).map(|p| &p.item).collect();
     assert_eq!(own, [&mine]);
     assert_eq!(
-        today.picture(&mine).map(|p| (p.copies, p.sessions)),
+        path.picture(&mine).map(|p| (p.copies, p.sessions)),
         Some((1, 0))
     );
     log.name(ProjectId::new(12), Title::new("Lamp study").expect("title"));
-    assert_eq!(log.today().copies[0].name.as_str(), "Lamp study");
+    assert_eq!(log.path().copies[0].name.as_str(), "Lamp study");
     // The user's pictures all removed: the copy stays, its picture gone.
     log.set_personal(None);
-    let today = log.today();
-    assert_eq!(today.pictures_of(None).count(), 0);
-    assert_eq!(today.copies[0].picture, None);
+    let path = log.path();
+    assert_eq!(path.pictures_of(None).count(), 0);
+    assert_eq!(path.copies[0].picture, None);
     assert_eq!(
-        today.pictures_of(Some(Tier::Simple)).count(),
+        path.pictures_of(Some(Tier::Simple)).count(),
         1,
         "the official pack stays"
     );
     log.forget(copy.id);
-    assert!(log.today().copies.is_empty());
+    assert!(log.path().copies.is_empty());
 }

@@ -12,7 +12,7 @@ pub struct LessonRow {
     /// The slot of its first exercise: the row it starts.
     pub slot: u16,
     /// Its number among the learner's lessons, from 1, as `openpaint_practice::number` counts
-    /// them (S121b; S122a: every lesson but a copy's counted together).
+    /// them (S121b; S122a: every lesson but a copy's counted together; `PracticeLog::rows`).
     pub number: u32,
     /// The skill a skill's lesson or a review practises; none in a full lesson and the first.
     pub skill: Option<Skill>,
@@ -49,8 +49,10 @@ pub struct LessonShown {
     pub row: LessonRow,
     /// The level the exercise shown was laid at.
     pub level: SkillLevel,
-    /// The exercise shown's place in its lesson, from 1, and how many the lesson holds; once it
-    /// is done, its last.
+    /// The exercise shown's place, from 1, and how many there are: in a skill's lesson, a review
+    /// and the first lesson among all of the lesson; in a full lesson's warm-up among the
+    /// warm-up's, after it among those of the shown one's skill after it. Once it is done, its
+    /// last's.
     pub place: (usize, usize),
     /// The exercise shown is part of a full lesson's warm-up.
     pub warming_up: bool,

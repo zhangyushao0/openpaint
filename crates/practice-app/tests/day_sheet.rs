@@ -1,10 +1,11 @@
 //! The day's sheet (S121c): a sheet is today's when it was started on today's local day; a lesson
-//! from the gallery goes onto today's newest day's sheet once its last lesson is finished (a
-//! test's sheet never, nor yesterday's); One more appends the next lesson in place from a new row
-//! where the rows left hold it, gliding at the zoom the view had before Finish, undo reaching only
-//! the exercise shown, the record held back until the store answers and rolled back when the
-//! write failed; a sheet from before (its canvas only the rows it uses) never takes a lesson. Every
-//! view of a pair fits its row, so a twelve-row sheet shows a pair as a one-row sheet did.
+//! from the home goes onto today's newest day's sheet once its last lesson is finished (a test's
+//! sheet never, nor yesterday's); One more appends the next lesson in place from a new row where
+//! the rows left hold it, gliding at the zoom the view had before Finish, its row labelled, the
+//! How told once per kind, undo reaching only the exercise shown, the record held back until the
+//! store answers and rolled back with the end as it was when the write failed; a sheet from
+//! before (its canvas only the rows it uses) never takes a lesson. Every view of a pair fits its
+//! row, so a twelve-row sheet shows a pair as a one-row sheet did.
 
 use std::sync::Arc;
 
@@ -13,10 +14,13 @@ use openpaint_app::{
     ViewIntent, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{Family, Given, Givens, Layout, Lesson, Purpose, Sheet};
+use openpaint_practice::{
+    Exercise, Given, Givens, Kind, Layout, Lesson, LineTier, Picked, Planned, Purpose, Sheet,
+    Skill, SkillLevel,
+};
 use openpaint_practice_app::{
     PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticeProjection, PracticeSheet,
-    SheetView, append_lesson, append_stored, open_sheet, practise,
+    append_lesson, append_stored, open_sheet, practise,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -35,13 +39,22 @@ fn log_of(sheets: Vec<Sheet>, now: u64) -> PracticeLog {
     log
 }
 
-/// A line drill of `log` begun at `started` (six lines, two rows) on project `canvas`.
-fn line_drill(log: &PracticeLog, started: u64, canvas: u64) -> Sheet {
-    let (drill, _) = (log.begin_drill(Family::Line, 1, started)).expect("a drill");
-    Sheet { canvas, ..drill }
+/// A lesson of six lines (two rows), as `chosen` lays a lesson of a skill, the next sheet of
+/// `log` begun at `started` on project `canvas`.
+fn six_lines(log: &PracticeLog, started: u64, canvas: u64) -> Sheet {
+    let exercises = (0..6)
+        .map(|seed| Exercise::generated(Kind::Line(LineTier::Arc), seed))
+        .map(|exercise| (exercise, SkillLevel::First))
+        .collect();
+    let planned = Planned {
+        picked: Picked::Chosen,
+        exercises,
+    };
+    let lesson = Sheet::begun(log.next_id(), (Purpose::Day, started), planned);
+    Sheet { canvas, ..lesson }
 }
 
-/// `record` open on a canvas of `size`, its earlier lessons and the seals beside it from `log`.
+/// `record` open on a canvas of `size` as `log` opens it.
 fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> Session {
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -50,13 +63,7 @@ fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> Session {
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
     let printed = Given::of_sheet(record, &[]);
-    let view = SheetView::of(record, &printed, &[], (size, &Title::untitled(), 1));
-    let opening = (
-        record.clone(),
-        log.before(record),
-        view,
-        log.tally_beside(record),
-    );
+    let opening = log.practising(record, &printed, (size, &Title::untitled()));
     open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
@@ -78,9 +85,9 @@ fn finish(session: &mut Session) {
     }
 }
 
-/// The next line drill's lesson as `log` begins it, and what it prints.
-fn next_drill(log: &PracticeLog) -> (Lesson, Givens) {
-    let lesson = line_drill(log, NOON + 600, 0).lessons.remove(0);
+/// The next lesson of six lines, and what it prints.
+fn next_lesson(log: &PracticeLog) -> (Lesson, Givens) {
+    let lesson = six_lines(log, NOON + 600, 0).lessons.remove(0);
     let givens = Givens::of_lesson(&lesson, &[]);
     (lesson, givens)
 }
@@ -112,7 +119,7 @@ fn close(a: [f32; 2], b: [f32; 2]) -> bool {
 #[test]
 fn today_s_sheet_takes_a_lesson_from_the_gallery_once_its_last_is_finished() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let mut drill = line_drill(&empty, NOON, 40);
+    let mut drill = six_lines(&empty, NOON, 40);
     let unfinished = log_of(vec![drill.clone()], NOON + 600);
     assert!(unfinished.day_sheet().is_none(), "its lesson unfinished");
     drill.lessons[0].finished = Some(NOON + 300);
@@ -142,7 +149,7 @@ fn today_s_sheet_takes_a_lesson_from_the_gallery_once_its_last_is_finished() {
 #[test]
 fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = line_drill(&empty, NOON, 40);
+    let drill = six_lines(&empty, NOON, 40);
     let mut log = log_of(vec![drill.clone()], NOON + 600);
     let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
     assert_eq!(
@@ -161,20 +168,26 @@ fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
         Some([2920, 1080]),
         "the finish fits the two rows used"
     );
-    let (lesson, givens) = next_drill(&log);
+    let (lesson, givens) = next_lesson(&log);
     let (record, moved) =
         append_lesson(&mut session, (lesson, givens), &log, &VIEWPORT).expect("in place");
     assert_eq!(record.lessons.len(), 2);
     assert_eq!(record.lessons[1].exercises[0].slot, 6, "from the third row");
     assert_eq!(moved.slots[0].0, 6);
     let practice = shown(&session);
-    assert_eq!((practice.current, practice.place), (Some(6), (1, 6)));
+    let lesson = practice.lesson.expect("the lesson in hand");
+    assert_eq!((practice.current, lesson.place), (Some(6), (1, 6)));
     assert_eq!((practice.sheet.pairs.len(), practice.revealed), (12, 7));
+    assert_eq!(practice.how, None, "the lines' How told once");
+    // Its row labelled after the first: the second lesson of lines.
+    let lines = Skill::of_key("line").expect("the lines' skill");
+    assert_eq!(practice.sheet.rows.len(), 2);
+    let labelled = practice.sheet.rows[1];
     assert_eq!(
-        practice.instructions,
-        Some(Family::Line),
-        "a drill's How first"
+        (labelled.slot, labelled.number, labelled.skill),
+        (6, 2, Some(lines))
     );
+    assert_eq!(lesson.row, labelled);
     let view = session.view();
     assert!((view.zoom() - zoom).abs() < 1e-6, "the zoom before Finish");
     assert_eq!(view.fits(), Some(row(6)));
@@ -193,18 +206,21 @@ fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
 #[test]
 fn a_failed_write_rolls_the_lesson_back_with_the_failed_save_s_notice() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = line_drill(&empty, NOON, 40);
+    let drill = six_lines(&empty, NOON, 40);
     let mut log = log_of(vec![drill.clone()], NOON + 600);
     let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
     finish(&mut session);
     log.keep(record_of(&session));
     let finished_view = session.view();
+    let ended = shown(&session).end.expect("the first lesson's end");
     let (record, _) =
-        append_lesson(&mut session, next_drill(&log), &log, &VIEWPORT).expect("in place");
+        append_lesson(&mut session, next_lesson(&log), &log, &VIEWPORT).expect("in place");
+    assert!(shown(&session).end.is_none(), "the next lesson in hand");
     append_stored(&mut session, record.id, false);
     let practice = shown(&session);
     assert_eq!(practice.current, None);
-    assert!(practice.summary.is_some() && practice.finished.is_some());
+    assert_eq!(practice.end, Some(ended), "its end as it was");
+    assert_eq!(practice.sheet.rows.len(), 1);
     assert_eq!(practice.notice, Some(PracticeNotice::NotSaved));
     assert_eq!(practice.sheet.pairs.len(), 6);
     assert_eq!(session.view(), finished_view, "the view as before One more");
@@ -215,29 +231,29 @@ fn a_failed_write_rolls_the_lesson_back_with_the_failed_save_s_notice() {
 #[test]
 fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yesterday_s() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = line_drill(&empty, NOON, 40);
+    let drill = six_lines(&empty, NOON, 40);
     let log = log_of(vec![drill.clone()], NOON + 600);
     // A sheet from before: its canvas holds only the rows it uses.
     let mut old = practising(&drill, Layout::used(&drill), &log);
     finish(&mut old);
-    assert!(append_lesson(&mut old, next_drill(&log), &log, &VIEWPORT).is_none());
+    assert!(append_lesson(&mut old, next_lesson(&log), &log, &VIEWPORT).is_none());
     // Yesterday's: One more after midnight starts a new sheet.
     let tomorrow = log_of(vec![drill.clone()], NOON + DAY);
     let mut late = practising(&drill, Layout::laid_ahead(&drill), &tomorrow);
     finish(&mut late);
-    assert!(append_lesson(&mut late, next_drill(&tomorrow), &tomorrow, &VIEWPORT).is_none());
+    assert!(append_lesson(&mut late, next_lesson(&tomorrow), &tomorrow, &VIEWPORT).is_none());
     // Six drills of two rows fill the twelve: a seventh does not fit.
     let mut full = drill.clone();
     for _ in 1..6 {
         if let Some(last) = full.lessons.last_mut() {
             last.finished = Some(NOON + 60);
         }
-        full.append(next_drill(&log).0, Givens::default());
+        full.append(next_lesson(&log).0, Givens::default());
     }
     assert_eq!(Layout::next_slot(&full), 36);
     let mut filled = practising(&full, Layout::laid_ahead(&drill), &log);
     finish(&mut filled);
-    assert!(append_lesson(&mut filled, next_drill(&log), &log, &VIEWPORT).is_none());
+    assert!(append_lesson(&mut filled, next_lesson(&log), &log, &VIEWPORT).is_none());
     // A test's sheet appends a test lesson in place.
     let test = Sheet {
         purpose: Purpose::Test,
@@ -245,7 +261,7 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
     };
     let mut tested = practising(&test, Layout::laid_ahead(&test), &log);
     finish(&mut tested);
-    let (record, _) = (append_lesson(&mut tested, next_drill(&log), &log, &VIEWPORT))
+    let (record, _) = (append_lesson(&mut tested, next_lesson(&log), &log, &VIEWPORT))
         .expect("a test lesson in place");
     assert_eq!((record.purpose, record.lessons.len()), (Purpose::Test, 2));
 }
@@ -262,7 +278,7 @@ fn row(slot: usize) -> Fitted {
 #[test]
 fn every_view_of_a_pair_fits_its_row_as_a_one_row_sheet_did() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = line_drill(&empty, NOON, 40);
+    let drill = six_lines(&empty, NOON, 40);
     let log = log_of(vec![drill.clone()], NOON + 600);
     let mut tall = practising(&drill, Layout::laid_ahead(&drill), &log);
     // A sheet from before of one row: the first row exactly.

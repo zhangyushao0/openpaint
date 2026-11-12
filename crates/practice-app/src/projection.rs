@@ -14,13 +14,12 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    CardItem, Exercise, Family, First, Given, Kind, KindSummary, Layout, Level, Original, Outcome,
-    Pack, Pair, Point, Rgb8, Sheet, SheetMark, SheetPicture, Value,
+    CardItem, Exercise, First, Given, Kind, Layout, Level, Original, Outcome, Pack, Pair, Point,
+    Rgb8, Sheet, SheetMark, SheetPicture, Value,
 };
 
 use crate::lesson::{End, Judged, LessonRow, LessonShown};
 use crate::pictures::PictureImage;
-use crate::sheet::Finished;
 pub use crate::shown::{CopyRead, Greys};
 use openpaint_app::Availability;
 use openpaint_app::LayerRefusal;
@@ -34,7 +33,7 @@ pub const SHOWN: f32 = 0.5;
 /// What the user can ask of a practice session.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PracticeIntent {
-    /// The instructions for the shown exercise's kind, shown (true) or closed.
+    /// The shown exercise's kind's How, shown (true) or closed.
     Instructions(bool),
     /// The original laid over the copy (true; the first time stores the exercise's result, every
     /// time counts), or taken away.
@@ -59,15 +58,14 @@ pub enum PracticeIntent {
     /// The shown colour's, colour combination's or value scale's cell's frame filled with `Color`
     /// (the wheel beside it).
     Fill(Color),
-    /// On to the next exercise, the view moved to it within `viewport` at its zoom; after the
-    /// last the session ends and its summary shows over the whole sheet.
+    /// On to the next exercise, the view moved to it within `viewport` at its zoom, whether or not
+    /// a result was chosen; after the last the lesson ends and its end shows over the rows used.
     Next(Viewport),
-    /// Another session (after a drill, another drill of its kind), from the summary: on the same
-    /// sheet from a new row where it fits (the view gliding to it within `viewport`), else on a
-    /// new one.
+    /// The lesson the end offers (`End::next`), from the end: on the same sheet from a new row
+    /// where it fits (the view gliding to it within `viewport`), else on a new one.
     OneMore(Viewport),
     /// The result the user chooses for the shown exercise after Compare, where the eye judges
-    /// (S122: `Judged`, `Verdict::Eye`): kept once, with `Judge::Eye`.
+    /// (S122: `Judged`, `Verdict::Eye`): kept once, with `Judge::Eye`; refused once one is kept.
     Judge(Outcome),
     /// Closes the notice.
     Dismiss,
@@ -175,22 +173,11 @@ pub struct PracticeProjection {
     pub revealed: usize,
     /// The shown exercise's original, made by its generator (the only one made; none once done).
     pub original: Option<Arc<Original>>,
-    /// A session's stage; none for a drill or a long colour copy.
-    pub stage: Option<u8>,
     /// Whether it is a long colour copy's sheet.
     pub copy: bool,
-    /// The session's number in its stage (a drill's among its kind's drills).
-    pub number: u32,
-    /// The kind a drill drills (S91); none on a session's or a copy's sheet.
-    pub drill: Option<Family>,
-    /// The exercise shown (none once the session is done), its family (none once done), whether
-    /// it is part of the warm-up, its place among the warm-up's exercises or those of its family
-    /// after it and how many those are.
+    /// The exercise shown, an index into the sheet's; none once the lesson is done.
     pub current: Option<usize>,
-    pub family: Option<Family>,
-    pub warming_up: bool,
-    pub place: (usize, usize),
-    /// Whether Next ends the session.
+    /// Whether Next ends the lesson.
     pub last: bool,
     pub compare: Availability,
     pub comparing: bool,
@@ -211,12 +198,6 @@ pub struct PracticeProjection {
     pub card: Vec<CardItem>,
     /// A compared key shift's frames in grey, while the Grey view shows them (S107).
     pub greys: Option<Arc<Greys>>,
-    /// The instructions shown, for a family.
-    pub instructions: Option<Family>,
-    /// Once done: this session's means beside the earlier ones', per kind.
-    pub summary: Option<Vec<KindSummary>>,
-    /// Once a session is done: its dot on its stage's road and the seals it earned (S89).
-    pub finished: Option<Finished>,
     pub notice: Option<PracticeNotice>,
     /// Whether Aligned can be chosen for the shown exercise: lines, or a picture with an outline.
     pub aligned_offered: bool,
@@ -239,33 +220,29 @@ pub struct PracticeProjection {
     pub shown: f32,
     pub area: usize,
     pub grey: bool,
-    /// The lesson in hand as the bar names it (S122); none on a long colour copy's sheet. In
-    /// place of `stage`, `number`, `drill`, `warming_up` and `place`, which go with S122b.
+    /// The lesson in hand as the bar names it (S122); none on a long colour copy's sheet. Once
+    /// the lesson is done, still its own (its last exercise's place).
     pub lesson: Option<LessonShown>,
     /// The shown exercise's kind (none once the lesson is done): what its facts, its words and
-    /// its How go by (S122), in place of `family`.
+    /// its How go by (S122).
     pub kind: Option<Kind>,
-    /// The How shown, for a kind (S122), in place of `instructions`.
+    /// The How shown, for a kind: by itself the first time a kind comes up outside a warm-up
+    /// (compared on no sheet before), else on asking (`PracticeIntent::Instructions`).
     pub how: Option<Kind>,
     /// While comparing: who judges the shown exercise and the result kept (S122).
     pub judged: Option<Judged>,
-    /// Once the lesson is done: its end (S122), in place of `summary` and `finished`.
+    /// Once the lesson is done: its end (S122), shown over the rows it used.
     pub end: Option<End>,
 }
 
-/// A session's sheet as the screen draws it.
+/// A practice sheet as the screen draws it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SheetView {
     /// Its project's title: a colour copy's name.
     pub name: Title,
-    /// The number of its lesson in hand among the lessons of its kind: a session's in its stage,
-    /// a drill's among its kind's drills, a copy's among the copies (`openpaint_practice::number`).
-    pub number: u32,
     pub size: [u32; 2],
     /// Each exercise's frames, in the order of its lessons, at its slot.
     pub pairs: Vec<Pair>,
-    /// Each exercise's family, whose facts the flow and the screen read.
-    pub families: Vec<Family>,
     /// Each exercise's pack picture (none: a kind without one, or a picture no pack holds now:
     /// removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
@@ -275,10 +252,10 @@ pub struct SheetView {
     /// What each exercise gives in its frames before Compare, as its kind drew it (S109), as
     /// stored (`Given::marks`).
     pub givens: Vec<Vec<SheetMark>>,
-    /// Each exercise's kind, whose facts the flow and the screen read (S122), in place of
-    /// `families`.
+    /// Each exercise's kind, whose facts the flow and the screen read (S122).
     pub kinds: Vec<Kind>,
-    /// Each lesson on it as its row's label names it (S122); none on a long colour copy's.
+    /// Each lesson on it as its row's label names it (S122), by its index among the sheet's
+    /// lessons; none on a long colour copy's.
     pub rows: Vec<LessonRow>,
 }
 
@@ -286,17 +263,17 @@ impl SheetView {
     /// The sheet of `record` on its canvas of `size` pixels, titled `name`: what each exercise
     /// printed as `printed` holds it (stored when the sheet started, `Givens::laid`; no
     /// generator runs), its pictures as `packs` hold them, each in frames of its shape as it was
-    /// laid (S99), so they stay where its strokes lie whatever became of its picture.
+    /// laid (S99), so they stay where its strokes lie whatever became of its picture; its lessons'
+    /// labels `rows` (`PracticeLog::rows`).
     #[must_use]
-    pub fn of(
+    pub(crate) fn of(
         record: &Sheet,
         printed: &[Given],
         packs: &[Pack],
-        (size, name, number): ([u32; 2], &Title, u32),
+        (size, name, rows): ([u32; 2], &Title, Vec<LessonRow>),
     ) -> Self {
         let sheet = Layout::on(record, size);
         let exercises: Vec<&Exercise> = record.exercises().map(|laid| &laid.exercise).collect();
-        let families: Vec<Family> = exercises.iter().map(|e| e.kind.family()).collect();
         let pictures: Vec<Option<Arc<SheetPicture>>> = (exercises.iter())
             .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
             .collect();
@@ -309,23 +286,26 @@ impl SheetView {
         let givens = printed.iter().map(|given| given.marks.clone()).collect();
         Self {
             name: name.clone(),
-            number,
             size: sheet.size,
             pairs: sheet.pairs,
             pictures,
             painted,
-            families,
             givens,
             kinds: exercises.iter().map(|e| e.kind).collect(),
-            // Each lesson its own number once the log numbers them (`PracticeLog::practising`).
-            rows: LessonRow::of_sheet(record, |_| number),
+            rows,
         }
     }
 
     /// It with `record`'s last lesson, just appended, laid on it as `printed` holds what that
-    /// lesson's exercises print, its pictures as `packs` hold them, numbered `number`.
+    /// lesson's exercises print, its pictures as `packs` hold them, its lessons' labels `rows`.
     #[must_use]
-    pub fn appended(&self, record: &Sheet, printed: &[Given], packs: &[Pack], number: u32) -> Self {
+    pub(crate) fn appended(
+        &self,
+        record: &Sheet,
+        printed: &[Given],
+        packs: &[Pack],
+        rows: Vec<LessonRow>,
+    ) -> Self {
         let Some(lesson) = record.lessons.last() else {
             return self.clone();
         };
@@ -336,17 +316,15 @@ impl SheetView {
             },
             printed,
             packs,
-            (self.size, &self.name, number),
+            (self.size, &self.name, Vec::new()),
         );
         let mut joined = self.clone();
-        joined.number = number;
         joined.pairs = Layout::on(record, self.size).pairs;
-        joined.families.append(&mut sheet.families);
         joined.pictures.append(&mut sheet.pictures);
         joined.painted.append(&mut sheet.painted);
         joined.givens.append(&mut sheet.givens);
         joined.kinds.append(&mut sheet.kinds);
-        joined.rows.append(&mut sheet.rows);
+        joined.rows = rows;
         joined
     }
 }

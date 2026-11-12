@@ -1,6 +1,6 @@
-//! The practice options in the gallery (the Today card, its options and the practice book): a new
-//! session of a stage, a drill of a kind (S91) or a long colour copy of a chosen picture, each
-//! opened at once; a copy renamed or removed (S83); a pack imported and a picture of the user's
+//! The practice options on the home (the path, the practice options and the practice book): a
+//! lesson of the path (S122) or a long colour copy of a chosen picture, each opened at once; a
+//! copy renamed or removed (S83); a pack imported and a picture of the user's
 //! own added at a tier (S80), each through a picker that takes its turn with the gallery's own
 //! dialogs (`Gallery::choose`); one of the user's pictures removed or moved to another tier; the
 //! practice book's sheets read (S89). Like the gallery, this decides what to ask of the store and
@@ -12,7 +12,7 @@ use openpaint_app::{
     AppError, EditorAction, FileProblem, Gallery, HostRequest, ImageSource, PortError, ProjectId,
     Title, problem,
 };
-use openpaint_practice::{Family, ItemRef, Pack, PictureKind, Tier};
+use openpaint_practice::{ItemRef, Pack, PictureKind, Tier};
 
 use crate::path::Start;
 
@@ -27,15 +27,8 @@ const PACK: u32 = 0;
 pub enum OptionsIntent {
     /// A lesson started and opened at once (S122: the home's and the path's Start, Review, a
     /// skill's tile, Full lesson), onto the day's sheet where it takes it; one left unfinished is
-    /// continued by opening its sheet (`PathProjection::open`). In place of `Practice` and
-    /// `Drill`, which go with S122b.
+    /// continued by opening its sheet (`PathProjection::open`).
     Lesson(Start),
-    /// A new practice session of the stage given, opened at once (the Today card and its
-    /// options; an open one is continued by opening its sheet).
-    Practice(u8),
-    /// A new drill of the kind given, opened at once (a tile of the practice options, S91; one
-    /// left unfinished is continued by opening its sheet).
-    Drill(Family),
     /// A new long colour copy of the picture chosen, opened at once (the practice options' New
     /// copy; one begun is opened by its sheet).
     Copy(ItemRef),
@@ -62,10 +55,6 @@ pub enum OptionsIntent {
 pub enum OptionsRequest {
     /// A lesson started (`PracticeLog::start`) and its sheet, which becomes the open one (S122).
     Lesson(Start),
-    /// A new practice session of the stage given and its sheet, which becomes the open one.
-    Practice(u8),
-    /// A new drill of the kind given and its sheet, which becomes the open one (S91).
-    Drill(Family),
     /// A new long colour copy of the picture given and its sheet, which becomes the open one.
     Copy(ItemRef),
     /// A colour copy's sheet titled anew.
@@ -81,14 +70,11 @@ pub enum OptionsRequest {
 }
 
 impl OptionsRequest {
-    /// Whether it makes a sheet that becomes the open one (a lesson, a session, a drill, a copy):
-    /// it holds the gallery until the sheet opens, and failing it is a sheet not made.
+    /// Whether it makes a sheet that becomes the open one (a lesson, a copy): it holds the
+    /// gallery until the sheet opens, and failing it is a sheet not made.
     #[must_use]
     pub const fn opens(&self) -> bool {
-        matches!(
-            self,
-            Self::Lesson(_) | Self::Practice(_) | Self::Drill(_) | Self::Copy(_)
-        )
+        matches!(self, Self::Lesson(_) | Self::Copy(_))
     }
 }
 
@@ -125,7 +111,7 @@ pub struct Options {
 impl Options {
     /// Applies one intent beside `gallery`, whose turn the options take: nothing while an
     /// artwork is being opened, a picker only when no other dialog or file is under way. A new
-    /// session, drill or copy holds the gallery until its sheet opens (`Gallery::opening`).
+    /// lesson or copy holds the gallery until its sheet opens (`Gallery::opening`).
     ///
     /// # Errors
     /// `Unavailable` while an artwork is being opened, and for a picker while a system dialog is
@@ -145,8 +131,6 @@ impl Options {
                 return gallery.choose(HostRequest::OpenImage, u32::from(tier.code()));
             }
             OptionsIntent::Lesson(start) => OptionsRequest::Lesson(start),
-            OptionsIntent::Practice(stage) => OptionsRequest::Practice(stage),
-            OptionsIntent::Drill(family) => OptionsRequest::Drill(family),
             OptionsIntent::Copy(picture) => OptionsRequest::Copy(picture),
             OptionsIntent::RenameCopy { sheet, title } => OptionsRequest::RenameCopy(sheet, title),
             OptionsIntent::RemoveCopy(sheet) => OptionsRequest::RemoveCopy(sheet),

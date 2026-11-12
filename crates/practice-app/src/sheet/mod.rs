@@ -6,20 +6,22 @@
 //! the eyedropper (`read.rs`, a reading's frames in grey on asking), Next (the view glides to the
 //! next pair at its zoom, its row fitted, `view.rs`; after the last the lesson ends over the rows
 //! used), One more in place (`append.rs`: the next lesson laid from a new row of the day's
-//! sheet), the instructions (by themselves the first time a family comes up), the summary, the
-//! time (`time.rs`) and the notices; what the screen draws (`projected.rs`); the lesson's
-//! pictures as the store reads them. A long colour copy is a sheet of one pair, the full
-//! interface always showing (painted with the toolbox's own brushes, S104) and no Next. The
-//! record changes here and goes to the store whenever it did (`save_request`).
+//! sheet), a kind's How (by itself the first time a kind comes up, a warm-up's never), the
+//! result chosen by eye and the lesson's end (`lesson.rs`), the time (`time.rs`) and the
+//! notices; what the screen draws (`projected.rs`); the lesson's pictures as the store reads
+//! them. A long colour copy is a sheet of one pair, the full interface always showing (painted
+//! with the toolbox's own brushes, S104) and no Next. The record changes here and goes to the
+//! store whenever it did (`save_request`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask};
 use openpaint_practice::{
-    Facts, Family, Frame, ItemRef, Lesson, Original, Pair, Sheet, Tally, Tools, Work, seconds,
+    Facts, Frame, ItemRef, Kind, Learner, Original, Pair, Pictures, Sheet, Tally, Tools, seconds,
 };
 
+use crate::lesson::End;
 use crate::pens::PracticePens;
 use crate::pictures::{FitJob, PictureImage, grounded};
 use crate::projection::{Pen, PracticeIntent, PracticeNotice, SheetView};
@@ -27,10 +29,27 @@ use crate::refused::Refused;
 use openpaint_app::Availability;
 use openpaint_app::CanvasView;
 
-/// A practice sheet opening: its record, the finished lessons of its lesson in hand's kind
-/// before it (for the summary), the sheet as the screen draws it, and what every other lesson adds
-/// up to (for the seals its finish stamps). The flow works on the lesson in hand.
-pub type Practising = (Sheet, Vec<Lesson>, SheetView, Tally);
+/// A practice sheet opening, as `PracticeLog::practising` makes it (the one place one is made)
+/// and `open_sheet` takes it: its record, the sheet as the screen draws it, what its lesson in
+/// hand is set beside, and the kinds whose How was told (compared on any sheet, by their facts'
+/// keys). The flow works on the lesson in hand.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Practising {
+    pub(crate) record: Sheet,
+    pub(crate) view: SheetView,
+    pub(crate) beside: Beside,
+    pub(crate) told: HashSet<&'static str>,
+}
+
+/// What the lesson in hand is set beside, from the log: what every other lesson adds up to (the
+/// seals its end stamps), the learner they tell of (its skill's dots before and after it) and the
+/// pictures kept (the lesson its end offers next).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Beside {
+    pub(crate) others: Tally,
+    pub(crate) learner: Learner,
+    pub(crate) pictures: Pictures,
+}
 
 mod append;
 mod checks;
@@ -47,7 +66,6 @@ mod view;
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
 pub use read::ReadJob;
-pub use time::Finished;
 pub use view::PRACTICE_ROOM;
 
 use compare::Compared;
@@ -56,8 +74,9 @@ use read::Painting;
 #[derive(Debug)]
 pub struct PracticeSheet {
     record: Sheet,
-    /// The finished lessons of its kind before the one in hand, for the summary.
-    before: Vec<Lesson>,
+    /// What its lesson in hand is set beside, and that lesson's end once it is done (`lesson.rs`).
+    beside: Beside,
+    end: Option<End>,
     sheet: Arc<SheetView>,
     /// The shown exercise and its original, the only one its generator makes (`compare.rs`).
     in_hand: Option<(usize, Arc<Original>)>,
@@ -83,18 +102,18 @@ pub struct PracticeSheet {
     painting: Pen,
     dividing: Pen,
     valuing: Pen,
-    instructions: Option<Family>,
-    /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
-    /// or need not: a family compared before or in the warm-up.
-    told: [bool; Family::ALL.len()],
+    /// The kind whose How shows.
+    instructions: Option<Kind>,
+    /// The kinds whose How showed by itself already, or need not: compared before; by their
+    /// facts' keys (a kind's How is its topic's).
+    told: HashSet<&'static str>,
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,
-    /// The app was hidden (or the sheet just opened) since the last use, the time the store last
-    /// got, and what every other record adds up to (`time.rs`).
+    /// The app was hidden (or the sheet just opened) since the last use, and the time the store
+    /// last got (`time.rs`).
     hidden: bool,
     time_saved: u64,
-    others: Tally,
     /// The aligned fit for the worker, and how many were asked.
     fit_job: Option<FitJob>,
     fits: u64,
@@ -113,20 +132,22 @@ pub struct PracticeSheet {
 }
 
 impl PracticeSheet {
-    pub(crate) fn new(
-        (record, before, view, others): Practising,
-        canvas: CanvasSize,
-        pens: PracticePens,
-    ) -> Self {
+    pub(crate) fn new(opening: Practising, canvas: CanvasSize, pens: PracticePens) -> Self {
+        let Practising {
+            record,
+            view,
+            beside,
+            told,
+        } = opening;
         let sheet = Arc::new(view);
         let mut practice = Self {
-            told: told(&record, &before),
+            told,
             all_tools: record.is_copy(),
             hidden: true,
             time_saved: seconds(&record.spans),
-            others,
             record,
-            before,
+            beside,
+            end: None,
             sheet,
             in_hand: None,
             canvas,
@@ -171,8 +192,8 @@ impl PracticeSheet {
     pub fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
         self.images.retain(|(kept, _)| *kept != item);
         self.grounded.retain(|(kept, _)| *kept != item);
-        let faded = (self.sheet.pictures.iter().zip(&self.sheet.families))
-            .filter(|(_, family)| family.facts().grounded)
+        let faded = (self.sheet.pictures.iter().zip(&self.sheet.kinds))
+            .filter(|(_, kind)| kind.facts().grounded)
             .find_map(|(picture, _)| picture.as_ref().filter(|p| p.item == item));
         let grounded = faded
             .zip(image.as_ref())
@@ -181,11 +202,6 @@ impl PracticeSheet {
             self.grounded.push((item.clone(), Arc::new(grounded)));
         }
         self.images.push((item, image.map(Arc::new)));
-    }
-
-    /// The kind a drill drills (One more starts another of it); none on a session's sheet.
-    pub fn drill(&self) -> Option<Family> {
-        self.record.drilled()
     }
 
     /// Its record as it stands.
@@ -213,17 +229,16 @@ impl PracticeSheet {
         index + 1 >= end.min(self.sheet.pairs.len())
     }
 
-    fn family(&self, index: usize) -> Option<Family> {
-        let exercise = &self.record.laid(index)?.exercise;
-        Some(exercise.kind.family())
+    fn kind(&self, index: usize) -> Option<Kind> {
+        Some(self.record.laid(index)?.exercise.kind)
     }
 
-    /// What exercise `index`'s family's description says of it.
+    /// What exercise `index`'s kind's description says of it.
     fn facts(&self, index: usize) -> Option<&'static Facts> {
-        Some(self.family(index)?.facts())
+        Some(self.kind(index)?.facts())
     }
 
-    /// What the shown exercise's family's description says of it.
+    /// What the shown exercise's kind's description says of it.
     fn shown_facts(&self) -> Option<&'static Facts> {
         self.facts(self.current()?)
     }
@@ -231,7 +246,7 @@ impl PracticeSheet {
     /// Whether Aligned can be chosen for exercise `index`: its copy is laid over as lines, its
     /// original lines or a picture with an outline.
     fn aligned_offered(&self, index: usize) -> bool {
-        let lines = self.facts(index).is_some_and(|f| f.work == Work::Lines);
+        let lines = self.facts(index).is_some_and(|f| f.aligned);
         let original = self.original(index);
         let outlined = (self.sheet.pictures.get(index))
             .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some()));
@@ -241,14 +256,16 @@ impl PracticeSheet {
     /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
     /// compared before are corrected in blue, others drawn with the pen last chosen, painted
     /// exercises painted with the painting pen last chosen (value masses with the grey last
-    /// chosen); its family's instructions show by themselves the first time.
+    /// chosen); its kind's How shows by itself the first time it comes up (never in a warm-up);
+    /// once the lesson is done, its end is kept.
     fn shown(&mut self) {
         self.take_in_hand();
-        let frame = self.current().map(|index| self.sheet.pairs[index].copy);
+        let current = self.current();
+        let frame = current.map(|index| self.sheet.pairs[index].copy);
         self.clip = frame.and_then(|frame| self.region(&frame));
-        let compared = (self.current()).is_some_and(|index| self.record.first(index).is_some());
-        let family = self.current().and_then(|index| self.family(index));
-        self.pen = match family.map(|family| family.facts().tools) {
+        let compared = current.is_some_and(|index| self.record.first(index).is_some());
+        let kind = current.and_then(|index| self.kind(index));
+        self.pen = match kind.map(|kind| kind.facts().tools) {
             Some(Tools::Greys) => self.valuing,
             Some(Tools::Colour | Tools::Cells | Tools::Painting | Tools::Full) => self.painting,
             Some(Tools::Dividing | Tools::Copying) => self.dividing,
@@ -256,13 +273,13 @@ impl PracticeSheet {
             _ => self.drawing,
         };
         self.painted_shown();
-        if let Some(family) = family {
-            let at = Family::ALL.iter().position(|f| *f == family).unwrap_or(0);
-            if !self.told[at] {
-                self.told[at] = true;
-                self.instructions = Some(family);
-            }
+        let warming_up = current.is_some_and(|index| self.record.warming_up(index));
+        if let Some(kind) = kind.filter(|_| !warming_up)
+            && self.told.insert(kind.facts().key)
+        {
+            self.instructions = Some(kind);
         }
+        self.ended();
     }
 
     /// `frame`'s region of the canvas.
@@ -295,7 +312,7 @@ impl PracticeSheet {
         match intent {
             PracticeIntent::Instructions(on) => {
                 self.instructions = on
-                    .then(|| self.current().and_then(|i| self.family(i)))
+                    .then(|| self.current().and_then(|i| self.kind(i)))
                     .flatten();
             }
             PracticeIntent::Compare(on) => self.compare(on, artwork, now)?,
@@ -353,21 +370,4 @@ impl PracticeSheet {
 
 fn unavailable(availability: Availability) -> Refused {
     Refused::Unavailable(availability)
-}
-
-/// Whether each family's instructions need not show by themselves on `record`'s lesson in hand:
-/// compared in `before` or in it, or warmed up with (only kinds met are); a drill's How shows
-/// first every time it opens (S91).
-fn told(record: &Sheet, before: &[Lesson]) -> [bool; Family::ALL.len()] {
-    let done = |family: Family| {
-        let compared = before.iter().chain(record.lesson()).any(|lesson| {
-            (lesson.exercises.iter())
-                .any(|laid| laid.first.is_some() && laid.exercise.kind.family() == family)
-        });
-        let warmed = (record.lesson().into_iter())
-            .flat_map(|lesson| lesson.exercises.iter().take(lesson.warm_up()))
-            .any(|laid| laid.exercise.kind.family() == family);
-        (compared || warmed) && record.drilled() != Some(family)
-    };
-    Family::ALL.map(done)
 }

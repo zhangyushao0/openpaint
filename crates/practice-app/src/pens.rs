@@ -56,8 +56,9 @@ const VALUE: (&str, f32, f32) = (HARD_PAINT, (VALUE_PEN * FRAME) as f32, 1.0);
 /// copy is painted with the app's own brushes, one way of painting, so its hand starts with the
 /// big blocks.
 #[must_use]
-pub fn copy_brush((record, _, sheet, _): &Practising) -> Option<(BrushKey, f32)> {
-    let frame = sheet.pairs.first().filter(|_| record.is_copy())?.copy;
+pub fn copy_brush(opening: &Practising) -> Option<(BrushKey, f32)> {
+    let copy = opening.record.is_copy();
+    let frame = opening.view.pairs.first().filter(|_| copy)?.copy;
     let (_, big, _, _) = BIG;
     let size = (big * (frame.unit() / FRAME) as f32).min(MAX_BRUSH_SIZE);
     Some((BrushKey::new(HARD_PAINT), size))

@@ -1,8 +1,8 @@
 //! Objects on a practice sheet (S94): an object's picture beside the box given by its front
 //! corner, three edges and horizon; the box completed and its points found with Sketch, never
 //! read; its visible edges drawn with Draw and compared against the exact answer (each edge read,
-//! the error kept at the first Compare); an edge corrected in place of what it redraws; stage 4's
-//! sessions from the log.
+//! the error kept at the first Compare); an edge corrected in place of what it redraws; a lesson
+//! of objects as the path starts it.
 
 mod support;
 
@@ -14,10 +14,12 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Carve, Exercise, Family, Frame, Kind, Metric, OBJECT_SIDE, Original, Plan, Point, Sheet,
+    Carve, Exercise, Frame, Kind, Metric, OBJECT_SIDE, Original, Point, Skill, SkillLevel,
     SolidCheck, resample, value,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
+use openpaint_practice_app::{
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start,
+};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -27,26 +29,17 @@ const VIEWPORT: Viewport = Viewport {
 };
 
 fn opened() -> Session {
-    let plan = Plan {
-        exercises: vec![Exercise::generated(Kind::Object(Carve::Block), 0x5EED_0094)],
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 4, 0, plan);
+    let block = Exercise::generated(Kind::Object(Carve::Block), 0x5EED_0094);
+    let record = support::laid(vec![block], 0);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &[], [width, height]);
+    let opening = support::opening(&record, (&[], Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let tally = openpaint_practice::Tally::default();
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, Vec::new(), view, tally),
-        &VIEWPORT,
-    )
+    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke along `points` (frame units of `frame`), sampled every half pixel or so.
@@ -95,8 +88,8 @@ fn checked(session: &Session) -> SolidCheck {
 fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
     let mut session = opened();
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Object));
-    assert_eq!(practice.instructions, Some(Family::Object));
+    let block = Kind::Object(Carve::Block);
+    assert_eq!((practice.kind, practice.how), (Some(block), Some(block)));
     assert!(!practice.aligned_offered);
     let picture = practice.sheet.painted[0]
         .as_ref()
@@ -148,25 +141,17 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
 }
 
 #[test]
-fn the_log_begins_stage_four_and_offers_it_after_stage_three() {
+fn a_lesson_of_objects_starts_at_a_level_without_a_pack_its_unit_s_path_tile_lacking_nothing() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    let (record, title) = log.begin((4, None), 0x5EED_0094, 1_791_900_000);
-    assert_eq!((record.stage(), log.number(&record)), (Some(4), 1));
-    assert_eq!(title.as_str(), "Practice 1");
-    let families: Vec<Family> = record
-        .exercises()
-        .map(|l| &l.exercise)
-        .map(|e| e.kind.family())
-        .collect();
-    assert_eq!(families[..3], [Family::Object; 3]);
-    assert_eq!(families[3], Family::Cylinder);
-    // No pack: no shape, no crop for a combination (S101); the solid last.
-    assert_eq!(families.last(), Some(&Family::Cylinder));
-    assert!(log.today().ready >= 4);
-    let tiles = log.today().drills;
-    assert!(
-        tiles
-            .iter()
-            .any(|t| t.stage == 4 && t.family == Family::Object)
-    );
+    let objects = Skill::of_key("objects").expect("the objects' skill");
+    let start = Start::At(objects, SkillLevel::First);
+    let (record, title) = (log.start(start, 0x5EED_0094, 1_791_900_000)).expect("a lesson");
+    assert_eq!(title.as_str(), "Lesson 1");
+    assert!(record.exercises().count() > 0);
+    for laid in record.exercises() {
+        assert_eq!(Skill::of(laid.exercise.kind), Some(objects));
+    }
+    let path = log.path();
+    let tile = (path.units.iter().flat_map(|unit| &unit.skills)).find(|s| s.skill == objects);
+    assert_eq!(tile.map(|tile| (tile.dots, tile.lacks)), Some((0, None)));
 }

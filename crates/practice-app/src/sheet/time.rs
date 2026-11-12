@@ -1,27 +1,15 @@
-//! A practice sheet's time and its finish (S89; `openpaint_practice::time`): each use while the
-//! sheet shows (the pen touching or hovering, a finger, a control) runs the record's last span on
-//! to it, or starts a new one after a gap over `PAUSE`, after the app was hidden or when the sheet
-//! opens again (the time between was not spent on it). The time goes to the store with every
-//! other change, at least once a minute while it grows, when the app is hidden and when the sheet
-//! is left. Once a session is done: its dot on its stage's road and the seals its work earned
-//! beside every other lesson's; once a drill is done, the seals only.
+//! A practice sheet's time (S89; `openpaint_practice::time`): each use while the sheet shows (the
+//! pen touching or hovering, a finger, a control) runs the record's last span on to it, or starts
+//! a new one after a gap over `PAUSE`, after the app was hidden or when the sheet opens again (the
+//! time between was not spent on it). The time goes to the store with every other change, at
+//! least once a minute while it grows, when the app is hidden and when the sheet is left.
 
-use openpaint_practice::{STAGE_SESSIONS, Seal, practised, sealed, seconds};
+use openpaint_practice::{practised, seconds};
 
 use super::PracticeSheet;
 
 /// Seconds of time not yet stored after which the record goes to the store again.
 const SAVE_EVERY: u64 = 60;
-
-/// A session or drill done, as its finish shows it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Finished {
-    /// A session's dot on its stage's road: the sessions of its stage finished, this one the last
-    /// of them, and about how many the stage holds; none for a drill, which is no session (S91).
-    pub road: Option<(u32, u32)>,
-    /// The seals its work earned.
-    pub sealed: Vec<Seal>,
-}
 
 impl PracticeSheet {
     /// A use at `now` (seconds since 1970 UTC) while the sheet shows.
@@ -54,18 +42,5 @@ impl PracticeSheet {
         if seconds(&self.record.spans) != self.time_saved {
             self.changed = true;
         }
-    }
-
-    /// The finish of a session or drill done.
-    pub(super) fn finished(&self) -> Option<Finished> {
-        let done = self.current().is_none() && self.record.finished().is_some();
-        if !done || self.record.is_copy() {
-            return None;
-        }
-        let done = u32::try_from(self.before.len() + 1).unwrap_or(u32::MAX);
-        Some(Finished {
-            road: (self.record.stage().is_some()).then_some((done, STAGE_SESSIONS)),
-            sealed: sealed(&self.others, &self.record),
-        })
     }
 }

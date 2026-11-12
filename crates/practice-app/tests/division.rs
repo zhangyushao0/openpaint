@@ -4,8 +4,8 @@
 //! (a line drawn at a known place of the picture lies on that pixel), its lines joined, counted
 //! and measured against the picture's longer side, the frame's, the first numbers kept,
 //! lines drawn after Compare part of it; a whole copy's division on a layer of its own, dimmed
-//! under Draw's line drawing and hidden at Compare, none of it a step undo takes back; stage 4
-//! from the log with and without the composition pack.
+//! under Draw's line drawing and hidden at Compare, none of it a step undo takes back; lessons of
+//! divisions and whole copies as the path starts them, with and without the composition pack.
 
 mod support;
 
@@ -17,13 +17,13 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    DivisionCheck, DivisionCompared, Exercise, Family, Frame, ItemRef, Kind, Level, LineTier,
-    Metric, Pack, PackItem, PictureCompared, PictureKind, Plan, Point, Sheet, Tier, resample,
+    DivisionCheck, DivisionCompared, Exercise, Frame, ItemRef, Kind, Level, LineTier, Metric,
+    Needs, Pack, PackItem, PictureCompared, PictureKind, Point, Skill, SkillLevel, Tier, resample,
     value,
 };
 use openpaint_practice_app::{
     DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER, Pen, PracticeIntent, PracticeLog, PracticePens,
-    PracticeProjection,
+    PracticeProjection, Start,
 };
 use support::OnSheet;
 
@@ -71,27 +71,16 @@ fn copied(kind: Kind) -> Exercise {
 
 fn opened_with(exercises: Vec<Exercise>) -> Session {
     let packs = [compositions()];
-    let plan = Plan {
-        exercises,
-        warm_up: 0,
-    };
-    let record = Sheet::session(1, 4, 0, plan);
-    let record = record.framed(&packs);
+    let record = support::laid(exercises, 0).framed(&packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = support::view(&record, &packs, [width, height]);
+    let opening = support::opening(&record, (&packs, Vec::new()), [width, height]);
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let tally = openpaint_practice::Tally::default();
-    let mut session = openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, Vec::new(), view, tally),
-        &VIEWPORT,
-    );
+    let mut session = openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }
@@ -174,7 +163,7 @@ fn division_overlay(session: &Session) -> ([[f32; 2]; 4], f32, DivisionCheck) {
 fn a_division_is_drawn_by_level_and_compared_with_its_picture_under_it() {
     let mut session = opened(Kind::Division(Tier::Simple));
     let practice = PracticeProjection::of(&session).expect("a sheet");
-    assert_eq!(practice.family, Some(Family::Division));
+    assert_eq!(practice.kind, Some(Kind::Division(Tier::Simple)));
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Main));
     assert!(!practice.aligned_offered);
     for refused in [Pen::Sketch, Pen::Draw, Pen::Correct, Pen::Big] {
@@ -356,44 +345,29 @@ fn after_a_whole_copy_the_next_exercise_draws_on_the_sheets_first_layer_the_divi
 }
 
 #[test]
-fn stage_four_holds_a_division_and_a_whole_copy_with_the_composition_pack() {
+fn lessons_of_divisions_and_whole_copies_start_only_with_the_composition_pack() {
     let bare = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    let (record, _) = bare.begin((4, None), 0x5EED_0095, NOW);
-    let families: Vec<Family> = record
-        .exercises()
-        .map(|l| &l.exercise)
-        .map(|e| e.kind.family())
-        .collect();
-    assert_eq!(families[3], Family::Cylinder, "S94's mix");
-    assert!(!bare.today().compositions);
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![compositions()]);
-    assert!(log.today().compositions);
-    let (record, _) = log.begin((4, None), 0x5EED_0095, NOW);
-    let families: Vec<Family> = record
-        .exercises()
-        .map(|l| &l.exercise)
-        .map(|e| e.kind.family())
-        .collect();
-    assert_eq!(
-        families,
-        [
-            Family::Object,
-            Family::Object,
-            Family::Object,
-            Family::Division,
-            Family::WholeCopy
-        ]
-    );
-    let pictures: Vec<&ItemRef> = (record.exercises().skip(3).map(|l| &l.exercise))
-        .filter_map(|e| e.picture.as_ref())
-        .collect();
-    assert_eq!(pictures.len(), 2);
-    assert_ne!(pictures[0], pictures[1]);
-    let (drill, _) = log
-        .begin_drill(Family::Division, 7, NOW)
-        .expect("a division drill");
-    assert_eq!(drill.exercises().count(), 3);
-    assert!(bare.begin_drill(Family::WholeCopy, 7, NOW).is_none());
-    let pack = (log.today().packs.first().cloned()).expect("the pack");
+    for key in ["division", "whole-copy"] {
+        let skill = Skill::of_key(key).expect("a skill");
+        let start = Start::At(skill, SkillLevel::First);
+        assert!(bare.start(start, 7, NOW).is_none(), "{key} without a pack");
+        let tiles = |log: &PracticeLog| {
+            let path = log.path();
+            let tile = (path.units.iter().flat_map(|unit| &unit.skills))
+                .find(|tile| tile.skill == skill)
+                .copied();
+            tile.map(|tile| tile.lacks)
+        };
+        assert_eq!(tiles(&bare), Some(Some(Needs::Compositions)), "{key}");
+        assert_eq!(tiles(&log), Some(None), "{key}");
+        let (record, _) = (log.start(start, 7, NOW)).expect(key);
+        let pictures: Vec<&ItemRef> = (record.exercises())
+            .filter_map(|laid| laid.exercise.picture.as_ref())
+            .collect();
+        assert!(!pictures.is_empty(), "{key}");
+        assert_eq!(pictures.len(), record.exercises().count(), "{key}");
+    }
+    let pack = (log.path().packs.first().cloned()).expect("the pack");
     assert_eq!((pack.pictures, pack.outlines), (2, None));
 }

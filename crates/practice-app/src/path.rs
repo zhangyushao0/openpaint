@@ -1,8 +1,8 @@
-//! The path as one UI frame sees it (S122; `log/path.rs` makes it from the log): the course's
-//! eight units with their skills' dots, the unit in hand, the next lesson and the review on the
-//! side, whether the first lesson is due, the day's lesson left unfinished; and what the gallery's
-//! card held beside the sessions, which stays: the packs kept, the long colour copies, the
-//! pictures a copy can be begun of and the practice book. The home's column shows the next lesson
+//! The path as one UI frame sees it (S122; `log/path.rs` makes it again as the log changes): the
+//! course's eight units with their skills' dots, the unit in hand, the next lesson and the review
+//! on the side, whether the first lesson is due, the day's lesson left unfinished; and beside
+//! them the packs kept, the long colour copies, the pictures a copy can be begun of and the
+//! practice book. The home's column shows the next lesson
 //! (its skill, level, exercises and minutes; Start), the review while a redo waits (Review), All
 //! units and Practice book; the path page the units, the next lesson, the review and the unit's
 //! full lesson (Full lesson). And how a lesson is started from them (`Start`).
@@ -13,8 +13,8 @@ use openpaint_app::ProjectId;
 use openpaint_practice::{ItemRef, Needs, Offer, Skill, SkillLevel, Tier};
 
 use crate::book::BookProjection;
+use crate::copies::{CopyShown, PictureShown};
 use crate::pictures::PackShown;
-use crate::today::{CopyShown, PictureShown, TodayProjection};
 
 /// What a lesson is started as, from the home, the path or a lesson's end.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,17 +35,19 @@ pub enum Start {
 }
 
 /// The home's practice column, the path page and the practice book.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct PathProjection {
     /// The eight units in order.
     pub units: Vec<UnitShown>,
     /// The unit in hand: the one whose full lesson the path offers.
     pub unit: u8,
-    /// The next lesson; none while the first lesson is due or nothing can be practised.
+    /// The next lesson (`Start::Next`); none while the first lesson is due or nothing can be
+    /// practised.
     pub next: Option<Offer>,
-    /// The review on the side, while a redo of another skill than the next lesson's waits.
+    /// The review on the side (`Start::Review`), while a redo of another skill than the next
+    /// lesson's waits.
     pub review: Option<Offer>,
-    /// Nothing was practised yet: Start starts the first lesson.
+    /// Nothing was practised yet: Start (`Start::Next`) starts the first lesson.
     pub first: bool,
     /// The day's sheet whose lesson is unfinished: Start continues it by opening its sheet.
     pub open: Option<ProjectId>,
@@ -58,9 +60,6 @@ pub struct PathProjection {
     pub pictures: Arc<[PictureShown]>,
     /// The practice book.
     pub book: BookProjection,
-    /// The gallery's card as it was: what the screens read until S122c reads the fields above,
-    /// and S122b deletes it.
-    pub today: TodayProjection,
 }
 
 /// A unit on the path.

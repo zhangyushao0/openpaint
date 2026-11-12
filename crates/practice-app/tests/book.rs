@@ -1,9 +1,10 @@
 //! The practice book's side of a sheet (S89): its time runs on the uses while it shows, a gap over
 //! five minutes or the app hidden starting a new span, and goes to the store at least once a
-//! minute while it grows; a finished session shows its dot on its stage's road and the seals its
-//! work earned beside every other record; and what the book reads of a sheet: each single line's
-//! first copy (corrections left out), each colour's first pick, its frames and marks.
+//! minute while it grows; a finished lesson's end stamps the seals its work earned beside every
+//! other record; and what the book reads of a sheet: each single line's first copy (corrections
+//! left out), each colour's first pick, its frames and marks.
 
+mod mixed;
 mod support;
 
 use std::sync::Arc;
@@ -14,12 +15,9 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Estimate, Given, Kind, Layout, Original, PAUSE, STAGE_SESSIONS, ScaleTone, Seal, Sheet, Solid,
-    Span, Tally, Trick,
+    Estimate, Given, Kind, Layout, Original, PAUSE, ScaleTone, Seal, Sheet, Solid, Span, Trick,
 };
-use openpaint_practice_app::{
-    Finished, Mark, PracticeIntent, PracticePens, PracticeProjection, SheetRead,
-};
+use openpaint_practice_app::{Mark, PracticeIntent, PracticePens, PracticeProjection, SheetRead};
 use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
@@ -30,26 +28,29 @@ const VIEWPORT: Viewport = Viewport {
 /// 2026-10-05 12:00 UTC.
 const NOON: u64 = 1_791_201_600;
 
-fn practising(record: Sheet, (before, others): (Vec<Sheet>, Tally)) -> Session {
-    let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
-    let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
+/// `record` open as a log of `others` opens it.
+fn practising(record: &Sheet, others: Vec<Sheet>) -> Session {
+    let size = Layout::of(&vec![None; record.exercises().count()]).size;
+    let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let view = support::view(&record, &[], [width, height]);
-    let before = before.into_iter().flat_map(|sheet| sheet.lessons).collect();
-    openpaint_practice_app::open_sheet(
-        sheet,
-        (brush, pens),
-        (record, before, view, others),
-        &VIEWPORT,
-    )
+    let opening = support::opening(record, (&[], others), size);
+    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
-fn first_session() -> Sheet {
-    Sheet::session(1, 1, NOON, openpaint_practice::stage_one(0x5EED_0045, &[]))
+/// A full lesson of six lines, four combined lines and six colours, sheet `id`, seeded `seed`.
+fn mixed_lesson(id: u64, seed: u64) -> Sheet {
+    Sheet {
+        id,
+        ..support::laid(mixed::mixed(seed), NOON)
+    }
+}
+
+fn first_session() -> Session {
+    practising(&mixed_lesson(1, 0x5EED_0045), Vec::new())
 }
 
 /// A pen stroke through `points` (canvas pixels).
@@ -86,7 +87,7 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
 
 #[test]
 fn a_sheet_s_time_runs_on_its_uses_and_reaches_the_store_at_least_once_a_minute() {
-    let mut session = practising(first_session(), (Vec::new(), Tally::default()));
+    let mut session = first_session();
     session.sheet().practised(NOON);
     let saved = session.sheet().save_request().expect("a span began");
     assert_eq!(
@@ -131,41 +132,31 @@ fn a_sheet_s_time_runs_on_its_uses_and_reaches_the_store_at_least_once_a_minute(
 }
 
 #[test]
-fn a_finished_session_shows_its_dot_and_stamps_the_seal_it_earned() {
+fn a_finished_lesson_s_end_stamps_the_seal_it_earned() {
     let before: Vec<Sheet> = (1..=9)
         .map(|id| {
-            let mut sheet = Sheet::session(id, 1, NOON, openpaint_practice::stage_one(id, &[]));
+            let mut sheet = mixed_lesson(id, id);
             sheet.lessons[0].finished = Some(NOON + id * 86_400);
             sheet
         })
         .collect();
-    let others = Tally::of(&before);
-    let record = Sheet::session(
-        10,
-        1,
-        NOON + 10 * 86_400,
-        openpaint_practice::stage_one(99, &[]),
-    );
+    let record = mixed_lesson(10, 99);
     let count = record.exercises().count();
-    let mut session = practising(record, (before, others));
+    let mut session = practising(&record, before);
     for _ in 0..count {
-        let finished = PracticeProjection::of(&session).and_then(|p| p.finished.clone());
-        assert_eq!(finished, None, "not done yet");
+        let end = PracticeProjection::of(&session).and_then(|p| p.end);
+        assert_eq!(end, None, "not done yet");
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    let finished = PracticeProjection::of(&session).and_then(|p| p.finished.clone());
-    assert_eq!(
-        finished,
-        Some(Finished {
-            road: Some((10, STAGE_SESSIONS)),
-            sealed: vec![Seal::TenSessions],
-        })
-    );
+    let end = PracticeProjection::of(&session).and_then(|p| p.end);
+    let end = end.expect("the lesson's end");
+    assert_eq!(end.sealed, [Seal::TenSessions]);
+    assert!(end.next.is_some(), "the lesson One more starts");
 }
 
 #[test]
 fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
-    let mut session = practising(first_session(), (Vec::new(), Tally::default()));
+    let mut session = first_session();
     let pairs = (PracticeProjection::of(&session).expect("sheet").sheet.pairs).clone();
     let at = |frame: usize, [x, y]: [f64; 2]| {
         let copy = pairs[frame].copy;

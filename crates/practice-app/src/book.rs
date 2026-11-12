@@ -13,9 +13,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{
-    Book, Family, Figure, Given, In, Kept, Layout, LinePen, Point, Rgb8, Sheet,
-};
+use openpaint_practice::{Book, Figure, Given, In, Kept, Layout, LinePen, Point, Rgb8, Sheet};
 
 use crate::copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
 use crate::lesson::LessonRow;
@@ -33,7 +31,7 @@ pub struct BookProjection {
     pub book: Arc<Book>,
     /// The local day now (`openpaint_practice::local_day`).
     pub today: i64,
-    /// Every session, drill and copy, by id, as the book names and opens them.
+    /// Every sheet, by id, as the book names and opens it.
     pub records: Arc<[BookRecord]>,
     /// The sheets read so far, by record.
     pub read: Arc<BTreeMap<u64, Arc<SheetRead>>>,
@@ -53,11 +51,8 @@ pub struct BookRecord {
     pub id: u64,
     /// Its sheet, which opens it.
     pub sheet: ProjectId,
-    /// Each lesson on it, in order (a day's sheet holds the day's, S121c): the kind a drill
-    /// drills (none for a session) and its number in its stage or among its kind's drills.
-    pub lessons: Vec<(Option<Family>, u32)>,
-    /// Each lesson on it as its row's label names it (S122: "lesson n · skill"), in place of
-    /// `lessons`; none on a colour copy's.
+    /// Each lesson on it, in order (a day's sheet holds the day's, S121c), as its row's label
+    /// names it (S122: "lesson n · skill"); none on a colour copy's.
     pub rows: Vec<LessonRow>,
     /// A colour copy's name (its sheet's title); none for a day's sheet.
     pub copy: Option<Title>,
@@ -176,7 +171,7 @@ fn swatch(given: &Given) -> Option<Rgb8> {
 /// one frame that one (S97), the others both.
 fn frames(sheet: &Layout, record: &Sheet) -> Vec<[[f32; 2]; 2]> {
     let one =
-        |index: usize| (record.laid(index)).is_some_and(|l| l.exercise.kind.family().constructed());
+        |index: usize| (record.laid(index)).is_some_and(|l| l.exercise.kind.facts().constructed);
     (sheet.pairs.iter().enumerate())
         .flat_map(|(index, pair)| {
             let original = (!one(index)).then_some(pair.original);
