@@ -34,7 +34,7 @@ pub use crate::mode::{append_lesson, append_stored, open_sheet, practise};
 pub use crate::options::{
     MAX_PACK_BYTES, Options, OptionsFile, OptionsIntent, OptionsNotice, OptionsRequest,
 };
-pub use crate::path::{PathProjection, SkillShown, Start, UnitShown};
+pub use crate::path::{OpenLesson, PathProjection, SkillShown, Start, UnitShown};
 pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};
 pub use crate::projection::{

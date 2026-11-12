@@ -14,6 +14,7 @@ use openpaint_practice::{ItemRef, Needs, Offer, Skill, SkillLevel, Tier};
 
 use crate::book::BookProjection;
 use crate::copies::{CopyShown, PictureShown};
+use crate::lesson::LessonRow;
 use crate::pictures::PackShown;
 
 /// What a lesson is started as, from the home, the path or a lesson's end.
@@ -49,8 +50,8 @@ pub struct PathProjection {
     pub review: Option<Offer>,
     /// Nothing was practised yet: Start (`Start::Next`) starts the first lesson.
     pub first: bool,
-    /// The day's sheet whose lesson is unfinished: Start continues it by opening its sheet.
-    pub open: Option<ProjectId>,
+    /// The day's lesson left unfinished: Continue opens its sheet on it.
+    pub open: Option<OpenLesson>,
     /// The packs kept, the official ones first.
     pub packs: Vec<PackShown>,
     /// The long colour copies, newest first.
@@ -60,6 +61,17 @@ pub struct PathProjection {
     pub pictures: Arc<[PictureShown]>,
     /// The practice book.
     pub book: BookProjection,
+}
+
+/// The day's lesson left unfinished, as the home names it: "Lines 3/6".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpenLesson {
+    /// Its sheet, which Continue opens.
+    pub sheet: ProjectId,
+    /// The lesson as its row's label names it: its skill, a full lesson's unit or the first.
+    pub row: LessonRow,
+    /// The exercise in hand's place among the lesson's, from 1, and how many there are.
+    pub place: (usize, usize),
 }
 
 /// A unit on the path.

@@ -13,7 +13,7 @@ use openpaint_practice::{
 
 use super::PracticeLog;
 use crate::lesson::LessonRow;
-use crate::path::{PathProjection, SkillShown, Start, UnitShown};
+use crate::path::{OpenLesson, PathProjection, SkillShown, Start, UnitShown};
 use crate::pictures::PackShown;
 use crate::projection::SheetView;
 use crate::sheet::{Beside, Practising};
@@ -82,16 +82,24 @@ impl PracticeLog {
         };
     }
 
-    /// The day's sheet whose lesson in hand is unfinished, the newest.
-    fn open_lesson(&self) -> Option<ProjectId> {
-        (lessons(&self.sheets).iter().rev())
-            .find(|on| {
-                on.sheet.purpose == Purpose::Day
-                    && on.index == on.sheet.in_hand()
-                    && on.finished().is_none()
-                    && on.sheet.canvas != 0
-            })
-            .map(|on| ProjectId::new(on.sheet.canvas))
+    /// The day's lesson in hand left unfinished, the newest: its sheet, its row's label and the
+    /// exercise in hand's place.
+    fn open_lesson(&self) -> Option<OpenLesson> {
+        let all = lessons(&self.sheets);
+        let on = (all.iter().rev()).find(|on| {
+            on.sheet.purpose == Purpose::Day
+                && on.index == on.sheet.in_hand()
+                && on.finished().is_none()
+                && on.sheet.canvas != 0
+        })?;
+        let row = *self.rows(on.sheet).get(on.index)?;
+        let count = on.lesson.exercises.len();
+        let at = usize::from(on.lesson.at).min(count.saturating_sub(1));
+        Some(OpenLesson {
+            sheet: ProjectId::new(on.sheet.canvas),
+            row,
+            place: (at + 1, count),
+        })
     }
 
     /// A lesson started as `start` says, seeded `seed`, at `now` (seconds since 1970 UTC), on a

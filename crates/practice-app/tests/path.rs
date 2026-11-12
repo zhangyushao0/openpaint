@@ -59,7 +59,7 @@ fn before_anything_is_practised_the_path_offers_the_first_lesson() {
     // Without a pack a single shape lacks its pictures.
     assert!(path.units[1].skills[0].lacks.is_some());
     assert!(path.first && path.next.is_none() && path.review.is_none());
-    assert_eq!((path.unit, path.open), (1, None));
+    assert_eq!((path.unit, path.open.is_none()), (1, true));
     assert!(log.learner().fresh());
 }
 
@@ -174,7 +174,7 @@ fn the_path_follows_the_log_as_lessons_and_packs_are_kept() {
         found.copied().expect("its tile")
     };
     assert_eq!(tile(&log, shape).lacks, Some(Needs::Pictures));
-    // The first lesson kept, unfinished: its sheet is what Start continues.
+    // The first lesson kept, unfinished: its sheet is what Continue opens, named and placed.
     let (first, _) = log.start(Start::Next, 5, NOON).expect("the first lesson");
     log.keep(Sheet {
         canvas: 40,
@@ -182,7 +182,9 @@ fn the_path_follows_the_log_as_lessons_and_packs_are_kept() {
     });
     let path = log.path();
     assert!(!path.first && !log.learner().fresh());
-    assert_eq!(path.open, Some(ProjectId::new(40)));
+    let open = path.open.expect("the first lesson open");
+    assert_eq!((open.sheet, open.place), (ProjectId::new(40), (1, 3)));
+    assert!(open.row.first && open.row.number == 1);
     let next = path.next.expect("the next lesson");
     assert_eq!((next.level, next.redo), (SkillLevel::First, false));
     assert!(path.review.is_none(), "no redo waits");
@@ -191,7 +193,7 @@ fn the_path_follows_the_log_as_lessons_and_packs_are_kept() {
     done.lessons[0].finished = Some(NOON + 300);
     log.keep(done);
     let path = log.path();
-    assert_eq!(path.open, None);
+    assert!(path.open.is_none());
     let rows = &path.book.record(1).expect("in the book").rows;
     assert!(rows.len() == 1 && rows[0].first && rows[0].number == 1);
     // A pack kept: shapes lack nothing and a lesson of them lays its picture.
