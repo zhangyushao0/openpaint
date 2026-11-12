@@ -5,12 +5,13 @@
 //! how many exercises it held and the seconds they took,
 //! its skill's dots before it (the learner beside it, `PracticeLog::learner_beside`) and after it
 //! (`Learner::with`), the seals it earned and the lesson One more starts (`schedule::next` on the
-//! learner after it). The end is kept once the lesson is done (`shown`); a result a painted
+//! learner after it; the same skill again after a lesson of a unit past the learner's). The end is kept once the lesson is done (`shown`); a result a painted
 //! copy's reading brings after it makes it again.
 
 use openpaint_app::Availability;
 use openpaint_practice::{
-    Laid, Lesson, Outcome, Picked, Skill, SkillLevel, Standing, Verdict, schedule, sealed,
+    Laid, Lesson, Offer, Outcome, Picked, Skill, SkillLevel, Standing, Unit, Verdict, schedule,
+    sealed,
 };
 
 use super::{PracticeSheet, unavailable};
@@ -86,7 +87,7 @@ impl PracticeSheet {
             seconds,
             skill: (lesson.skill()).map(|skill| (skill, before.dots(skill), after.dots(skill))),
             sealed: sealed(&self.beside.others, &self.record),
-            next: schedule::next(&standing),
+            next: one_more(lesson, &standing),
         })
     }
 
@@ -125,6 +126,20 @@ impl PracticeSheet {
             .map(|(at, laid)| (first + at, laid.result.map(|(outcome, _)| outcome)))
             .collect();
         Some(results)
+    }
+}
+
+/// The lesson One more starts after `lesson`, the learner after it standing as `standing`: the
+/// same skill again at its level where the lesson was a skill's of a unit past the learner's
+/// (entered by hand ahead of the path), else the path's next (`schedule::next`); a full lesson
+/// and the first lesson are never of a skill.
+fn one_more(lesson: &Lesson, standing: &Standing<'_>) -> Option<Offer> {
+    let in_hand = standing.learner.unit(standing.pictures);
+    let ahead = (lesson.skill())
+        .filter(|skill| Unit::teaching(*skill).is_some_and(|unit| unit.number > in_hand));
+    match ahead {
+        Some(skill) => schedule::offer(skill, standing),
+        None => schedule::next(standing),
     }
 }
 
