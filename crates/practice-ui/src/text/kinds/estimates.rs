@@ -1,5 +1,5 @@
 //! The estimates' words (stage 3, V大's 二维抽象网格): a point's, a proportion's and an angle's names,
-//! summary lines and How cards, after his method in our own words (points by the frame and long
+//! How cards, after his method in our own words (points by the frame and long
 //! lines, never a grid drawn; proportions by the half and the thirds; angles by an imagined cross
 //! or the line run on to the frame's edge). In his terms: 定点, 按比例找点, 叠图对比.
 
@@ -8,21 +8,13 @@ use openpaint_practice::Estimate;
 use super::{COMPARE_STEP, How, KindWords, words};
 
 pub(super) const WORDS: [KindWords; 3] = [
-    words(
-        "point",
-        (POINT_EXERCISE, POINTS_COUNTED),
-        estimate(Estimate::Point),
-    ),
+    words("point", POINT_EXERCISE, estimate(Estimate::Point)),
     words(
         "proportion",
-        (PROPORTION_EXERCISE, PROPORTIONS_COUNTED),
+        PROPORTION_EXERCISE,
         estimate(Estimate::Proportion),
     ),
-    words(
-        "angle",
-        (ANGLE_EXERCISE, ANGLES_COUNTED),
-        estimate(Estimate::Angle),
-    ),
+    words("angle", ANGLE_EXERCISE, estimate(Estimate::Angle)),
 ];
 
 /// An estimate's How card.
@@ -58,9 +50,6 @@ texts! { PRACTICE_ESTIMATES;
     POINT_EXERCISE = "Point", "定点";
     PROPORTION_EXERCISE = "Proportion", "比例";
     ANGLE_EXERCISE = "Angle", "角度";
-    POINTS_COUNTED = "Points", "定点";
-    PROPORTIONS_COUNTED = "Proportions", "比例";
-    ANGLES_COUNTED = "Angles", "角度";
     PLACE_A_POINT = "Place a point", "定点";
     DIVIDE_ALIKE = "Divide alike", "按比例找点";
     COPY_AN_ANGLE = "Copy an angle", "临摹角度";

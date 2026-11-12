@@ -8,14 +8,14 @@ use openpaint_app::{
 };
 
 use super::dates::kept_labels;
-use super::{GalleryScreen, shown_title};
+use super::{HomeScreen, shown_title};
 use crate::components::{
     Placement, delete_dialog, dialog, hint, menu_row, naming_dialog, section, text_button,
 };
 use crate::design::SPACE;
 use crate::text::{self as t, Words};
 
-impl GalleryScreen {
+impl HomeScreen {
     /// The title in a text field with Cancel and Done; Done (or Enter) renames when the text
     /// is a valid title.
     pub(super) fn rename_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
@@ -53,7 +53,7 @@ impl GalleryScreen {
     }
 }
 
-impl GalleryScreen {
+impl HomeScreen {
     /// A card's options under the islands, grown from its card: "Save as OpenPaint file…",
     /// then its kept versions, the newest first, each dated; a version opens as a new copy
     /// titled with its date. Close or a tap outside closes it.

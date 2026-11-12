@@ -134,7 +134,7 @@ fn paint_lines(ui: &egui::Ui, at: Pos2, book: &BookProjection) -> f32 {
                 ));
             }
         }
-        let caption = t::session_number(language, shown.number);
+        let caption = t::lesson_number(language, shown.number);
         let under = frame.center_bottom() + Vec2::new(0.0, SPACE / 2.0);
         ui.painter().text(
             under,

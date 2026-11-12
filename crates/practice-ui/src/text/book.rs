@@ -1,6 +1,6 @@
 //! The practice book (S89): its name, the calendar's months and weekdays, the days' and the
-//! book's time, the sessions shown, and the seals: what each stamp says (two short lines, stacked
-//! as a seal's characters are) and its name under a new one at Finish.
+//! book's time, the lessons shown, and the seals: what each stamp says (two short lines, stacked
+//! as a seal's characters are).
 
 use openpaint_practice::Seal;
 use openpaint_ui::dates::Date;
@@ -8,11 +8,9 @@ use openpaint_ui::dates::Date;
 use super::{Language, Text};
 
 texts! { PRACTICE_BOOK_TABLE;
-    PRACTICE_BOOK = "Practice book", "练习本";
-    NEXT_SESSION = "Next", "下一次";
+    PRACTICE_BOOK = "Practice book", "练习簿";
     EARLIER_MONTH = "Earlier month", "上个月";
     LATER_MONTH = "Later month", "下个月";
-    NEW_SEAL = "New seal", "新印章";
 }
 
 texts! { PRACTICE_BOOK_WEEKDAYS;
@@ -96,25 +94,17 @@ pub(crate) fn practice_time(language: Language, seconds: u64) -> String {
     }
 }
 
-/// The book's totals: "9 sessions · 4 h 12 min", "9 次 · 4 小时 12 分钟".
-pub(crate) fn book_totals(language: Language, sessions: u32, seconds: u64) -> String {
+/// The book's totals: "9 lessons · 4 h 12 min", "9 课 · 4 小时 12 分钟".
+pub(crate) fn book_totals(language: Language, lessons: u32, seconds: u64) -> String {
     let time = practice_time(language, seconds);
     match language {
-        Language::English if sessions == 1 => format!("1 session · {time}"),
-        Language::English => format!("{sessions} sessions · {time}"),
-        Language::Chinese => format!("{sessions} 次 · {time}"),
+        Language::English if lessons == 1 => format!("1 lesson · {time}"),
+        Language::English => format!("{lessons} lessons · {time}"),
+        Language::Chinese => format!("{lessons} 课 · {time}"),
     }
 }
 
-/// A session as the book names it: "Session 9", "第 9 次".
-pub(crate) fn session_number(language: Language, number: u32) -> String {
-    match language {
-        Language::English => format!("Session {number}"),
-        Language::Chinese => format!("第 {number} 次"),
-    }
-}
-
-/// A day's sheet named by its lessons (S121c): "Line drill 1 · Session 4", "线条专项 1 · 第 4 次".
+/// A day's sheet named by its lessons (S121c): "Lesson 3 · Lines · Lesson 4 · Colours".
 pub(crate) fn lessons_joined(names: &[String]) -> String {
     names.join(" · ")
 }
@@ -127,13 +117,13 @@ pub(crate) fn seal_lines(language: Language, seal: Seal) -> [String; 2] {
     };
     match seal {
         Seal::FirstSession => pair(["FIRST", "STEP"], ["初", "练"]),
-        Seal::TenSessions => pair(["TEN", "DONE"], ["十", "次"]),
+        Seal::TenSessions => pair(["TEN", "DONE"], ["十", "课"]),
         Seal::FiftySessions => pair(["FIFTY", "DONE"], ["五", "十"]),
         Seal::Stage(stage) => {
             let numeral = NUMERALS[usize::from(stage.clamp(1, 9)) - 1];
             match language {
-                Language::English => ["STAGE".to_owned(), stage.to_string()],
-                Language::Chinese => [numeral.to_owned(), "阶".to_owned()],
+                Language::English => ["UNIT".to_owned(), stage.to_string()],
+                Language::Chinese => [numeral.to_owned(), "单元".to_owned()],
             }
         }
         Seal::HundredLines => pair(["100", "LINES"], ["百", "线"]),
@@ -141,32 +131,6 @@ pub(crate) fn seal_lines(language: Language, seal: Seal) -> [String; 2] {
         Seal::FirstCopy => pair(["FIRST", "COPY"], ["临", "摹"]),
         Seal::TenHours => pair(["TEN", "HOURS"], ["十", "时"]),
     }
-}
-
-/// A seal's name, under it when it is new: "Ten sessions", "练满十次".
-pub(crate) fn seal_name(language: Language, seal: Seal) -> String {
-    let named = |en: &str, zh: &str| match language {
-        Language::English => en.to_owned(),
-        Language::Chinese => zh.to_owned(),
-    };
-    match seal {
-        Seal::FirstSession => named("First session", "第一次练习"),
-        Seal::TenSessions => named("Ten sessions", "练满十次"),
-        Seal::FiftySessions => named("Fifty sessions", "练满五十次"),
-        Seal::Stage(stage) => match language {
-            Language::English => format!("Stage {stage} done"),
-            Language::Chinese => format!("完成第 {stage} 阶段"),
-        },
-        Seal::HundredLines => named("A hundred lines", "一百条线"),
-        Seal::HundredColours => named("A hundred colours", "一百种颜色"),
-        Seal::FirstCopy => named("First colour copy", "第一幅色彩临摹"),
-        Seal::TenHours => named("Ten hours", "练满十小时"),
-    }
-}
-
-/// Under a new seal: "New seal · Ten sessions", "新印章 · 练满十次".
-pub(crate) fn new_seal(language: Language, seal: Seal) -> String {
-    format!("{} · {}", NEW_SEAL.get(language), seal_name(language, seal))
 }
 
 #[cfg(test)]
@@ -184,7 +148,7 @@ mod tests {
         );
         assert_eq!(
             book_totals(Language::Chinese, 9, 4 * 3600 + 720),
-            "9 次 · 4 小时 12 分钟"
+            "9 课 · 4 小时 12 分钟"
         );
         let date = Date::of(20_754);
         assert_eq!(month_title(Language::English, date), "October 2026");
@@ -196,7 +160,7 @@ mod tests {
         assert_eq!(day_title(Language::Chinese, date, 2), "10月28日 星期三");
         assert_eq!(
             seal_lines(Language::Chinese, Seal::Stage(2)),
-            ["二".to_owned(), "阶".to_owned()]
+            ["二".to_owned(), "单元".to_owned()]
         );
     }
 }

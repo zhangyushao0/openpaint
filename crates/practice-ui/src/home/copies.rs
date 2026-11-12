@@ -5,11 +5,11 @@
 
 use egui::{Rect, Vec2};
 use openpaint_app::{GalleryIntent, MAX_TITLE_CHARS, ProjectId, Title};
-use openpaint_practice_app::{OptionsIntent, TodayProjection};
+use openpaint_practice_app::{OptionsIntent, PathProjection};
 
 use openpaint_ui::components::{delete_dialog, fitted, menu_row, naming_dialog, paint_picture};
 
-use super::GalleryPart;
+use super::HomePart;
 use super::options::{Page, Removal, Tapped, note};
 use super::pictures::OptionsPictures;
 use crate::text::{self as t, Words};
@@ -21,10 +21,10 @@ const PAGE_PICTURE: Vec2 = Vec2::new(200.0, 150.0);
 pub(super) fn copy_page(
     ui: &mut egui::Ui,
     sheet: ProjectId,
-    today: &TodayProjection,
+    path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
-    let Some(copy) = today.copies.iter().find(|copy| copy.sheet == sheet) else {
+    let Some(copy) = path.copies.iter().find(|copy| copy.sheet == sheet) else {
         // Gone (removed meanwhile): back to the first page.
         return Some(Tapped::Page(Page::Main));
     };
@@ -33,7 +33,7 @@ pub(super) fn copy_page(
     let size = Vec2::new(ui.available_width(), PAGE_PICTURE.y);
     let (place, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let frame = Rect::from_center_size(place.center(), PAGE_PICTURE);
-    let picture = copy.picture.as_ref().and_then(|item| today.picture(item));
+    let picture = copy.picture.as_ref().and_then(|item| path.picture(item));
     let texture = copy
         .picture
         .as_ref()
@@ -66,7 +66,7 @@ pub(super) fn copy_page(
     tapped
 }
 
-impl GalleryPart {
+impl HomePart {
     /// The practice options' naming or removing dialog, whichever waits; answered, the options
     /// show again (the copy renamed, the first page after a copy went, My pictures after one of
     /// them went).

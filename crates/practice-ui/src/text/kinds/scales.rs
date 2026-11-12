@@ -1,4 +1,4 @@
-//! A value scale's words: its name, its summary's line and rows' head, and its How card, its steps
+//! A value scale's words: its name and its How card, its steps
 //! before Compare made for the row in hand (S97's review): of five the 3rd, then the 2nd and 4th;
 //! of nine the 5th, the 3rd and 7th, then the rest. In V大's terms: 明度推移, 明度, 叠图对比.
 
@@ -9,8 +9,7 @@ use crate::text::Language;
 
 pub(super) const WORDS: [KindWords; 1] = [KindWords {
     made: Some(scale_steps),
-    rows: Some(SCALES),
-    ..words("scale", (SCALE_EXERCISE, SCALES_COUNTED), SCALE)
+    ..words("scale", SCALE_EXERCISE, SCALE)
 }];
 
 /// A value scale's How steps before Compare for a row of `cells`, a step a round of halving: the
@@ -71,8 +70,6 @@ const SCALE: How = How {
 
 texts! { PRACTICE_SCALES;
     SCALE_EXERCISE = "Value scale", "明度推移";
-    SCALES_COUNTED = "Value scales", "明度推移";
-    SCALES = "Value scales", "明度推移";
     SCALE_TRAINS = "Beside week 2's colour work · lightness as the eye sees it, in even steps.",
         "配合第 2 周的色彩练习 · 按眼睛看到的明度均匀推移。";
     SCALE_SAYS = "The numbers under the example's cells are the order. Keep the hue and purity: \

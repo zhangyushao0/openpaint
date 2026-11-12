@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Rect, TextureHandle, Vec2};
 
 use openpaint_practice::{ItemRef, Tier};
-use openpaint_practice_app::{OptionsIntent, PictureImage, PictureShown, TodayProjection};
+use openpaint_practice_app::{OptionsIntent, PathProjection, PictureImage, PictureShown};
 
 use openpaint_ui::components::{
     Alpha, Lead, ListRow, PictureRow, choices, fitted, label_row, list_row, menu_row,
@@ -94,14 +94,14 @@ fn title(ctx: &egui::Context, picture: &PictureShown) -> String {
 pub(super) fn picker(
     ui: &mut egui::Ui,
     (tier, room): (Option<Tier>, f32),
-    today: &TodayProjection,
+    path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
     let language = t::language(ui.ctx());
     ui.heading(Words::from(t::CHOOSE_PICTURE).shown(ui.ctx()));
     let tabs: Vec<Option<Tier>> = (Tier::ALL.into_iter().map(Some))
         .chain([None])
-        .filter(|tab| today.pictures_of(*tab).next().is_some())
+        .filter(|tab| path.pictures_of(*tab).next().is_some())
         .collect();
     let words: Vec<(Words<'_>, bool, bool)> = (tabs.iter())
         .map(|tab| {
@@ -117,7 +117,7 @@ pub(super) fn picker(
     note(ui, t::CHOOSE_HINT.into(), true);
     let rows = scrolled(ui, room - 3.0 * openpaint_ui::design::TOUCH_TARGET, |ui| {
         let mut tapped = None;
-        let shown: Vec<&PictureShown> = today.pictures_of(tier).collect();
+        let shown: Vec<&PictureShown> = path.pictures_of(tier).collect();
         if shown.is_empty() {
             note(ui, t::NO_PICTURES_HERE.into(), true);
         }
@@ -160,14 +160,14 @@ pub(super) fn picker(
 pub(super) fn mine(
     ui: &mut egui::Ui,
     room: f32,
-    today: &TodayProjection,
+    path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
     let language = t::language(ui.ctx());
     ui.heading(Words::from(t::MY_PICTURES).shown(ui.ctx()));
     scrolled(ui, room, |ui| {
         let mut tapped = None;
-        let own: Vec<&PictureShown> = today.pictures_of(None).collect();
+        let own: Vec<&PictureShown> = path.pictures_of(None).collect();
         if own.is_empty() {
             note(ui, t::NO_PICTURE_OF_MINE.into(), true);
         }
@@ -225,10 +225,10 @@ fn removal(ctx: &egui::Context, picture: &PictureShown) -> Tapped {
 pub(super) fn picture(
     ui: &mut egui::Ui,
     item: &ItemRef,
-    today: &TodayProjection,
+    path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
-    let Some(picture) = today.picture(item) else {
+    let Some(picture) = path.picture(item) else {
         // Gone (removed meanwhile): back to the list.
         return Some(Tapped::Page(Page::Mine));
     };

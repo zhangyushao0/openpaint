@@ -1,4 +1,4 @@
-//! A division's words (S95): its name, its summary's line and its How card, after V大's method in our
+//! A division's words (S95): its name and its How card, after V大's method in our
 //! own words: the most obvious divisions found by feel, squinting, never by analysis; at most five
 //! main lines, as long as they run, small turns ignored, a bent line's turning point first, about
 //! half the time spent on them; from them the second level, then the third; no right or wrong, but
@@ -7,11 +7,7 @@
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "division",
-    (DIVISION_EXERCISE, DIVISIONS_COUNTED),
-    DIVISION,
-)];
+pub(super) const WORDS: [KindWords; 1] = [words("division", DIVISION_EXERCISE, DIVISION)];
 
 const DIVISION: How = How {
     heading: DIVIDE_A_PICTURE,
@@ -28,7 +24,6 @@ const DIVISION: How = How {
 texts! { PRACTICE_DIVISIONS;
     DIVISION_EXERCISE = "Division", "画面分割";
     DIVIDE_A_PICTURE = "Divide a picture", "画面分割";
-    DIVISIONS_COUNTED = "Divisions", "画面分割";
     DIVISION_TRAINS = "Weeks 3 and 4 · a whole picture's few big divisions found by squinting, \
         drawn beside it in three levels.",
         "第 3、4 周 · 眯眼找出整幅画最明显的几条分割线，在图旁分三级画出。";

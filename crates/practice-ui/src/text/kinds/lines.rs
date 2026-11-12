@@ -1,9 +1,9 @@
-//! A single line's words: its name, its summary's line and its How card, in V大's terms (草稿笔,
+//! A single line's words: its name and its How card, in V大's terms (草稿笔,
 //! 勾线笔, 修正笔, 叠图对比, 最鼓处).
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words("line", (LINE, LINES_COUNTED), LINE_HOW)];
+pub(super) const WORDS: [KindWords; 1] = [words("line", LINE, LINE_HOW)];
 
 const LINE_HOW: How = How {
     heading: COPY_A_LINE,
@@ -14,7 +14,6 @@ const LINE_HOW: How = How {
 
 texts! { PRACTICE_LINES;
     LINE = "Line", "线条";
-    LINES_COUNTED = "Lines", "线条";
     COPY_A_LINE = "Copy a line", "临摹单根线条";
     LINE_TRAINS = "Week 1 · a line placed by its ends and bends, then drawn in one sure stroke.",
         "第 1 周 · 先定两端和转折，再果断地一笔画出。";

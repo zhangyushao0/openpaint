@@ -45,8 +45,8 @@ pub(crate) fn all_tools(
     (painting, sheet): (&mut Vec<Intent>, &mut Vec<PracticeIntent>),
 ) {
     if practice
-        .family
-        .is_some_and(|family| family.facts().tools == Tools::Full)
+        .kind
+        .is_some_and(|kind| kind.facts().tools == Tools::Full)
     {
         return;
     }
@@ -76,7 +76,7 @@ pub(crate) fn exercise_tools(
         return None;
     }
     let source = (Source::Within(Align::Center), UNDER_ISLANDS);
-    let tools = practice.family?.facts().tools;
+    let tools = practice.kind?.facts().tools;
     let offered: &[Pen] = match tools {
         Tools::Copying => {
             let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, shown, taps);
@@ -102,7 +102,7 @@ pub(crate) fn exercise_tools(
     // A painted copy compared, or any How with its demonstration: the card needs the room; the
     // wheel comes back with the pen or Got it.
     let painted = tools != Tools::Colour;
-    let wheel = !(practice.comparing && painted) && practice.instructions.is_none();
+    let wheel = !(practice.comparing && painted) && practice.how.is_none();
     let ((), rect) = card(ctx, "practice colour", source, |ui| {
         if wheel {
             ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush));
@@ -166,7 +166,7 @@ fn whole_copy_tools(
 ) {
     let painting = practice.pen.is_some_and(|(pen, _)| pen.paints());
     let brush = projection.brush().filter(|_| painting);
-    let room = !practice.comparing && practice.instructions.is_none();
+    let room = !practice.comparing && practice.how.is_none();
     if let Some(brush) = brush.filter(|_| room) {
         ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush));
         ui.add_space(SPACE);

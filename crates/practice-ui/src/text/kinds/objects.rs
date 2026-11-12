@@ -1,4 +1,4 @@
-//! Objects' words (S94): their name, their summary's line and their How card, after V大's method
+//! Objects' words (S94): their name and their How card, after V大's method
 //! in our own words: the box first, from its front corner, three edges and horizon; big to small, the biggest cut first;
 //! every point found on the box's surface or inside it by a reason (diagonals, a line to the
 //! vanishing point, thirds and quarters measured), never guessed; no details; beside the picture,
@@ -6,8 +6,7 @@
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] =
-    [words("objects", (OBJECT_EXERCISE, OBJECTS_COUNTED), OBJECT)];
+pub(super) const WORDS: [KindWords; 1] = [words("objects", OBJECT_EXERCISE, OBJECT)];
 
 const OBJECT: How = How {
     heading: OBJECT_IN_BOXES,
@@ -25,7 +24,6 @@ const OBJECT: How = How {
 texts! { PRACTICE_OBJECTS_HOW;
     OBJECT_EXERCISE = "Objects", "概括单体";
     OBJECT_IN_BOXES = "An object simplified into boxes", "用几何体概括单体";
-    OBJECTS_COUNTED = "Objects", "概括单体";
     OBJECT_TRAINS = "Weeks 3 and 4 · an object simplified into boxes beside its picture: the box \
         first, then big to small, every point found by a reason.",
         "第 3、4 周 · 在图旁用几何体概括单体：先找方块，再由大到小，每个点都有依据。";

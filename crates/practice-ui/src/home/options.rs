@@ -1,19 +1,16 @@
-//! The practice options, grown out of the Today card (S80, S83), one dialog whose page changes
-//! in place: Practice, each ready stage starting a session at once (the next one before its time,
-//! an earlier one to revisit) with its kinds as tiles to drill (S91, `drills.rs`), beside
-//! the rest where the screen is wide enough (under it where not); the practice packs kept, each
-//! with how many
-//! pictures it holds and how many of them have an outline, the user's own as My pictures (a page
-//! of their own: `pictures.rs`); Import practice pack… and Add my picture… (a tier first,
-//! then the system's picker); the long colour copies (S82), each with its picture and name, to
-//! open, or on its page to rename or remove (`copies.rs`), and New copy…, a picker of the
-//! packs' pictures by tier and the user's own. Removing asks first, as the gallery's delete does.
-//! Back goes to the first page; Close or a tap outside closes them.
+//! The practice options, grown out of their button beside "Practice" on the home (S80, S83), one
+//! dialog whose page changes in place: the practice packs kept, each with how many pictures it
+//! holds and how many of them have an outline, the user's own as My pictures (a page of their own:
+//! `pictures.rs`); Import practice pack… and Add my picture… (a tier first, then the system's
+//! picker); the long colour copies (S82), each with its picture and name, to open, or on its page to
+//! rename or remove (`copies.rs`), and New copy…, a picker of the packs' pictures by tier and the
+//! user's own. Removing asks first, as the home's delete does. Back goes to the first page; Close
+//! or a tap outside closes them.
 
 use egui::{Align, Layout, Rect};
 use openpaint_app::{GalleryIntent, Intent, ProjectId};
 use openpaint_practice::{ItemRef, Tier};
-use openpaint_practice_app::{OptionsIntent, TodayProjection};
+use openpaint_practice_app::{OptionsIntent, PathProjection};
 
 use openpaint_ui::components::{
     ListRow, Naming, Placement, RowPicture, UNDER_ISLANDS, card_text, dialog_of_width, list_row,
@@ -21,15 +18,13 @@ use openpaint_ui::components::{
 };
 use openpaint_ui::design::{DIALOG_WIDTH, Icon, LAYER_PICTURE, SPACE, TOUCH_TARGET};
 
-use super::GalleryPart;
+use super::HomePart;
 use super::pictures::OptionsPictures;
 use crate::text::{self as t, Words};
 
 /// What a page holds above and below its column of rows (its heading, its last row and the
 /// dialog's margins), in points: the column scrolls in the rest of the screen.
 const CHROME_ROOM: f32 = 4.0 * TOUCH_TARGET;
-/// The first page's width where its two columns stand side by side, in points.
-const WIDE: f32 = 2.0 * DIALOG_WIDTH;
 
 /// Which page the practice options show.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,7 +51,7 @@ pub(super) enum Removal {
 
 /// What a page's tap asks.
 pub(super) enum Tapped {
-    /// The gallery's intent, and whether it opens a sheet (grown out of the Today card).
+    /// The gallery's intent, and whether it opens a sheet (grown out of the options' button).
     Intent(GalleryIntent, bool),
     /// The practice options' intent, and whether it opens a sheet.
     Options(OptionsIntent, bool),
@@ -69,7 +64,7 @@ pub(super) enum Tapped {
 /// The practice options' state while the gallery shows.
 #[derive(Default)]
 pub(crate) struct PracticeOptions {
-    /// Where they grew from (the Today card, points) and the page shown; none while closed.
+    /// Where they grew from (the options' button, points) and the page shown; none while closed.
     shown: Option<(Rect, Page)>,
     /// A colour copy being renamed (its sheet) and its name as typed.
     pub(super) rename: Option<(ProjectId, Naming)>,
@@ -77,9 +72,6 @@ pub(crate) struct PracticeOptions {
     pub(super) remove: Option<Removal>,
     /// The packs' pictures as the options show them small.
     pub(crate) pictures: OptionsPictures,
-    /// A tile tapped without its pack's pictures (Shape, Division, Whole copy): its note shows
-    /// until they close.
-    needs_pack: Option<openpaint_practice::Family>,
 }
 
 impl std::fmt::Debug for PracticeOptions {
@@ -96,7 +88,6 @@ impl PracticeOptions {
     /// Opens them on their first page, grown from `card`.
     pub(super) fn open(&mut self, card: Rect) {
         self.shown = Some((card, Page::Main));
-        self.needs_pack = None;
     }
 
     /// Closes them and any dialog of theirs as Cancel would. Returns whether one was open.
@@ -119,12 +110,12 @@ impl PracticeOptions {
     }
 }
 
-impl GalleryPart {
+impl HomePart {
     /// The practice options while they show, or their rename or remove dialog over the gallery.
     pub(super) fn practice_dialog(
         &mut self,
         ctx: &egui::Context,
-        today: &TodayProjection,
+        path: &PathProjection,
         (taps, asked): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) {
         self.practice.pictures.upload(ctx);
@@ -136,15 +127,16 @@ impl GalleryPart {
             return;
         };
         let options = &mut self.practice;
-        // The first page's two columns side by side where the screen holds them.
-        let wide = page == Page::Main && ctx.content_rect().width() >= WIDE + 2.0 * TOUCH_TARGET;
-        let width = if wide { WIDE } else { DIALOG_WIDTH };
-        let ((tapped, back, close), outside) =
-            dialog_of_width(ctx, "practice", (Placement::Top, card, width), |ui| {
-                let tapped = page_of(ui, &page, today, options);
+        let ((tapped, back, close), outside) = dialog_of_width(
+            ctx,
+            "practice",
+            (Placement::Top, card, DIALOG_WIDTH),
+            |ui| {
+                let tapped = page_of(ui, &page, path, options);
                 let (back, close) = bottom_row(ui, page != Page::Main);
                 (tapped, back, close)
-            });
+            },
+        );
         match tapped {
             Some(Tapped::Intent(intent, opens)) => {
                 self.opening_from(card, opens);
@@ -170,7 +162,7 @@ impl GalleryPart {
         }
     }
 
-    /// A sheet opening from the options grows out of `card` (the Today card), when it `opens`.
+    /// A sheet opening from the options grows out of `card` (the options' button), when it `opens`.
     fn opening_from(&mut self, card: Rect, opens: bool) {
         if opens {
             self.opening = Some(openpaint_ui::components::carry::Opening {
@@ -202,7 +194,7 @@ fn bottom_row(ui: &mut egui::Ui, back: bool) -> (bool, bool) {
 fn page_of(
     ui: &mut egui::Ui,
     page: &Page,
-    today: &TodayProjection,
+    path: &PathProjection,
     options: &mut PracticeOptions,
 ) -> Option<Tapped> {
     let pictures = &mut options.pictures;
@@ -211,78 +203,46 @@ fn page_of(
     match page {
         Page::Main => {
             ui.heading(Words::from(t::PRACTICE_OPTIONS).shown(ui.ctx()));
-            let needs_pack = &mut options.needs_pack;
-            if ui.available_width() < WIDE - 4.0 * SPACE {
-                return scrolled(ui, room, |ui| {
-                    let drills = super::drills::practice_section(ui, today, needs_pack);
-                    main_page(ui, today, pictures).or(drills)
-                });
-            }
-            let column = (ui.available_width() - 2.0 * SPACE) / 2.0;
-            ui.horizontal_top(|ui| {
-                let drills = ui.vertical(|ui| {
-                    ui.set_width(column);
-                    let area = egui::ScrollArea::vertical().id_salt("practice");
-                    scrolled_in(ui, area, room, |ui| {
-                        super::drills::practice_section(ui, today, needs_pack)
-                    })
-                });
-                ui.add_space(2.0 * SPACE);
-                let rest = ui.vertical(|ui| {
-                    ui.set_width(column);
-                    scrolled(ui, room, |ui| main_page(ui, today, pictures))
-                });
-                rest.inner.or(drills.inner)
-            })
-            .inner
+            scrolled(ui, room, |ui| main_page(ui, path, pictures))
         }
-        Page::Picker(tier) => super::pictures::picker(ui, (*tier, room), today, pictures),
-        Page::Mine => super::pictures::mine(ui, room, today, pictures),
-        Page::Picture(item) => super::pictures::picture(ui, item, today, pictures),
+        Page::Picker(tier) => super::pictures::picker(ui, (*tier, room), path, pictures),
+        Page::Mine => super::pictures::mine(ui, room, path, pictures),
+        Page::Picture(item) => super::pictures::picture(ui, item, path, pictures),
         Page::Add => super::pictures::add(ui),
-        Page::Copy(sheet) => super::copies::copy_page(ui, *sheet, today, pictures),
+        Page::Copy(sheet) => super::copies::copy_page(ui, *sheet, path, pictures),
     }
 }
 
 /// `add` in a column that scrolls once it is taller than `room` points.
 pub(super) fn scrolled<R>(ui: &mut egui::Ui, room: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    scrolled_in(ui, egui::ScrollArea::vertical(), room, add)
-}
-
-/// `add` in `area`, a column that scrolls once it is taller than `room` points.
-fn scrolled_in<R>(
-    ui: &mut egui::Ui,
-    area: egui::ScrollArea,
-    room: f32,
-    add: impl FnOnce(&mut egui::Ui) -> R,
-) -> R {
-    area.max_height(room.max(4.0 * TOUCH_TARGET))
+    egui::ScrollArea::vertical()
+        .max_height(room.max(4.0 * TOUCH_TARGET))
         // A finger drags the column (egui asks for a touch screen otherwise).
         .scroll_source(egui::scroll_area::ScrollSource::ALL)
         .show(ui, add)
         .inner
 }
 
-/// The first page's packs and colour copies (the Practice section beside or above them).
+/// The first page: the packs and the colour copies.
 fn main_page(
     ui: &mut egui::Ui,
-    today: &TodayProjection,
+    path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
-    let chosen = packs(ui, today);
-    copies(ui, today, pictures).or(chosen)
+    let chosen = packs(ui, path);
+    copies(ui, path, pictures).or(chosen)
 }
 
 /// The practice packs kept, My pictures, Import practice pack… and Add my picture…; returns what
 /// was tapped.
-fn packs(ui: &mut egui::Ui, today: &TodayProjection) -> Option<Tapped> {
+fn packs(ui: &mut egui::Ui, path: &PathProjection) -> Option<Tapped> {
     let language = t::language(ui.ctx());
     let mut chosen = None;
     section(ui, t::PRACTICE_PACKS);
-    if today.packs.is_empty() {
+    if path.packs.is_empty() {
         note(ui, t::NO_PACKS.into(), true);
     }
-    for pack in &today.packs {
+    for pack in &path.packs {
         if pack.personal {
             let count = t::pictures_count(language, pack.pictures);
             if menu_row(ui, t::MY_PICTURES, Words::made(&count), true).clicked() {
@@ -308,15 +268,15 @@ fn packs(ui: &mut egui::Ui, today: &TodayProjection) -> Option<Tapped> {
 /// shows its page), and New copy… while there are pictures; returns what was tapped.
 fn copies(
     ui: &mut egui::Ui,
-    today: &TodayProjection,
+    path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
     let language = t::language(ui.ctx());
     let mut chosen = None;
     section(ui, t::COLOUR_COPIES);
-    for copy in &today.copies {
+    for copy in &path.copies {
         let shown = t::shown_name(ui.ctx(), copy.name.as_str());
-        let picture = copy.picture.as_ref().and_then(|item| today.picture(item));
+        let picture = copy.picture.as_ref().and_then(|item| path.picture(item));
         let detail = picture.map_or(t::PICTURE_REMOVED.get(language), |p| p.title.as_str());
         let texture = copy
             .picture
@@ -348,10 +308,10 @@ fn copies(
             chosen = Some(Tapped::Intent(open, true));
         }
     }
-    let any = !today.pictures.is_empty();
+    let any = !path.pictures.is_empty();
     if menu_row(ui, t::NEW_COPY, Words::EMPTY, any).clicked() {
         let first =
-            (Tier::ALL.into_iter()).find(|tier| today.pictures_of(Some(*tier)).next().is_some());
+            (Tier::ALL.into_iter()).find(|tier| path.pictures_of(Some(*tier)).next().is_some());
         chosen = Some(Tapped::Page(Page::Picker(first)));
     }
     note(ui, t::COPIES_NOTE.into(), true);

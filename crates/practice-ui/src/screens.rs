@@ -9,16 +9,16 @@ use openpaint_practice_app::{
 };
 use openpaint_ui::{CanvasHook, HomeHook, Hooks};
 
-use crate::gallery::{GalleryPart, TodayHook};
+use crate::home::{HomePart, PathHook};
 use crate::sheet::{SheetHook, SheetPart};
 
-/// Practice's screens: a sheet's pictures, bar and card, the practice options and book, and the
-/// taps since the last `take`.
+/// Practice's screens: a sheet's pictures, bar and card, the home's column, the path page, the
+/// practice options and book, and the taps since the last `take`.
 #[derive(Debug, Default)]
 pub struct PracticeScreens {
     sheet: SheetPart,
     sheet_taps: Vec<PracticeIntent>,
-    gallery: GalleryPart,
+    home: HomePart,
     options_taps: Vec<OptionsIntent>,
 }
 
@@ -31,22 +31,19 @@ pub type Shown<'a> = (
 
 impl PracticeScreens {
     /// The hooks practice fills in one frame for what it shows (`shown`).
-    ///
-    /// The skeleton's body: the gallery's card as it was (`PathProjection::today`). S122c: the
-    /// home's column and the path page, from the path itself.
     pub fn hooked<'a>(&'a mut self, (sheet, path): Shown<'a>) -> Hooked<'a> {
         let sheet = sheet.map(|sheet| SheetHook {
             part: &mut self.sheet,
             sheet,
             taps: &mut self.sheet_taps,
         });
-        let today = path.map(|(path, notice)| TodayHook {
-            part: &mut self.gallery,
-            today: &path.today,
+        let home = path.map(|(path, notice)| PathHook {
+            part: &mut self.home,
+            path,
             notice,
             taps: &mut self.options_taps,
         });
-        Hooked { sheet, today }
+        Hooked { sheet, home }
     }
 
     /// Practice's taps since the last call: the sheet's and the options'. Call after the shell's
@@ -59,20 +56,20 @@ impl PracticeScreens {
     /// The next picture the practice options want read (a pack's, by its item), once each: the
     /// rows showing first.
     pub fn pack_picture_wanted(&mut self) -> Option<ItemRef> {
-        self.gallery.pack_picture_wanted()
+        self.home.pack_picture_wanted()
     }
 
     /// `item`'s picture for the practice options, 8-bit sRGB with straight alpha (none: it could
     /// not be read): its rows show it from the next pass on.
     pub fn set_pack_picture(&mut self, item: ItemRef, picture: Option<PictureImage>) {
-        self.gallery.set_pack_picture(item, picture);
+        self.home.set_pack_picture(item, picture);
     }
 }
 
 /// Practice's hooks for one frame.
 pub struct Hooked<'a> {
     sheet: Option<SheetHook<'a>>,
-    today: Option<TodayHook<'a>>,
+    home: Option<PathHook<'a>>,
 }
 
 impl Hooked<'_> {
@@ -80,7 +77,7 @@ impl Hooked<'_> {
     pub fn hooks(&mut self) -> Hooks<'_> {
         Hooks {
             canvas: (self.sheet.as_mut()).map(|hook| hook as &mut dyn CanvasHook),
-            home: (self.today.as_mut()).map(|hook| hook as &mut dyn HomeHook),
+            home: (self.home.as_mut()).map(|hook| hook as &mut dyn HomeHook),
         }
     }
 }

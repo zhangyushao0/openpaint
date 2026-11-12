@@ -4,7 +4,7 @@
 use egui::Rect;
 use openpaint_app::{CanvasPreset, GalleryIntent, Intent};
 
-use super::{GalleryScreen, ISLAND, Sizes};
+use super::{HomeScreen, ISLAND, Sizes};
 use crate::components::carry::Opening;
 use crate::components::{Opener, ScreenArea, menu_row, panel_heading, popover, section};
 use crate::text::{self as t, Words};
@@ -23,7 +23,7 @@ enum Chosen {
     File,
 }
 
-impl GalleryScreen {
+impl HomeScreen {
     /// The popover under "+". A row makes the artwork or opens the file picker; a tap outside
     /// closes the popover, and the tap that opened it does not. Screen size is the canvas
     /// area `under` the top band.

@@ -1,10 +1,12 @@
 //! A practice sheet on the canvas (G9, D112), the ui's canvas hook (`openpaint_ui::CanvasHook`)
 //! filled: the pairs, givens and comparison's marks over the canvas (`marks.rs`, `mark_draw.rs`,
-//! `mark_lines.rs`), All tools after Gallery, the practice bar holding the top band's middle,
-//! the exercise's own tools beside its frame (`tools.rs`) and the card under them (`bar.rs`,
-//! `card.rs`, `card_items.rs`, `card_disc.rs`), How's demonstrations (`demo*.rs`), and why the
-//! sheet took no contact. The sheet's taps are its own (`PracticeIntent`); what it asks of the
-//! painting goes to the shell's taps it is lent.
+//! `mark_lines.rs`), the lessons' labels and a lesson's results on its rows (`rows.rs`), All tools
+//! after Gallery, the practice bar holding the top band's middle, the exercise's own tools beside
+//! its frame (`tools.rs`) and the card under them (`bar.rs`, `card.rs`, `card_items.rs`,
+//! `card_disc.rs`, a result's row `result.rs`, a lesson's end `end.rs`, the first lesson's How
+//! `first.rs`), How's demonstrations (`demo*.rs`), and why the sheet took no contact. The sheet's
+//! taps are its own (`PracticeIntent`); what it asks of the painting goes to the shell's taps it
+//! is lent.
 
 mod bar;
 mod card;
@@ -14,19 +16,41 @@ mod demo;
 mod demo_marks;
 mod demo_strip;
 mod demo_wheel;
+mod end;
+mod first;
 mod mark_draw;
 mod mark_lines;
 mod marks;
+mod result;
+mod rows;
+#[cfg(test)]
+mod tests;
 mod tools;
 
 use egui::{Context, Ui};
 use openpaint_app::{Intent, Language, ViewMapping};
-use openpaint_practice_app::{PracticeIntent, PracticeNotice, PracticeProjection};
+use openpaint_practice::{Kind, Skill};
+use openpaint_practice_app::{LessonShown, PracticeIntent, PracticeNotice, PracticeProjection};
 use openpaint_ui::components::ScreenArea;
 use openpaint_ui::taps::push_once;
 use openpaint_ui::{CanvasHook, Chrome};
 
 use crate::text::{self as t, Refused, Text};
+
+/// What the bar and the cards call the lesson in hand: its warm-up, the first lesson, its skill
+/// (the skill of the kind in hand in a full lesson), a full lesson once done, else the kind's own
+/// name.
+pub(crate) fn lesson_name(lesson: Option<LessonShown>, kind: Option<Kind>) -> Text {
+    let skill = lesson.and_then(|lesson| lesson.row.skill);
+    match (lesson, skill, kind) {
+        (Some(lesson), _, _) if lesson.warming_up => t::WARM_UP,
+        (Some(lesson), _, _) if lesson.row.first => t::FIRST_LESSON,
+        (_, Some(skill), _) => t::skill_name(skill),
+        (_, None, Some(kind)) => Skill::of(kind).map_or(t::kind_words(kind).name, t::skill_name),
+        (Some(lesson), None, None) if lesson.row.unit.is_some() => t::FULL_LESSON,
+        _ => t::STUDY_EXERCISE,
+    }
+}
 
 /// A practice sheet's screen state between frames: its pictures as textures, its bar and card.
 #[derive(Debug, Default)]
@@ -53,6 +77,7 @@ impl CanvasHook for SheetHook<'_> {
     fn marks(&mut self, ctx: &Context, at: &ViewMapping, pixels_per_point: f32) {
         let pictures = &mut self.part.pictures;
         marks::show_marks(ctx, self.sheet, (at, pixels_per_point), pictures);
+        rows::show_rows(ctx, self.sheet, (at, pixels_per_point));
     }
 
     fn left(&mut self, ui: &mut Ui, taps: &mut Vec<Intent>) {

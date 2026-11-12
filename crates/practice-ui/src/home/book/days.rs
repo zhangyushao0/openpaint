@@ -169,7 +169,7 @@ pub(super) fn day_card(
     screen: Rect,
 ) -> Option<BookTap> {
     let shown = book.book.day(day)?;
-    let [_, _, side] = layout(screen);
+    let [_, side] = layout(screen);
     let id = Id::new("practice book day");
     let source = Source::Rect {
         rect: cell,
@@ -240,11 +240,8 @@ fn name(record: &BookRecord, ctx: &egui::Context) -> (String, String) {
         );
     }
     let named = |language: Language| {
-        let names: Vec<String> = (record.lessons.iter())
-            .map(|(drill, number)| match drill {
-                Some(family) => t::drill_number(language, *family, *number),
-                None => t::session_number(language, *number),
-            })
+        let names: Vec<String> = (record.rows.iter())
+            .map(|row| t::row_label(language, row))
             .collect();
         t::lessons_joined(&names)
     };

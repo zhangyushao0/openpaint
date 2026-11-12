@@ -1,5 +1,5 @@
-//! The gallery: its header, the cards, the dialogs, New canvas, its notices and the dates of kept
-//! versions.
+//! The home's studio: its name, its search, the cards, the dialogs, New canvas, its notices and
+//! the dates of kept versions.
 
 use openpaint_app::{CanvasPreset, FileProblem, GalleryNotice};
 
@@ -7,6 +7,7 @@ use super::{Language, Text};
 use crate::dates::Date;
 
 texts! { GALLERY_TABLE;
+    STUDIO = "Studio", "画室";
     SEARCH = "Search", "搜索";
     NEW_ARTWORK = "New artwork", "新建作品";
     NO_ARTWORKS = "No artworks yet. Tap + to start one.", "还没有作品，轻点 + 新建一幅。";

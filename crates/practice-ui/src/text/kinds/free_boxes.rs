@@ -1,15 +1,11 @@
-//! Free boxes' words (week 2): their name, their summary's line and their How card, after V大's
+//! Free boxes' words (week 2): their name and their How card, after V大's
 //! method in our own words (boxes of one's own on a horizon, each turned its own way, every front
 //! corner wider than 90 degrees) and Drawabox's (ghost a line before drawing it). In his terms:
 //! 自由盒子, 视平线, 消失点, 前角, 叠图对比.
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "free-boxes",
-    (FREE_BOXES_EXERCISE, FREE_BOXES_COUNTED),
-    FREE_HOW,
-)];
+pub(super) const WORDS: [KindWords; 1] = [words("free-boxes", FREE_BOXES_EXERCISE, FREE_HOW)];
 
 const FREE_HOW: How = How {
     heading: FREE_BOXES_EXERCISE,
@@ -26,7 +22,6 @@ const FREE_HOW: How = How {
 
 texts! { PRACTICE_FREE_BOXES;
     FREE_BOXES_EXERCISE = "Free boxes", "自由盒子";
-    FREE_BOXES_COUNTED = "Free boxes", "自由盒子";
     FREE_TRAINS = "Week 2 · boxes of your own on a horizon, each turned its own way, every front \
         corner wider than 90°.", "第 2 周 · 视平线上自己画盒子，朝向各异，前角都大于 90°。";
     FREE_STEP_1 = "Two points on the horizon", "在视平线上定两个消失点";

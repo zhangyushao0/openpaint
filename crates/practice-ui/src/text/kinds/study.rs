@@ -1,10 +1,10 @@
-//! A long colour copy's words (V大's 色彩临摹): its name, its summary's line and its How card, which
+//! A long colour copy's words (V大's 色彩临摹): its name and its How card, which
 //! has no demonstration and names his four brushes, the toolbox's (S104), and when to take each,
 //! then his order of work with them. In his terms: 色彩临摹, 眯眼, 色调, 弱对比, 叠图对比.
 
 use super::{How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words("study", (STUDY_EXERCISE, COPIES_COUNTED), STUDY)];
+pub(super) const WORDS: [KindWords; 1] = [words("study", STUDY_EXERCISE, STUDY)];
 
 /// A long colour copy's How names V大's four brushes, the toolbox's own (S104), and when to take
 /// each, then his order of work with them.
@@ -17,7 +17,6 @@ const STUDY: How = How {
 
 texts! { PRACTICE_STUDY;
     STUDY_EXERCISE = "Colour copy", "色彩临摹";
-    COPIES_COUNTED = "Colour copies", "色彩临摹";
     STUDY_1 = "Copy the picture in colour into the empty frame beside it, over as many sittings as \
         you like: about 10 to 20 hours in all. It never counts as a session.",
         "把这张图用颜色临摹到旁边的空白框里，分几次画都行，总共约 10 到 20 小时。不计入练习次数。";

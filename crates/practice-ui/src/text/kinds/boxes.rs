@@ -1,11 +1,11 @@
-//! A box's words (week 2): its name, its summary's line and its How card, after V大's method in our
+//! A box's words (week 2): its name and its How card, after V大's method in our
 //! own words (edges running the same way meet at one vanishing point, those parallel to the ground
 //! on the horizon; the front angle wider than 90 degrees; the hidden edges drawn too) and
 //! Drawabox's (ghost a line before drawing it). In his terms: 透视盒子, 视平线, 消失点, 前角, 叠图对比.
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words("box", (BOX_EXERCISE, BOXES_COUNTED), BOX_HOW)];
+pub(super) const WORDS: [KindWords; 1] = [words("box", BOX_EXERCISE, BOX_HOW)];
 
 const BOX_HOW: How = How {
     heading: COMPLETE_THE_BOX,
@@ -16,7 +16,6 @@ const BOX_HOW: How = How {
 
 texts! { PRACTICE_BOXES;
     BOX_EXERCISE = "Box", "透视盒子";
-    BOXES_COUNTED = "Boxes", "透视盒子";
     COMPLETE_THE_BOX = "Complete the box", "补全盒子";
     BOX_TRAINS = "Week 2 · perspective: edges running one way meet at one vanishing point on the \
         horizon.", "第 2 周 · 透视：同向的边交于视平线上的同一个消失点。";

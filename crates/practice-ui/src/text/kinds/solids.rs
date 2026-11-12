@@ -1,4 +1,4 @@
-//! The solids' words (week 3, S93): a cylinder's, a cone's and a sphere's names, summary lines
+//! The solids' words (week 3, S93): a cylinder's, a cone's and a sphere's names
 //! and How cards, after V大's method in our own words: never a cylinder straight off, the box first; an end's or a base's diagonals for its centre, lines
 //! through it towards the vanishing points for the four middles, a smooth ellipse through them
 //! touching the edges there; a cone's point at the opposite face's centre; a sphere by its middle
@@ -8,9 +8,9 @@
 use super::{COMPARE_STEP, How, KindWords, words};
 
 pub(super) const WORDS: [KindWords; 3] = [
-    words("cylinder", (CYLINDER_EXERCISE, CYLINDERS_COUNTED), CYLINDER),
-    words("cone", (CONE_EXERCISE, CONES_COUNTED), CONE),
-    words("sphere", (SPHERE_EXERCISE, SPHERES_COUNTED), SPHERE),
+    words("cylinder", CYLINDER_EXERCISE, CYLINDER),
+    words("cone", CONE_EXERCISE, CONE),
+    words("sphere", SPHERE_EXERCISE, SPHERE),
 ];
 
 const CYLINDER: How = How {
@@ -52,9 +52,6 @@ texts! { PRACTICE_SOLIDS_HOW;
     CYLINDER_IN_ITS_BOX = "A cylinder in its box", "在盒子里画圆柱";
     CONE_IN_ITS_BOX = "A cone in its box", "在盒子里画圆锥";
     SPHERE_IN_ITS_CUBE = "A sphere in its cube", "在立方体里画球体";
-    CYLINDERS_COUNTED = "Cylinders", "圆柱";
-    CONES_COUNTED = "Cones", "圆锥";
-    SPHERES_COUNTED = "Spheres", "球体";
     CYLINDER_TRAINS = "Week 3 · a cylinder found in its box: the box first, never the cylinder \
         straight off.", "第 3 周 · 在盒子里找圆柱：先画盒子，不要直接画圆柱。";
     CYLINDER_STEP_1 = "An end's diagonals: its centre", "用对角线找出端面中心";

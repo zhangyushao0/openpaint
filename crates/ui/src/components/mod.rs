@@ -77,7 +77,8 @@ pub use status::status;
 pub use swatch::{color32, swatch};
 pub use switch_row::switch_row;
 pub use text_button::{
-    Lead, divider, heading_button, text_button, text_choice, text_choice_wide, word_columns,
+    Lead, divider, heading_button, pill_button, text_button, text_choice, text_choice_wide,
+    word_columns,
 };
 pub use text_field::{FieldResponse, field_id, text_field};
 pub(crate) use view_settle::ViewSettle;

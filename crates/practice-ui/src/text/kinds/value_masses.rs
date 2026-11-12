@@ -1,14 +1,11 @@
 //! Value masses on a practice sheet (S96, V大's 黑白灰 and colour blocks grouped by their
-//! attributes): the kind's name, its three grey pens, the summary's line, its How card and a whole
+//! attributes): the kind's name, its three grey pens, its How card and a whole
 //! copy in colour blocks' layer. In his terms: 黑白灰, 色块, 眯眼, 概括.
 
 use super::{COMPARE_STEP, How, KindWords, words};
 
-pub(super) const WORDS: [KindWords; 1] = [words(
-    "value-masses",
-    (VALUE_MASSES_EXERCISE, MASSES_COUNTED),
-    VALUE_MASSES,
-)];
+pub(super) const WORDS: [KindWords; 1] =
+    [words("value-masses", VALUE_MASSES_EXERCISE, VALUE_MASSES)];
 
 const VALUE_MASSES: How = How {
     heading: PAINT_VALUE_MASSES,
@@ -23,10 +20,6 @@ texts! { PRACTICE_VALUE_MASSES;
     DARK_PEN = "Dark", "黑";
     MIDDLE_PEN = "Middle", "灰";
     LIGHT_PEN = "Light", "白";
-    MASSES_COUNTED = "Value masses", "黑白灰";
-    AT_ITS_VALUE = "At its value", "画对的面积";
-    DRILL_NEEDS_MASSES = "Value masses use the composition pack: import it under Practice \
-        packs.", "黑白灰要用构图素材包：请在“素材包”下导入。";
     MASSES_TRAINS = "Weeks 2 to 4 · a picture squinted at until only its few big masses are \
         left, each dark, middle or light, grouped by value and not by object.",
         "第 2 至 4 周 · 眯眼看画面，直到只剩几块大色块，每块归为黑、灰、白之一：按明度归纳，不按物体分。";
