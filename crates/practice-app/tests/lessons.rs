@@ -225,7 +225,9 @@ fn the_end_shows_each_result_the_dot_earned_and_the_lesson_one_more_starts() {
 fn one_more_after_a_skill_of_a_unit_ahead_of_the_learner_s_offers_that_skill_again() {
     // A box tapped in unit 2 while unit 1 is in hand: One more is boxes again, not Lines.
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
-    let (record, _) = log.start(Start::Skill(skill("box")), 7, NOON).expect("boxes");
+    let (record, _) = log
+        .start(Start::Skill(skill("box")), 7, NOON)
+        .expect("boxes");
     let record = Sheet {
         canvas: 40,
         ..record
@@ -236,8 +238,14 @@ fn one_more_after_a_skill_of_a_unit_ahead_of_the_learner_s_offers_that_skill_aga
     }
     let end = shown(&session).end.expect("the lesson's end");
     let offered = end.next.expect("the lesson One more starts");
-    assert_eq!((offered.skill, offered.level), (skill("box"), SkillLevel::First));
-    assert_eq!(log.learner().unit(&openpaint_practice::Pictures::default()), 1);
+    assert_eq!(
+        (offered.skill, offered.level),
+        (skill("box"), SkillLevel::First)
+    );
+    assert_eq!(
+        log.learner().unit(&openpaint_practice::Pictures::default()),
+        1
+    );
 }
 
 #[test]

@@ -56,7 +56,11 @@ fn in_a_row(pictures: &Pictures, key: &str, level: SkillLevel, count: usize) -> 
 
 #[test]
 fn a_first_level_shape_comes_once_in_its_tier_until_each_came_then_the_next_tier_s() {
-    let entries = [("cat", Tier::Entry), ("bird", Tier::Entry), ("owl", Tier::Entry)];
+    let entries = [
+        ("cat", Tier::Entry),
+        ("bird", Tier::Entry),
+        ("owl", Tier::Entry),
+    ];
     let mut items = entries.to_vec();
     items.push(("fish", Tier::Simple));
     let pictures = Pictures::of(&[pack("shapes", PictureKind::Shape, &items)]);
@@ -76,7 +80,11 @@ fn a_first_level_shape_comes_once_in_its_tier_until_each_came_then_the_next_tier
 
 #[test]
 fn from_the_second_level_the_user_s_own_shape_comes_every_second_lesson() {
-    let official = [("lamp", Tier::Medium), ("jug", Tier::Medium), ("cup", Tier::Medium)];
+    let official = [
+        ("lamp", Tier::Medium),
+        ("jug", Tier::Medium),
+        ("cup", Tier::Medium),
+    ];
     let pictures = Pictures::of(&[
         pack("shapes", PictureKind::Shape, &official),
         pack(PERSONAL, PictureKind::Shape, &[("mine", Tier::Simple)]),
@@ -120,7 +128,10 @@ fn a_division_s_compositions_come_in_turn_an_upright_one_among_them() {
 
 #[test]
 fn a_review_of_a_kind_whose_lesson_holds_one_exercise_is_its_redo_alone() {
-    let items = [("valley-house", Tier::Simple), ("high-meadow", Tier::Medium)];
+    let items = [
+        ("valley-house", Tier::Simple),
+        ("high-meadow", Tier::Medium),
+    ];
     let pictures = Pictures::of(&[pack("compositions", PictureKind::Composition, &items)]);
     let fresh = Learner::default();
     let division = laid(&fresh, &pictures, "division", SkillLevel::First);
@@ -133,7 +144,10 @@ fn a_review_of_a_kind_whose_lesson_holds_one_exercise_is_its_redo_alone() {
     // The next lesson is Lines; the review on the side the division's redo, about five minutes.
     let review = schedule::review(&standing).expect("a review");
     assert_eq!(review.skill, skill("division"));
-    assert_eq!((review.exercises, review.minutes, review.redo), (1, 5, true));
+    assert_eq!(
+        (review.exercises, review.minutes, review.redo),
+        (1, 5, true)
+    );
     let reviewed = schedule::reviewed(5, &standing).expect("its lesson");
     let kinds: Vec<Kind> = reviewed.exercises.iter().map(|(e, _)| e.kind).collect();
     assert_eq!(kinds, [division.exercises[0].0.kind]);
