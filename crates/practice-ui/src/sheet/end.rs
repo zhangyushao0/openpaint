@@ -104,7 +104,16 @@ fn progress(ui: &mut egui::Ui, end: &End) {
         }
     };
     let language = language(&ctx);
-    let height = SEAL.max(2.0 * DOT + 4.0 * SPACE);
+    let reached = (end.skill)
+        .filter(|(_, before, dots)| (*dots).min(DOTS) > *before)
+        .and_then(|(_, _, dots)| level_of(dots.min(DOTS)));
+    // The band holds the dots, the level reached above them and the seals beside: no taller than
+    // what it holds, so dots alone leave no empty line above them.
+    let height = if reached.is_none() && end.sealed.is_empty() {
+        2.0 * DOT + 2.0 * SPACE
+    } else {
+        SEAL.max(2.0 * DOT + 4.0 * SPACE)
+    };
     let (band, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
     if let Some((_, before, after_lesson)) = end.skill {
         let earned = after_lesson.min(DOTS);
@@ -112,7 +121,7 @@ fn progress(ui: &mut egui::Ui, end: &End) {
             .then(|| animate_from(&ctx, id.with("dot"), 0.0, after(INK_AFTER), OPEN));
         let dots = Pos2::new(band.left() + DOT, band.bottom() - DOT - SPACE);
         paint_dots(ui.painter(), (dots, DOT_PITCH, DOT), (earned, fresh), INK);
-        if let Some(reached) = (earned > before).then(|| level_of(earned)).flatten() {
+        if let Some(reached) = reached {
             let words = t::level_reached(language, reached);
             let font = egui::TextStyle::Body.resolve(ui.style());
             let at = Pos2::new(band.left(), band.top() + SPACE);

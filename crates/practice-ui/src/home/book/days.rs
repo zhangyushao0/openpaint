@@ -243,7 +243,7 @@ fn name(record: &BookRecord, ctx: &egui::Context) -> (String, String) {
         let names: Vec<String> = (record.rows.iter())
             .map(|row| t::row_label(language, row))
             .collect();
-        t::lessons_joined(&names)
+        t::lessons_joined(language, &names)
     };
     (named(Language::English), named(t::language(ctx)))
 }

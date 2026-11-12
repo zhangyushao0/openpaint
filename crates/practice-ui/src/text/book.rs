@@ -104,9 +104,13 @@ pub(crate) fn book_totals(language: Language, lessons: u32, seconds: u64) -> Str
     }
 }
 
-/// A day's sheet named by its lessons (S121c): "Lesson 3 · Lines · Lesson 4 · Colours".
-pub(crate) fn lessons_joined(names: &[String]) -> String {
-    names.join(" · ")
+/// A day's sheet named by its lessons (S121c): "Lesson 3 · Lines, Lesson 4 · Colours",
+/// "第 3 课 · 线条，第 4 课 · 单色"; a comma between them, for a lesson's name holds a dot.
+pub(crate) fn lessons_joined(language: Language, names: &[String]) -> String {
+    match language {
+        Language::English => names.join(", "),
+        Language::Chinese => names.join("，"),
+    }
 }
 
 /// What a seal's stamp says: two short lines, stacked.
