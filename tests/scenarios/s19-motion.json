@@ -9,7 +9,7 @@
     "View: spread two fingers to zoom in, then quickly pinch: the canvas glides back to fit instead of jumping, and a pen landing during the glide stops it where the view already is. Navigation itself (pan, zoom, rotate) follows the fingers exactly, with no motion of its own.",
     "Eyedropper: tap it, touch the canvas: the loupe grows out of the finger; lift: it goes back into where the finger was, and the colour is taken.",
     "Reference and notices: Actions grows out of the spanner. Turn Reference on and choose a picture: the reference window grows out of the Actions button; close it with x: it goes back into that button. Save a PNG: the 'Saving PNG' and 'Saved' pill grows out of its right end beside the right island.",
-    "Gallery: tap Gallery: the canvas shrinks into its card in the gallery. Tap the card's bin: the delete dialog grows out of the card as the screen darkens; Back: it goes back into the card. Tap the card: the canvas grows out of the card's picture into its fit and draws at once.",
+    "Home: tap Home: the canvas shrinks into its card on the home. Tap the card's bin: the delete dialog grows out of the card as the screen darkens; Back: it goes back into the card. Tap the card: the canvas grows out of the card's picture into its fit and draws at once.",
     "Failure and cancel: interrupting any motion (another tap, a new panel, a stroke) retargets it from where it is; nothing queues and no tap is ever lost or delayed. Undo, strokes, slider drags, the ColorDrop dot and the hover outline never move on their own. After a restart nothing is moving."
   ],
   "screen": [2880, 1800],
@@ -77,7 +77,7 @@
     { "tap": { "at": "Reference picture" } },
     { "tap": { "at": "Close reference" } },
     { "screenshot": { "name": "reference-closing-060", "after_ms": 60 } },
-    { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Home" } },
     { "screenshot": { "name": "to-gallery-090", "after_ms": 90 } },
     { "screenshot": { "name": "gallery" } },
     { "tap": { "at": "Delete artwork" } },

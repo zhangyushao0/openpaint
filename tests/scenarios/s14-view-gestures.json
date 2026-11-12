@@ -8,7 +8,7 @@
     "Tap the canvas with two fingers: the last stroke goes, as the side bar's undo would. Tap with three fingers: it comes back, as redo would. A tap starting on the side bar or a panel is no shortcut; fingers that moved are no tap.",
     "Pinch quickly inwards: the whole canvas fits the screen again, upright and centred.",
     "While the pen draws, the side bar's undo and redo look exactly as before the pen landed; a tap on them then would be refused without any change on screen. They grey out only when there is nothing to undo or redo.",
-    "Tap Gallery, then the plus: a small panel, New canvas, lists Screen size 2880 × 1716, Square 2048 × 2048, A4 portrait 2480 × 3508 and A4 landscape 3508 × 2480. A tap outside closes it without doing anything else. Tap the plus and Square: a square white canvas opens at fit.",
+    "Tap Home, then the plus: a small panel, New canvas, lists Screen size 2880 × 1716, Square 2048 × 2048, A4 portrait 2480 × 3508 and A4 landscape 3508 × 2480. A tap outside closes it without doing anything else. Tap the plus and Square: a square white canvas opens at fit.",
     "Leave the app and let the system close it, then open it again: the square artwork reopens at fit (the view is not stored). Rotating the tablet refits the canvas to the new shape at the same zoom.",
     "Failure and cancel: a gesture that a third finger, a palm (the pen landing) or a control interrupts does nothing more until every finger lifts. Not here: rotation snapping, the four-finger tap that hides the interface, remembering the view per artwork, touch-and-hold eyedropper."
   ],
@@ -39,7 +39,7 @@
     { "touch": { "from": [[900, 900], [2000, 900]], "to": [[1400, 900], [1500, 900]], "ms": 160 } },
     { "view": { "name": "quick-pinch-fits", "zoom": 1.0, "rotation": 0.0, "pan": [0.0, 0.0] } },
     { "screenshot": { "name": "fitted" } },
-    { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Home" } },
     { "tap": { "at": "New artwork" } },
     { "screenshot": { "name": "new-canvas-sizes" } },
     { "tap": { "at": [1000, 1200] } },

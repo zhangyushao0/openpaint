@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: draw on a calm, light sketchbook page whose controls explain themselves and get out of the way, so the white sheet and my colours are what I look at.",
-    "Entry: open OpenPaint on the tablet (2880 x 1800, landscape) on an empty library. The white canvas lies at fit on a light warm-grey desk with a soft shadow. Nothing spans the screen: at the top left a small paper island outlined in ink holds Gallery and the Actions spanner; at the top right another holds Brush (ringed in ink: it is the pen's tool), Eraser, Layers and the colour. Both float on the desk above the canvas. At the left edge the side bar island holds the size slider (a small dot at its bottom, a large dot at its top), the eyedropper, the opacity slider (a faint disc at the bottom, a solid one at the top), undo and redo. Text is the system's plain sans, large enough to read at arm's length.",
+    "Entry: open OpenPaint on the tablet (2880 x 1800, landscape) on an empty library. The white canvas lies at fit on a light warm-grey desk with a soft shadow. Nothing spans the screen: at the top left a small paper island outlined in ink holds Home and the Actions spanner; at the top right another holds Brush (ringed in ink: it is the pen's tool), Eraser, Layers and the colour. Both float on the desk above the canvas. At the left edge the side bar island holds the size slider (a small dot at its bottom, a large dot at its top), the eyedropper, the opacity slider (a faint disc at the bottom, a solid one at the top), undo and redo. Text is the system's plain sans, large enough to read at arm's length.",
     "Tap Brush: the brush panel opens under the right island; Ink Pen is outlined in ink. Tap Pencil and sketch; tap Brush, Ink Pen and ink a line; tap the colour, choose blue on the wheel, tap Brush, Soft Brush and sweep a soft blue arc. Each panel closes when the pen draws outside it.",
     "Hold the pen just above the canvas: a thin circle the size of the brush follows it, black over the paper and white over dark paint; it draws nothing. Over a control it disappears; hovering over Brush shows its name, Brushes.",
     "Press the size slider and hold: a bubble beside the side bar shows the size in pixels and the brush's circle at its real size on the canvas. Press the opacity slider: the bubble shows the percentage and a swatch of the colour at that opacity. Lifting keeps the value.",
@@ -70,7 +70,7 @@
     { "tap": { "at": "Colour" } },
     { "screenshot": { "name": "colour-panel" } },
     { "tap": { "at": [1400, 1650] } },
-    { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Home" } },
     { "tap": { "at": "New artwork" } },
     { "tap": { "at": "Screen size" } },
     { "stroke": { "points": [[700, 1200, 0.6], [1000, 600, 0.9], [1300, 1200, 0.8], [1600, 600, 0.9], [1900, 1200, 0.6]] } },

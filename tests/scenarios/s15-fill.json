@@ -54,7 +54,7 @@
     { "checkpoint": { "name": "raised-undone", "canvas": "ae9205906797fc4b" } },
     { "press": { "path": [{ "at": "Colour", "ms": 0 }, [2500, 300, 80], { "at": "Undo", "ms": 240 }, { "at": "Undo", "ms": 300 }] } },
     { "checkpoint": { "name": "cancelled-on-side-bar", "canvas": "ae9205906797fc4b" } },
-    { "press": { "path": [{ "at": "Colour", "ms": 0 }, [2500, 300, 80], { "at": "Gallery", "ms": 240 }, { "at": "Gallery", "ms": 300 }] } },
+    { "press": { "path": [{ "at": "Colour", "ms": 0 }, [2500, 300, 80], { "at": "Home", "ms": 240 }, { "at": "Home", "ms": 300 }] } },
     { "checkpoint": { "name": "cancelled-on-island", "canvas": "ae9205906797fc4b" } },
     { "press": { "path": [{ "at": "Colour", "ms": 0 }, [2500, 300, 80], [1500, 30, 240], [1500, 30, 300]] } },
     { "checkpoint": { "name": "cancelled-on-desk", "canvas": "ae9205906797fc4b" } },
