@@ -22,8 +22,8 @@ const FREE_HOW: How = How {
 
 texts! { PRACTICE_FREE_BOXES;
     FREE_BOXES_EXERCISE = "Free boxes", "自由盒子";
-    FREE_TRAINS = "Week 2 · boxes of your own on a horizon, each turned its own way, every front \
-        corner wider than 90°.", "第 2 周 · 视平线上自己画盒子，朝向各异，前角都大于 90°。";
+    FREE_TRAINS = "Boxes of your own on a horizon, each turned its own way, every front \
+        corner wider than 90°.", "视平线上自己画盒子，朝向各异，前角都大于 90°。";
     FREE_STEP_1 = "Two points on the horizon", "在视平线上定两个消失点";
     FREE_STEP_2 = "A front upright", "画最前面的竖边";
     FREE_STEP_3 = "Its edges towards the points", "从它两端连向消失点";

@@ -11,11 +11,13 @@
 //!
 //! The path's controls (S122), their English fixed with the contract because scenarios tap them
 //! by it. The home's two entrances: Practice, Studio (画室; the ui's word). The home's column and
-//! the path page: Start (开始), Review (复习), All units (全部单元), Practice book (练习簿), Full
-//! lesson (完整一课). On the sheet the bar is the skill and its place ("skill 3/5", "First lesson
-//! 2/3"), How, Compare and Next as they are. An exercise's result: Accurate (准), Almost (差一点),
-//! Again (重来). A lesson's end: One more (再来一课), That's all for today (今天到这儿). A skill's
-//! words go by `Skill::key`, a kind's by its `Facts::key`.
+//! the path page: Start (开始), Continue (继续, a lesson under way), Review (复习), All units
+//! (全部单元), Practice book (练习簿), Full lesson (完整一课); the home's unit tiles by their
+//! skills' names. On the sheet the bar is the skill and its place ("skill 3/5", "First lesson
+//! 2/3"), How, Compare and Next as they are; a How's replay Watch again (再看一遍). An exercise's
+//! result: Accurate (准), Almost (差一点), Again (重来). A lesson's end: One more (再来一课),
+//! That's all for today (今天到这儿). A skill's words go by `Skill::key`, a kind's by its
+//! `Facts::key`.
 
 pub(crate) use openpaint_ui::text::*;
 

@@ -3,7 +3,7 @@
 //! (入门, 熟练, 稳). A skill's name goes by its key (`Skill::key`).
 
 use openpaint_practice::{Needs, Offer, Outcome, Skill, SkillLevel};
-use openpaint_practice_app::LessonRow;
+use openpaint_practice_app::{LessonRow, OpenLesson};
 
 use super::{Language, Text};
 
@@ -11,6 +11,7 @@ texts! { PRACTICE_COURSE;
     PRACTICE = "Practice", "练习";
     PRACTICE_OPTIONS = "Practice options", "练习选项";
     START = "Start", "开始";
+    CONTINUE = "Continue", "继续";
     REVIEW = "Review", "复习";
     ALL_UNITS = "All units", "全部单元";
     FULL_LESSON = "Full lesson", "完整一课";
@@ -224,6 +225,17 @@ pub(crate) fn one_more_line(language: Language, offer: &Offer) -> String {
 /// The lesson in hand as the bar names it: "Lines 3/5", "First lesson 2/3", "Warm-up 1/3".
 pub(crate) fn in_hand(language: Language, name: Text, (place, of): (usize, usize)) -> String {
     format!("{} {place}/{of}", name.get(language))
+}
+
+/// Today's lesson left under way as the home names it: "Lines 3/6", "First lesson 2/3", "Full
+/// lesson 5/15".
+pub(crate) fn open_lesson(language: Language, open: &OpenLesson) -> String {
+    let name = match (open.row.first, open.row.skill) {
+        (true, _) => FIRST_LESSON,
+        (false, Some(skill)) => skill_name(skill),
+        (false, None) => FULL_LESSON,
+    };
+    in_hand(language, name, open.place)
 }
 
 /// A compared exercise's heading: "Lines 3".

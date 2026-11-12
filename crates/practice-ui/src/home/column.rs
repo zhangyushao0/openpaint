@@ -1,23 +1,28 @@
 //! The home's practice column (S122), the entrance beside the studio's: "Practice" with the unit
 //! in hand beside it and the practice options' button at its right; under them a sheet of paper
 //! with the next lesson (its skill, its level, exercises and minutes, Start in its pill), for a
-//! fresh learner the first lesson, while today's lesson is unfinished Start continuing it; under a
-//! rule, while a redo waits, the review on the side (its skill, two exercises; Review); at the
-//! sheet's foot All units (the path page grows out of it) and Practice book. No counts of days,
-//! no quotas.
+//! fresh learner the first lesson, while today's lesson is unfinished its name and place
+//! ("Lines 3/6") and Continue; under a rule, while a redo waits, the review on the side (its
+//! skill, two exercises; Review); under another the unit in hand's skills as small tiles with
+//! their dots (a tap starts that skill's lesson, as on the path); at the sheet's foot All units
+//! (the path page grows out of it) and Practice book. No counts of days, no quotas.
 
 use egui::{Align, Align2, Layout, Rect, RichText, TextStyle, UiBuilder, Vec2};
+use openpaint_practice::Skill;
 use openpaint_practice_app::{PathProjection, Start};
 use openpaint_ui::components::{icon_button, paint_sheet, pill_button, text_button};
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET};
 
 use super::{FIRST, HomePart, Taps};
+use crate::components::{SMALL_TILE_HEIGHT, SkillTile, skill_tile};
 use crate::text::{self as t, Text, Words};
 
 /// What the column's sheet holds in from its edges, in points.
 const MARGIN: f32 = 4.0 * SPACE;
 /// The sheet's height at most, in points.
 const SHEET: f32 = 600.0;
+/// The unit's small tiles in a row.
+const ACROSS: usize = 3;
 
 /// What a tap in the column asks.
 enum Tapped {
@@ -55,9 +60,11 @@ impl HomePart {
         page.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
         let tapped = page
             .add_enabled_ui(enabled, |ui| {
-                let next = next_lesson(ui, path);
+                let next = next_lesson(ui, path).map(|from| Tapped::Start(Start::Next, from));
                 let reviewed = review(ui, path).map(|from| Tapped::Start(Start::Review, from));
-                let tapped = reviewed.or(next);
+                let tile = unit_tiles(ui, path, inner.bottom() - TOUCH_TARGET - SPACE);
+                let tile = tile.map(|(skill, from)| Tapped::Start(Start::Skill(skill), from));
+                let tapped = reviewed.or(next).or(tile);
                 foot(ui, inner).or(tapped)
             })
             .inner;
@@ -105,36 +112,43 @@ pub(super) fn label(ui: &mut egui::Ui, text: Text) {
     ui.label(RichText::new(shown).small().color(INK_SECONDARY));
 }
 
-/// The next lesson: what it is and Start; the first lesson for a fresh learner, today's lesson
-/// while it is unfinished.
-fn next_lesson(ui: &mut egui::Ui, path: &PathProjection) -> Option<Tapped> {
+/// The next lesson, on the home and the path page: today's lesson while it is unfinished (its
+/// name and place, "Lines 3/6", and Continue), the first lesson for a fresh learner, else the
+/// lesson offered (its skill, level, exercises and minutes) with Start; where the pill lies when
+/// it was tapped (`Start::Next`, which opens the unfinished lesson's sheet).
+pub(super) fn next_lesson(ui: &mut egui::Ui, path: &PathProjection) -> Option<Rect> {
     let language = t::language(ui.ctx());
-    let (over, name, line) = match (path.open, path.first, &path.next) {
-        (Some(_), _, _) => (t::UNDER_WAY, None, None),
+    let (over, name, line, go) = match (&path.open, path.first, &path.next) {
+        (Some(open), _, _) => (
+            t::UNDER_WAY,
+            t::open_lesson(language, open),
+            None,
+            t::CONTINUE,
+        ),
         (None, true, _) => (
             t::NEXT_LESSON,
-            Some(t::FIRST_LESSON),
+            Words::from(t::FIRST_LESSON).shown(ui.ctx()).to_owned(),
             Some(t::exercises_line(language, FIRST)),
+            t::START,
         ),
         (None, false, Some(offer)) => (
             t::NEXT_LESSON,
-            Some(t::skill_name(offer.skill)),
+            Words::from(t::skill_name(offer.skill))
+                .shown(ui.ctx())
+                .to_owned(),
             Some(t::offer_line(language, offer)),
+            t::START,
         ),
         (None, false, None) => return None,
     };
     label(ui, over);
-    if let Some(name) = name {
-        ui.heading(Words::from(name).shown(ui.ctx()));
-    }
+    ui.heading(name);
     if let Some(line) = line {
         ui.label(RichText::new(line).color(INK_SECONDARY));
     }
     ui.add_space(SPACE);
-    let start = pill_button(ui, t::START, true);
-    start
-        .clicked()
-        .then_some(Tapped::Start(Start::Next, start.rect))
+    let pill = pill_button(ui, go, true);
+    pill.clicked().then_some(pill.rect)
 }
 
 /// The review on the side while a redo waits: a rule, its skill and two exercises, Review;
@@ -156,6 +170,45 @@ pub(super) fn review(ui: &mut egui::Ui, path: &PathProjection) -> Option<Rect> {
         .inner;
     label(ui, t::REDO_WAITS);
     tapped.clicked().then_some(tapped.rect)
+}
+
+/// The unit in hand's skills as small tiles with their dots, three a row, as many rows as fit
+/// above `foot` (a skill lacking its pictures greyed, no tap); the skill tapped and where.
+fn unit_tiles(ui: &mut egui::Ui, path: &PathProjection, foot: f32) -> Option<(Skill, Rect)> {
+    let unit = path.units.iter().find(|unit| unit.number == path.unit)?;
+    ui.add_space(SPACE);
+    rule(ui);
+    ui.add_space(SPACE);
+    let gap = 2.0 * SPACE;
+    let width = (ui.available_width() - gap * (ACROSS - 1) as f32) / ACROSS as f32;
+    let next = path
+        .next
+        .map(|offer| offer.skill)
+        .filter(|_| path.open.is_none());
+    let mut tapped = None;
+    for row in unit.skills.chunks(ACROSS) {
+        if ui.cursor().top() + SMALL_TILE_HEIGHT > foot {
+            break;
+        }
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::splat(gap);
+            for shown in row {
+                let tile = SkillTile {
+                    skill: shown.skill,
+                    name: t::skill_name(shown.skill).into(),
+                    dots: shown.dots,
+                    lacks: shown.lacks.map(|needs| Words::from(t::needs(needs))),
+                    next: next == Some(shown.skill),
+                    small: true,
+                };
+                let response = skill_tile(ui, &tile, width);
+                if response.clicked() {
+                    tapped = Some((shown.skill, response.rect));
+                }
+            }
+        });
+    }
+    tapped
 }
 
 /// A hairline across the column.

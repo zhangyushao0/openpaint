@@ -13,14 +13,13 @@ use openpaint_practice::Offer;
 use openpaint_practice_app::{PathProjection, Start, UnitShown};
 use openpaint_ui::components::chrome::{self, Source};
 use openpaint_ui::components::{
-    ISLAND_TOP, Place, UNDER_ISLANDS, controls, island, paper, pill_button, text_button,
+    ISLAND_TOP, Place, UNDER_ISLANDS, controls, island, paper, text_button,
 };
 use openpaint_ui::design::{
     INK, INK_SECONDARY, Outline, PANEL, SPACE, TOUCH_TARGET, paint_mark, panel_frame,
 };
 
-use super::FIRST;
-use super::column::{label, review, rule};
+use super::column::{label, next_lesson, review, rule};
 use super::{HomePart, Taps};
 use crate::components::{SkillTile, paint_seal, seal_turn, skill_tile};
 use crate::palette::PENCIL;
@@ -249,6 +248,7 @@ fn unit_skills(
                     dots: skill.dots,
                     lacks,
                     next: next == Some(skill.skill) && !path.first,
+                    small: false,
                 };
                 let response = skill_tile(ui, &tile, width);
                 if response.clicked() {
@@ -296,7 +296,6 @@ fn seals_and_book(ui: &mut egui::Ui, foot: Rect, path: &PathProjection) -> Optio
 
 /// The next lesson, the review on the side and the unit's full lesson in `side`, on a panel.
 fn offers(ui: &mut egui::Ui, side: Rect, (path, unit): (&PathProjection, u8)) -> Option<Tapped> {
-    let language = t::language(ui.ctx());
     let mut column = ui.new_child(
         UiBuilder::new()
             .id_salt("path offers")
@@ -308,29 +307,13 @@ fn offers(ui: &mut egui::Ui, side: Rect, (path, unit): (&PathProjection, u8)) ->
         .show(&mut column, |ui| {
             ui.set_width(side.width() - 6.0 * SPACE);
             ui.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
-            let next = next_block(ui, path, language);
+            let next = next_lesson(ui, path).map(|from| Tapped::Start(Start::Next, from));
             let review = review(ui, path).map(|from| Tapped::Start(Start::Review, from));
             let full = (path.units.iter()).find(|shown| shown.number == unit);
             let full = full_block(ui, (unit, full.and_then(|shown| shown.full)));
             next.or(review).or(full)
         })
         .inner
-}
-
-/// The next lesson: its skill, level, exercises and minutes, Start.
-fn next_block(ui: &mut egui::Ui, path: &PathProjection, language: Language) -> Option<Tapped> {
-    let (name, line) = match (path.first, &path.next) {
-        (true, _) => (t::FIRST_LESSON, t::exercises_line(language, FIRST)),
-        (false, Some(offer)) => (t::skill_name(offer.skill), t::offer_line(language, offer)),
-        (false, None) => return None,
-    };
-    label(ui, t::NEXT_LESSON);
-    ui.heading(Words::from(name).shown(ui.ctx()));
-    ui.label(egui::RichText::new(line).color(INK_SECONDARY));
-    let start = pill_button(ui, t::START, true);
-    start
-        .clicked()
-        .then_some(Tapped::Start(Start::Next, start.rect))
 }
 
 /// The full lesson of `unit` (its offer, `full`): about how many minutes it takes, a warm-up then

@@ -24,9 +24,9 @@ const OBJECT: How = How {
 texts! { PRACTICE_OBJECTS_HOW;
     OBJECT_EXERCISE = "Objects", "概括单体";
     OBJECT_IN_BOXES = "An object simplified into boxes", "用几何体概括单体";
-    OBJECT_TRAINS = "Weeks 3 and 4 · an object simplified into boxes beside its picture: the box \
+    OBJECT_TRAINS = "An object simplified into boxes beside its picture: the box \
         first, then big to small, every point found by a reason.",
-        "第 3、4 周 · 在图旁用几何体概括单体：先找方块，再由大到小，每个点都有依据。";
+        "在图旁用几何体概括单体：先找方块，再由大到小，每个点都有依据。";
     OBJECT_STEP_1 = "Complete the box with Sketch", "用草稿笔补全方块";
     OBJECT_STEP_2 = "The biggest cut first: its points by halves and thirds",
         "先切最大的一块：用二等分、三等分定点";

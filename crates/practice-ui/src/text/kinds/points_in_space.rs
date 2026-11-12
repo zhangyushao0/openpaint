@@ -90,16 +90,16 @@ texts! { PRACTICE_POINTS_IN_SPACE;
     THIRDS_IN_DEPTH = "Thirds in depth", "纵深三等分";
     THE_NEXT_FACE = "The next face", "等距扩展下一个面";
     MIRROR_A_POINT = "Mirror a point", "找对称点";
-    CENTRE_TRAINS = "Week 3 · points in space found by construction, not by eye: a face's centre.",
-        "第 3 周 · 点定位，用作图而不是凭感觉找点：面的中心。";
+    CENTRE_TRAINS = "Points in space found by construction, not by eye: a face's centre.",
+        "点定位，用作图而不是凭感觉找点：面的中心。";
     CENTRE_STEP_1 = "Cross the face's diagonals with Sketch", "用草稿笔连出面的两条对角线";
     CENTRE_STEP_2 = "Where they cross is the centre: mark it with Draw", "交点就是中心，用勾线笔标出";
     CENTRE_SAYS = "In perspective the centre lies nearer the far edge than the drawing's middle. \
         Compare: the exact centre in red, ringed when your mark lies more than a pen's width off \
         it. Construction shows the diagonals. Correct in blue and compare again.",
         "透视中，面的真正中心比量出来的正中更靠近远处的边。叠图对比：红色是准确的中心；你的标记偏了一个笔宽以上，中心就画上红圈。点“看画法”，可以看到两条对角线。用修正笔（蓝色）改，再对比。";
-    HALVES_TRAINS = "Week 3 · points in space found by construction: a face halved, upper and \
-        lower.", "第 3 周 · 点定位，用作图找点：把面上下平分。";
+    HALVES_TRAINS = "Points in space found by construction: a face halved, upper and \
+        lower.", "点定位，用作图找点：把面上下平分。";
     HALVES_STEP_1 = "The diagonals find the centre", "用对角线找到中心";
     HALVES_STEP_2 = "Through it towards the vanishing point", "过中心连向消失点";
     HALVES_STEP_3 = "The halving line with Draw, edge to edge", "用勾线笔画出平分线，从一边画到另一边";
@@ -108,8 +108,8 @@ texts! { PRACTICE_POINTS_IN_SPACE;
         the centre, the centre is ringed. Construction shows the diagonals and the line to the \
         point. Correct in blue and compare again.",
         "以最后一条线为准。叠图对比：红色是准确的线。你的线没对准消失点，会用红色虚线延长，越过消失点的红圈；对准了消失点却没经过中心，中心就画上红圈。点“看画法”，可以看到对角线和连向消失点的线。用修正笔（蓝色）改，再对比。";
-    THIRDS_TRAINS = "Week 3 · points in space found by construction: a face in three equal \
-        depths.", "第 3 周 · 点定位，用作图找点：纵深三等分。";
+    THIRDS_TRAINS = "Points in space found by construction: a face in three equal \
+        depths.", "点定位，用作图找点：纵深三等分。";
     THIRDS_STEP_1 = "The near upright edge in three", "把近处的竖边三等分";
     THIRDS_STEP_2 = "From the marks to the vanishing point", "从分点连向消失点";
     THIRDS_STEP_3 = "A diagonal crosses them where the uprights stand", "对角线与它们的交点就是竖线的位置";
@@ -120,8 +120,8 @@ texts! { PRACTICE_POINTS_IN_SPACE;
         Construction shows the near edge's thirds run to the vanishing point and the diagonal. \
         Correct in blue and compare again.",
         "透视中，近的一份比远的一份长；以最后两条竖线为准。叠图对比：红色是准确的竖线。你的竖线偏了一个笔宽以上，对角线上定它的那一点就画上红圈；画歪的竖线会画出真正的竖直线。点“看画法”，可以看到近边三等分点连向消失点的线和对角线。用修正笔（蓝色）改，再对比。";
-    STEP_TRAINS = "Week 3 · points in space found by construction: the next face, of the same \
-        depth.", "第 3 周 · 点定位，用作图找点：等距扩展出下一个面。";
+    STEP_TRAINS = "Points in space found by construction: the next face, of the same \
+        depth.", "点定位，用作图找点：等距扩展出下一个面。";
     STEP_STEP_1 = "The near edge's middle to the vanishing point", "把近边中点连向消失点";
     STEP_STEP_2 = "The top and bottom edges run on", "延长上下两条边";
     STEP_STEP_3 = "From the near top corner through the far edge's middle", "从近处顶角过远边中点画线";
@@ -131,8 +131,8 @@ texts! { PRACTICE_POINTS_IN_SPACE;
         middle meets the bottom edge. Construction shows the lines. Correct in blue and compare \
         again.",
         "以最后一条竖边为准。叠图对比：红色是下一个面。你的竖边偏了一个笔宽以上，它的底端就画上红圈，也就是过远边中点的斜线与底边的交点。点“看画法”，可以看到作图的线。用修正笔（蓝色）改，再对比。";
-    MIRROR_TRAINS = "Week 3 · points in space found by construction: a point mirrored across the \
-        face's middle.", "第 3 周 · 点定位，用作图找点：关于面中线的对称点。";
+    MIRROR_TRAINS = "Points in space found by construction: a point mirrored across the \
+        face's middle.", "点定位，用作图找点：关于面中线的对称点。";
     MIRROR_STEP_1 = "The diagonals, and the upright middle through them", "画对角线，再过交点画竖直中线";
     MIRROR_STEP_2 = "The dot's level, and its upright down", "过已知点画水平透视线，再向下画竖线";
     MIRROR_STEP_3 = "The rectangle's diagonals: half its height", "用矩形的对角线找出一半高度";

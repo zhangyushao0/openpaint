@@ -30,9 +30,9 @@ texts! { PRACTICE_KEY_SHIFTS;
     ORIGINAL_LOCKED = "A key shift's original can't be picked: judge its colours by eye.",
         "变调的原图不能吸色：用眼睛判断它的颜色。";
     SHIFT_THE_KEY = "Shift the key", "变调";
-    KEY_TRAINS = "Week 5 · a crop painted again as if seen in another light: every colour moved \
+    KEY_TRAINS = "A crop painted again as if seen in another light: every colour moved \
         toward a tendency, its lightness kept.",
-        "第 5 周 · 把一块局部重画成换了一种光线的样子：每个颜色都往倾向色偏，明度不变。";
+        "把一块局部重画成换了一种光线的样子：每个颜色都往倾向色偏，明度不变。";
     KEY_STEP_1 = "Look at the tendency: warm or cool, pure or grey",
         "先看倾向色：偏暖还是偏冷，纯还是灰";
     KEY_STEP_2 = "Fill frame: the largest colour first, the whole picture shifted",

@@ -53,8 +53,8 @@ texts! { PRACTICE_ESTIMATES;
     PLACE_A_POINT = "Place a point", "定点";
     DIVIDE_ALIKE = "Divide alike", "按比例找点";
     COPY_AN_ANGLE = "Copy an angle", "临摹角度";
-    POINT_TRAINS = "Week 1 · a point placed by the frame alone, never a grid.",
-        "第 1 周 · 只凭方框定点，不画网格。";
+    POINT_TRAINS = "A point placed by the frame alone, never a grid.",
+        "只凭方框定点，不画网格。";
     POINT_STEP_1 = "Run it across and down to the edges", "把点横向、纵向引到边上";
     POINT_STEP_2 = "Against the halves and thirds", "和 1/2、1/3 处比一比";
     POINT_STEP_3 = "The same place, marked with Draw", "用勾线笔在相同位置标出";
@@ -63,8 +63,8 @@ texts! { PRACTICE_ESTIMATES;
         than a pen's width off it. Construction runs it across and down to the edges, the halves \
         and thirds ticked. Correct in blue and compare again.",
         "反复比较后再下笔；以最后一个标记为准，草稿笔可以画你自己的辅助线。叠图对比：红色是准确的点；你的标记偏了一个笔宽以上，这个点就画上红圈。点“看画法”，会把点横向、纵向引到边上，并标出 1/2 和 1/3。用修正笔（蓝色）改，再对比。";
-    PROPORTION_TRAINS = "Week 1 · dividing alike: shares compared, not lengths.",
-        "第 1 周 · 按比例找点：比的是比例，不是长度。";
+    PROPORTION_TRAINS = "Dividing alike: shares compared, not lengths.",
+        "按比例找点：比的是比例，不是长度。";
     PROPORTION_STEP_1 = "Halves and thirds on the given segment", "在给出的线段上找 1/2 和 1/3";
     PROPORTION_STEP_2 = "And on yours, from its ringed end", "在你的线段上也找出来，从带圈的一端量起";
     PROPORTION_STEP_3 = "The same share: a tick with Draw", "用勾线笔在相同比例处画一道短线";
@@ -73,8 +73,8 @@ texts! { PRACTICE_ESTIMATES;
         it along the segment. Construction ticks both segments' halves and thirds. Correct in blue \
         and compare again.",
         "两条线段带圈的端点相对应；以最后一个标记为准。叠图对比：红色短线是准确的位置；你的标记沿线段偏了一个笔宽以上，这里就画上红圈。点“看画法”，会在两条线段上标出 1/2 和 1/3。用修正笔（蓝色）改，再对比。";
-    ANGLE_TRAINS = "Week 1 · an angle seen against level and upright.",
-        "第 1 周 · 对照水平和竖直看角度。";
+    ANGLE_TRAINS = "An angle seen against level and upright.",
+        "对照水平和竖直看角度。";
     ANGLE_STEP_1 = "A level and upright cross through it", "过线条想象一个水平竖直的十字";
     ANGLE_STEP_2 = "Run it on to the frame's edges", "把线延长到方框边上";
     ANGLE_STEP_3 = "Through the dot in one stroke with Draw", "用勾线笔过点一笔画出";

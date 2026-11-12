@@ -22,8 +22,8 @@ const ELLIPSE_HOW: How = How {
 texts! { PRACTICE_ELLIPSES;
     ELLIPSE_EXERCISE = "Ellipse", "椭圆";
     DRAW_AN_ELLIPSE = "Draw an ellipse in its frame", "在方框里画椭圆";
-    ELLIPSE_TRAINS = "Week 2, for week 3's cylinders · an ellipse that fits a square in \
-        perspective.", "第 2 周，为第 3 周的圆柱打基础 · 切于透视方形的椭圆。";
+    ELLIPSE_TRAINS = "An ellipse that fits a square in perspective, the base of the cylinders \
+        to come.", "切于透视方形的椭圆，为之后的圆柱打基础。";
     ELLIPSE_STEP_1 = "Cross the diagonals: the centre", "连对角线找到中心";
     ELLIPSE_STEP_2 = "Through it, the four sides' middles", "过中心找到四条边的中点";
     ELLIPSE_STEP_3 = "Two passes in the air", "在空中比划两遍";

@@ -70,8 +70,8 @@ const SCALE: How = How {
 
 texts! { PRACTICE_SCALES;
     SCALE_EXERCISE = "Value scale", "明度推移";
-    SCALE_TRAINS = "Beside week 2's colour work · lightness as the eye sees it, in even steps.",
-        "配合第 2 周的色彩练习 · 按眼睛看到的明度均匀推移。";
+    SCALE_TRAINS = "Lightness as the eye sees it, in even steps, beside the colour work.",
+        "按眼睛看到的明度均匀推移，配合色彩练习。";
     SCALE_SAYS = "The numbers under the example's cells are the order. Keep the hue and purity: \
         move only up and down in the wheel's square; Fill cell fills the cell in hand, the ends \
         can be picked. Compare lays the even scale under your row, cell under cell; a cell of \

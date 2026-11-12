@@ -15,8 +15,8 @@ const COMBINED_HOW: How = How {
 texts! { PRACTICE_COMBINED_LINES;
     COMBINED_LINES = "Combined lines", "组合线条";
     COPY_COMBINED = "Copy combined lines", "临摹组合线条";
-    GROUP_TRAINS = "Week 1 · several lines seen as one shape: the key points first, then each \
-        line.", "第 1 周 · 几根线看成一个形状：先定关键点，再画每根线。";
+    GROUP_TRAINS = "Several lines seen as one shape: the key points first, then each \
+        line.", "几根线看成一个形状：先定关键点，再画每根线。";
     GROUP_STEP_1 = "Key points with Sketch: ends, corners, meetings",
         "用草稿笔定关键点：端点、转角、交接处";
     GROUP_STEP_2 = "The longest line first, with Draw", "用勾线笔先画最长的线";

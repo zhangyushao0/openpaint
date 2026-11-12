@@ -1,6 +1,6 @@
 //! Each kind's words, a file a kind (S109b), in V大's terms as `text/mod.rs` says: its name (the
 //! bar, a compared exercise's heading where no skill names it), its How card (S92: its title, one
-//! line on what it trains and its week, its steps, one per step of its demonstration, Compare the
+//! line on what it trains, its steps, one per step of its demonstration, Compare the
 //! last, and once what Compare's marks mean, D108), and for a value scale the steps made for the
 //! row in hand. Each kind is registered here by its line in `KINDS`, its topics found by the key
 //! its description gives them (`openpaint_practice::Facts::key`, S109): the screens ask a kind's
@@ -41,7 +41,7 @@ pub(crate) use value_masses::{DARK_PEN, LIGHT_PEN, MIDDLE_PEN};
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct How {
     pub(crate) heading: Text,
-    /// What it trains and its week; none for the colour copy, which has no demonstration.
+    /// What it trains; none for the colour copy, which has no demonstration.
     pub(crate) trains: Option<Text>,
     /// One per step of its demonstration (a value scale's own Compare only: its others are made
     /// for the row in hand, `how_steps`).
@@ -72,7 +72,7 @@ const fn words(key: &'static str, name: Text, how: How) -> KindWords {
 }
 
 texts! { PRACTICE_HOW;
-    AGAIN = "Again", "再看一遍";
+    WATCH_AGAIN = "Watch again", "再看一遍";
     COMPARE_STEP = "Compare", "叠图对比";
 }
 

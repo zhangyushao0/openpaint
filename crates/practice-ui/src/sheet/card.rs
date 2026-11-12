@@ -75,7 +75,7 @@ pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrati
     // At the top of its row: centred, the row would take the height the card had before and keep
     // it.
     ui.horizontal_top(|ui| {
-        let again = how.trains.is_some() && text_button(ui, t::AGAIN, true).clicked();
+        let again = how.trains.is_some() && text_button(ui, t::WATCH_AGAIN, true).clicked();
         if again {
             demos.again(ui.ctx());
         }

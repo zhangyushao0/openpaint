@@ -16,9 +16,9 @@ const WHOLE_COPY: How = How {
 texts! { PRACTICE_WHOLE_COPIES;
     WHOLE_COPY_EXERCISE = "Whole copy", "整图复制";
     COPY_A_WHOLE_PICTURE = "Copy a whole picture", "整图复制";
-    WHOLE_COPY_TRAINS = "Weeks 3 and 4 · a division continued into a copy of the whole picture: \
+    WHOLE_COPY_TRAINS = "A division continued into a copy of the whole picture: \
         the big shapes right, no details.",
-        "第 3、4 周 · 在画面分割的基础上整图复制：大形准确，不画细节。";
+        "在画面分割的基础上整图复制：大形准确，不画细节。";
     WHOLE_COPY_STEP_1 = "Divide it: red, then green", "先分割：先红后绿";
     WHOLE_COPY_STEP_2 = "Draw: the big shapes over it, no details",
         "用勾线笔在上面画出大形，不画细节";

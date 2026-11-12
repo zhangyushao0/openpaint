@@ -20,9 +20,9 @@ texts! { PRACTICE_VALUE_MASSES;
     DARK_PEN = "Dark", "黑";
     MIDDLE_PEN = "Middle", "灰";
     LIGHT_PEN = "Light", "白";
-    MASSES_TRAINS = "Weeks 2 to 4 · a picture squinted at until only its few big masses are \
+    MASSES_TRAINS = "A picture squinted at until only its few big masses are \
         left, each dark, middle or light, grouped by value and not by object.",
-        "第 2 至 4 周 · 眯眼看画面，直到只剩几块大色块，每块归为黑、灰、白之一：按明度归纳，不按物体分。";
+        "眯眼看画面，直到只剩几块大色块，每块归为黑、灰、白之一：按明度归纳，不按物体分。";
     MASSES_STEP_1 = "Squint: Fill frame with Middle, the overall tone",
         "眯眼，先用灰填满方框，作为整体色调";
     MASSES_STEP_2 = "The darkest big masses with Dark", "用黑画最暗的几块大色块";

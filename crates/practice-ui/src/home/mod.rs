@@ -57,7 +57,7 @@ impl HomePart {
     /// A lesson started as `start` from what lies at `from` (the sheet grows out of it): the
     /// next lesson while today's is unfinished opens its sheet, which continues it.
     fn start(&mut self, start: Start, from: Rect, path: &PathProjection, (taps, asked): Taps<'_>) {
-        let open = path.open.filter(|_| start == Start::Next);
+        let open = (path.open.map(|open| open.sheet)).filter(|_| start == Start::Next);
         match open {
             Some(sheet) => taps.push(Intent::Gallery(GalleryIntent::Open(sheet))),
             None => asked.push(OptionsIntent::Lesson(start)),

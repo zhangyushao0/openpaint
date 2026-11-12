@@ -15,8 +15,8 @@ const LINE_HOW: How = How {
 texts! { PRACTICE_LINES;
     LINE = "Line", "线条";
     COPY_A_LINE = "Copy a line", "临摹单根线条";
-    LINE_TRAINS = "Week 1 · a line placed by its ends and bends, then drawn in one sure stroke.",
-        "第 1 周 · 先定两端和转折，再果断地一笔画出。";
+    LINE_TRAINS = "A line placed by its ends and bends, then drawn in one sure stroke.",
+        "先定两端和转折，再果断地一笔画出。";
     LINE_STEP_1 = "Tick its ends and where it bulges most with Sketch",
         "用草稿笔标出两端和最鼓处";
     LINE_STEP_2 = "Two passes in the air", "在空中比划两遍";

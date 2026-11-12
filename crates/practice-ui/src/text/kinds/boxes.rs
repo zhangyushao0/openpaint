@@ -17,8 +17,8 @@ const BOX_HOW: How = How {
 texts! { PRACTICE_BOXES;
     BOX_EXERCISE = "Box", "透视盒子";
     COMPLETE_THE_BOX = "Complete the box", "补全盒子";
-    BOX_TRAINS = "Week 2 · perspective: edges running one way meet at one vanishing point on the \
-        horizon.", "第 2 周 · 透视：同向的边交于视平线上的同一个消失点。";
+    BOX_TRAINS = "Perspective: edges running one way meet at one vanishing point on the \
+        horizon.", "透视：同向的边交于视平线上的同一个消失点。";
     BOX_STEP_1 = "Run the given edges on to the horizon", "把给出的边延长到视平线";
     BOX_STEP_2 = "Back from the points to the far corners", "从消失点连回远处的角";
     BOX_STEP_3 = "The nine edges with Draw, each once, hidden ones too",

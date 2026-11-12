@@ -3,7 +3,8 @@
 //! drawn here without knowing the skill), its name and its three dots, each earned one filled. The
 //! skill the next lesson practises is ringed in ink; one whose pictures are not kept is drawn in
 //! pencil with what it lacks under its dots, and takes no tap. Pressed, the sheet darkens under the
-//! hand. Named by its English (`text.rs`).
+//! hand. The home shows the unit in hand as smaller tiles (`small`). Named by its English
+//! (`text.rs`).
 
 use egui::{Align2, Color32, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2, pos2};
 use openpaint_practice::{Skill, TileMark};
@@ -15,13 +16,15 @@ use super::marks::paint_dots;
 use crate::palette::PENCIL;
 use crate::text::Words;
 
-/// A glyph's frame, in points: `TILE` drawn half as large again.
+/// A glyph's frame, in points: `TILE` drawn half as large again; a small tile's at `TILE`.
 const GLYPH: Vec2 = Vec2::new(
     1.5 * openpaint_practice::TILE[0],
     1.5 * openpaint_practice::TILE[1],
 );
-/// A tile's height, in points.
+const SMALL_GLYPH: Vec2 = Vec2::new(openpaint_practice::TILE[0], openpaint_practice::TILE[1]);
+/// A tile's height and a small one's, in points.
 const TILE_HEIGHT: f32 = GLYPH.y + 15.0 * SPACE;
+pub(crate) const SMALL_TILE_HEIGHT: f32 = SMALL_GLYPH.y + 13.0 * SPACE;
 /// The drawing's line, a dot's radius in the glyph's units, and the dots' radius and pitch, in
 /// points.
 const DRAWING_LINE: f32 = 1.75;
@@ -40,6 +43,8 @@ pub struct SkillTile<'a> {
     pub lacks: Option<Words<'a>>,
     /// The next lesson practises it: ringed.
     pub next: bool,
+    /// The home's smaller tile, its drawing at `TILE` and its dots closer under its name.
+    pub small: bool,
 }
 
 /// A tile `width` points wide; its response.
@@ -49,7 +54,12 @@ pub fn skill_tile(ui: &mut egui::Ui, tile: &SkillTile<'_>, width: f32) -> egui::
     } else {
         Sense::hover()
     };
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT), sense);
+    let (glyph_size, height, gap) = if tile.small {
+        (SMALL_GLYPH, SMALL_TILE_HEIGHT, 4.0 * SPACE)
+    } else {
+        (GLYPH, TILE_HEIGHT, 5.0 * SPACE)
+    };
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, height), sense);
     controls::register(ui, tile.name.id(), rect);
     if !ui.is_rect_visible(rect) {
         return response;
@@ -74,13 +84,13 @@ pub fn skill_tile(ui: &mut egui::Ui, tile: &SkillTile<'_>, width: f32) -> egui::
         (INK, INK_SECONDARY)
     };
     let left = rect.left() + 2.0 * SPACE;
-    let glyph = Rect::from_min_size(pos2(left, rect.top() + 2.0 * SPACE), GLYPH);
+    let glyph = Rect::from_min_size(pos2(left, rect.top() + 2.0 * SPACE), glyph_size);
     paint_glyph(painter, glyph, tile.skill, ink);
     let body = TextStyle::Body.resolve(ui.style());
     let name = tile.name.shown(ui.ctx());
     let below = pos2(left, glyph.bottom() + 1.5 * SPACE);
     painter.text(below, Align2::LEFT_TOP, name, body, ink);
-    let dots = pos2(left + DOT, below.y + 5.0 * SPACE);
+    let dots = pos2(left + DOT, below.y + gap);
     paint_dots(painter, (dots, DOT_PITCH, DOT), (tile.dots, None), ink);
     if let Some(lacks) = tile.lacks {
         let small = TextStyle::Small.resolve(ui.style());

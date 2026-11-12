@@ -21,9 +21,9 @@ const SHAPE_HOW: How = How {
 texts! { PRACTICE_SHAPES;
     SHAPE_EXERCISE = "Shape", "单体图形";
     COPY_A_SHAPE = "Copy a single shape", "临摹单体图形";
-    SHAPE_TRAINS = "Weeks 1 and 2 · an object's outline as a line drawing: big shapes before \
+    SHAPE_TRAINS = "An object's outline as a line drawing: big shapes before \
         small turns, checked by the negative shapes.",
-        "第 1、2 周 · 用线条画物体的外轮廓：先大后小，用负形检查。";
+        "用线条画物体的外轮廓：先大后小，用负形检查。";
     SHAPE_STEP_1 = "Tick its top, bottom, left and right", "标出最上、最下、最左、最右的点";
     SHAPE_STEP_2 = "Block it in with long straight lines", "用长直线概括大形";
     SHAPE_STEP_3 = "Check a negative shape: the ground beside it", "检查负形：旁边的空白";

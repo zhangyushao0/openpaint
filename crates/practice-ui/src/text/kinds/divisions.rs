@@ -24,9 +24,9 @@ const DIVISION: How = How {
 texts! { PRACTICE_DIVISIONS;
     DIVISION_EXERCISE = "Division", "画面分割";
     DIVIDE_A_PICTURE = "Divide a picture", "画面分割";
-    DIVISION_TRAINS = "Weeks 3 and 4 · a whole picture's few big divisions found by squinting, \
+    DIVISION_TRAINS = "A whole picture's few big divisions found by squinting, \
         drawn beside it in three levels.",
-        "第 3、4 周 · 眯眼找出整幅画最明显的几条分割线，在图旁分三级画出。";
+        "眯眼找出整幅画最明显的几条分割线，在图旁分三级画出。";
     DIVISION_STEP_1 = "Squint: the few most obvious lines, red, right through",
         "眯眼找最明显的主分割线，用红色贯穿画面";
     DIVISION_STEP_2 = "From them, each part's frame, green", "由主分割线找出各部分的外框，用绿色";

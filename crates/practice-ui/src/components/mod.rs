@@ -9,4 +9,4 @@ mod skill_tile;
 pub(crate) use colour_table::colour_table;
 pub(crate) use marks::{DOTS, paint_dots, paint_result};
 pub(crate) use seal::{paint_seal, seal_turn};
-pub(crate) use skill_tile::{SkillTile, skill_tile};
+pub(crate) use skill_tile::{SMALL_TILE_HEIGHT, SkillTile, skill_tile};

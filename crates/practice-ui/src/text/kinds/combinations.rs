@@ -24,9 +24,9 @@ const AREAS: How = How {
 
 texts! { PRACTICE_COMBINATIONS;
     AREAS_EXERCISE = "Colour combination", "色彩组合";
-    AREAS_TRAINS = "Week 2 · a corner of a rusted old thing or an abstract painting, a few colours \
+    AREAS_TRAINS = "A corner of a rusted old thing or an abstract painting, a few colours \
         side by side: the overall tone first, each judged against its neighbours.",
-        "第 2 周 · 生锈旧物或抽象画的一角，几块颜色挨在一起：先定整体色调，每块都和相邻的比。";
+        "生锈旧物或抽象画的一角，几块颜色挨在一起：先定整体色调，每块都和相邻的比。";
     AREAS_STEP_1 = "Squint: Fill frame with the overall tone", "眯眼看整体色调，用它填满方框";
     AREAS_STEP_2 = "Big: the largest area first", "用大笔先画最大的色块";
     AREAS_STEP_3 = "Big: each neighbour against it", "用大笔画相邻的色块，逐块和它比";

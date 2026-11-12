@@ -24,8 +24,8 @@ texts! { PRACTICE_COLOURS;
     // V大's name for the single-colour exercise, apart from the canvas's Colour (颜色).
     COLOUR_EXERCISE = "Colour", "单色";
     MATCH_A_COLOUR = "Match a colour", "临摹单色";
-    COLOUR_TRAINS = "Week 1 · a colour judged by its hue, lightness and purity, and corrected by \
-        eye.", "第 1 周 · 从色相、明度、纯度判断颜色，凭眼睛修正。";
+    COLOUR_TRAINS = "A colour judged by its hue, lightness and purity, and corrected by \
+        eye.", "从色相、明度、纯度判断颜色，凭眼睛修正。";
     COLOUR_STEP_1 = "Squint, the hue first: the family on the ring",
         "眯眼，先定色相：在色环上找到色系";
     COLOUR_STEP_2 = "Lighter or darker", "再比明度：更亮还是更暗";
