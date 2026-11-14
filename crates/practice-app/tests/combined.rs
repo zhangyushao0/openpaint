@@ -64,6 +64,8 @@ fn after_first(finished: bool) -> Session {
         let laid = first.laid_mut(index).expect("an exercise");
         laid.compared(First::of(at, next, Vec::new()));
     }
+    // A lesson finished told every kind it met: this first met no combined lines.
+    (first.lessons[0].exercises).retain(|laid| !matches!(laid.exercise.kind, Kind::Combined(_)));
     let record = full_lesson();
     let size = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));

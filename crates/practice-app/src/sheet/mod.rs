@@ -31,8 +31,8 @@ use openpaint_app::CanvasView;
 
 /// A practice sheet opening, as `PracticeLog::practising` makes it (the one place one is made)
 /// and `open_sheet` takes it: its record, the sheet as the screen draws it, what its lesson in
-/// hand is set beside, and the kinds whose How was told (compared on any sheet, by their facts'
-/// keys). The flow works on the lesson in hand.
+/// hand is set beside, and the kinds whose How was told (compared or come up on any sheet, by
+/// their facts' keys: `log/path.rs`). The flow works on the lesson in hand.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Practising {
     pub(crate) record: Sheet,
@@ -106,9 +106,11 @@ pub struct PracticeSheet {
     valuing: Pen,
     /// The kind whose How shows.
     instructions: Option<Kind>,
-    /// The kinds whose How showed by itself already, or need not: compared before; by their
+    /// The kinds whose How showed by itself already, or need not: told on any sheet; by their
     /// facts' keys (a kind's How is its topic's).
     told: HashSet<&'static str>,
+    /// The kinds whose How showed while the sheet was used (`time.rs`): told for good.
+    seen: HashSet<&'static str>,
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,
@@ -148,6 +150,7 @@ impl PracticeSheet {
         let sheet = Arc::new(view);
         let mut practice = Self {
             told,
+            seen: HashSet::new(),
             all_tools: record.is_copy(),
             hidden: true,
             time_saved: seconds(&record.spans),
@@ -216,6 +219,13 @@ impl PracticeSheet {
     #[must_use]
     pub const fn record(&self) -> &Sheet {
         &self.record
+    }
+
+    /// The kinds whose How showed while the sheet was used, by their facts' keys: the log keeps
+    /// them for the sheets opened after it (`PracticeLog::tell`).
+    #[must_use]
+    pub const fn seen(&self) -> &HashSet<&'static str> {
+        &self.seen
     }
 
     /// The exercise shown, unless the session is done.

@@ -266,6 +266,27 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
     assert_eq!((record.purpose, record.lessons.len()), (Purpose::Test, 2));
 }
 
+#[test]
+fn a_kind_s_how_told_on_a_sheet_is_not_told_again_when_the_sheet_opens_again() {
+    let empty = log_of(Vec::new(), NOON + 600);
+    let drill = six_lines(&empty, NOON, 40);
+    let log = log_of(vec![drill.clone()], NOON + 600);
+    let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
+    assert!(shown(&session).how.is_some(), "the lines' How by itself");
+    // Read and closed (a use of the sheet), then Home: nothing compared yet.
+    (PracticeSheet::of_mut(&mut session).expect("a sheet")).practised(NOON + 20);
+    practise(&mut session, PracticeIntent::Instructions(false), NOON + 20).expect("closed");
+    let record = record_of(&session);
+    // Continue from the home, or a restart: the log holds the record as the store kept it.
+    let log = log_of(vec![record.clone()], NOON + 600);
+    let again = practising(&record, Layout::laid_ahead(&record), &log);
+    assert_eq!(shown(&again).how, None, "told once");
+    // A lesson laid and never shown still tells its How.
+    let fresh = log_of(vec![drill.clone()], NOON + 600);
+    let laid = practising(&drill, Layout::laid_ahead(&drill), &fresh);
+    assert!(shown(&laid).how.is_some());
+}
+
 /// The rectangle of slot `slot`'s row.
 fn row(slot: usize) -> Fitted {
     let [x, y, width, height] = Layout::row_rect(slot);

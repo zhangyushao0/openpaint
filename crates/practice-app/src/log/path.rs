@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use openpaint_app::{ProjectId, Title};
 use openpaint_practice::{
-    Given, Learner, Pictures, Purpose, Sheet, Standing, Tally, UNITS, lessons, number, schedule,
+    Given, Learner, Picked, Pictures, Purpose, Sheet, Standing, Tally, UNITS, lessons, number,
+    schedule,
 };
 
 use super::PracticeLog;
@@ -165,13 +166,43 @@ impl PracticeLog {
         LessonRow::of_sheet(sheet, |lesson| number(&self.sheets, sheet, lesson))
     }
 
-    /// The kinds whose How need not show by itself on `sheet`: compared on any sheet (it among
-    /// them), by their facts' keys.
+    /// The kinds whose How need not show by itself on `sheet`: told on a sheet opened since the
+    /// app started (`tell`), or by the records of any sheet (it among them, as it stands now), by
+    /// their facts' keys (`told_on`).
     fn told(&self, sheet: &Sheet) -> HashSet<&'static str> {
-        (self.sheets.iter().chain([sheet]))
-            .flat_map(Sheet::exercises)
-            .filter(|laid| laid.first.is_some())
-            .map(|laid| laid.exercise.kind.facts().key)
+        (self.sheets.iter().filter(|other| other.id != sheet.id))
+            .chain([sheet])
+            .flat_map(told_on)
+            .chain(self.told.iter().copied())
             .collect()
     }
+
+    /// The kinds whose How the open sheet showed while used (`PracticeSheet::seen`), kept for the
+    /// sheets opened after it while the app runs.
+    pub fn tell(&mut self, told: &HashSet<&'static str>) {
+        if !told.is_subset(&self.told) {
+            self.told.extend(told);
+        }
+    }
+}
+
+/// The facts' keys of `sheet`'s exercises whose How its record tells was told: compared, or come
+/// up in hand where a How shows by itself (not in a warm-up; in the first lesson only at its first
+/// exercise). An exercise came up once its lesson moved past it or on to it, or, the first of a
+/// lesson, once the sheet was used in a span begun after that lesson was laid (a later second): a
+/// lesson laid but never shown tells nothing.
+fn told_on(sheet: &Sheet) -> impl Iterator<Item = &'static str> + '_ {
+    let used_since = |started: u64| sheet.spans.iter().any(|span| span.from > started);
+    sheet.lessons.iter().flat_map(move |lesson| {
+        let reached = match lesson.finished {
+            Some(_) => lesson.exercises.len(),
+            None if lesson.at > 0 || used_since(lesson.started) => usize::from(lesson.at) + 1,
+            None => 0,
+        };
+        let (warm_up, first) = (lesson.warm_up(), lesson.picked == Picked::First);
+        let came_up = move |at: usize| at < reached && at >= warm_up && (at == 0 || !first);
+        (lesson.exercises.iter().enumerate())
+            .filter(move |(at, laid)| laid.first.is_some() || came_up(*at))
+            .map(|(_, laid)| laid.exercise.kind.facts().key)
+    })
 }

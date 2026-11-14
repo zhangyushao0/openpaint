@@ -14,6 +14,10 @@ const SAVE_EVERY: u64 = 60;
 impl PracticeSheet {
     /// A use at `now` (seconds since 1970 UTC) while the sheet shows.
     pub fn practised(&mut self, now: u64) {
+        // A How showing while the sheet is used has been seen.
+        if let Some(kind) = self.instructions {
+            self.seen.insert(kind.facts().key);
+        }
         let hidden = std::mem::take(&mut self.hidden);
         let before = seconds(&self.record.spans);
         let began = practised(&mut self.record.spans, now, hidden);

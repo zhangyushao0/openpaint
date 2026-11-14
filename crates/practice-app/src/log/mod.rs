@@ -8,7 +8,7 @@
 //! (`lessons`); the day's lessons follow down one sheet (`day.rs`). The Pomodoro's timer and its
 //! blocks are the log's too (S124, `timer.rs`, `crate::pomodoro`).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use openpaint_practice::{Book, Learner, PERSONAL, Pack, Purpose, Sheet, local_day};
@@ -48,6 +48,9 @@ pub struct PracticeLog {
     learner: Learner,
     /// The path as the home and the path page show it, made again as the log changes.
     path: PathProjection,
+    /// The kinds whose How the sheets opened since the app started told, by their facts' keys
+    /// (`tell`; the records tell the rest, `path.rs`).
+    told: HashSet<&'static str>,
     /// The Pomodoro's timer and its blocks (S124).
     pomodoro: Pomodoro,
 }

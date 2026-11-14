@@ -55,8 +55,13 @@ pub(crate) fn sheet(canvas: &mut Canvas) -> Option<&mut PracticeSheet> {
 }
 
 /// The open sheet's record to the store and into `log`, once it changed since it last went (its
-/// time with it); a record the Pomodoro's End cut goes first, with its givens (S124).
+/// time with it); a record the Pomodoro's End cut goes first, with its givens (S124). The kinds
+/// whose How showed while it was used go into `log` too, so a sheet opened again never tells
+/// them again.
 pub(crate) fn save_record(canvas: &mut Canvas, (log, storage): (&mut PracticeLog, &mut Storage)) {
+    if let Some(sheet) = sheet(canvas) {
+        log.tell(sheet.seen());
+    }
     if let Some(record) = sheet(canvas).and_then(PracticeSheet::trim_request) {
         log.keep(record.clone());
         storage.submit(Job::Practice(PracticeJob::Trim(record)));
