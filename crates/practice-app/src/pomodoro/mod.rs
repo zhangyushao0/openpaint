@@ -42,8 +42,12 @@
 //! stays on while the block or the break counts (`PracticeLog::screen_on`). What changed goes to
 //! the store at each transition and once a minute while it counts (`PracticeLog::timer_request`).
 
-use openpaint_app::Viewport;
-use openpaint_practice::{Block, Blocks, Length};
+use std::sync::Arc;
+
+use openpaint_app::{Availability, Viewport};
+use openpaint_practice::{BREAK, Block, BlockTally, Blocks, Length, Sheet, TimerWrite, UnderWay};
+
+use crate::refused::Refused;
 
 mod shown;
 
@@ -88,20 +92,53 @@ pub enum Timed {
 }
 
 /// The timer, held by the practice log: what the store keeps of it, the clock's last tick, the
-/// block in hand and its break (S124b fills the state it needs).
+/// block just completed with its break, and what the store and the host have not had yet.
+///
+/// The seconds between two ticks belong to the state the first of them left: they count only if
+/// a day's or a test's sheet was in front at it (and the user had not paused), so a tick that
+/// comes late, a clock that jumps and a clock that stands still all count exactly what was in
+/// front.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Pomodoro {
     /// The settings, the block under way and the blocks completed, as last kept.
     kept: Blocks,
-    /// The clock's last tick, seconds since 1970 UTC.
+    /// The clock's last tick, seconds since 1970 UTC (0: none yet since the app started), the
+    /// local day then, and whether a day's or a test's sheet was in front then.
     now: u64,
+    today: i64,
+    front: bool,
+    /// The last local day the block under way ran on (in front, not paused).
+    ran_on: i64,
+    /// The block just completed, while its end is in front: its card and its break.
+    ended: Option<Ended>,
+    /// The break's chime is due, taken once.
+    chime: bool,
+    /// Not yet written: a change since the last write, a block completed; the seconds left the
+    /// last write held (once a minute while it counts).
+    unsaved: bool,
+    completed: Option<Block>,
+    saved_left: u32,
+}
+
+/// A block completed, its end in front: the block, its card and the break's seconds left.
+#[derive(Debug, Clone, PartialEq)]
+struct Ended {
+    block: Block,
+    end: Arc<BlockEnd>,
+    rest: u32,
 }
 
 impl Pomodoro {
-    /// The timer as the store kept it.
+    /// The timer as the store kept it: a block under way comes back held (the seconds until the
+    /// first tick are not counted), its seconds left and its pause as kept.
     pub(crate) fn of(kept: Blocks) -> Self {
-        // S124b: a block under way read back held, as a restart leaves it.
-        Self { kept, now: 0 }
+        let block = kept.under_way;
+        Self {
+            ran_on: block.map_or(0, |block| block.day),
+            saved_left: block.map_or(0, |block| block.left),
+            kept,
+            ..Self::default()
+        }
     }
 
     /// The blocks completed, oldest first: the book's and the home's seals.
@@ -115,15 +152,179 @@ impl Pomodoro {
     }
 
     /// The clock at `now`, today being local day `today`, a day's or a test's sheet in front
-    /// (`front`) or not.
+    /// (`front`) or not: the seconds since the last tick counted down where they count, a held
+    /// block of a past day dropped, the break counted and its end left once nothing is in front.
     pub(crate) fn tick(&mut self, now: u64, (today, front): (i64, bool)) {
-        // S124b: count down, hold, drop a held block of a past day, the break and its chime.
-        let _ = (today, front);
-        self.now = now;
+        let since = if self.now == 0 {
+            0
+        } else {
+            now.saturating_sub(self.now)
+        };
+        let seconds = u32::try_from(since).unwrap_or(u32::MAX);
+        let was = self.front;
+        // A clock set back counts nothing until it passes the last tick again.
+        (self.now, self.today, self.front) = (self.now.max(now), today, front);
+        self.counted(seconds, was);
+        let ran = was && front;
+        if let Some(block) = self.kept.under_way {
+            if ran && !block.paused {
+                self.ran_on = today;
+            } else if today > self.ran_on {
+                // Held when the day changed: nothing kept, no seal.
+                self.kept.under_way = None;
+                self.unsaved = true;
+            }
+        }
+        self.rested(seconds, was, front);
     }
 
-    /// The settings as kept.
-    pub(crate) const fn timing(&self) -> openpaint_practice::Timing {
-        self.kept.timing
+    /// `seconds` off the block under way, if it counted since the last tick (`front` then).
+    fn counted(&mut self, seconds: u32, front: bool) {
+        let Some(block) =
+            (self.kept.under_way.as_mut()).filter(|block| front && !block.paused && block.left > 0)
+        else {
+            return;
+        };
+        block.left = block.left.saturating_sub(seconds);
+        if block.left == 0 || self.saved_left.saturating_sub(block.left) >= 60 {
+            self.unsaved = true;
+        }
+    }
+
+    /// `seconds` off the break, if its end was in front (`was`), the chime due at its end; the
+    /// end left (nothing in front `now`) ends it silently.
+    fn rested(&mut self, seconds: u32, was: bool, now: bool) {
+        let Some(ended) = self.ended.as_mut() else {
+            return;
+        };
+        if was && ended.rest > 0 {
+            ended.rest = ended.rest.saturating_sub(seconds);
+            self.chime = ended.rest == 0 && self.kept.timing.chime;
+        }
+        if !now {
+            (self.ended, self.chime) = (None, false);
+        }
+    }
+
+    /// The length the home's row rings, kept for the next block.
+    pub(crate) fn choose(&mut self, length: Length) {
+        self.kept.timing.length = length;
+        self.unsaved = true;
+    }
+
+    /// The practice options' switch: the break's end chimes or not.
+    pub(crate) fn chime_on(&mut self, on: bool) {
+        self.kept.timing.chime = on;
+        self.unsaved = true;
+    }
+
+    /// A block of the length chosen begins at the last tick, unless one is under way; the end of
+    /// the one before and its break go.
+    pub(crate) fn begin(&mut self) {
+        if self.kept.under_way.is_some() {
+            return;
+        }
+        let length = self.kept.timing.length;
+        self.kept.under_way = Some(UnderWay {
+            started: self.now,
+            day: self.today,
+            length,
+            left: length.seconds(),
+            paused: false,
+        });
+        (self.ran_on, self.saved_left) = (self.today, length.seconds());
+        (self.ended, self.chime, self.unsaved) = (None, false, true);
+    }
+
+    /// The bar's Pause (`paused`) or Continue, while seconds are left.
+    pub(crate) fn pause(&mut self, paused: bool) -> Result<(), Refused> {
+        let block = (self.kept.under_way.as_mut()).filter(|block| block.left > 0);
+        let block = block.ok_or(Refused::Unavailable(Availability::NothingLeft))?;
+        block.paused = paused;
+        self.unsaved = true;
+        Ok(())
+    }
+
+    /// Stop timer: the block under way goes, nothing kept.
+    pub(crate) fn stop(&mut self) -> Result<(), Refused> {
+        self.kept
+            .under_way
+            .take()
+            .ok_or(Refused::Unavailable(Availability::NothingLeft))?;
+        self.unsaved = true;
+        Ok(())
+    }
+
+    /// The block under way, once its time is up.
+    pub(crate) fn up(&self) -> Option<UnderWay> {
+        self.kept.under_way.filter(|block| block.left == 0)
+    }
+
+    /// Whether a block is under way with time left: a lesson ended then chains the next.
+    pub(crate) fn counts_on(&self) -> bool {
+        self.kept.under_way.is_some_and(|block| block.left > 0)
+    }
+
+    /// Whether a block's end is in front (Another pomodoro takes).
+    pub(crate) const fn ended(&self) -> bool {
+        self.ended.is_some()
+    }
+
+    /// The block under way completed at End: kept for its seal, written once, its end shown (its
+    /// tally made by `tallied` as the log takes the sheet End cut) and its break begun.
+    pub(crate) fn complete(&mut self) {
+        let Some(block) = self.kept.under_way.take() else {
+            return;
+        };
+        let block = Block {
+            started: block.started,
+            day: block.day,
+            length: block.length,
+        };
+        self.kept.done.push(block);
+        self.completed = Some(block);
+        self.unsaved = true;
+        let end = BlockEnd {
+            length: block.length,
+            tally: BlockTally::default(),
+        };
+        self.ended = Some(Ended {
+            block,
+            end: Arc::new(end),
+            rest: BREAK,
+        });
+    }
+
+    /// The block's end counted again from `sheets` (as the log changes, never on a frame).
+    pub(crate) fn tallied(&mut self, sheets: &[Sheet]) {
+        if let Some(ended) = self.ended.as_mut() {
+            let tally = BlockTally::of(sheets, ended.block.started);
+            if tally != ended.end.tally {
+                ended.end = Arc::new(BlockEnd {
+                    length: ended.block.length,
+                    tally,
+                });
+            }
+        }
+    }
+
+    /// Whether the break's chime sounds now: once.
+    pub(crate) fn take_chime(&mut self) -> bool {
+        std::mem::take(&mut self.chime)
+    }
+
+    /// The timer's records for the store, once after each change and once a minute while a
+    /// block counts.
+    pub(crate) fn request(&mut self) -> Option<TimerWrite> {
+        if !std::mem::take(&mut self.unsaved) {
+            return None;
+        }
+        let under_way = self.kept.under_way;
+        self.saved_left = under_way.map_or(0, |block| block.left);
+        Some(TimerWrite {
+            timing: self.kept.timing,
+            under_way,
+            completed: self.completed.take(),
+        })
     }
 }

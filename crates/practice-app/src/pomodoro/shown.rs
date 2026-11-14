@@ -6,7 +6,9 @@
 
 use std::sync::Arc;
 
-use openpaint_practice::{BlockTally, Length};
+use openpaint_practice::{BREAK, BlockTally, Length};
+
+use super::Pomodoro;
 
 /// The timer for one UI frame.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -49,4 +51,66 @@ pub enum BlockShown {
 pub struct BlockEnd {
     pub length: Length,
     pub tally: BlockTally,
+}
+
+impl Pomodoro {
+    /// The timer as the frame shows it at the last tick.
+    pub(crate) fn shown(&self) -> TimerShown {
+        let timing = self.kept.timing;
+        let block = match (&self.ended, self.kept.under_way) {
+            (Some(ended), _) => Some(BlockShown::Ended {
+                end: Arc::clone(&ended.end),
+                rest: (ended.rest > 0).then(|| (minutes(ended.rest), share(ended.rest, BREAK))),
+            }),
+            (None, Some(block)) if block.left == 0 => Some(BlockShown::Up),
+            (None, Some(block)) => Some(BlockShown::Running {
+                left: minutes(block.left),
+                share: share(block.left, block.length.seconds()),
+                paused: block.paused,
+            }),
+            (None, None) => None,
+        };
+        TimerShown {
+            length: timing.length,
+            chime: timing.chime,
+            sealed: u8::try_from(self.kept.on(self.today)).unwrap_or(u8::MAX),
+            block,
+        }
+    }
+
+    /// The seconds counting down now: the block's (in front, not paused) or its break's (its end
+    /// in front); none while nothing counts.
+    fn counting(&self) -> Option<u32> {
+        if !self.front {
+            return None;
+        }
+        match (&self.ended, self.kept.under_way) {
+            (Some(ended), _) => Some(ended.rest),
+            (None, Some(block)) if !block.paused => Some(block.left),
+            _ => None,
+        }
+        .filter(|left| *left > 0)
+    }
+
+    /// Seconds after the last tick at which the minute shown turns, or the block or its break
+    /// ends (the last minute's turn); none while nothing counts.
+    pub(crate) fn wake(&self) -> Option<u64> {
+        let left = self.counting()?;
+        Some(u64::from(left - 60 * (minutes(left) - 1)))
+    }
+
+    /// Whether the screen stays on: the block or its break counts.
+    pub(crate) fn screen_on(&self) -> bool {
+        self.counting().is_some()
+    }
+}
+
+/// `seconds` as the minutes shown: rounded up.
+const fn minutes(seconds: u32) -> u32 {
+    seconds.div_ceil(60)
+}
+
+/// The share `left` is of `all`.
+fn share(left: u32, all: u32) -> f32 {
+    (left as f32 / all.max(1) as f32).clamp(0.0, 1.0)
 }

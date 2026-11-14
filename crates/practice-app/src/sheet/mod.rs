@@ -64,6 +64,7 @@ mod read;
 mod time;
 mod view;
 
+pub(crate) use block::end_block;
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
 pub use read::ReadJob;
@@ -130,6 +131,8 @@ pub struct PracticeSheet {
     zoom: Option<f32>,
     /// A lesson appended in place waiting for the store, and what it rolls back to (`append.rs`).
     appending: Option<Box<append::Appending>>,
+    /// End cut the record: it goes to the store with its givens, once (`block.rs`).
+    trimmed: bool,
 }
 
 impl PracticeSheet {
@@ -173,6 +176,7 @@ impl PracticeSheet {
             asked: HashSet::new(),
             zoom: None,
             appending: None,
+            trimmed: false,
         };
         practice.shown();
         practice

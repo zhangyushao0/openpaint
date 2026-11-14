@@ -5,12 +5,13 @@
 //! chain after a Next (`chains`), asks for the frame it wants (`wake`), keeps the screen on
 //! (`screen_on`), sounds the chime (`take_chime`) and stores what changed (`timer_request`).
 
-use openpaint_app::Session;
+use openpaint_app::{Availability, Session};
 use openpaint_practice::{Blocks, Sheet, TimerWrite};
 
 use super::PracticeLog;
 use crate::pomodoro::{Pomodoro, Timed, TimerIntent, TimerShown};
 use crate::refused::Refused;
+use crate::sheet::{PracticeSheet, end_block};
 
 impl PracticeLog {
     /// What the store kept of the Pomodoro (`practice_store::blocks`), as the app starts: a block
@@ -31,14 +32,7 @@ impl PracticeLog {
     /// The timer as one UI frame shows it, at the last tick.
     #[must_use]
     pub fn timer(&self) -> TimerShown {
-        // S124b
-        let timing = self.pomodoro.timing();
-        TimerShown {
-            length: timing.length,
-            chime: timing.chime,
-            sealed: 0,
-            block: None,
-        }
+        self.pomodoro.shown()
     }
 
     /// `intent` at the last tick, the open sheet's `session` when a canvas shows one: what the
@@ -52,47 +46,74 @@ impl PracticeLog {
         intent: TimerIntent,
         session: Option<&mut Session>,
     ) -> Result<Timed, Refused> {
-        // S124b
-        let _ = (intent, session);
-        Err(Refused::Unavailable(
-            openpaint_app::Availability::NothingLeft,
-        ))
+        match intent {
+            TimerIntent::Length(length) => self.pomodoro.choose(length),
+            TimerIntent::Chime(on) => self.pomodoro.chime_on(on),
+            TimerIntent::Start => {
+                self.pomodoro.begin();
+                return Ok(Timed::Lesson);
+            }
+            TimerIntent::Pause => self.pomodoro.pause(true)?,
+            TimerIntent::Resume => self.pomodoro.pause(false)?,
+            TimerIntent::Stop => self.pomodoro.stop()?,
+            TimerIntent::End(viewport) => {
+                let block = self.pomodoro.up().ok_or(NOT_NOW)?;
+                let session = session.ok_or(NOT_NOW)?;
+                let now = self.pomodoro.now();
+                let record = end_block(session, block.started, (now, &viewport))?;
+                // A lesson taken off leaves the one before it in hand: set beside the log again.
+                let beside = self.beside(&record);
+                if let Some(sheet) = PracticeSheet::of_mut(session) {
+                    sheet.set_beside(beside);
+                }
+                self.pomodoro.complete();
+                // The log takes the sheet cut: its book, its seals and the block's end made again.
+                self.keep(record);
+            }
+            TimerIntent::Another(viewport) => {
+                if !self.pomodoro.ended() {
+                    return Err(NOT_NOW);
+                }
+                self.pomodoro.begin();
+                return Ok(Timed::OneMore(viewport));
+            }
+        }
+        Ok(Timed::Done)
     }
 
     /// Whether the lesson in hand on `session`'s sheet has just ended while a block counts with
     /// time left: the runtime then lays the next lesson as One more lays it (the chain).
     #[must_use]
     pub fn chains(&self, session: &Session) -> bool {
-        // S124b
-        let _ = session;
-        false
+        let Some(record) = PracticeSheet::of(session).map(PracticeSheet::record) else {
+            return false;
+        };
+        self.pomodoro.counts_on() && !record.is_copy() && record.finished().is_some()
     }
 
     /// Seconds after the last tick at which the timer wants a frame: the turn of the minute shown
     /// or the end of the block or of the break; none while nothing counts.
     #[must_use]
     pub fn wake(&self) -> Option<u64> {
-        // S124b
-        None
+        self.pomodoro.wake()
     }
 
     /// Whether the screen stays on: the block or its break counts.
     #[must_use]
     pub fn screen_on(&self) -> bool {
-        // S124b
-        false
+        self.pomodoro.screen_on()
     }
 
     /// Whether the break's chime sounds now: once, at its end, the switch on.
     pub fn take_chime(&mut self) -> bool {
-        // S124b
-        false
+        self.pomodoro.take_chime()
     }
 
     /// The timer's records for the store, once after each change (`practice_store::save_timer`).
     pub fn timer_request(&mut self) -> Option<TimerWrite> {
-        // S124b
-        let _ = self.pomodoro.now();
-        None
+        self.pomodoro.request()
     }
 }
+
+/// An intent the timer's state does not take now.
+const NOT_NOW: Refused = Refused::Unavailable(Availability::NothingLeft);

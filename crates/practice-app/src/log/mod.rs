@@ -95,6 +95,7 @@ impl PracticeLog {
         self.learner = Learner::of(&self.sheets);
         let blocks = self.pomodoro.done();
         self.book = Arc::new(Book::of(&self.sheets, blocks, self.offset));
+        self.pomodoro.tallied(&self.sheets);
         self.named = (self.sheets.iter())
             .filter(|s| s.canvas != 0)
             .map(|s| BookRecord {

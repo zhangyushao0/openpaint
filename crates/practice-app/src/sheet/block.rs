@@ -5,16 +5,129 @@
 //! block's start, as `BlockTally` counts them), in the room left of the card. The record cut goes
 //! to the store with its givens in one write (`trim_request`, `practice_store::trim`), before any
 //! other save of it.
+//!
+//! A lesson whose first exercise is the one in hand, neither drawn in nor compared, leaves nothing
+//! (a lesson the chain laid as the time ran out), unless it is its sheet's only one: a sheet keeps
+//! a lesson, so that lesson keeps its first exercise.
 
-use openpaint_practice::Sheet;
+use std::sync::Arc;
 
-use super::PracticeSheet;
+use openpaint_app::{Availability, Session, Viewport};
+use openpaint_practice::{Layout, Sheet, seconds};
+
+use super::{Beside, PracticeSheet, unavailable};
+use crate::copy::holds_copy;
+use crate::refused::Refused;
 
 impl PracticeSheet {
     /// The record End cut, once, for the store to write with its last lesson's givens; none
     /// otherwise (the runtime asks it before `save_request`).
     pub fn trim_request(&mut self) -> Option<Sheet> {
-        // S124b
-        None
+        if !std::mem::take(&mut self.trimmed) {
+            return None;
+        }
+        // This write carries the record as it stands, its time with it.
+        self.changed = false;
+        self.time_saved = seconds(&self.record.spans);
+        Some(self.record.clone())
     }
+
+    /// What the lesson in hand is set beside, from the log again (after End took a lesson off).
+    pub(crate) fn set_beside(&mut self, beside: Beside) {
+        self.beside = beside;
+        self.ended();
+    }
+
+    /// End at `now` of a block begun at `since`: the lesson in hand cut to the exercises begun and
+    /// finished, the view fitting the rows drawn in the block within `viewport`. Returns the
+    /// record as it stands.
+    fn end_block(
+        &mut self,
+        session: (&openpaint_core::Artwork, &mut openpaint_app::CanvasView),
+        since: u64,
+        (now, viewport): (u64, &Viewport),
+    ) -> Result<Sheet, Refused> {
+        if self.record.is_copy() {
+            return Err(unavailable(Availability::NothingLeft));
+        }
+        // A lesson the chain appended waits for the store before End may cut it.
+        if self.appending.is_some() {
+            return Err(unavailable(Availability::Running));
+        }
+        let (artwork, view) = session;
+        if let Some(index) = self.current() {
+            self.cut(index, artwork, now);
+        }
+        (self.compared, self.instructions, self.notice) = (None, None, None);
+        (self.fit_job, self.aligned, self.construction) = (None, false, false);
+        *view = self.rows_from(self.block_top(since), viewport);
+        self.shown();
+        Ok(self.record.clone())
+    }
+
+    /// The lesson in hand, exercise `index` shown, ended at `now`: its exercises after `index`
+    /// taken off, or the whole lesson where `index` is its first and was not begun on `artwork`.
+    fn cut(&mut self, index: usize, artwork: &openpaint_core::Artwork, now: u64) {
+        let first = self
+            .record
+            .held()
+            .map_or(index, |held| held.first_exercise());
+        let begun = self.record.first(index).is_some()
+            || (self.pair(index)).is_some_and(|pair| holds_copy(artwork, &pair.copy));
+        let hand = self.record.in_hand();
+        let before = self.record.exercises().count();
+        if index == first && !begun && self.record.lessons.len() > 1 {
+            self.record.lessons.remove(hand);
+        } else if let Some(lesson) = self.record.lesson_mut() {
+            lesson.exercises.truncate(index - first + 1);
+            lesson.finished = Some(now);
+        }
+        let kept = self.record.exercises().count();
+        if kept < before {
+            self.trimmed = true;
+            let mut sheet = (*self.sheet).clone();
+            sheet.pairs = Layout::on(&self.record, sheet.size).pairs;
+            sheet.pictures.truncate(kept);
+            sheet.painted.truncate(kept);
+            sheet.givens.truncate(kept);
+            sheet.kinds.truncate(kept);
+            sheet.rows.truncate(self.record.lessons.len());
+            self.sheet = Arc::new(sheet);
+        } else {
+            self.changed = true;
+        }
+    }
+
+    /// The top of the rows drawn in a block begun at `since`: its first lesson's on this sheet
+    /// (those finished at or after `since`); the sheet's top where none is.
+    fn block_top(&self, since: u64) -> u32 {
+        let lesson = (self.record.lessons.iter())
+            .find(|lesson| lesson.finished.is_some_and(|finished| finished >= since));
+        let slot = lesson.and_then(|lesson| lesson.exercises.first());
+        slot.map_or(0, |laid| {
+            let [_, top, _, _] = Layout::row_rect(usize::from(laid.slot));
+            top as u32
+        })
+    }
+}
+
+/// End (`crate::pomodoro::TimerIntent::End`) on the sheet `session` holds, at `now`, for a block
+/// begun at `since`, the view fitting the rows drawn in it within `viewport`; undo and redo then
+/// reach nothing before it. Returns the record as it stands.
+///
+/// # Errors
+/// `Unavailable` off a day's or a test's sheet, or while a lesson appended waits for the store.
+pub(crate) fn end_block(
+    session: &mut Session,
+    since: u64,
+    (now, viewport): (u64, &Viewport),
+) -> Result<Sheet, Refused> {
+    session
+        .lend::<PracticeSheet, _>(|sheet, lent| {
+            let artwork = lent.artwork().clone();
+            let record = sheet.end_block((&artwork, lent.view()), since, (now, viewport))?;
+            lent.keep_only_current();
+            Ok(record)
+        })
+        .unwrap_or(Err(unavailable(Availability::NothingLeft)))
 }
