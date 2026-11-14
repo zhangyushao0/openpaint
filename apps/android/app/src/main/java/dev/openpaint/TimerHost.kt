@@ -55,6 +55,7 @@ internal class TimerHost(private val activity: Activity, private val frame: () -
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         keptOn = on
+        Log.i("openpaint", if (on) "screen kept on" else "screen let go")
     }
 
     /** One short tone on the notification stream (silent mode silences it), released after. */
@@ -65,7 +66,8 @@ internal class TimerHost(private val activity: Activity, private val frame: () -
             Log.w("openpaint", "no tone for the chime: $error")
             return
         }
-        tone.startTone(ToneGenerator.TONE_PROP_ACK, CHIME_MS)
+        val sounded = tone.startTone(ToneGenerator.TONE_PROP_ACK, CHIME_MS)
+        Log.i("openpaint", if (sounded) "the break's chime sounded" else "the break's chime refused")
         main.postDelayed({ tone.release() }, CHIME_MS + 200L)
     }
 }

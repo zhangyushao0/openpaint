@@ -17,6 +17,8 @@ pub mod transfer;
 #[cfg(test)]
 mod debug_only;
 #[cfg(test)]
+mod host_frames;
+#[cfg(test)]
 mod test_dir;
 
 #[cfg(target_os = "android")]

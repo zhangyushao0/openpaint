@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 /// The Kotlin host's source sets.
-fn source_set(name: &str) -> PathBuf {
+pub(crate) fn source_set(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("app")
         .join("src")
@@ -13,7 +13,7 @@ fn source_set(name: &str) -> PathBuf {
 }
 
 /// Every file under `dir` with its text.
-fn texts(dir: &Path) -> Vec<(PathBuf, String)> {
+pub(crate) fn texts(dir: &Path) -> Vec<(PathBuf, String)> {
     let mut found = Vec::new();
     for entry in std::fs::read_dir(dir).expect("a source directory") {
         let path = entry.expect("an entry").path();

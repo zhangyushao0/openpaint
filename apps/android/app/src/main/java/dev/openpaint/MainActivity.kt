@@ -61,11 +61,16 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         hideSystemBars()
     }
 
-    /** Back in front: the time zone may have changed while away (onCreate's start included). */
+    /**
+     * Back in front: the time zone may have changed while away (onCreate's start included). A
+     * frame at once where the surface stayed: leaving held the Pomodoro's timer, and only a frame
+     * shows what it is now and posts its next wake.
+     */
     override fun onResume() {
         super.onResume()
         val now = System.currentTimeMillis()
         Native.zone(handle, java.util.TimeZone.getDefault().getOffset(now) / 60_000)
+        if (attached) requestFrame()
     }
 
     /**
@@ -110,7 +115,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     /** Rotation and resizing wait for this, so the new size never shows a stale frame. */
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        Native.frame(handle, System.nanoTime())
+        drawn(Native.frame(handle, System.nanoTime()))
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -120,10 +125,18 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     override fun doFrame(frameTimeNanos: Long) {
         frameRequested = false
-        if (Native.frame(handle, System.nanoTime())) requestFrame()
-        timer.after(handle)
+        drawn(Native.frame(handle, System.nanoTime()))
         syncKeyboard()
         if (handle != 0L) pickers.serve()
+    }
+
+    /**
+     * After every frame drawn, wherever it was drawn: the next asked for when [again], the
+     * Pomodoro's wake posted for the state this frame left.
+     */
+    private fun drawn(again: Boolean) {
+        if (again) requestFrame()
+        timer.after(handle)
     }
 
     /** A system picker closed; what it gave goes to Rust, which starts the work at once. */
@@ -204,7 +217,12 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         return true
     }
 
-    private fun requestFrame() {
+    /**
+     * A frame at the next vsync. Also for the debug build's chores, which draw frames of their
+     * own outside Choreographer: one through here after them leaves the host as a frame of its
+     * own would.
+     */
+    internal fun requestFrame() {
         if (!frameRequested) {
             frameRequested = true
             Choreographer.getInstance().postFrameCallback(this)

@@ -40,9 +40,5 @@ pub extern "system" fn Java_dev_openpaint_Native_chime<'local>(
     _class: JClass<'local>,
     handle: jlong,
 ) -> jboolean {
-    let chime = runtime(handle).is_some_and(|runtime| runtime.take_chime());
-    if chime {
-        log::info!("the break's chime");
-    }
-    chime
+    runtime(handle).is_some_and(|runtime| runtime.take_chime())
 }

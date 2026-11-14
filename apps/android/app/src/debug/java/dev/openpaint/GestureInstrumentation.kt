@@ -50,12 +50,14 @@ class GestureInstrumentation : Instrumentation() {
         try {
             arguments.getString("gradient")?.let { state ->
                 runOnMainSync { DebugControls.gradient(state == "on") }
+                framed()
                 result.putString("gesture", "injected")
                 finish(Activity.RESULT_OK, result)
                 return
             }
             arguments.getString("lose")?.let {
                 runOnMainSync { DebugControls.loseDevice() }
+                framed()
                 result.putString("gesture", "injected")
                 finish(Activity.RESULT_OK, result)
                 return
@@ -105,12 +107,14 @@ class GestureInstrumentation : Instrumentation() {
         arguments.getString("bench")?.let { scene ->
             var lines: String? = null
             runOnMainSync { lines = DebugControls.bench(scene) }
+            framed()
             result.putString("bench", lines ?: error("no answer for the benchmark"))
             return true
         }
         arguments.getString("practice-test")?.let { command ->
             var answer: String? = null
             runOnMainSync { answer = DebugControls.practiceTest(command) }
+            framed()
             result.putString("practice-test", answer ?: error("no answer for the test session"))
             return true
         }
@@ -121,6 +125,7 @@ class GestureInstrumentation : Instrumentation() {
             val bytes = ParcelFileDescriptor.AutoCloseInputStream(pipe).use { it.readBytes() }
             var opening: String? = null
             runOnMainSync { opening = DebugControls.openFile(bytes) }
+            framed()
             result.putString("opening", "${opening ?: error("no answer for the file")} (${bytes.size} bytes)")
             return true
         }
@@ -129,6 +134,15 @@ class GestureInstrumentation : Instrumentation() {
         runOnMainSync { state = DebugControls.state() }
         result.putString("state", state ?: error("no answer for the state"))
         return true
+    }
+
+    /**
+     * A chore drew frames of its own on the main thread, outside the activity's Choreographer:
+     * one frame through the activity after it, so the host does what it does after every frame
+     * (the Pomodoro's next wake, the screen kept on, the panel's rate).
+     */
+    private fun framed() {
+        runOnMainSync { DebugApplication.front?.requestFrame() }
     }
 
     /**
