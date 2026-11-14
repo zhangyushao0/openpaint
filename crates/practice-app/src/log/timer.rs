@@ -11,7 +11,7 @@ use openpaint_practice::{Blocks, Sheet, TimerWrite};
 use super::PracticeLog;
 use crate::pomodoro::{Pomodoro, Timed, TimerIntent, TimerShown};
 use crate::refused::Refused;
-use crate::sheet::{PracticeSheet, end_block};
+use crate::sheet::{PracticeSheet, begun_on, end_block};
 
 impl PracticeLog {
     /// What the store kept of the Pomodoro (`practice_store::blocks`), as the app starts: a block
@@ -59,6 +59,11 @@ impl PracticeLog {
             TimerIntent::End(viewport) => {
                 let block = self.pomodoro.up().ok_or(NOT_NOW)?;
                 let session = session.ok_or(NOT_NOW)?;
+                if !self.begun_in(session, block.started) {
+                    // Nothing begun in it: End leaves it as Stop timer does.
+                    self.pomodoro.stop()?;
+                    return Ok(Timed::Done);
+                }
                 let now = self.pomodoro.now();
                 let record = end_block(session, block.started, (now, &viewport))?;
                 // A lesson taken off leaves the one before it in hand: set beside the log again.
@@ -79,6 +84,17 @@ impl PracticeLog {
             }
         }
         Ok(Timed::Done)
+    }
+
+    /// Whether an exercise of a block begun at `since` was begun: on `session`'s sheet (drawn in
+    /// or compared), or a lesson finished in it on another sheet (one the chain left).
+    fn begun_in(&self, session: &Session, since: u64) -> bool {
+        let here = PracticeSheet::of(session).map(|sheet| sheet.record().id);
+        let elsewhere = (self.sheets.iter())
+            .filter(|sheet| Some(sheet.id) != here && !sheet.is_copy())
+            .flat_map(|sheet| &sheet.lessons)
+            .any(|lesson| lesson.finished.is_some_and(|finished| finished >= since));
+        elsewhere || begun_on(session, since)
     }
 
     /// Whether the lesson in hand on `session`'s sheet has just ended while a block counts with

@@ -36,12 +36,17 @@ pub(crate) fn minutes_left(language: Language, minutes: u32) -> String {
     }
 }
 
-/// A block's length at its end: "25 minutes", "25 分钟".
-pub(crate) fn block_length(language: Language, length: Length) -> String {
-    let minutes = length.minutes();
-    match language {
-        Language::English => format!("{minutes} minutes"),
-        Language::Chinese => format!("{minutes} 分钟"),
+/// A block's length at its end, the `seconds` it began with: "25 minutes", "25 分钟"; a length
+/// not of whole minutes (a test chore's) in seconds: "45 seconds", "45 秒".
+pub(crate) fn block_length(language: Language, seconds: u32) -> String {
+    let minutes = seconds / 60;
+    match (language, seconds.is_multiple_of(60) && minutes > 0) {
+        (Language::English, true) if minutes == 1 => "1 minute".to_owned(),
+        (Language::English, true) => format!("{minutes} minutes"),
+        (Language::Chinese, true) => format!("{minutes} 分钟"),
+        (Language::English, false) if seconds == 1 => "1 second".to_owned(),
+        (Language::English, false) => format!("{seconds} seconds"),
+        (Language::Chinese, false) => format!("{seconds} 秒"),
     }
 }
 
@@ -85,7 +90,8 @@ pub(crate) fn made(language: Language) -> Vec<String> {
     let line = Skill::of_key("line").expect("lines");
     let mut made = vec![
         minutes_left(language, 18),
-        block_length(language, Length::TwentyFive),
+        block_length(language, 25 * 60),
+        block_length(language, 45),
         block_count(language, (5, 19)),
         skill_reached(language, line, SkillLevel::First),
     ];
@@ -101,10 +107,7 @@ mod tests {
     fn the_pomodoro_s_numbers_read_in_both_languages() {
         assert_eq!(minutes_left(Language::English, 18), "18 min");
         assert_eq!(minutes_left(Language::Chinese, 18), "18 分");
-        assert_eq!(
-            block_length(Language::Chinese, Length::TwentyFive),
-            "25 分钟"
-        );
+        assert_eq!(block_length(Language::Chinese, 25 * 60), "25 分钟");
         assert_eq!(
             block_count(Language::English, (5, 19)),
             "5 lessons · 19 exercises"
@@ -120,6 +123,9 @@ mod tests {
             "线条到“入门”了"
         );
         assert_eq!(length_number(Length::Forty), "40");
+        assert_eq!(block_length(Language::English, 60), "1 minute");
+        assert_eq!(block_length(Language::English, 45), "45 seconds");
+        assert_eq!(block_length(Language::Chinese, 45), "45 秒");
     }
 
     #[test]

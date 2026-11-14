@@ -164,7 +164,7 @@ fn block(gained: bool) -> BlockEnd {
     results.extend([Some(Outcome::Near); 3]);
     results.push(Some(Outcome::Redo));
     BlockEnd {
-        length: Length::TwentyFive,
+        seconds: Length::TwentyFive.seconds(),
         tally: BlockTally {
             lessons: 5,
             exercises: 19,

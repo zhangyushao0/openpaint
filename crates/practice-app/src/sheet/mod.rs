@@ -64,7 +64,7 @@ mod read;
 mod time;
 mod view;
 
-pub(crate) use block::end_block;
+pub(crate) use block::{begun_on, end_block};
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
 pub use read::ReadJob;

@@ -66,7 +66,7 @@ fn head(ui: &mut egui::Ui, end: &BlockEnd, language: Language) {
     let painter = ui.painter();
     let heading = TextStyle::Heading.resolve(ui.style());
     let small = TextStyle::Small.resolve(ui.style());
-    let length = t::block_length(language, end.length);
+    let length = t::block_length(language, end.seconds);
     let shown = painter.text(band.left_top(), Align2::LEFT_TOP, length, heading, INK);
     let counts = (end.tally.lessons, end.tally.exercises);
     let under = shown.left_bottom() + Vec2::new(0.0, SPACE / 2.0);

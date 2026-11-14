@@ -26,6 +26,9 @@
 //!   the view gliding to its first pair, or on a new sheet when it does not fit. No end card shows
 //!   between (the screens hide a lesson's end while a block runs), unless the store refused the
 //!   lesson laid: rolled back, the end shows with its One more. A kind's How still comes once.
+//! - End with no exercise of the block begun (drawn in or compared; a lesson the chain left on
+//!   another sheet counts as begun): as Stop timer, no seal and no end, the lesson in hand as it
+//!   was (`PracticeLog::begun_in`).
 //! - End: the lesson in hand ends with the exercises begun (the one in hand stays; those after it
 //!   are taken off the sheet, its record and its stored givens: `PracticeSheet::trim_request`,
 //!   `practice_store::trim`), finished at the tick; the view fits the rows drawn in the block; the
@@ -108,6 +111,8 @@ pub(crate) struct Pomodoro {
     now: u64,
     today: i64,
     front: bool,
+    /// The seconds the block under way began with (its length; a test chore's fewer).
+    began: u32,
     /// The last local day the block under way ran on (in front, not paused).
     ran_on: i64,
     /// The block just completed, while its end is in front: its card and its break.
@@ -135,6 +140,7 @@ impl Pomodoro {
     pub(crate) fn of(kept: Blocks) -> Self {
         let block = kept.under_way;
         Self {
+            began: block.map_or(0, |block| block.length.seconds()),
             ran_on: block.map_or(0, |block| block.day),
             saved_left: block.map_or(0, |block| block.left),
             kept,
@@ -233,7 +239,8 @@ impl Pomodoro {
             left: length.seconds(),
             paused: false,
         });
-        (self.ran_on, self.saved_left) = (self.today, length.seconds());
+        (self.ran_on, self.saved_left, self.began) =
+            (self.today, length.seconds(), length.seconds());
         (self.ended, self.chime, self.unsaved) = (None, false, true);
     }
 
@@ -246,7 +253,7 @@ impl Pomodoro {
         self.begin();
         if let Some(block) = self.kept.under_way.as_mut() {
             block.left = block.left.min(seconds.max(1));
-            self.saved_left = block.left;
+            (self.saved_left, self.began) = (block.left, block.left);
         }
         true
     }
@@ -318,7 +325,7 @@ impl Pomodoro {
         self.completed = Some(block);
         self.unsaved = true;
         let end = BlockEnd {
-            length: block.length,
+            seconds: self.began,
             tally: BlockTally::default(),
         };
         self.ended = Some(Ended {
@@ -334,7 +341,7 @@ impl Pomodoro {
             let tally = BlockTally::of(sheets, ended.block.started);
             if tally != ended.end.tally {
                 ended.end = Arc::new(BlockEnd {
-                    length: ended.block.length,
+                    seconds: ended.end.seconds,
                     tally,
                 });
             }

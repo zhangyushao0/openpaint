@@ -45,12 +45,13 @@ pub enum BlockShown {
     },
 }
 
-/// A block's end as its card shows it: its length ("25 min"), "5 lessons · 19 exercises", each
-/// result as a mark, each skill that gained a dot with its dots, the seal (a red seal reading 番茄
-/// and its English word).
+/// A block's end as its card shows it: its length ("25 minutes"; the seconds it began with, so a
+/// test chore's short block shows its own), "5 lessons · 19 exercises", each result as a mark,
+/// each skill that gained a dot with its dots, the seal (a red seal reading 番茄 and its English
+/// word).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlockEnd {
-    pub length: Length,
+    pub seconds: u32,
     pub tally: BlockTally,
 }
 

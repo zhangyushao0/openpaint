@@ -6,7 +6,10 @@
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Title, Toolbox, Viewport};
+use openpaint_app::{
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
+    Toolbox, Viewport,
+};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Exercise, Given, Kind, LineTier, Picked, Planned, Purpose, Sheet, SkillLevel, local_day,
@@ -83,6 +86,34 @@ fn record_of(session: &Session) -> Sheet {
         .expect("a sheet")
         .record()
         .clone()
+}
+
+/// A pen stroke across the shown exercise's copy frame: the exercise begun.
+fn drawn(session: &mut Session) {
+    let practice = shown(session);
+    let frame = practice.sheet.pairs[practice.current.expect("shown")].copy;
+    let at = |x: f64| frame.to_canvas([x, 0.5]).map(|v| v as f32);
+    let sample = |index: i64, x: f64| InputSample {
+        position: at(x),
+        pressure: 0.6,
+        tilt: 0.2,
+        azimuth: 0.0,
+        time_ms: 1000 + 8 * index,
+    };
+    for (phase, samples) in [
+        (ContactPhase::Down, vec![sample(0, 0.3)]),
+        (ContactPhase::Move, vec![sample(1, 0.5)]),
+        (ContactPhase::Up, vec![sample(2, 0.7)]),
+    ] {
+        let contact = Contact {
+            id: 7,
+            device: Device::Pen,
+            phase,
+            samples,
+        };
+        let intent = Intent::Stroke(StrokeIntent::Contact(contact));
+        session.dispatch(intent).expect("dispatch");
+    }
 }
 
 /// Next at `now`.

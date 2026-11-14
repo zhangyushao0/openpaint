@@ -13,12 +13,20 @@ use openpaint_practice_app::{
 };
 
 use super::{
-    NOON, VIEWPORT, day, log_of, next, practising, record_of, running, shown, six_lines, tick,
+    NOON, VIEWPORT, day, drawn, log_of, next, practising, record_of, running, shown, six_lines,
+    tick,
 };
 
 /// A block of 25 minutes begun on the home at noon, a day's sheet of six lines opened at once
-/// and in front.
+/// and in front, its first exercise drawn in.
 fn begun() -> (PracticeLog, Session) {
+    let (log, mut session) = untouched();
+    drawn(&mut session);
+    (log, session)
+}
+
+/// As `begun`, nothing drawn.
+fn untouched() -> (PracticeLog, Session) {
     let empty = log_of(Vec::new(), NOON);
     let drill = six_lines(&empty, (NOON, 40), Purpose::Day);
     let mut log = log_of(vec![drill.clone()], NOON);
@@ -34,8 +42,10 @@ fn frame(log: &mut PracticeLog, session: &Session, now: u64) {
     tick(log, now, Some(&record_of(session)));
 }
 
-/// Next on each exercise left of the lesson in hand, a frame a minute from `now`; the time then.
+/// The exercise in hand drawn in, then Next on each exercise left of the lesson in hand, a frame
+/// a minute from `now`; the time then.
 fn finish(log: &mut PracticeLog, session: &mut Session, mut now: u64) -> u64 {
+    drawn(session);
     while shown(session).current.is_some() {
         now += 60;
         frame(log, session, now);
@@ -74,9 +84,11 @@ fn trimmed(session: &mut Session) -> Option<Sheet> {
 }
 
 /// The block's end the frame shows: its length, its tally and the break's minutes left.
-fn ended(log: &PracticeLog) -> (Length, BlockTally, Option<u32>) {
+fn ended(log: &PracticeLog) -> (u32, BlockTally, Option<u32>) {
     match log.timer().block {
-        Some(BlockShown::Ended { end, rest }) => (end.length, end.tally.clone(), rest.map(|r| r.0)),
+        Some(BlockShown::Ended { end, rest }) => {
+            (end.seconds, end.tally.clone(), rest.map(|r| r.0))
+        }
         other => panic!("the block's end: {other:?}"),
     }
 }
@@ -178,7 +190,7 @@ fn time_up_mid_exercise_then_end_cuts_the_lesson_and_keeps_the_block() {
     let write = log.timer_request().expect("written");
     assert_eq!((write.under_way, write.completed), (None, Some(block)));
     let tally = BlockTally::of(std::slice::from_ref(&record), NOON);
-    assert_eq!(ended(&log), (Length::TwentyFive, tally, Some(5)));
+    assert_eq!(ended(&log), (Length::TwentyFive.seconds(), tally, Some(5)));
     let blocks = Blocks {
         done: vec![block],
         ..Blocks::default()
@@ -244,6 +256,40 @@ fn a_lesson_not_begun_when_the_time_ran_out_leaves_nothing() {
     assert_eq!((practice.how, practice.current), (None, None));
     let cut = trimmed(&mut session).expect("cut");
     assert_eq!(cut.lessons[0].exercises.len(), 1);
+}
+
+#[test]
+fn end_of_a_block_with_nothing_begun_leaves_it_as_stop_does_no_seal_no_end() {
+    let (mut log, mut session) = untouched();
+    for now in [NOON + 60, NOON + 120] {
+        frame(&mut log, &session, now);
+        next(&mut session, now);
+    }
+    frame(&mut log, &session, NOON + 1500);
+    log.timer_request();
+    let before = record_of(&session);
+    let done = log.time(TimerIntent::End(VIEWPORT), Some(&mut session));
+    assert_eq!(done, Ok(Timed::Done));
+    assert_eq!(log.timer().block, None, "no end card, no break");
+    assert_eq!(log.timer().sealed, 0, "no seal");
+    let write = log.timer_request().expect("written");
+    assert_eq!((write.under_way, write.completed), (None, None));
+    assert_eq!(record_of(&session), before, "the lesson in hand as it was");
+    assert_eq!(trimmed(&mut session), None, "nothing cut");
+    assert_eq!(shown(&session).current, Some(2));
+}
+
+#[test]
+fn a_test_chores_short_block_ends_showing_its_own_length() {
+    let (mut log, mut session) = untouched();
+    log.time(TimerIntent::Stop, None).expect("stopped");
+    assert!(log.begin_test_block(60), "begun");
+    drawn(&mut session);
+    frame(&mut log, &session, NOON + 61);
+    assert_eq!(log.timer().block, Some(BlockShown::Up));
+    log.time(TimerIntent::End(VIEWPORT), Some(&mut session))
+        .expect("end");
+    assert_eq!(ended(&log).0, 60, "a minute, not the 25 chosen");
 }
 
 #[test]

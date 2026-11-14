@@ -9,6 +9,7 @@ use openpaint_practice_store::{blocks, sheets};
 use openpaint_runtime::Runtime;
 use openpaint_store::Library;
 
+use crate::pomodoro_wake::drawn;
 use crate::support::{Hand, TestDir, gallery, start, until};
 
 /// The tablet's screen: 1646 x 1029 points at density 1.75.
@@ -72,12 +73,21 @@ fn the_test_chores_short_block_ends_within_a_minute_and_its_end_leaves_nothing()
     until(&mut runtime, &mut hand, |r| r.test_practice(id).is_some());
     assert_eq!(running(&runtime), Some((1, false)), "a minute of it");
     let test = runtime.test_practice(id).expect("its name");
+    if runtime.controls().find("Got it").is_ok() {
+        hand.tap(&mut runtime, "Got it");
+    }
+    drawn(&mut runtime, &mut hand);
     hand.tick(&mut runtime, 61 * 1000);
     until(&mut runtime, &mut hand, |r| {
         r.timer().block == Some(BlockShown::Up)
     });
     hand.tap(&mut runtime, "End");
     until(&mut runtime, &mut hand, |r| r.timer().sealed == 1);
+    let shown = match runtime.timer().block {
+        Some(BlockShown::Ended { end, .. }) => end.seconds,
+        other => panic!("the block's end: {other:?}"),
+    };
+    assert_eq!(shown, 60, "its own length");
     assert!(runtime.back(), "to the home");
     until(&mut runtime, &mut hand, |r| gallery(r).is_some());
     runtime.end_test_practice(&test).expect("ended");
@@ -105,6 +115,7 @@ fn a_block_run_to_its_time_ends_by_the_bar_and_another_pomodoro_starts_the_next(
         .practice()
         .and_then(|p| p.lesson)
         .expect("its lesson");
+    drawn(&mut runtime, &mut hand);
     // The tablet put down 25 minutes with the sheet in front: the time is up.
     hand.tick(&mut runtime, 25 * 60 * 1000);
     until(&mut runtime, &mut hand, |r| {

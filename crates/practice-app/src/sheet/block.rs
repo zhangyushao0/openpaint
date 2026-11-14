@@ -8,7 +8,8 @@
 //!
 //! A lesson whose first exercise is the one in hand, neither drawn in nor compared, leaves nothing
 //! (a lesson the chain laid as the time ran out), unless it is its sheet's only one: a sheet keeps
-//! a lesson, so that lesson keeps its first exercise.
+//! a lesson, so that lesson keeps its first exercise. Whether anything of the block was begun on
+//! the sheet at all (`begun_on`) the log asks first: a block with nothing begun is not ended here.
 
 use std::sync::Arc;
 
@@ -98,6 +99,27 @@ impl PracticeSheet {
         }
     }
 
+    /// Whether an exercise of a block begun at `since` was begun on this sheet (drawn in on
+    /// `artwork` or compared): those of its lessons finished at or after `since` and of the lesson
+    /// in hand up to the exercise shown.
+    fn begun_since(&self, artwork: &openpaint_core::Artwork, since: u64) -> bool {
+        let mut first = 0;
+        let mut indices = Vec::new();
+        for lesson in &self.record.lessons {
+            let count = lesson.exercises.len();
+            match lesson.finished {
+                Some(finished) if finished >= since => indices.extend(first..first + count),
+                Some(_) => {}
+                None => indices.extend(first..=first + usize::from(lesson.at)),
+            }
+            first += count;
+        }
+        indices.into_iter().any(|index| {
+            self.record.first(index).is_some()
+                || (self.pair(index)).is_some_and(|pair| holds_copy(artwork, &pair.copy))
+        })
+    }
+
     /// The top of the rows drawn in a block begun at `since`: its first lesson's on this sheet
     /// (those finished at or after `since`); the sheet's top where none is.
     fn block_top(&self, since: u64) -> u32 {
@@ -109,6 +131,12 @@ impl PracticeSheet {
             top as u32
         })
     }
+}
+
+/// Whether an exercise of a block begun at `since` was begun on the sheet `session` holds (see
+/// `PracticeSheet::begun_since`); false off a sheet.
+pub(crate) fn begun_on(session: &Session, since: u64) -> bool {
+    PracticeSheet::of(session).is_some_and(|sheet| sheet.begun_since(session.artwork(), since))
 }
 
 /// End (`crate::pomodoro::TimerIntent::End`) on the sheet `session` holds, at `now`, for a block
