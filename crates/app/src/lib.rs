@@ -2,6 +2,26 @@
 //! ports (traits) that store and platform code implement.
 //!
 //! Depends on `openpaint-core` only. No GPU, no UI, no file system (`cargo repo-check`).
+//!
+//! Each intent family is one module holding its intents, handler, projection and tests (`intent.rs`
+//! names them all, `projection.rs` what the UI may offer, `error.rs`):
+//! - the session per artwork (`session/`; what an intent ends before it applies `drafts.rs`, what
+//!   a mode sets and does `mode.rs`, D119): history (`history.rs`), strokes (`stroke.rs`,
+//!   `stroke_shape.rs`, `stroke_copies.rs`, `streamline.rs`, `quickshape*.rs`, `symmetry.rs`; D69,
+//!   D71), layers (`layers.rs`, `layer_rules.rs`: the one Hidden/Locked check), the selection
+//!   (`selection.rs`), fill (`fill.rs`), transform and insert (`transform.rs`,
+//!   `transform_insert.rs`), adjust (`adjust.rs`), the clipboard (`clipboard.rs`) and autosave
+//!   (`storage.rs`);
+//! - the toolbox, app-wide and owned by the runtime (`toolbox*.rs`, `tool_intent.rs`,
+//!   `editor_state.rs`, `palette.rs`, `pen_buttons.rs`, `language.rs`; D70, D100) and the brush
+//!   library and its editing (`brushes.rs`, `brush_library.rs`, `brush_edit.rs`, `brush_fit.rs`,
+//!   `brush_knobs.rs`, `edited_brush.rs`, `brush_sets.rs`; the recipes from TOML, `recipe*.rs` over
+//!   `crates/app/brushes/`; D74);
+//! - the gallery and its jobs for the storage worker (`gallery.rs`, `gallery_projection.rs`,
+//!   `gallery_library.rs`, `gallery_files.rs`, `title.rs`, `project.rs`);
+//! - transfers, one system dialog at a time (`transfer.rs`, `transfer_errors.rs`, `export.rs`,
+//!   `reference.rs`, `insert.rs`);
+//! - input (`input.rs`, `palm.rs`, the finger gestures `gestures/`, the view `view/`).
 #![forbid(unsafe_code)]
 
 mod adjust;

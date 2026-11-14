@@ -1,5 +1,23 @@
 //! Shared widgets. Every button, slider and panel is one of these; screens compose them and
 //! never style widgets inline (ARCHITECTURE section 10). A mode's screens compose them too.
+//!
+//! The one for each job: `island` (and `pill`, what comes and goes in the top band;
+//! `Place::middle_unless` puts a bar in the band's middle unless another holds it), `popover` (grown out
+//! of its island button, usable from the frame it opens), `icon_button`, `icon_toggle`,
+//! `text_button` (a command: a bare word in ink with the press wash; `pill_button` in a pill),
+//! `choices` (mutually exclusive items owning their one mark: `text_choice`, `text_choice_wide`,
+//! `icon_choice`; `word_columns` lays words in two columns with a `Lead`), `divider`, `hint` (a
+//! quieter line), `command_row`, `menu_row`, `label_row`, `panel_heading` / `panel_heading_with`,
+//! `list_row` (the chosen row outlined, an icon at its end; `picture_row`, a picture small beside
+//! its title and a line), `slider`, `side_slider`, `setting_slider`, `switch_row`, `swatch`,
+//! `color_wheel` (`color_compare`, two colours as a picture; `wheel_picture`, a demonstration's
+//! small wheel), `curve_editor`, `preview_strip`, `brush_row`, `notice`, `status`, `dialog`
+//! (`dialog_of_width` for a page of two columns, `naming_dialog` with `Naming`, `delete_dialog`),
+//! `text_field`, `artwork_card`, `card` (`card_text`, `card_columns`, `card_step`), `floating`,
+//! `loupe`, `fill_bar`, `view_status`, `canvas_frame`, `picture`, `paper`, `chrome::declare`; the
+//! motion they share in `animate.rs`, `chrome*.rs`, `surface.rs`, `carry.rs`, `view_settle.rs`
+//! (D44). Every one registers its name and rectangle in the `ControlMap` (`controls.rs`); taps go
+//! out through the crate's `taps.rs` (`push_once`, `push_brush`).
 
 mod animate;
 mod artwork_card;

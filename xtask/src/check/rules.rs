@@ -44,18 +44,18 @@ pub const DOCS: &[Doc] = &[
     },
     Doc {
         path: "docs/STATUS.md",
-        lines: 150,
-        chars: Some(40_000),
+        lines: 130,
+        chars: Some(29_000),
     },
     Doc {
         path: "docs/ROADMAP.md",
-        lines: 250,
+        lines: 230,
         chars: Some(40_000),
     },
     Doc {
         path: "docs/ARCHITECTURE.md",
         lines: 300,
-        chars: Some(69_000),
+        chars: Some(47_000),
     },
     Doc {
         path: "docs/DECISIONS.md",

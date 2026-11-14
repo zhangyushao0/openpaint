@@ -8,6 +8,15 @@
 //! the library's record space.
 //!
 //! Depends on core, practice and app. No GPU, no UI, no file system (`cargo repo-check`).
+//!
+//! The modules, each `//!` saying what it holds: `session.rs` (`SheetSession`, D119), `sheet/`
+//! (the open sheet's flow), `refused.rs`, `pens.rs` (the practice pens on their own recipes in
+//! `crates/practice-app/pens/`, the hard tip app's Hard Paint file), `layers.rs` (a whole copy's
+//! layers), `copy.rs` (the copy read from the records); what the screens read: `projection.rs`
+//! (`PracticeIntent`, `PracticeProjection`, `SheetView`), `shown.rs`, `lesson.rs`, `path.rs`
+//! (`Start`, `PathProjection`), `copies.rs`; the log `log/`, the Pomodoro `pomodoro/` (its states
+//! and rules in its `//!`, D117), the book `book.rs`, the pictures `pictures.rs`, the practice
+//! options `options.rs`.
 #![forbid(unsafe_code)]
 
 mod book;

@@ -1,5 +1,19 @@
 //! Product orchestration: the frame loop, input normalisation, bounded workers, lifecycle
 //! draining and startup. Platform hosts plug in through traits; no JNI here.
+//!
+//! The frame (`frame.rs`, its steps in its `//!`; `frame_start.rs`, `frame_receive.rs` the
+//! workers' answers, the canvas opening, the intents applied; `ui_pass.rs`); the workers, each a
+//! `worker::Queue` on its own named thread (ARCHITECTURE section 3): `storage/`, `transfer.rs`,
+//! `fill.rs`, `pictures.rs`, `brush_pictures.rs` with `strip.rs`, `display.rs`, `raster.rs`,
+//! practice's in `practice/`. The rest: the open canvas `canvas/` (`Work::Artwork | Work::Sheet`,
+//! D119; the frame's intents, the eyedropper, the target and view tiers, the display cache),
+//! `screen.rs` with `screen_jobs.rs` (`Screen { Opening, Canvas, Gallery }`), practice composed
+//! `practice/` (D112), background work while idle `ahead.rs` and `touches.rs` (D96), `pacing.rs`
+//! (D97), device loss `recover.rs` and `shared.rs`, the GPU budget `budget.rs` and
+//! `budget_note.rs` (D85, D93), `clock.rs`, input `normalise.rs`, `input.rs`, `pointer.rs`,
+//! `text.rs`, the host's requests and the version line `host.rs`, `seeds.rs`, the harness's frames
+//! and test hooks `offscreen.rs` (`fix_clock`), `painted.rs`, the debug benchmarks `bench/` (D85)
+//! and the recorder of frames in real use `recorder/`.
 #![forbid(unsafe_code)]
 
 mod ahead;

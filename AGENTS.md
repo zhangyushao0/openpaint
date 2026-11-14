@@ -10,7 +10,7 @@ This file is the shared entry point for agents and maintainers and sets the defa
 4. The affected sources. Every file is under 400 lines: read whole files with Read, locate with Grep; a module's `//!` says what it holds.
 5. `docs/DECISIONS.md`: only when changing an existing decision or when you need the "why".
 
-Do not rebuild the big picture from source; the module map is in ARCHITECTURE. Do not dig through git history for progress; progress is in STATUS.
+Do not rebuild the big picture from source; the crate map is in ARCHITECTURE, each crate's module map in its `lib.rs` `//!`. Do not dig through git history for progress; progress is in STATUS.
 
 ## Packages
 
@@ -83,9 +83,9 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 
 | File | Limit | Contains | Never contains |
 | --- | --- | --- | --- |
-| docs/STATUS.md | 150 lines, 40,000 characters | current facts: working features, each said once and briefly; each verification's latest result with its date; known limits; not_run items; decisions pending from the author, in full | history, process, plans, earlier results |
-| docs/ROADMAP.md | 250 lines, 40,000 characters | product definition, stages, each slice's goal and done criteria; finished slices as one line each, at most about 300 characters: id, date, version, the gist, its decision | implementation detail, results |
-| docs/ARCHITECTURE.md | 300 lines, 69,000 characters | crate map, dependency direction, core types, threading and error model, enforced rules | migration plans, audit findings |
+| docs/STATUS.md | 130 lines, 29,000 characters | current facts: working features, each said once and briefly; each verification's latest result with its date; known limits; not_run items; decisions pending from the author, in full | history, process, plans, earlier results |
+| docs/ROADMAP.md | 230 lines, 40,000 characters | product definition, stages, each slice's goal and done criteria; finished slices as one line each, at most about 300 characters: id, date, version, the gist, its decision | implementation detail, results |
+| docs/ARCHITECTURE.md | 300 lines, 47,000 characters | crate map, dependency direction, core types, threading and error model, enforced rules | migration plans, audit findings |
 | docs/DECISIONS.md | 300 lines, 89,000 characters | decisions that constrain future code and are not self-evident; each at most 15 lines: date, decision, reason, consequences | research reports, long option comparisons |
 
 - No line of the four documents is longer than 1,500 characters: one fact a line, never a page. `cargo repo-check` refuses a document past its lines or characters and a line past 1,500, naming the file, the line and the limit (`xtask/src/check/rules.rs`, S105).

@@ -96,3 +96,21 @@ The author, 2026-10-22: 1.0.0 is a new product, not an upgrade. No compatibility
 - S110c 2026-11-07 1.21.6: `openpaint-practice-ui`, practice's screens and words out of ui behind its hooks (`CanvasHook`, `GalleryHook`, a lent `Chrome`, `Shell::set_names`); the ui names no practice, `Date` in ui; `crates/ui/src` 51 `.rs`; byte-identical screenshots; D112.
 - S116a 2026-11-09 1.21.6: the practice records' upgrades out with `frames.rs`, the store's `Upgrade`, `Upgrading` and `replace_owned`, devtools' `older.rs` and `restart_on_old_sheets`; records read only whole in their newest shape, hosts open `Library::at`; proven on the author's backup; byte-identical; D112 amended.
 - S116b 2026-11-09 1.21.6: pack formats 2 and 3 out with `pack_upgrade.rs` (every kept pack is format 4, proven on the backup; another format refused on import, left out of the list), `time_of_compares`, `spans_of`, the comments telling of upgrades; the kept shapes artifact in format 4; byte-identical; D101.
+
+## Stages passed (moved by S118b, 2026-11-14, as they stood)
+
+- G0 Skeleton, 2026-10-02: the workspace, the gate, the Android host and the harness (S0, S1).
+- G1 One stroke, end to end, 2026-10-02: pressure, undo, a stroke surviving a killed app, measured latency; the author judged pen feel and palm rejection `pass` (S2 to S8).
+- G2 Artworks and layers, 2026-10-03: the author finished an inked, flat-coloured piece (W1 `pass`): layers, gallery, brushes, colour, export and reference, navigation, fill, StreamLine and the paper-white look (S9 to S17).
+- G3 Editing and shaping, 2026-10-04: the author tried every feature (W2, W3): selection, motion, transform, smudge, groups, clipping, blend modes, masks, insert (S18 to S26).
+- G4 Colour, adjustments, sharp rendering, library, 2026-10-05: the author completed W4 and saw the ten-bit precision check smooth: colour management, adjustments, export at a scale, fill edges, transform records, sharp zoom, blur and sharpen, smooth paths, library, ten-bit display (S27 to S37).
+- G5 Daily painting, 2026-10-09: the author tried every feature: layer actions, Merge Down, copy and paste, pen buttons, palette, QuickShape and symmetry (S38 to S43).
+- G6 Brushes, 2026-10-09: the author painted with the set, "all good, very good, the preview included": taper and tilt, shapes and scatter, the brush editor, sets (S44 to S47).
+- G7 Stability and release, 2026-10-22: the author painted on the tablet, "works well": painting speed, GPU and storage robustness, memory, the device smoke and version policy, navigation that never waits, the display cache, the render core rewritten onto the GPU's rasterizer and the evaluator deleted (S48 to S67).
+- 1.0 A clean release, 2026-10-22: a new product, not an upgrade (the author): the formats designed afresh with no compatibility with anything before them, every crate simplified with behaviour unchanged, 1.0.0 freshly installed on the tablet (S68 to S73).
+
+## Reshape, done batches (moved by S118b, 2026-11-14, as they stood)
+
+- Batch B, Practice as a path, as the author took its mock (2026-11-09): done 2026-11-12 (S121 and S122; Done, D114 to D116).
+- S123, a kind behind one trait: done 2026-11-14 (Done, D111).
+- Batch C, the studio's structure, as the main session settled it after a read-only design: done 2026-11-14 (S125, S126; Done, D119, which names what was weighed and not built: an editor root, `ui::CanvasHook` replaced, one draft type; and the popovers as one field: 31 sites for about 25 lines, each panel resetting differently).

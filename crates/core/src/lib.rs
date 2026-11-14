@@ -2,6 +2,16 @@
 //!
 //! Pure by rule: no GPU, no UI, no file system, no threads, no clock (`cargo repo-check`).
 //! `lib.rs` only declares modules and re-exports; concepts live in their own files.
+//!
+//! The modules, each file's `//!` saying what it holds: the artwork value and its commands
+//! (`artwork.rs`, `command.rs`, `id.rs`, `value.rs`, `error.rs`; built only by `storage.rs`'
+//! `from_storage` from `parts*.rs`' plain data, or by commands); layers and groups (`layer.rs`,
+//! `layer_command.rs`, `layer_moves.rs`, `group.rs`, `group_command.rs`, `blend.rs`, `mask.rs`,
+//! `mask_command.rs`, `merge.rs`, D50, D51, D66); strokes (`stroke.rs`, `stroke_list.rs`, and
+//! `session.rs`, the stroke in progress beside the artwork); brush recipes (`brush.rs`,
+//! `deposit.rs`, `taper.rs`, `shape.rs`, D74); a layer's records (`fill.rs`, `clear.rs`,
+//! `transform.rs`, `adjust.rs`, `tone.rs`, `filter.rs`, `nested.rs`, `copy.rs`; D57, D59, D67) and
+//! the selection's region (`region.rs`, `mask_ops.rs`, D43).
 #![forbid(unsafe_code)]
 
 mod adjust;

@@ -3,6 +3,16 @@
 //! (`spaces.rs`, D112). Implements the storage ports declared in `openpaint-app`.
 //!
 //! No GPU, no UI (`cargo repo-check`).
+//!
+//! The modules, each file's `//!` its fields or calls: the library (`library.rs`: `prepare`
+//! checks the format and marks an empty database, no upgrade path), `records.rs` (the keys and the
+//! head), `strokes.rs` and `shapes.rs` (a stroke), `edits.rs` with `adjusts.rs` and `nested.rs`
+//! (an edit record), `catalogue.rs` (entries and thumbnails), `editor.rs` and `editor_library.rs`
+//! (the toolbox), `codec.rs` (the byte reader and writer), `delta.rs` (which records a save writes
+//! and removes), `read.rs` and `write.rs` (the calls), `batch.rs` (the one atomic batch a call,
+//! D77), `spaces.rs` (record spaces, D112); OpenPaint files `artwork_file.rs` (D62) and kept
+//! versions `versions.rs`; the display cache `display_cache.rs` (D96); images in and out
+//! `colour.rs`, `image_file.rs`, `export_file.rs` (D53, D55).
 #![forbid(unsafe_code)]
 
 mod adjusts;

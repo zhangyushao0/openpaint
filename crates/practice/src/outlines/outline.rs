@@ -6,8 +6,8 @@
 //! (`outline_matte.rs`, S81).
 //!
 //! The way: the picture reduced to a working grid of `WORK_SIDE` (`outline_ground.rs`); its
-//! ground read from its edge, clear (transparent) or a plain colour changing smoothly (a quadratic
-//! surface in Oklab fitted to the edge's ring, the object's own edge pixels left out); the object
+//! ground read from its edge, clear (transparent) or a plain colour changing smoothly (each side's
+//! Oklab profile, the object's own edge pixels left out, laid across as a Coons patch); the object
 //! the pixels that differ from the ground, in parts that each differ strongly somewhere; the ground
 //! flooded in from the edge, the rest the silhouette, enclosed pockets of clear ground kept as holes
 //! (`outline_mask.rs`); its contours traced and thinned (`outline_trace.rs`).

@@ -4,7 +4,11 @@
 //!   app's library out of the app's private storage into `artifacts/device/backups/`, and back in
 //!   place, compared byte for byte;
 //! - `cargo device-check [label] [--no-install]` (`check.rs`) and `cargo device-input ...`
-//!   (`input.rs`; a test lesson beside the author's, `practice_test.rs`);
+//!   (`input.rs`: one injected gesture through the debug build's `GestureInstrumentation`, taps by
+//!   control name through `DebugControls` and `state.rs`, `open-file` (`open_file.rs`, a pushed
+//!   `.pack` imported too), `bench`, `home`, `gradient`, `lose-device`; a test lesson or colour
+//!   copy beside the author's, its name kept in `artifacts/device/practice-test`,
+//!   `practice_test.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders
 //!   and screen recordings);
 //! - `cargo device-push <file>`: a PNG or JPEG for the system picker, or an OpenPaint file for
