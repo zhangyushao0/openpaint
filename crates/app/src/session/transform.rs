@@ -31,8 +31,6 @@ impl Session {
     pub(super) fn transform(&mut self, intent: TransformIntent) -> Result<(), AppError> {
         match intent {
             TransformIntent::Tool(true) if !self.transforms.active() => {
-                self.fills.interrupt();
-                self.select(SelectionIntent::Tool(false));
                 let drawing = self.strokes.active().is_some();
                 let clip = self.selection.mask().cloned();
                 let current = self.history.current();
@@ -42,9 +40,6 @@ impl Session {
             TransformIntent::Insert(picture) => {
                 // The picture goes above what shows now: a transform in progress first.
                 self.commit_transform();
-                self.fills.interrupt();
-                self.layers.interrupt();
-                self.select(SelectionIntent::Tool(false));
                 let drawing = self.strokes.active().is_some();
                 let current = self.history.current();
                 self.transforms.insert(current, drawing, picture)

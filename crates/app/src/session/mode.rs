@@ -7,7 +7,7 @@
 
 use openpaint_core::{Artwork, RegionMask, StrokeStyle};
 
-use super::Session;
+use super::{Ends, Session};
 use crate::input::{ContactPhase, Device};
 use crate::mode::{Lent, Mode};
 use crate::stroke::StrokeIntent;
@@ -53,7 +53,7 @@ impl Session {
     /// takes the mode's style and its layers are amended.
     pub fn lend<T: Mode, R>(&mut self, f: impl FnOnce(&mut T, &mut Lent<'_>) -> R) -> Option<R> {
         self.mode::<T>()?;
-        self.end_every_draft();
+        self.end(Ends::STEP);
         let drawing = self.strokes.active().is_some();
         let mode: &mut dyn std::any::Any = self.mode.as_deref_mut()?;
         let mode = mode.downcast_mut::<T>()?;

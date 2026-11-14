@@ -5,10 +5,9 @@
 
 use openpaint_core::{Artwork, Copied};
 
-use super::Session;
+use super::{Ends, Session};
 use crate::clipboard::{Clipboard, ClipboardAction};
 use crate::error::AppError;
-use crate::intent::Intent;
 use crate::projection::EditorAction;
 use crate::selection::SelectionIntent;
 
@@ -28,9 +27,7 @@ impl Session {
             .with_clipboard(clipboard.canvas())
             .availability(editor_action)
             .require(editor_action)?;
-        self.end_drafts(&Intent::Clipboard(action));
-        self.fills.interrupt();
-        self.layers.interrupt();
+        self.end(Ends::EDIT);
         let artwork = self.history.current().clone();
         let clip = self.selection.mask().cloned();
         let copy = |all| artwork.copied(all, clip.as_ref());

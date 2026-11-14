@@ -23,16 +23,14 @@ use crate::symmetry::Guide;
 use crate::transform::Transforms;
 use crate::view::{CanvasView, ViewIntent};
 
-#[path = "session_adjust.rs"]
-mod session_adjust;
-#[path = "session_clipboard.rs"]
-mod session_clipboard;
-#[path = "session_mode.rs"]
-mod session_mode;
-#[path = "session_storage.rs"]
-mod session_storage;
-#[path = "session_transform.rs"]
-mod session_transform;
+mod adjust;
+mod clipboard;
+mod drafts;
+mod mode;
+mod storage;
+mod transform;
+
+use drafts::Ends;
 
 #[derive(Debug)]
 pub struct Session {
@@ -50,7 +48,7 @@ pub struct Session {
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit, one
     /// held by a mode as the mode opens it).
     view: CanvasView,
-    /// What the artwork is for beyond painting, if anything (`session_mode.rs`).
+    /// What the artwork is for beyond painting, if anything (`session/mode.rs`).
     mode: Option<Box<dyn Mode>>,
     /// The toolbox's style; strokes start with it unless the mode draws with its own.
     brush: StrokeStyle,
@@ -126,36 +124,24 @@ impl Session {
 
     /// `dispatch`'s intent applied.
     fn apply(&mut self, intent: Intent) -> Result<(), AppError> {
-        self.end_drafts(&intent);
-        if let Intent::Adjust(adjust) = intent {
-            return self.adjust(adjust);
-        }
-        if let Intent::Transform(transform) = intent {
-            return self.transform(transform);
-        }
-        if let Intent::Layer(layer) = &intent {
-            let drawing = self.strokes.active().is_some();
-            self.fills.interrupt();
-            return self.layers.handle(&mut self.history, drawing, layer);
-        }
-        if let Intent::View(view) = intent {
-            self.navigate(view);
-            return Ok(());
-        }
-        self.layers.interrupt();
-        if let Intent::Fill(fill) = intent {
-            self.filling_frame();
-            let drawing = self.strokes.active().is_some();
-            let (clip, within) = (self.clip(), self.mode_bounds());
-            return (self.fills).handle(&mut self.history, drawing, fill, clip.as_ref(), within);
-        }
-        if matches!(
-            intent,
-            Intent::Stroke(_) | Intent::History(_) | Intent::Gallery(_) | Intent::Selection(_)
-        ) {
-            self.fills.interrupt();
-        }
+        self.end(Ends::by(&intent, self.transforms.active()));
         match intent {
+            Intent::Adjust(adjust) => self.adjust(adjust),
+            Intent::Transform(transform) => self.transform(transform),
+            Intent::Layer(layer) => {
+                let drawing = self.strokes.active().is_some();
+                self.layers.handle(&mut self.history, drawing, &layer)
+            }
+            Intent::View(view) => {
+                self.navigate(view);
+                Ok(())
+            }
+            Intent::Fill(fill) => {
+                self.filling_frame();
+                let drawing = self.strokes.active().is_some();
+                let (clip, within) = (self.clip(), self.mode_bounds());
+                (self.fills).handle(&mut self.history, drawing, fill, clip.as_ref(), within)
+            }
             Intent::Stroke(stroke) if self.refuses(&stroke) => Ok(()),
             Intent::Stroke(stroke) => {
                 // A stroke begins on the layer the mode keeps for its style.
@@ -173,12 +159,7 @@ impl Session {
             // The toolbox, export, the reference and choosing a picture to insert belong to the
             // app, not to this artwork: the runtime hands their intents to them (and the brush's
             // style to `set_brush`, an inserted picture as `TransformIntent::Insert`).
-            Intent::Layer(_)
-            | Intent::View(_)
-            | Intent::Fill(_)
-            | Intent::Transform(_)
-            | Intent::Adjust(_)
-            | Intent::Brush(_)
+            Intent::Brush(_)
             | Intent::Tool(_)
             | Intent::Export(_)
             | Intent::Reference(_)
