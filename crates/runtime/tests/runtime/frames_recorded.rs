@@ -1,13 +1,13 @@
 //! The recorder of frames in real use on the hand's held clock: a stroke's run of frames is one
-//! line saying what was drawn of the vsyncs that wanted a frame (one missed, one skipped for the
-//! GPU); frames the host asks for at rest, a second apart, and a run shorter than a quarter of a
-//! second are none.
+//! line saying what was drawn of the vsyncs a hand or a motion wanted a frame at (one missed, one
+//! skipped for the GPU), ended by the first frame call at rest after it; frame calls at rest,
+//! however many in a row, and a run shorter than a quarter of a second are none.
 
 use std::time::Instant;
 
 use openpaint_runtime::{
     Buttons, FRAMES_FILE, FrameRecorder, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime,
-    ToolKind,
+    ToolKind, Wanted,
 };
 
 use crate::support::hand::HANG;
@@ -39,13 +39,16 @@ fn pen(phase: MotionPhase, x: f32, time_ms: i64) -> MotionBatch {
     }
 }
 
-/// What the frame calls of a run did: calls, those skipped for the GPU, those made while the pen
-/// touched, the vsync after the last.
+/// What the frame calls of a run did up to the first wanted at rest (`rested`, its vsync): calls,
+/// those skipped for the GPU, those made while the pen touched; the vsync after the last call.
 #[derive(Debug, Default)]
 struct Run {
     calls: u32,
     skipped: u32,
     touched: u32,
+    rested: Option<i64>,
+    /// Calls wanted at rest, all told.
+    at_rest: u32,
     next: i64,
 }
 
@@ -55,8 +58,14 @@ impl Run {
         // Choreographer delivers the vsync of a 120 Hz panel.
         recorder.delivered(k * 8_333_333);
         let again = runtime.frame_recorded(recorder).expect("frame");
-        self.calls += 1;
-        self.skipped += u32::from(runtime.paced().skipped);
+        let paced = runtime.paced();
+        if paced.wanted == Wanted::Rest {
+            self.at_rest += 1;
+            self.rested.get_or_insert(k);
+        } else if self.rested.is_none() {
+            self.calls += 1;
+            self.skipped += u32::from(paced.skipped);
+        }
         self.next = k + 1;
         again
     }
@@ -78,21 +87,32 @@ impl Run {
     }
 }
 
-/// A pen stroke over vsyncs `from..from + vsyncs` after `base`: a batch at each, followed at once
-/// by a frame call but at `without` (that vsync's call missed: the next comes a vsync late); the
-/// GPU held behind for the call at `held`; then frames while the runtime wants them.
+/// A pen stroke's phases: down, moving, up.
+const STROKE: [MotionPhase; 3] = [MotionPhase::Down, MotionPhase::Move, MotionPhase::Up];
+/// A pen hovering over the glass and leaving it.
+const HOVER: [MotionPhase; 3] = [
+    MotionPhase::HoverEnter,
+    MotionPhase::HoverMove,
+    MotionPhase::HoverExit,
+];
+
+/// A pen gesture of `phases` (`STROKE` or `HOVER`) over vsyncs `from..from + vsyncs` after `base`:
+/// a batch at each, followed at once by a frame call but at `without` (that vsync's call missed:
+/// the next comes a vsync late); the GPU held behind for the call at `held`; then frames while
+/// the runtime wants them.
 fn stroke(
     (runtime, recorder): (&mut Runtime, &mut FrameRecorder),
     (base, from, vsyncs): (i64, i64, i64),
     (without, held): (Option<i64>, Option<i64>),
+    [first, between, last]: [MotionPhase; 3],
 ) -> Run {
     let mut run = Run::default();
     let mut again = false;
     for k in from..from + vsyncs {
         let phase = match k - from {
-            0 => MotionPhase::Down,
-            n if n == vsyncs - 1 => MotionPhase::Up,
-            _ => MotionPhase::Move,
+            0 => first,
+            n if n == vsyncs - 1 => last,
+            _ => between,
         };
         runtime.fix_clock(at(base, k));
         let x = 200.0 + 10.0 * (k - from) as f32;
@@ -153,24 +173,28 @@ fn a_run_of_frames_wanted_is_one_line_counting_a_missed_vsync_and_a_skipped_call
         (&mut runtime, &mut recorder),
         (base, 0, 50),
         (Some(25), Some(10)),
+        STROKE,
     );
     // Long after, a frame call nobody asked for: the stretch ended before it.
     runtime.fix_clock(at(base, run.next + 60));
     runtime.frame_recorded(&mut recorder).expect("frame");
     let lines = lines(&dir, recorder);
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(run.skipped >= 1, "the GPU held behind skipped a call");
+    assert!(
+        run.skipped >= 1,
+        "the GPU held behind skipped a call the stroke wanted"
+    );
     let (wanted, drawn) = (run.calls + 1, run.calls - run.skipped);
     assert_eq!(
         i64::from(wanted),
-        run.next,
-        "every vsync from the pen's touch on"
+        run.rested.unwrap_or(run.next),
+        "every vsync from the pen's touch to the first call at rest"
     );
     let percent = 100.0 * f64::from(drawn) / f64::from(wanted);
     let counted = format!(" drawn {drawn}/{wanted} {percent:.0}% work ");
     assert!(lines[0].contains(&counted), "{} lacks{counted}", lines[0]);
-    // The hand of most of its frame calls: the pen's, unless the frames after the lift (the
-    // store's work, its worker in real time against the held clock) outnumber them.
+    // The hand of most of its frame calls: the pen's, unless the frames a motion wanted after the
+    // lift outnumber them.
     let after = run.calls - run.touched;
     let hand = if run.touched >= after { "pen" } else { "none" };
     assert!(lines[0].contains(" display 120Hz "), "{}", lines[0]);
@@ -179,25 +203,33 @@ fn a_run_of_frames_wanted_is_one_line_counting_a_missed_vsync_and_a_skipped_call
 }
 
 #[test]
-fn frames_at_rest_and_a_run_shorter_than_a_quarter_second_are_no_line() {
+fn calls_at_rest_are_no_stretch_and_a_run_shorter_than_a_quarter_second_no_line() {
     let dir = TestDir::new("frames-rest");
     let (mut runtime, base, mut recorder) = recording(&dir);
-    // At rest: a frame call each second, as the Pomodoro's tick asks for one.
+    // At rest: a frame call each second, as the Pomodoro's tick asks for one, then a run of them
+    // a vsync apart, as background work asks for them: none was owed a frame.
     for second in 0..10 {
         frames(&mut runtime, &mut recorder, (base, 120 * second, 1));
     }
-    // A flicker: 29 vsyncs in a row wanting a frame; then, apart, 30: a quarter of a second.
-    let flicker = frames(&mut runtime, &mut recorder, (base, 2000, 29));
-    assert_eq!(
-        flicker.next, 2029,
-        "a runtime at rest wants no frame after them"
-    );
-    let kept = frames(&mut runtime, &mut recorder, (base, 2100, 30));
-    assert_eq!(kept.next, 2130);
+    let resting = frames(&mut runtime, &mut recorder, (base, 1500, 60));
+    assert_eq!((resting.calls, resting.at_rest), (0, 60), "{resting:?}");
+    // A flicker: the pen hovering over 29 vsyncs; then, apart, over 30: a quarter of a second.
+    let mut hover = |from, vsyncs| {
+        let run = stroke(
+            (&mut runtime, &mut recorder),
+            (base, from, vsyncs),
+            (None, None),
+            HOVER,
+        );
+        assert_eq!(i64::from(run.calls), vsyncs, "{run:?}");
+        assert_eq!(run.rested, Some(from + vsyncs), "at rest once it left");
+    };
+    hover(2000, 29);
+    hover(2100, 30);
     recorder.end();
     let lines = lines(&dir, recorder);
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(lines[0].contains(" 0.25s drawn "), "{}", lines[0]);
+    assert!(lines[0].contains(" 0.25s drawn 30/30 "), "{}", lines[0]);
     assert!(
         lines[0].ends_with(" hand none screen canvas"),
         "{}",

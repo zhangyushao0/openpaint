@@ -21,9 +21,10 @@ pub(crate) const MOST_IN_FLIGHT: u64 = 1;
 /// vsyncs (25 ms at 120 Hz) keep that small.
 pub(crate) const PATIENCE: u32 = 3;
 
-/// What a frame call is wanted for, which decides how long it waits for the frame before.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Wanted {
+/// What a frame call is wanted for, which decides how long it waits for the frame before; the
+/// recorder and the bench count only the calls a hand or a motion wanted (not `Rest`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Wanted {
     /// A stroke is drawn: a frame waits for the one before for up to `PATIENCE` calls, so the
     /// next takes more of the pen's samples and a heavy brush's frame never waits in `present`.
     Stroke,
@@ -39,6 +40,7 @@ pub(crate) enum Wanted {
     /// frames has the GPU (a frame drawn sooner waits for the one before in `present`: Android's
     /// buffer queue takes a frame once the compositor took the one before, at a vsync after the
     /// GPU finished it).
+    #[default]
     Rest,
 }
 
@@ -63,6 +65,8 @@ pub struct Paced {
     pub skipped: bool,
     /// The screen's frames in flight when it began.
     pub in_flight: u64,
+    /// What it was wanted for.
+    pub wanted: Wanted,
 }
 
 #[derive(Debug, Default)]
@@ -92,7 +96,11 @@ impl Pacing {
         let settled = !window || std::mem::replace(&mut self.done, in_flight == 0);
         let skipped = lagging || behind(in_flight, self.waited, (wanted, settled));
         self.waited = if skipped { self.waited + 1 } else { 0 };
-        self.last = Paced { skipped, in_flight };
+        self.last = Paced {
+            skipped,
+            in_flight,
+            wanted,
+        };
         skipped
     }
 

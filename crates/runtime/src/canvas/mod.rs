@@ -92,6 +92,9 @@ pub(crate) struct Canvas {
     /// When it opened (or its device was made again), until the whole canvas was evaluated:
     /// the time to the full canvas is logged then.
     opened: Option<Opening>,
+    /// When the snapshots under the next stroke were wanted, until they are taken: the time it
+    /// took is logged then.
+    ahead: Option<Opening>,
     /// What the display cache holds for it and must match.
     cache: CacheState,
 }
@@ -152,6 +155,7 @@ impl Canvas {
             then: Then::Gallery,
             pictures: Drawn::default(),
             opened: Some(Opening::start(core)),
+            ahead: None,
             cache: CacheState::default(),
         };
         if let Content::Stored(_, _, held) = content {

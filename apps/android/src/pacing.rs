@@ -97,6 +97,7 @@ mod tests {
             paced: Paced {
                 skipped,
                 in_flight: 2,
+                ..Paced::default()
             },
             spent: Spent {
                 waited_ns: longest_ms * 1_000_000,

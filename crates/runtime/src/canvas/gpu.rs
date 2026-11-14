@@ -80,6 +80,7 @@ impl Canvas {
             .show_selection(core, self.work.session().selection());
         self.evaluated = true;
         self.filled(core);
+        self.took_ahead(core);
         Ok(())
     }
 
@@ -128,6 +129,26 @@ impl Canvas {
             core.counts().rastered - opening.rastered
         );
         self.opened = None;
+    }
+
+    /// Notes when the snapshots under the next stroke are first wanted, and logs once they are
+    /// taken (or no more fit their room) the time since, the raster regions it took (the
+    /// device's, whatever drew them meanwhile) and the bytes the snapshots hold.
+    fn took_ahead(&mut self, core: &Core) {
+        match (self.taking_ahead(), self.ahead.as_ref()) {
+            (true, None) => self.ahead = Some(Opening::start(core)),
+            (false, Some(wanted)) => {
+                log::info!(
+                    "snapshots ahead taken {} ms after they were wanted, over {} raster regions, \
+                     {:.0} MB held",
+                    wanted.at.elapsed().as_millis(),
+                    core.counts().rastered - wanted.rastered,
+                    self.bytes().snapshots as f64 / f64::from(1 << 20)
+                );
+                self.ahead = None;
+            }
+            _ => {}
+        }
     }
 
     /// The gallery picture of what the canvas shows now, every waiting tile evaluated first.
@@ -296,12 +317,14 @@ impl Canvas {
         self.changed_from = None;
         self.pictures = Drawn::default();
         self.opened = Some(Opening::start(core));
+        self.ahead = None;
         Ok(())
     }
 }
 
-/// A canvas opening (or made again on a new device) until the whole of it was drawn: when, how
-/// many frames so far, and the device's raster regions then, for its log line.
+/// A canvas opening (or made again on a new device) until the whole of it was drawn, or the
+/// snapshots under the next stroke wanted until they are taken: when, how many frames so far,
+/// and the device's raster regions then, for its log line.
 pub(crate) struct Opening {
     at: Instant,
     frames: u32,

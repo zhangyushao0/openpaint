@@ -12,12 +12,23 @@
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
+use crate::pacing::Wanted;
 
 impl Runtime {
     /// Whether nothing touches the screen now (`touches.rs`).
     pub(crate) fn idle(&mut self) -> bool {
         let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
         self.touches.idle(drawing, self.frame_clock.seconds())
+    }
+
+    /// What the frame call now is wanted for (`pacing.rs`): its pacing, and what the recorder
+    /// and the bench count.
+    pub(crate) fn wanted(&self) -> Wanted {
+        let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
+        // Input waiting is a hand's (a lift, the last of a drag) even once nothing touches.
+        let input = !self.pending.is_empty() || !self.typed.is_empty();
+        let resting = self.touches.resting(drawing) && !input;
+        Wanted::of(drawing, (resting, self.shell.animating()))
     }
 
     /// A frame call skipped while the GPU is behind: while nothing touches the screen, the open

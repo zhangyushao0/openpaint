@@ -115,7 +115,8 @@ pub(super) struct Counted {
     pub(super) screen: ScreenKind,
 }
 
-/// A run of consecutive vsyncs that wanted a frame, so far.
+/// A run of consecutive vsyncs at which a hand or a motion wanted a frame, so far (a frame call
+/// wanted at rest is never counted: it ends the run, `FrameRecorder::frame_recorded`).
 #[derive(Debug)]
 pub(super) struct Stretch {
     /// The wall clock at its first frame call, seconds since 1970 UTC, and the device's offset

@@ -3,8 +3,9 @@
 //! motion, at most 5,000, in the app's `files/frames.txt`), read out of the app's private storage
 //! as `device-backup` reads the library (`run-as`), nothing on the tablet changed, and summed up:
 //! the stretches by the hand, by the screen and by the display's rate during them (as
-//! Choreographer delivered it), how many, the mean percent of the vsyncs wanting a frame that got
-//! one drawn, the share under 90 % and under 70 %, and the median of their frame
+//! Choreographer delivered it), how many, the mean percent of the vsyncs a hand or a motion wanted
+//! a frame at that got one drawn (frame calls at rest are left out: since E0, S127, so a line
+//! from before reads lower), the share under 90 % and under 70 %, and the median of their frame
 //! work p50 and p90. `since` (`YYYY-MM-DD[THH[:MM[:SS]]]`, the tablet's local time) keeps the
 //! stretches from then on; `--lines` prints them too. `--clear` empties the file (truncated in
 //! place: the app opens it for each line).
@@ -253,8 +254,9 @@ fn summary(stretches: &[Stretch<'_>], since: Option<&str>) -> Vec<String> {
         lines.push(Group::of(&group).row(&format!("display {rate}")));
     }
     lines.push(
-        "  (mean %: of the vsyncs wanting a frame, those that got one; under 90 and 70: the share \
-         of stretches below, %; work: the medians of the stretches' own frame work, ms)"
+        "  (mean %: of the vsyncs a hand or a motion wanted a frame at, those that got one, calls \
+         at rest left out; under 90 and 70: the share of stretches below, %; work: the medians \
+         of the stretches' own frame work, ms)"
             .to_owned(),
     );
     lines

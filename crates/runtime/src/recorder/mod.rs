@@ -3,15 +3,18 @@
 //! one line in a file among the app's files (`FRAMES_FILE`, at most `FRAMES_KEPT` lines, the
 //! newest), which `cargo device-frames` reads.
 //!
-//! A stretch is a run of consecutive vsyncs (`bench::VSYNC`, 120 Hz) that want a frame: one the
-//! frame call before asked for (it returned `again`), or one an input batch asked for at it (the
-//! nearest); it ends at a vsync none wants, found at the next frame call or input after it, or
-//! when the app is left. A frame call comes `n` vsyncs after the one before (its start's distance,
-//! rounded): the vsyncs between that wanted a frame found none drawn (missed), as the bench counts
-//! them, and a call skipped while the GPU is behind draws none either. Stretches under `SHORTEST`
-//! vsyncs (a quarter of a second) are not kept. The main thread away from frames for `AWAY` while one
-//! was wanted (a debug chore or the bench running frames of its own) ends a stretch, the time away
-//! not counted. A stretch's line also carries the display's refresh rate during it, as
+//! A stretch is a run of consecutive vsyncs (`bench::VSYNC`, 120 Hz) at which a hand or a motion
+//! wants a frame: one the frame call before asked for (it returned `again`), or one an input batch
+//! asked for at it (the nearest); it ends at a vsync none wants, found at the next frame call or
+//! input after it, at a frame call wanted at rest (`Wanted::Rest`: nothing on or over the glass,
+//! no input waiting, nothing moving; background work asks for those, and the pacing draws about
+//! one in three of them by design, D97), which is not counted, or when the app is left. A frame
+//! call comes `n` vsyncs after the one before (its start's distance, rounded): the vsyncs between
+//! that wanted a frame found none drawn (missed), as the bench counts them, and a call skipped
+//! while the GPU is behind draws none either. Stretches under `SHORTEST` vsyncs (a quarter of a
+//! second) are not kept. The main thread away from frames for `AWAY` while one was wanted (a
+//! debug chore or the bench running frames of its own) ends a stretch, the time away not
+//! counted. A stretch's line also carries the display's refresh rate during it, as
 //! Choreographer delivered its vsyncs (`delivered`: the shortest interval between two consecutive
 //! calls' vsyncs), so a stretch the panel showed at 60 Hz reads as such.
 //!
@@ -27,6 +30,7 @@ use crate::bench::VSYNC;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::MotionBatch;
+use crate::pacing::Wanted;
 use crate::screen::Screen;
 pub use file::FRAMES_KEPT;
 use file::FramesFile;
@@ -185,6 +189,19 @@ impl Runtime {
             .map(|(now, before)| now - before);
         recorder.last_vsync = vsync;
         let (again, work) = self.frame_timed()?;
+        let end = self.frame_clock.seconds();
+        recorder.requested = None;
+        if self.paced().wanted == Wanted::Rest {
+            // Nothing on or over the glass and nothing moving: no vsync of it was owed a frame.
+            recorder.hands.take();
+            recorder.close();
+            recorder.last = Some(Last {
+                at,
+                end,
+                again: false,
+            });
+            return Ok(again);
+        }
         let call = Counted {
             missed,
             drawn: !self.paced().skipped,
@@ -199,9 +216,7 @@ impl Runtime {
         if let Some(interval) = interval {
             stretch.delivered(interval);
         }
-        let end = self.frame_clock.seconds();
         recorder.last = Some(Last { at, end, again });
-        recorder.requested = None;
         Ok(again)
     }
 

@@ -23,14 +23,13 @@ use openpaint_ui::{CanvasArea, Shell};
 
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
-use crate::canvas::Canvas;
 use crate::clock::{FrameClock, InputClock};
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
-use crate::pacing::{Paced, Pacing, Wanted};
+use crate::pacing::{Paced, Pacing};
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
 use crate::practice;
@@ -78,9 +77,9 @@ pub struct Runtime {
     /// Frames wait while the GPU is behind.
     pub(crate) pacing: Pacing,
     /// Input normalised since the last frame, palms removed, oldest first.
-    pending: Vec<InputBatch>,
+    pub(crate) pending: Vec<InputBatch>,
     /// Keyboard text for the focused text field since the last frame.
-    typed: Vec<egui::Event>,
+    pub(crate) typed: Vec<egui::Event>,
     /// Whether the last frame had a text field waiting for the keyboard.
     keyboard: bool,
     pub(crate) screen: Screen,
@@ -223,11 +222,7 @@ impl Runtime {
     /// touches the screen it gives the work waiting what the GPU's queue has room for.
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
-        let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
-        // Input waiting is a hand's (a lift, the last of a drag) even once nothing touches.
-        let input = !self.pending.is_empty() || !self.typed.is_empty();
-        let resting = self.touches.resting(drawing) && !input;
-        let wanted = Wanted::of(drawing, (resting, self.shell.animating()));
+        let wanted = self.wanted();
         if self.pacing.skips(&self.core, (true, wanted)) {
             let result = self.ahead().map(|()| true);
             return self.after_frame(result);
@@ -237,8 +232,8 @@ impl Runtime {
         self.after_frame(result)
     }
 
-    /// What the last frame call did: skipped for the GPU, or drawn, and the frames in flight as
-    /// it began (for the host's log).
+    /// What the last frame call did: skipped for the GPU, or drawn, the frames in flight as it
+    /// began and what it was wanted for (for the host's log, the recorder and the bench).
     #[must_use]
     pub const fn paced(&self) -> Paced {
         self.pacing.last()

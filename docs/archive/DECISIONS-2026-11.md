@@ -98,3 +98,8 @@ Fragments of other decisions:
 - D105: "Colour combinations (2026-11-05: generated ones varied too little; V大 copies a corner of an abstract painting or a rusted old thing)", "(35; 32 retired)", "Pens (2026-11-05; the author: a light stroke of Opaque Paint showed another colour than the one picked)", "Key shifts (2026-11-06, V大's 变调 ...)".
 - D107: "One frame (2026-10-30, the author: the original's frame only repeated the question; `Facts::constructed`: a value scale, a box, free boxes, an ellipse; then, \"the same way\", the five tricks and three solids)", "Shown (the author: every stroke drawn on dashed was clutter; every geometric kind alike", "an object's kept off its picture (run-ons crossed onto the chrome on the tablet)", "(kind 13, `solid*.rs`, 2026-10-30)", "(kind 14, `object*.rs`, 2026-10-30)".
 - D108: "ΔH (21 to 23 and 25 to 27 retired)", "How (2026-10-28; the author, new to drawing: \"tell me how to practise\")", "no week (S122: the path has units)", "Level colours (2026-10-30)", "half at first (35 % read as a pale wash on a dark painting on the tablet)", "Value masses (2026-10-30; V大's 黑白灰 ...)".
+
+## Archived 2026-11-14 (S127: room for D97's measure, as they stood)
+
+- The header: "\"The previous project\" is draweave (2026-07 to 2026-10), the predecessor this repository replaces." (no decision used the phrase).
+- D97's consequences: "pans and pinches too (the zoom bench's pinches skip nothing)", measured before S127's count.

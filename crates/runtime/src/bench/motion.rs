@@ -2,17 +2,20 @@
 //! in real time, a frame call at each vsync a frame is wanted at (as the host asks: after input,
 //! and again while the frame before wanted the next), until the gesture is over and nothing on
 //! screen moves. Each vsync from the gesture's first input to the motion's last frame is drawn,
-//! skipped by the pacing (a frame of the screen still in flight, or none: the frame before was
-//! found done only now), missed (the frame call before was still working), or not wanted. A
-//! motion's line: the frames drawn against the vsyncs wanting one, the longest gap (from a frame
-//! wanted to its frame drawn, in vsyncs: 1 is every vsync), the calls skipped and why, each drawn
-//! frame's work and UI pass, its GPU time by timestamps, and the waits for the GPU.
+//! skipped by the pacing (a frame of the screen still in flight), missed (the frame call before
+//! was still working), at rest (a call, drawn or not, wanted with nothing on or over the glass and
+//! nothing moving: background work's, which the pacing draws about one in three of, D97), or not
+//! wanted. A motion's line: the frames drawn against the vsyncs a hand or a motion wanted one at
+//! (those at rest left out of both), the longest gap (from a frame wanted to its frame drawn, in
+//! vsyncs: 1 is every vsync), the calls skipped, the vsyncs missed and at rest, each drawn frame's
+//! work and UI pass, its GPU time by timestamps, and the waits for the GPU.
 
 use super::hand::batch;
 use super::{VSYNC, Watch, spread};
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::{MotionPhase, ToolKind};
+use crate::pacing::Wanted;
 
 /// A finger or the pen on the glass for a tap, ms.
 const TAP_MS: i64 = 64;
@@ -98,10 +101,13 @@ pub(super) fn hovering(mut gesture: Gesture, ms: i64) -> Gesture {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Vsync {
     Drawn,
-    /// Skipped by the pacing, with the screen's frames in flight then.
-    Skipped(u64),
+    /// Skipped by the pacing: a frame of the screen in flight.
+    Skipped,
     /// Wanted, but the frame call before was still working.
     Missed,
+    /// A frame call wanted at rest, drawn or not, or a vsync it asked for and missed: no hand or
+    /// motion was owed a frame.
+    Rest,
     Idle,
 }
 
@@ -113,6 +119,8 @@ pub(super) struct Motion {
     /// The vsyncs up to the last frame drawn while the hand was there or something moved after
     /// it: the motion ends with the next frame drawn, which shows it at rest.
     moved: usize,
+    /// The frame call before was wanted at rest.
+    rest: bool,
     /// Drawn frames' work and UI pass, and their GPU time, ms.
     work: Vec<f64>,
     ui: Vec<f64>,
@@ -126,12 +134,17 @@ pub(super) struct Motion {
 }
 
 impl Motion {
-    /// The vsyncs since the last frame call up to `tick`: wanted (and missed, a frame call still
-    /// working) or not.
-    fn pass_to(&mut self, tick: usize, wanted: bool) {
-        let before = if wanted { Vsync::Missed } else { Vsync::Idle };
+    /// The vsyncs since the last frame call up to `tick`: wanted, by input `fed` since or by the
+    /// call before (`again`), and missed (a frame call still working), unless only a call at rest
+    /// wanted them; or not wanted.
+    fn pass_to(&mut self, tick: usize, (fed, again): (bool, bool)) {
+        let between = match (fed, again) {
+            (false, false) => Vsync::Idle,
+            (false, true) if self.rest => Vsync::Rest,
+            _ => Vsync::Missed,
+        };
         let first = self.vsyncs.len();
-        self.vsyncs.extend((first..tick).map(|_| before));
+        self.vsyncs.extend((first..tick).map(|_| between));
     }
 
     /// "<drawn> of <wanted> vsyncs (<share> %), longest gap <n>; ..." (see the module).
@@ -141,8 +154,9 @@ impl Motion {
             .find(drawn_at)
             .or_else(|| (0..self.vsyncs.len()).rfind(drawn_at));
         let shown = &self.vsyncs[..end.map_or(0, |end| end + 1)];
-        let wanted = shown.iter().filter(|v| **v != Vsync::Idle).count();
-        let drawn = shown.iter().filter(|v| **v == Vsync::Drawn).count();
+        let count = |kind: fn(&Vsync) -> bool| shown.iter().filter(|v| kind(v)).count();
+        let wanted = count(|v| !matches!(v, Vsync::Idle | Vsync::Rest));
+        let drawn = count(|v| *v == Vsync::Drawn);
         let (mut gap, mut waiting) = (0, 0);
         for vsync in shown {
             match vsync {
@@ -150,20 +164,18 @@ impl Motion {
                     gap = gap.max(waiting + 1);
                     waiting = 0;
                 }
-                Vsync::Skipped(_) | Vsync::Missed => waiting += 1,
-                Vsync::Idle => {}
+                Vsync::Skipped | Vsync::Missed => waiting += 1,
+                Vsync::Rest | Vsync::Idle => {}
             }
         }
-        let count = |kind: fn(&Vsync) -> bool| shown.iter().filter(|v| kind(v)).count();
-        let behind = count(|v| matches!(v, Vsync::Skipped(n) if *n > 0));
-        let resting = count(|v| *v == Vsync::Skipped(0));
+        let skipped = count(|v| *v == Vsync::Skipped);
         let missed = count(|v| *v == Vsync::Missed);
+        let rest = count(|v| *v == Vsync::Rest);
         let share = 100.0 * drawn as f64 / wanted.max(1) as f64;
         format!(
-            "{drawn} of {wanted} vsyncs ({share:.0} %), longest gap {gap}; skipped {} ({behind} \
-             a frame in flight, {resting} none), missed {missed}; frame work {} (UI pass {}), GPU \
-             a frame {}; waits {:.1} (longest {:.1} in {})",
-            behind + resting,
+            "{drawn} of {wanted} vsyncs ({share:.0} %), longest gap {gap}; skipped {skipped} a \
+             frame in flight, missed {missed}, at rest {rest}; frame work {} (UI pass {}), GPU a \
+             frame {}; waits {:.1} (longest {:.1} in {})",
             spread(&self.work),
             spread(&self.ui),
             spread(&self.gpu),
@@ -218,7 +230,7 @@ impl Runtime {
             if fed {
                 still = 0;
             }
-            motion.pass_to((now / vsync) as usize, wanted);
+            motion.pass_to((now / vsync) as usize, (fed, again));
             if !wanted {
                 if steps.peek().is_none() {
                     break;
@@ -254,15 +266,20 @@ impl Runtime {
         Ok(motion)
     }
 
-    /// What the frame call just made did, into `motion`; whether it drew.
+    /// What the frame call just made did, into `motion`; whether it drew (at rest too).
     fn bench_took(&self, watch: &Watch, motion: &mut Motion) -> bool {
         let paced = self.paced();
         let ms = |ns: u64| ns as f64 / 1e6;
         motion
             .gpu
             .extend(self.core.frame_times().iter().map(|ns| ns / 1e6));
+        motion.rest = paced.wanted == Wanted::Rest;
+        if motion.rest {
+            motion.vsyncs.push(Vsync::Rest);
+            return !paced.skipped;
+        }
         if paced.skipped {
-            motion.vsyncs.push(Vsync::Skipped(paced.in_flight));
+            motion.vsyncs.push(Vsync::Skipped);
             return false;
         }
         motion.vsyncs.push(Vsync::Drawn);
@@ -282,34 +299,58 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_motion_counts_the_vsyncs_wanting_a_frame_and_its_longest_gap() {
+    fn a_motion_counts_the_vsyncs_a_hand_or_a_motion_wanted_and_its_longest_gap() {
         let motion = Motion {
             vsyncs: vec![
                 Vsync::Drawn,
                 Vsync::Idle,
                 Vsync::Idle,
                 Vsync::Drawn,
-                Vsync::Skipped(1),
-                Vsync::Skipped(0),
+                Vsync::Skipped,
+                Vsync::Skipped,
                 Vsync::Drawn,
                 Vsync::Missed,
                 Vsync::Drawn,
-                Vsync::Skipped(1),
-                Vsync::Skipped(0),
+                Vsync::Skipped,
+                Vsync::Rest,
                 Vsync::Drawn,
+                Vsync::Rest,
+                Vsync::Rest,
             ],
-            // The third frame drawn still moved: the fourth shows the motion at rest.
-            moved: 7,
+            // The fourth frame drawn still moved: the fifth shows the motion at rest; the calls at
+            // rest after it are not the motion's.
+            moved: 9,
             ..Motion::default()
         };
         let line = motion.line();
         assert!(
-            line.starts_with("4 of 7 vsyncs (57 %), longest gap 3;"),
+            line.starts_with("5 of 9 vsyncs (56 %), longest gap 3;"),
             "{line}"
         );
         assert!(
-            line.contains("skipped 2 (1 a frame in flight, 1 none), missed 1"),
+            line.contains("; skipped 3 a frame in flight, missed 1, at rest 1; frame work"),
             "{line}"
+        );
+    }
+
+    #[test]
+    fn vsyncs_only_a_call_at_rest_asked_for_are_at_rest() {
+        let mut motion = Motion::default();
+        motion.pass_to(2, (false, true));
+        motion.pass_to(3, (false, false));
+        motion.rest = true;
+        motion.pass_to(5, (false, true));
+        motion.pass_to(6, (true, true));
+        assert_eq!(
+            motion.vsyncs,
+            [
+                Vsync::Missed,
+                Vsync::Missed,
+                Vsync::Idle,
+                Vsync::Rest,
+                Vsync::Rest,
+                Vsync::Missed
+            ]
         );
     }
 

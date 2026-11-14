@@ -40,7 +40,7 @@ pub use crate::budget::{ARENA_SHARE, TRIM_UI_HIDDEN};
 pub use crate::error::RuntimeError;
 pub use crate::frame::{Runtime, StartOptions};
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
-pub use crate::pacing::Paced;
+pub use crate::pacing::{Paced, Wanted};
 pub use crate::painted::{drawn, pile_path, style_of};
 pub use crate::practice::{PracticeTest, skill_start};
 pub use crate::recorder::{FRAMES_FILE, FRAMES_KEPT, FrameRecorder};

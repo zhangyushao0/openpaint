@@ -9,7 +9,6 @@ use openpaint_ui::ControlMap;
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::frame::{Runtime, screen_frame};
-use crate::pacing::Wanted;
 
 impl Runtime {
     /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
@@ -17,9 +16,12 @@ impl Runtime {
     /// made again as for the window. As an offscreen frame waits for the GPU (it is read
     /// back), it waits for the raster worker to have drawn the tiles it handed over, so
     /// the next frame shows them and scenarios and tests take the same frames on any machine.
+    /// Offscreen no frame is in flight, so however it is wanted a call never waits (but for
+    /// `hold_gpu`); what it was wanted for is still kept for the recorder and the bench.
     pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
-        if self.pacing.skips(&self.core, (false, Wanted::Stroke)) {
+        let wanted = self.wanted();
+        if self.pacing.skips(&self.core, (false, wanted)) {
             let result = self.ahead().map(|()| true);
             return self.after_frame(result);
         }
