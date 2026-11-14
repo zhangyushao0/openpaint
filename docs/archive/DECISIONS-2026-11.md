@@ -68,3 +68,16 @@ Fragments of other decisions, each replaced by a phrase on the path:
 - D108 read "the summary adds no note"; "its week in V大's course"; "Again replaying"; "The radar: hue, chroma, lightness (each 1 − part/`PART_SPAN`), dark, greyish, first pick to final."; its consequences began "sessions before 1.6.1 count in the radar's last three axes only;".
 - D109's seals read "counts of sessions, a stage's sessions, lines, colours and hours" and "Each lesson's Finish stamps".
 - D111 read "its families' `Facts`, its original, How, drill, givens", "any `Family` or `Original` variant named" and "a stage plan and a scenario"; D112's hooks "`CanvasHook`, `GalleryHook`"; D114's start "a session or drill started from the gallery or the options", "never continued from the gallery", its consequences ended "; two short sessions on one day can share a sheet."
+
+## Archived 2026-11-14 (S124: room for D117 and D118; D01's stack is stated by ARCHITECTURE's opening and crate map, the full lesson went with S124, and historical fragments, as they stood)
+
+## D01 2026-10-02 Stack: Rust 2024, wgpu, egui, one workspace
+- Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness, never a desktop window (ARCHITECTURE). Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, layer compositing, smudge). Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`.
+
+Fragments of other decisions:
+
+- D79's version bullet read "a minor per stage (2026-11-09: a version a slice re-took 18 screenshots and rebuilt every crate)".
+- D97's reason read "every third at rest (panels opened at 36 to 48 % of the vsyncs, on the glass 25 ms apart);".
+- D98's model read "each picked (`Chosen`: a skill's lesson or a review, a copy's picture; `Full { stage, warm_up }`: a unit's full lesson, a stage's session before S122 read as that unit's; `First`: the first lesson; D115)" and its stored bullet "1.21.6's session records were converted once (S120c); S120e deleted the step."
+- D103's frames read "Frames (the author on the tablet, 2026-10-30: a picture not square lay in the square frame with its own margins, so its edge and the copy's square disagreed):".
+- D115's skills ended "; a full lesson is a warm-up of three (earlier units' skills first), then each skill of its unit."; its stored bullet read "an old `Full { stage }` reads as that unit's full lesson. Stages, their plans, the 15-session gate, drills, the warm-up rotation and the summary are gone (D110 archived)."
