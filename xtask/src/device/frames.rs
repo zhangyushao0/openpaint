@@ -2,8 +2,9 @@
 //! build's recorder of frames in real use kept (`crates/runtime/src/recorder/`: a line a stretch of
 //! motion, at most 5,000, in the app's `files/frames.txt`), read out of the app's private storage
 //! as `device-backup` reads the library (`run-as`), nothing on the tablet changed, and summed up:
-//! the stretches by the hand and by the screen, how many, the mean percent of the vsyncs wanting a
-//! frame that got one drawn, the share under 90 % and under 70 %, and the median of their frame
+//! the stretches by the hand, by the screen and by the display's rate during them (as
+//! Choreographer delivered it), how many, the mean percent of the vsyncs wanting a frame that got
+//! one drawn, the share under 90 % and under 70 %, and the median of their frame
 //! work p50 and p90. `since` (`YYYY-MM-DD[THH[:MM[:SS]]]`, the tablet's local time) keeps the
 //! stretches from then on; `--lines` prints them too. `--clear` empties the file (truncated in
 //! place: the app opens it for each line).
@@ -78,6 +79,8 @@ struct Stretch<'a> {
     wanted: u32,
     /// Its frame work p50 and p90, ms; none when no frame was drawn.
     work: Option<[f64; 2]>,
+    /// The display's rate as Choreographer delivered it ("120Hz"), "-" unknown.
+    display: &'a str,
     hand: &'a str,
     screen: &'a str,
 }
@@ -103,27 +106,45 @@ fn read<'a>(text: &'a str, since: Option<&str>) -> (Vec<Stretch<'a>>, usize) {
     (stretches, unread)
 }
 
-/// "<when> <seconds>s drawn <drawn>/<wanted> <percent>% work <p50/p90/max> ui <p50/p90/max> hand
-/// <hand> screen <screen>", as the runtime's recorder writes it.
+/// "<when> <seconds>s drawn <drawn>/<wanted> <percent>% work <p50/p90/max> ui <p50/p90/max>
+/// display <hz>Hz hand <hand> screen <screen>", as the runtime's recorder writes it (a line from
+/// before 1.23.2 has no display: "-").
 fn parse(line: &str) -> Option<Stretch<'_>> {
     let words: Vec<&str> = line.split_whitespace().collect();
-    let [
-        when,
-        _,
-        "drawn",
-        counts,
-        _,
-        "work",
-        work,
-        "ui",
-        _,
-        "hand",
-        hand,
-        "screen",
-        screen,
-    ] = words[..]
-    else {
-        return None;
+    let (when, counts, work, display, hand, screen) = match words[..] {
+        [
+            when,
+            _,
+            "drawn",
+            counts,
+            _,
+            "work",
+            work,
+            "ui",
+            _,
+            "display",
+            display,
+            "hand",
+            hand,
+            "screen",
+            screen,
+        ] => (when, counts, work, display, hand, screen),
+        [
+            when,
+            _,
+            "drawn",
+            counts,
+            _,
+            "work",
+            work,
+            "ui",
+            _,
+            "hand",
+            hand,
+            "screen",
+            screen,
+        ] => (when, counts, work, "-", hand, screen),
+        _ => return None,
     };
     let (drawn, wanted) = counts.split_once('/')?;
     let spread: Vec<f64> = work.split('/').filter_map(|ms| ms.parse().ok()).collect();
@@ -138,6 +159,7 @@ fn parse(line: &str) -> Option<Stretch<'_>> {
         drawn: drawn.parse().ok()?,
         wanted: wanted.parse().ok()?,
         work,
+        display,
         hand,
         screen,
     })
@@ -222,6 +244,14 @@ fn summary(stretches: &[Stretch<'_>], since: Option<&str>) -> Vec<String> {
             lines.push(Group::of(&group).row(&format!("{by} {name}")));
         }
     }
+    // By the display's rate during them: a stretch shown at 60 Hz reads as such.
+    let mut rates: Vec<&str> = stretches.iter().map(|s| s.display).collect();
+    rates.sort_unstable();
+    rates.dedup();
+    for rate in rates {
+        let group: Vec<&Stretch<'_>> = stretches.iter().filter(|s| s.display == rate).collect();
+        lines.push(Group::of(&group).row(&format!("display {rate}")));
+    }
     lines.push(
         "  (mean %: of the vsyncs wanting a frame, those that got one; under 90 and 70: the share \
          of stretches below, %; work: the medians of the stretches' own frame work, ms)"
@@ -235,10 +265,12 @@ mod tests {
     use super::*;
 
     const FIXTURE: &str = "\
-2026-11-14T10:00:00 1.00s drawn 120/120 100% work 2.0/3.0/5.0 ui 1.0/1.5/2.0 hand pen screen canvas
+2026-11-14T10:00:00 1.00s drawn 120/120 100% work 2.0/3.0/5.0 ui 1.0/1.5/2.0 display 120Hz hand pen \
+screen canvas
 2026-11-14T10:05:00 0.50s drawn 51/60 85% work 4.0/6.0/9.0 ui 1.0/1.5/2.0 hand pen screen canvas
 not a line
-2026-11-14T10:10:00 0.50s drawn 36/60 60% work 8.0/12.0/20.0 ui 2.0/3.0/4.0 hand none screen home
+2026-11-14T10:10:00 0.50s drawn 36/60 60% work 8.0/12.0/20.0 ui 2.0/3.0/4.0 display 60Hz hand none \
+screen home
 2026-11-14T10:20:00 0.25s drawn 0/30 0% work - ui - hand finger screen sheet
 ";
 
@@ -282,7 +314,12 @@ not a line
             .iter()
             .map(|row| row.split_whitespace().nth(1).unwrap_or(""))
             .collect();
-        assert_eq!(rows, ["pen", "finger", "none", "canvas", "sheet", "home"]);
+        assert_eq!(
+            rows,
+            [
+                "pen", "finger", "none", "canvas", "sheet", "home", "-", "120Hz", "60Hz"
+            ]
+        );
         assert!(
             lines
                 .iter()

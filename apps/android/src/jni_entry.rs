@@ -279,12 +279,15 @@ pub extern "system" fn Java_dev_openpaint_Native_detach<'local>(
 }
 
 /// `start_ns` is `System.nanoTime()` as Kotlin calls in; the pen latency is logged per stroke.
+/// `vsync_ns` is the vsync Choreographer delivered the call at (0: a frame drawn outside it), for
+/// the recorder's display rate.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
     start_ns: jlong,
+    vsync_ns: jlong,
 ) -> jboolean {
     env.with_env(|_| -> Result<jboolean, HostError> {
         let Some(host) = host(handle) else {
@@ -292,7 +295,12 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
         };
         let started = Instant::now();
         let again = match &mut host.recorder {
-            Some(recorder) => host.runtime.frame_recorded(recorder)?,
+            Some(recorder) => {
+                if vsync_ns > 0 {
+                    recorder.delivered(vsync_ns);
+                }
+                host.runtime.frame_recorded(recorder)?
+            }
             None => host.runtime.frame()?,
         };
         let work = i64::try_from(started.elapsed().as_nanos()).unwrap_or(i64::MAX);

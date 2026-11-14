@@ -52,6 +52,8 @@ struct Run {
 impl Run {
     /// A frame call at vsync `k`, as the host makes it; whether the runtime wants the next.
     fn call(&mut self, runtime: &mut Runtime, recorder: &mut FrameRecorder, k: i64) -> bool {
+        // Choreographer delivers the vsync of a 120 Hz panel.
+        recorder.delivered(k * 8_333_333);
         let again = runtime.frame_recorded(recorder).expect("frame");
         self.calls += 1;
         self.skipped += u32::from(runtime.paced().skipped);
@@ -171,6 +173,7 @@ fn a_run_of_frames_wanted_is_one_line_counting_a_missed_vsync_and_a_skipped_call
     // store's work, its worker in real time against the held clock) outnumber them.
     let after = run.calls - run.touched;
     let hand = if run.touched >= after { "pen" } else { "none" };
+    assert!(lines[0].contains(" display 120Hz "), "{}", lines[0]);
     let shown = format!(" hand {hand} screen canvas");
     assert!(lines[0].ends_with(&shown), "{} lacks{shown}", lines[0]);
 }

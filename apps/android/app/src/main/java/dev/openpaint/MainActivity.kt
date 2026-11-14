@@ -39,7 +39,9 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     private lateinit var view: CanvasView
     private val pickers = Pickers(this) { handle }
     /** The Pomodoro's frames, the screen kept on and the chime; a wake draws only on a surface. */
-    private val timer = TimerHost(this) { if (attached) requestFrame() }
+    private val timer = TimerHost(this) { if (attached) requestFrame(single = true) }
+    /** The panel's highest refresh rate while frames are drawn. */
+    private lateinit var rate: FrameRate
     /** The app used the back button's press; its release is the app's too. */
     private var backUsed = false
 
@@ -57,6 +59,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         view.handle = handle
         view.onInput = { requestFrame() }
         view.holder.addCallback(this)
+        rate = FrameRate(view)
         setContentView(view)
         hideSystemBars()
     }
@@ -80,6 +83,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     override fun onPause() {
         Native.leave(handle)
         timer.after(handle)
+        rate.drawn(false)
         super.onPause()
     }
 
@@ -115,28 +119,30 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     /** Rotation and resizing wait for this, so the new size never shows a stale frame. */
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        drawn(Native.frame(handle, System.nanoTime()))
+        drawn(Native.frame(handle, System.nanoTime(), 0L))
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        rate.gone()
         Native.detach(handle)
         attached = false
     }
 
     override fun doFrame(frameTimeNanos: Long) {
         frameRequested = false
-        drawn(Native.frame(handle, System.nanoTime()))
+        drawn(Native.frame(handle, System.nanoTime(), frameTimeNanos))
         syncKeyboard()
         if (handle != 0L) pickers.serve()
     }
 
     /**
      * After every frame drawn, wherever it was drawn: the next asked for when [again], the
-     * Pomodoro's wake posted for the state this frame left.
+     * Pomodoro's wake posted for the state this frame left, the panel's rate let go at rest.
      */
     private fun drawn(again: Boolean) {
         if (again) requestFrame()
         timer.after(handle)
+        rate.drawn(again)
     }
 
     /** A system picker closed; what it gave goes to Rust, which starts the work at once. */
@@ -218,11 +224,13 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     }
 
     /**
-     * A frame at the next vsync. Also for the debug build's chores, which draw frames of their
-     * own outside Choreographer: one through here after them leaves the host as a frame of its
-     * own would.
+     * A frame at the next vsync, the panel at its highest rate for it unless it is one [single]
+     * frame (the Pomodoro's minute). Also for the debug build's chores, which draw frames of
+     * their own outside Choreographer: one through here after them leaves the host as a frame of
+     * its own would, and one before the bench keeps the panel at its highest while it runs.
      */
-    internal fun requestFrame() {
+    internal fun requestFrame(single: Boolean = false) {
+        if (!single) rate.drawing()
         if (!frameRequested) {
             frameRequested = true
             Choreographer.getInstance().postFrameCallback(this)

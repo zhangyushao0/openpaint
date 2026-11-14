@@ -11,7 +11,9 @@
 //! them, and a call skipped while the GPU is behind draws none either. Stretches under `SHORTEST`
 //! vsyncs (a quarter of a second) are not kept. The main thread away from frames for `AWAY` while one
 //! was wanted (a debug chore or the bench running frames of its own) ends a stretch, the time away
-//! not counted.
+//! not counted. A stretch's line also carries the display's refresh rate during it, as
+//! Choreographer delivered its vsyncs (`delivered`: the shortest interval between two consecutive
+//! calls' vsyncs), so a stretch the panel showed at 60 Hz reads as such.
 //!
 //! Its cost a frame: two clock reads, a few counters and two pushes into buffers allocated once;
 //! a line is formed when a stretch ends, before the next frame's work, and written on a worker.
@@ -44,6 +46,9 @@ pub struct FrameRecorder {
     /// The frame call before: its start and end on the frame clock, s, and whether it wanted the
     /// next.
     last: Option<Last>,
+    /// Choreographer's vsync for the frame call to come and the one before's, ns (`delivered`).
+    vsync: Option<i64>,
+    last_vsync: Option<i64>,
     /// The earliest input since the frame call before that asked for a frame, s.
     requested: Option<f64>,
     open: Option<Stretch>,
@@ -67,6 +72,8 @@ impl FrameRecorder {
     pub fn writing_to(path: PathBuf) -> Result<Self, RuntimeError> {
         Ok(Self {
             last: None,
+            vsync: None,
+            last_vsync: None,
             requested: None,
             open: None,
             samples: Samples::default(),
@@ -80,7 +87,15 @@ impl FrameRecorder {
     pub fn end(&mut self) {
         self.close();
         self.last = None;
+        (self.vsync, self.last_vsync) = (None, None);
         self.requested = None;
+    }
+
+    /// The vsync Choreographer delivered the next frame call at (`frameTimeNanos`, ns): two of
+    /// consecutive calls in a stretch are the display's actual frame interval, which its line
+    /// carries.
+    pub const fn delivered(&mut self, vsync_ns: i64) {
+        self.vsync = Some(vsync_ns);
     }
 
     /// An input batch the app took at `now` (s), which asked for a frame when `wanted`. A vsync
@@ -164,7 +179,13 @@ impl Runtime {
     /// As `frame`.
     pub fn frame_recorded(&mut self, recorder: &mut FrameRecorder) -> Result<bool, RuntimeError> {
         let at = self.frame_clock.seconds();
+        let consecutive = recorder.last.is_some_and(|last| last.again);
         let missed = recorder.before(at);
+        let vsync = recorder.vsync.take();
+        let interval = (vsync.zip(recorder.last_vsync))
+            .filter(|_| consecutive)
+            .map(|(now, before)| now - before);
+        recorder.last_vsync = vsync;
         let (again, work) = self.frame_timed()?;
         let call = Counted {
             missed,
@@ -177,6 +198,9 @@ impl Runtime {
         let began = || (self.frame_clock.wall_seconds(), self.utc_offset);
         let stretch = recorder.open.get_or_insert_with(|| Stretch::new(began()));
         stretch.count(call, &mut recorder.samples);
+        if let Some(interval) = interval {
+            stretch.delivered(interval);
+        }
         let end = self.frame_clock.seconds();
         recorder.last = Some(Last { at, end, again });
         recorder.requested = None;

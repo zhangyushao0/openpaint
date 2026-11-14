@@ -105,10 +105,15 @@ class GestureInstrumentation : Instrumentation() {
             return true
         }
         arguments.getString("bench")?.let { scene ->
-            var lines: String? = null
-            runOnMainSync { lines = DebugControls.bench(scene) }
+            // A frame asked for first: the panel at its highest while the bench draws.
+            runOnMainSync { DebugApplication.front?.requestFrame() }
+            val (lines, display) = Vsyncs.during {
+                var lines: String? = null
+                runOnMainSync { lines = DebugControls.bench(scene) }
+                lines ?: error("no answer for the benchmark")
+            }
             framed()
-            result.putString("bench", lines ?: error("no answer for the benchmark"))
+            result.putString("bench", "$lines\t$display")
             return true
         }
         arguments.getString("practice-test")?.let { command ->

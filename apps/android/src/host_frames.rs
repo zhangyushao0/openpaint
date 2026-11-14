@@ -39,7 +39,7 @@ fn every_frame_the_host_draws_is_followed_by_what_the_host_does_after_a_frame() 
         );
     }
     let drawn = body(&text, "private fun drawn(again: Boolean)");
-    for duty in ["requestFrame()", "timer.after(handle)"] {
+    for duty in ["requestFrame()", "timer.after(handle)", "rate.drawn(again)"] {
         assert!(drawn.contains(duty), "after a frame: {duty}");
     }
     // Back in front with the surface kept: leaving held the timer, a frame shows it now.

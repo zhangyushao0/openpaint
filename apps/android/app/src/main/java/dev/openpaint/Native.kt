@@ -53,9 +53,11 @@ internal object Native {
 
     /**
      * Draws one frame; `startNanos` is `System.nanoTime()` at the call, for the pen latency
-     * log. Returns true when another frame is wanted right away.
+     * log; `vsyncNanos` the vsync Choreographer delivered it at (0 outside Choreographer), for
+     * the display rate the frame recorder reports. Returns true when another frame is wanted
+     * right away.
      */
-    @JvmStatic external fun frame(handle: Long, startNanos: Long): Boolean
+    @JvmStatic external fun frame(handle: Long, startNanos: Long, vsyncNanos: Long): Boolean
 
     /**
      * One MotionEvent. `samples` holds `timesMs.size` steps (history, then current), each with

@@ -125,6 +125,8 @@ pub(super) struct Stretch {
     drawn: u32,
     hands: [u32; 3],
     screens: [u32; 4],
+    /// The shortest interval between two consecutive frame calls' vsyncs, ns: the display's.
+    interval: Option<i64>,
 }
 
 impl Stretch {
@@ -135,6 +137,7 @@ impl Stretch {
             drawn: 0,
             hands: [0; 3],
             screens: [0; 4],
+            interval: None,
         }
     }
 
@@ -153,25 +156,38 @@ impl Stretch {
         }
     }
 
+    /// The interval between two consecutive frame calls' vsyncs as Choreographer delivered them,
+    /// ns.
+    pub(super) fn delivered(&mut self, interval: i64) {
+        if interval > 0 {
+            self.interval = Some(self.interval.map_or(interval, |kept| kept.min(interval)));
+        }
+    }
+
     /// How many vsyncs it lasted.
     pub(super) const fn vsyncs(&self) -> u32 {
         self.wanted
     }
 
     /// Its line, `samples` emptied for the next: "<local time> <seconds>s drawn <drawn>/<wanted>
-    /// <percent>% work <p50/p90/max> ui <p50/p90/max> hand <pen|finger|none> screen
-    /// <canvas|sheet|page|home>", ms; a spread with no frame drawn is "-".
+    /// <percent>% work <p50/p90/max> ui <p50/p90/max> display <hz>Hz hand <pen|finger|none>
+    /// screen <canvas|sheet|page|home>", ms; a spread with no frame drawn is "-", a display rate
+    /// not delivered "-".
     pub(super) fn line(&self, samples: &mut Samples) -> String {
         let seconds = f64::from(self.wanted) * VSYNC.as_secs_f64();
         let percent = 100.0 * f64::from(self.drawn) / f64::from(self.wanted.max(1));
         let work = spread(&mut samples.work);
         let ui = spread(&mut samples.ui);
+        let display = self
+            .interval
+            .map_or_else(|| "-".to_owned(), |ns| format!("{:.0}Hz", 1e9 / ns as f64));
         let most = |counts: &[u32]| {
             let top = counts.iter().copied().max().unwrap_or(0);
             counts.iter().position(|count| *count == top).unwrap_or(0)
         };
         format!(
-            "{} {seconds:.2}s drawn {}/{} {percent:.0}% work {work} ui {ui} hand {} screen {}",
+            "{} {seconds:.2}s drawn {}/{} {percent:.0}% work {work} ui {ui} display {display} hand \
+             {} screen {}",
             local_time(self.began),
             self.drawn,
             self.wanted,
@@ -276,9 +292,23 @@ mod tests {
         let line = stretch.line(&mut samples);
         assert_eq!(
             line,
-            "2026-11-14T10:32:05 0.10s drawn 10/12 83% work 5.0/9.0/10.0 ui 2.5/4.5/5.0 hand pen \
-             screen canvas"
+            "2026-11-14T10:32:05 0.10s drawn 10/12 83% work 5.0/9.0/10.0 ui 2.5/4.5/5.0 display - \
+             hand pen screen canvas"
         );
         assert!(samples.work.is_empty() && samples.work.capacity() == SAMPLES);
+    }
+
+    #[test]
+    fn a_line_carries_the_display_s_rate_as_choreographer_delivered_it() {
+        // A stretch the panel showed at 60 Hz: two vsyncs of 120 Hz between calls, one missed.
+        let mut stretch = Stretch::new((1_794_623_525, 0));
+        let mut samples = Samples::default();
+        for interval in [33_333_333, 16_666_667, 16_666_666, 0] {
+            stretch.delivered(interval);
+        }
+        let line = stretch.line(&mut samples);
+        assert!(line.contains(" display 60Hz "), "{line}");
+        stretch.delivered(8_333_333);
+        assert!(stretch.line(&mut samples).contains(" display 120Hz "));
     }
 }
