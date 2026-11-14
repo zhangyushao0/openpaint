@@ -3,7 +3,7 @@
 
 use egui::Rect;
 use openpaint_practice::{Offer, Skill, SkillLevel};
-use openpaint_practice_app::{OptionsIntent, PathProjection, PracticeLog, Start};
+use openpaint_practice_app::{OptionsIntent, PathProjection, PracticeLog, Start, TimerShown};
 use openpaint_ui::HomeHook;
 
 use super::{HomePart, PathHook};
@@ -11,10 +11,11 @@ use crate::passes::{assert_on_screen, context, pass, settled, tap};
 use crate::text::{self as t, Language};
 
 /// Where the home lays the column, in points.
-const COLUMN: Rect = Rect::from_min_max(egui::pos2(32.0, 56.0), egui::pos2(632.0, 868.0));
+pub(super) const COLUMN: Rect =
+    Rect::from_min_max(egui::pos2(32.0, 56.0), egui::pos2(632.0, 868.0));
 
 /// A fresh learner's path, and one with a next lesson and a review waiting.
-fn paths() -> (PathProjection, PathProjection) {
+pub(super) fn paths() -> (PathProjection, PathProjection) {
     let fresh = PracticeLog::new(Vec::new(), Vec::new(), Vec::new()).path();
     let skill = |key| Skill::of_key(key).expect("a skill");
     let offer = |key, exercises, redo| Offer {
@@ -40,9 +41,15 @@ fn the_column_offers_start_all_units_and_the_book_and_start_asks_the_next_lesson
     let ctx = context();
     let mut part = HomePart::default();
     let mut asked: Vec<OptionsIntent> = Vec::new();
+    let timer = TimerShown::default();
     let mut column = |ui: &mut egui::Ui, path: &PathProjection, asked: &mut Vec<OptionsIntent>| {
-        let mut taps = Vec::new();
-        part.column(ui, COLUMN, (path, true), (&mut taps, asked));
+        let (mut taps, mut timed) = (Vec::new(), Vec::new());
+        part.column(
+            ui,
+            COLUMN,
+            (path, &timer, true),
+            ((&mut taps, asked), &mut timed),
+        );
     };
     for language in [Language::English, Language::Chinese] {
         let map = pass(&ctx, (1.0, language, Vec::new()), |ui| {
@@ -83,14 +90,17 @@ fn the_path_page_shows_the_units_the_skills_and_the_offers() {
         Rect::from_min_size(egui::pos2(40.0, 800.0), egui::vec2(120.0, 48.0)),
         1,
     );
+    let timer = TimerShown::default();
     for (from, language) in [(10.0, Language::English), (30.0, Language::Chinese)] {
         let map = settled(&ctx, (from, language), |ui| {
-            let (mut taps, mut asked) = (Vec::new(), Vec::new());
+            let (mut taps, mut asked, mut timed) = (Vec::new(), Vec::new(), Vec::new());
             let mut hook = PathHook {
                 part: &mut part,
                 path: &going,
                 notice: None,
                 taps: &mut asked,
+                timer: &timer,
+                timer_taps: &mut timed,
             };
             hook.page(ui.ctx(), &mut taps);
         });

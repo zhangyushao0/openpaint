@@ -4,17 +4,17 @@
 //! `pictures.rs`); Import practice pack… and Add my picture… (a tier first, then the system's
 //! picker); the long colour copies (S82), each with its picture and name, to open, or on its page to
 //! rename or remove (`copies.rs`), and New copy…, a picker of the packs' pictures by tier and the
-//! user's own. Removing asks first, as the home's delete does. Back goes to the first page; Close
-//! or a tap outside closes them.
+//! user's own; and the Pomodoro's switch Break chime (S124). Removing asks first, as the home's
+//! delete does. Back goes to the first page; Close or a tap outside closes them.
 
 use egui::{Align, Layout, Rect};
 use openpaint_app::{GalleryIntent, Intent, ProjectId};
 use openpaint_practice::{ItemRef, Tier};
-use openpaint_practice_app::{OptionsIntent, PathProjection};
+use openpaint_practice_app::{OptionsIntent, PathProjection, TimerIntent, TimerShown};
 
 use openpaint_ui::components::{
     ListRow, Naming, Placement, RowPicture, UNDER_ISLANDS, card_text, dialog_of_width, list_row,
-    menu_row, section, text_button,
+    menu_row, section, switch_row, text_button,
 };
 use openpaint_ui::design::{DIALOG_WIDTH, Icon, LAYER_PICTURE, SPACE, TOUCH_TARGET};
 
@@ -49,6 +49,13 @@ pub(super) enum Removal {
     Picture(ItemRef, String, (u32, u32)),
 }
 
+/// The home's taps, the practice options' and the timer's.
+type Asked<'a> = (
+    &'a mut Vec<Intent>,
+    &'a mut Vec<OptionsIntent>,
+    &'a mut Vec<TimerIntent>,
+);
+
 /// What a page's tap asks.
 pub(super) enum Tapped {
     /// The gallery's intent, and whether it opens a sheet (grown out of the options' button).
@@ -59,6 +66,8 @@ pub(super) enum Tapped {
     /// A colour copy renamed: its sheet and its name as shown, in the naming dialog.
     Rename(ProjectId, String),
     Remove(Removal),
+    /// The Pomodoro's switch flipped (S124).
+    Timer(TimerIntent),
 }
 
 /// The practice options' state while the gallery shows.
@@ -115,8 +124,8 @@ impl HomePart {
     pub(super) fn practice_dialog(
         &mut self,
         ctx: &egui::Context,
-        path: &PathProjection,
-        (taps, asked): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
+        (path, timer): (&PathProjection, &TimerShown),
+        (taps, asked, timed): Asked<'_>,
     ) {
         self.practice.pictures.upload(ctx);
         if self.practice.rename.is_some() || self.practice.remove.is_some() {
@@ -132,12 +141,13 @@ impl HomePart {
             "practice",
             (Placement::Top, card, DIALOG_WIDTH),
             |ui| {
-                let tapped = page_of(ui, &page, path, options);
+                let tapped = page_of(ui, &page, (path, timer), options);
                 let (back, close) = bottom_row(ui, page != Page::Main);
                 (tapped, back, close)
             },
         );
         match tapped {
+            Some(Tapped::Timer(intent)) => timed.push(intent),
             Some(Tapped::Intent(intent, opens)) => {
                 self.opening_from(card, opens);
                 taps.push(Intent::Gallery(intent));
@@ -194,7 +204,7 @@ fn bottom_row(ui: &mut egui::Ui, back: bool) -> (bool, bool) {
 fn page_of(
     ui: &mut egui::Ui,
     page: &Page,
-    path: &PathProjection,
+    (path, timer): (&PathProjection, &TimerShown),
     options: &mut PracticeOptions,
 ) -> Option<Tapped> {
     let pictures = &mut options.pictures;
@@ -203,7 +213,7 @@ fn page_of(
     match page {
         Page::Main => {
             ui.heading(Words::from(t::PRACTICE_OPTIONS).shown(ui.ctx()));
-            scrolled(ui, room, |ui| main_page(ui, path, pictures))
+            scrolled(ui, room, |ui| main_page(ui, (path, timer), pictures))
         }
         Page::Picker(tier) => super::pictures::picker(ui, (*tier, room), path, pictures),
         Page::Mine => super::pictures::mine(ui, room, path, pictures),
@@ -223,14 +233,18 @@ pub(super) fn scrolled<R>(ui: &mut egui::Ui, room: f32, add: impl FnOnce(&mut eg
         .inner
 }
 
-/// The first page: the packs and the colour copies.
+/// The first page: the packs, the colour copies and the Pomodoro's Break chime.
 fn main_page(
     ui: &mut egui::Ui,
-    path: &PathProjection,
+    (path, timer): (&PathProjection, &TimerShown),
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
     let chosen = packs(ui, path);
-    copies(ui, path, pictures).or(chosen)
+    let chosen = copies(ui, path, pictures).or(chosen);
+    section(ui, t::POMODORO);
+    let chime = switch_row(ui, t::BREAK_CHIME, timer.chime, true).clicked();
+    let chime = chime.then_some(Tapped::Timer(TimerIntent::Chime(!timer.chime)));
+    chime.or(chosen)
 }
 
 /// The practice packs kept, My pictures, Import practice pack… and Add my picture…; returns what
@@ -260,7 +274,6 @@ fn packs(ui: &mut egui::Ui, path: &PathProjection) -> Option<Tapped> {
     if menu_row(ui, t::ADD_PICTURE, Words::EMPTY, true).clicked() {
         chosen = Some(Tapped::Page(Page::Add));
     }
-    note(ui, t::PACKS_NOTE.into(), true);
     chosen
 }
 
@@ -314,7 +327,6 @@ fn copies(
             (Tier::ALL.into_iter()).find(|tier| path.pictures_of(Some(*tier)).next().is_some());
         chosen = Some(Tapped::Page(Page::Picker(first)));
     }
-    note(ui, t::COPIES_NOTE.into(), true);
     chosen
 }
 

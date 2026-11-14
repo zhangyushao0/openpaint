@@ -30,9 +30,11 @@
 //! No sentence on a screen states a rule (the author, 2026-11-13: "a screen never explains how
 //! it works"). A screen holds names, states, numbers and controls: the test for any word added is
 //! whether it names something or says what is, never how the app works or what will happen. So
-//! S124 takes off the eye-judged result's note (`EYE_NOTE`), One more's ", on the next row of
-//! this sheet" (`one_more_line`), the first lesson's "Nothing is scored here…" (`NOTHING_SCORED`),
-//! and the full lesson's line went with it.
+//! S124 took off the eye-judged result's note, One more's "on the next row of this sheet", the
+//! first lesson's "Nothing is scored here…", the practice options' notes on the packs, one's own
+//! pictures and the colour copies, the picker's and adding's hints, what Compare does in the
+//! outline lines and the notices (a test names each by its old key: `REMOVED`); a How's steps and
+//! paragraphs are the course's own (D108).
 
 pub(crate) use openpaint_ui::text::*;
 
@@ -46,6 +48,7 @@ mod objects;
 mod options;
 mod perspective;
 mod points;
+mod pomodoro;
 mod says;
 mod sheet;
 mod solids;
@@ -61,6 +64,7 @@ pub(crate) use objects::*;
 pub(crate) use options::*;
 pub(crate) use perspective::*;
 pub(crate) use points::*;
+pub(crate) use pomodoro::*;
 pub(crate) use says::said;
 pub(crate) use sheet::*;
 pub(crate) use solids::*;
@@ -88,6 +92,7 @@ mod tests {
             PRACTICE_PACKS_TABLE,
             PRACTICE_PERSPECTIVE,
             PRACTICE_POINTS,
+            PRACTICE_POMODORO,
             PRACTICE_SOLIDS,
             PRACTICE_NOTICES,
             names::PRACTICE_NAMES,
@@ -123,11 +128,63 @@ mod tests {
         made.push(picture_goes(zh, (2, 1)));
         made.extend((1..=8).map(|unit| unit_title(zh, unit)));
         made.extend([Seal::Stage(2), Seal::TenSessions].map(|seal| seal_lines(zh, seal).concat()));
+        made.extend(pomodoro::made(zh));
         let tables = every_text().into_iter().map(|text| text.get(zh).to_owned());
         for chinese in tables.chain(made) {
             let read = (drawing.iter()).fold(chinese.clone(), |read, verb| read.replace(verb, ""));
             for (term, instead) in RETIRED {
                 assert!(!read.contains(term), "{chinese}: {term}, now {instead}");
+            }
+        }
+    }
+
+    /// The sentences S124 took off the screens for stating a rule, by the key each had, with
+    /// words of each language that only they held.
+    const REMOVED: [(&str, [&str; 2]); 12] = [
+        ("EYE_NOTE", ["your eye judges", "练的就是这双眼睛"]),
+        ("NOTHING_SCORED", ["Nothing is scored", "这里不打分"]),
+        ("one_more_line", ["on the next row", "这张纸的下一行"]),
+        ("PACKS_NOTE", ["use them once", "会用到它们"]),
+        ("MINE_NOTE", ["use one once", "每课会用到其中一张"]),
+        ("COPIES_NOTE", ["it is no lesson", "不算作一课"]),
+        ("CHOOSE_HINT", ["to begin a long copy", "开始一幅色彩临摹"]),
+        (
+            "TIER_FIRST",
+            ["Choose, then the picture", "先选难度，再选图片"],
+        ),
+        ("WITH_OUTLINE", ["outline: Compare lays", "叠图对比时会把"]),
+        (
+            "PICK_AFTER_COMPARE",
+            ["can be picked after Compare", "之后才能吸原图"],
+        ),
+        ("PACK_IMPORTED", ["come up in", "会用到里面的图片"]),
+        ("PICTURE_REFUSED", ["pictures are taken", "只支持 PNG"]),
+    ];
+
+    #[test]
+    fn no_sentence_s124_removed_comes_back() {
+        let line = openpaint_practice::Skill::of_key("line").expect("lines");
+        let offer = openpaint_practice::Offer {
+            skill: line,
+            level: openpaint_practice::SkillLevel::Second,
+            exercises: 5,
+            minutes: 4,
+            redo: false,
+        };
+        for language in [Language::English, Language::Chinese] {
+            let mut shown: Vec<String> = (every_text().into_iter())
+                .map(|text| text.get(language).to_owned())
+                .collect();
+            shown.push(one_more_line(language, &offer));
+            shown.extend(pomodoro::made(language));
+            for kind in kinds::every_kind() {
+                shown.extend(how_steps(kind, CELLS, language));
+            }
+            for text in &shown {
+                for (key, words) in REMOVED {
+                    let gone = words[usize::from(language == Language::Chinese)];
+                    assert!(!text.contains(gone), "{key} is back: {text}");
+                }
             }
         }
     }

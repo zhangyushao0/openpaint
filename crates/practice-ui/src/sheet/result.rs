@@ -2,8 +2,7 @@
 //! after its mark (a dot, a ring half filled, an empty ring). Where the app judges, the one it
 //! found is ringed in ink and the comparison's items under it say why; where the eye judges, a
 //! short prompt, then the three as words to tap (`PracticeIntent::Judge`), the one chosen ringed
-//! from then on, and a quiet line on what Again does. Nothing while no verdict is honest yet; a
-//! scribble has none.
+//! from then on. Nothing while no verdict is honest yet; a scribble has none.
 
 use egui::{Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 use openpaint_practice::{Outcome, Verdict};
@@ -44,9 +43,6 @@ pub(crate) fn result_row(ui: &mut egui::Ui, judged: Judged, taps: &mut Vec<Pract
             }
         }
     });
-    if judged.verdict == Verdict::Eye {
-        card_text(ui, t::EYE_NOTE, true);
-    }
 }
 
 /// `outcome`'s word after its mark, one touch target high: a word to tap while `tappable`,

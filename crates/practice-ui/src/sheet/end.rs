@@ -3,12 +3,13 @@
 //! they took ("5 exercises · 3 min 12 s"); their results in a row of marks (none on the first
 //! lesson, which scores nothing); under a rule the skill's three dots, the one just earned
 //! inking in with the level it reached named ("Up to “Fluent”"), each seal the lesson earned
-//! stamping down beside them; under another rule One more in its pill with what it will be (the skill, its
-//! exercises and minutes, on the next row of this sheet) and That's all for today, which goes
-//! home. No counts of days, no quotas.
+//! stamping down beside them; under another rule One more in its pill with what it will be (the
+//! skill, its exercises and minutes) and That's all for today, which goes home. No counts of days,
+//! no quotas. While a Pomodoro's block runs no lesson's end shows (S124, `bar.rs`); a block's end
+//! (`block_end.rs`) shares its marks and its rule.
 
 use egui::{Pos2, Sense, Vec2};
-use openpaint_practice::SkillLevel;
+use openpaint_practice::{Outcome, SkillLevel};
 use openpaint_practice_app::End;
 
 use openpaint_ui::components::{animate_from, card_text, keep_moving, pill_button, text_button};
@@ -22,8 +23,8 @@ use crate::text::{self as t, Text, Words, language};
 /// A result's mark's radius and pitch, a dot's radius and pitch, and a new seal's side, points.
 const MARK: f32 = 7.0;
 const MARK_PITCH: f32 = 4.0 * SPACE;
-const DOT: f32 = 7.0;
-const DOT_PITCH: f32 = 3.0 * SPACE;
+pub(super) const DOT: f32 = 7.0;
+pub(super) const DOT_PITCH: f32 = 3.0 * SPACE;
 const SEAL: f32 = 64.0;
 /// A result not judged: a pencil ring this heavy, in points.
 const RING_LINE: f32 = 1.25;
@@ -47,7 +48,8 @@ pub(crate) fn end_card(ui: &mut egui::Ui, end: &End, name: Text) -> Option<EndTa
     card_text(ui, Words::made(&took), true);
     // The first lesson scores nothing: no row of marks.
     if !end.results.is_empty() {
-        results(ui, end);
+        let outcomes: Vec<Option<Outcome>> = end.results.iter().map(|(_, o)| *o).collect();
+        result_marks(ui, &outcomes);
     }
     // The first lesson earns no dot; a lesson without a dot or a seal shows none of them.
     if end.skill.is_some() || !end.sealed.is_empty() {
@@ -68,15 +70,15 @@ pub(crate) fn end_card(ui: &mut egui::Ui, end: &End, name: Text) -> Option<EndTa
     tapped
 }
 
-/// Each exercise's result as a mark, in rows as wide as the card (a full lesson's fifteen take
-/// two); one not judged a pencil ring.
-fn results(ui: &mut egui::Ui, end: &End) {
+/// Each exercise's result as a mark, in rows as wide as the card (a block's twenty take two); one
+/// not judged a pencil ring.
+pub(super) fn result_marks(ui: &mut egui::Ui, outcomes: &[Option<Outcome>]) {
     let line = 2.0 * MARK + SPACE;
     let width = ui.available_width();
     let across = (((width - 2.0 * MARK) / MARK_PITCH).floor() as usize + 1).max(1);
-    let rows = end.results.len().div_ceil(across);
+    let rows = outcomes.len().div_ceil(across);
     let (block, _) = ui.allocate_exact_size(Vec2::new(width, line * rows as f32), Sense::hover());
-    for (place, (_, outcome)) in end.results.iter().enumerate() {
+    for (place, outcome) in outcomes.iter().enumerate() {
         let (row, column) = (place / across, place % across);
         let centre = Pos2::new(
             block.left() + MARK + MARK_PITCH * column as f32,
@@ -153,14 +155,14 @@ fn progress(ui: &mut egui::Ui, end: &End) {
 }
 
 /// The level a skill reaches with its `dots`th dot: the first with one, the third with three.
-fn level_of(dots: u8) -> Option<SkillLevel> {
+pub(super) fn level_of(dots: u8) -> Option<SkillLevel> {
     SkillLevel::ALL
         .get(usize::from(dots).checked_sub(1)?)
         .copied()
 }
 
 /// A hairline across the card.
-fn rule(ui: &mut egui::Ui) {
+pub(super) fn rule(ui: &mut egui::Ui) {
     let (rule, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), SPACE), Sense::hover());
     ui.painter()
         .hline(rule.x_range(), rule.center().y, (1.0, DIVIDER));

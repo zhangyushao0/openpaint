@@ -24,9 +24,6 @@ texts! { PRACTICE_COLOUR;
     OUT_OF_ORDER = "Out of order", "明暗颠倒";
     COLOUR_COPIES = "Colour copies (long projects)", "色彩临摹（大作业）";
     OPEN = "Open", "打开";
-    COPIES_NOTE = "A long copy in colour, worked on whenever you like over 10 to 20 hours; it is \
-        no lesson.",
-        "一幅慢慢画的色彩临摹，总共约 10 到 20 小时，什么时候画都行；不算作一课。";
 }
 
 /// A value scale compared (S97): how many of its cells are uneven.

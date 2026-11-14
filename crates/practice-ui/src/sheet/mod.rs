@@ -4,11 +4,13 @@
 //! after Gallery, the practice bar holding the top band's middle, the exercise's own tools beside
 //! its frame (`tools.rs`) and the card under them (`bar.rs`, `card.rs`, `card_items.rs`,
 //! `card_disc.rs`, a result's row `result.rs`, a lesson's end `end.rs`, the first lesson's How
-//! `first.rs`), How's demonstrations (`demo*.rs`), and why the sheet took no contact. The sheet's
-//! taps are its own (`PracticeIntent`); what it asks of the painting goes to the shell's taps it
-//! is lent.
+//! `first.rs`), the Pomodoro's ring in the bar and its menu (`timer.rs`) and a block's end
+//! (`block_end.rs`, S124), How's demonstrations (`demo*.rs`), and why the sheet took no contact.
+//! The sheet's taps are its own (`PracticeIntent`), the timer's its own (`TimerIntent`); what it
+//! asks of the painting goes to the shell's taps it is lent.
 
 mod bar;
+mod block_end;
 mod card;
 mod card_disc;
 mod card_items;
@@ -25,12 +27,17 @@ mod result;
 mod rows;
 #[cfg(test)]
 mod tests;
+mod timer;
+#[cfg(test)]
+mod timer_tests;
 mod tools;
 
 use egui::{Context, Ui};
 use openpaint_app::{Intent, Language, ViewMapping};
 use openpaint_practice::{Kind, Skill};
-use openpaint_practice_app::{LessonShown, PracticeIntent, PracticeNotice, PracticeProjection};
+use openpaint_practice_app::{
+    LessonShown, PracticeIntent, PracticeNotice, PracticeProjection, TimerIntent, TimerShown,
+};
 use openpaint_ui::components::ScreenArea;
 use openpaint_ui::taps::push_once;
 use openpaint_ui::{CanvasHook, Chrome};
@@ -38,8 +45,8 @@ use openpaint_ui::{CanvasHook, Chrome};
 use crate::text::{self as t, Refused, Text};
 
 /// What the bar and the cards call the lesson in hand: its warm-up, the first lesson, its skill
-/// (the skill of the kind in hand in a full lesson), a full lesson once done, else the kind's own
-/// name.
+/// (the skill of the kind in hand in an old full lesson), an old full lesson once done, else the
+/// kind's own name.
 pub(crate) fn lesson_name(lesson: Option<LessonShown>, kind: Option<Kind>) -> Text {
     let skill = lesson.and_then(|lesson| lesson.row.skill);
     match (lesson, skill, kind) {
@@ -60,17 +67,21 @@ pub(crate) struct SheetPart {
 }
 
 /// A tap on a practice sheet's chrome asks the painting (a tool, a colour, undo, through what
-/// the shell lends) or the sheet.
+/// the shell lends), the sheet or the timer.
 pub(crate) struct SheetTaps<'a, 'c> {
     pub(crate) lent: &'a mut Chrome<'c>,
     pub(crate) sheet: &'a mut Vec<PracticeIntent>,
+    pub(crate) timer: &'a mut Vec<TimerIntent>,
 }
 
-/// The open practice sheet's hook for one frame: its state, its projection and its taps.
+/// The open practice sheet's hook for one frame: its state, its projection, the Pomodoro's timer
+/// and their taps.
 pub(crate) struct SheetHook<'a> {
     pub(crate) part: &'a mut SheetPart,
     pub(crate) sheet: &'a PracticeProjection,
     pub(crate) taps: &'a mut Vec<PracticeIntent>,
+    pub(crate) timer: &'a TimerShown,
+    pub(crate) timer_taps: &'a mut Vec<TimerIntent>,
 }
 
 impl CanvasHook for SheetHook<'_> {
@@ -88,8 +99,10 @@ impl CanvasHook for SheetHook<'_> {
         let mut taps = SheetTaps {
             lent,
             sheet: self.taps,
+            timer: self.timer_taps,
         };
-        self.part.bar.show(ctx, self.sheet, &mut taps);
+        let shown = (self.sheet, self.timer.block.as_ref());
+        self.part.bar.show(ctx, shown, &mut taps);
         self.part.bar.areas().into_iter().flatten().collect()
     }
 
@@ -121,13 +134,17 @@ impl CanvasHook for SheetHook<'_> {
     }
 
     fn tapped(&self) -> bool {
-        !self.taps.is_empty()
+        !self.taps.is_empty() || !self.timer_taps.is_empty()
     }
 
     fn glides(&self) -> bool {
         // A tap on Next: the view glides to the next exercise, or to the rows used once done; on
-        // One more to the next lesson's first pair, laid on the same sheet.
-        (self.taps.iter())
-            .any(|tap| matches!(tap, PracticeIntent::Next(_) | PracticeIntent::OneMore(_)))
+        // One more or Another pomodoro to the next lesson's first pair, laid on the same sheet;
+        // on End to the rows drawn in the block.
+        let timer = (self.timer_taps.iter())
+            .any(|tap| matches!(tap, TimerIntent::End(_) | TimerIntent::Another(_)));
+        timer
+            || (self.taps.iter())
+                .any(|tap| matches!(tap, PracticeIntent::Next(_) | PracticeIntent::OneMore(_)))
     }
 }

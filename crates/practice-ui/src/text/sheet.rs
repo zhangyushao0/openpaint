@@ -29,7 +29,7 @@ texts! { PRACTICE_TABLE;
 texts! { PRACTICE_SHEET_NOTICES;
     DRAW_IN_FRAME = "Draw in the empty frame.", "只能在空白框里画。";
     DRAW_IN_CELL = "Paint in a cell between the two ends.", "只能在两端之间的格子里画。";
-    PICK_AFTER_COMPARE = "The original can be picked after Compare.", "叠图对比之后才能吸原图的颜色。";
+    PICK_AFTER_COMPARE = "Compare first.", "先叠图对比。";
     SESSION_DONE = "This lesson is done.", "这一课已经上完。";
     DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里松手即可填充。";
 }

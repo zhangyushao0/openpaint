@@ -1,7 +1,8 @@
 //! Headless egui passes for the screens' tests: a 1440 by 900 point screen in the theme and a
-//! language, the controls each pass registered, and a tap by a control's name.
+//! language, the controls each pass registered and what it drew (its words, its outlines in a
+//! colour), and a tap by a control's name.
 
-use egui::{Context, Pos2, Rect, Ui};
+use egui::{Color32, Context, Pos2, Rect, Shape, Ui};
 use openpaint_ui::ControlMap;
 use openpaint_ui::components::{chrome, controls};
 
@@ -21,9 +22,18 @@ pub(crate) fn context() -> Context {
 /// controls it registered.
 pub(crate) fn pass(
     ctx: &Context,
+    at: (f64, Language, Vec<egui::Event>),
+    add: impl FnMut(&mut Ui),
+) -> ControlMap {
+    drawn(ctx, at, add).0
+}
+
+/// As `pass`, with what it drew: each shape, groups flattened.
+pub(crate) fn drawn(
+    ctx: &Context,
     (time, language, events): (f64, Language, Vec<egui::Event>),
     mut add: impl FnMut(&mut Ui),
-) -> ControlMap {
+) -> (ControlMap, Vec<Shape>) {
     let input = egui::RawInput {
         screen_rect: Some(SCREEN),
         time: Some(time),
@@ -40,25 +50,63 @@ pub(crate) fn pass(
         map = controls::take(ui.ctx());
     });
     output.textures_delta.clear();
-    map
+    let mut shapes = Vec::new();
+    let mut open: Vec<Shape> = output
+        .shapes
+        .into_iter()
+        .map(|clipped| clipped.shape)
+        .collect();
+    while let Some(shape) = open.pop() {
+        match shape {
+            Shape::Vec(inner) => open.extend(inner),
+            shape => shapes.push(shape),
+        }
+    }
+    (map, shapes)
+}
+
+/// The words `shapes` show.
+pub(crate) fn words(shapes: &[Shape]) -> Vec<String> {
+    (shapes.iter())
+        .filter_map(|shape| match shape {
+            Shape::Text(text) => Some(text.galley.text().to_owned()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// How many of `shapes` are outlines or rings in `colour`.
+pub(crate) fn outlined(shapes: &[Shape], colour: Color32) -> usize {
+    (shapes.iter())
+        .filter(|shape| match shape {
+            Shape::Path(path) => path.stroke.color == egui::epaint::ColorMode::Solid(colour),
+            Shape::Circle(circle) => circle.stroke.color == colour,
+            _ => false,
+        })
+        .count()
 }
 
 /// Passes from `time` a sixtieth of a second apart until things rest (two seconds at most);
 /// the last one's controls.
-pub(crate) fn settled(
+pub(crate) fn settled(ctx: &Context, at: (f64, Language), add: impl FnMut(&mut Ui)) -> ControlMap {
+    settled_drawn(ctx, at, add).0
+}
+
+/// As `settled`, with what the last pass drew.
+pub(crate) fn settled_drawn(
     ctx: &Context,
     (time, language): (f64, Language),
     mut add: impl FnMut(&mut Ui),
-) -> ControlMap {
-    let mut map = ControlMap::default();
+) -> (ControlMap, Vec<Shape>) {
+    let mut last = (ControlMap::default(), Vec::new());
     for step in 0..120 {
-        map = pass(
+        last = drawn(
             ctx,
             (time + f64::from(step) / 60.0, language, Vec::new()),
             &mut add,
         );
     }
-    map
+    last
 }
 
 /// The control `name` is registered once and lies whole on the screen.

@@ -305,7 +305,7 @@ fn offers(ui: &mut egui::Ui, side: Rect, path: &PathProjection) -> Option<Tapped
         .show(&mut column, |ui| {
             ui.set_width(side.width() - 6.0 * SPACE);
             ui.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
-            let next = next_lesson(ui, path).map(|from| Tapped::Start(Start::Next, from));
+            let next = next_lesson(ui, path, true).map(|from| Tapped::Start(Start::Next, from));
             let review = review(ui, path).map(|from| Tapped::Start(Start::Review, from));
             next.or(review)
         })

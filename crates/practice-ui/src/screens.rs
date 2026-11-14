@@ -21,9 +21,10 @@ pub struct PracticeScreens {
     sheet_taps: Vec<PracticeIntent>,
     home: HomePart,
     options_taps: Vec<OptionsIntent>,
-    /// The Pomodoro's taps (S124): the home's row, the bar's ring and End, the block's end, the
-    /// options' chime switch.
+    /// The Pomodoro's taps (S124): the bar's ring and End and the block's end on the sheet; the
+    /// home's row and the options' chime switch on the home.
     timer_taps: Vec<TimerIntent>,
+    home_timer_taps: Vec<TimerIntent>,
 }
 
 /// What practice shows in one frame: the open `sheet` on the canvas, or on the home the path
@@ -41,19 +42,20 @@ pub type Taken = (Vec<PracticeIntent>, Vec<OptionsIntent>, Vec<TimerIntent>);
 impl PracticeScreens {
     /// The hooks practice fills in one frame for what it shows (`shown`).
     pub fn hooked<'a>(&'a mut self, (sheet, path, timer): Shown<'a>) -> Hooked<'a> {
-        // S124c: the timer to the sheet's bar and card and to the home's row, header, book and
-        // options; their timer taps to `timer_taps`.
-        let _ = (timer, &mut self.timer_taps);
         let sheet = sheet.map(|sheet| SheetHook {
             part: &mut self.sheet,
             sheet,
             taps: &mut self.sheet_taps,
+            timer,
+            timer_taps: &mut self.timer_taps,
         });
         let home = path.map(|(path, notice)| PathHook {
             part: &mut self.home,
             path,
             notice,
             taps: &mut self.options_taps,
+            timer,
+            timer_taps: &mut self.home_timer_taps,
         });
         Hooked { sheet, home }
     }
@@ -64,7 +66,9 @@ impl PracticeScreens {
     pub fn take(&mut self) -> Taken {
         let sheet = std::mem::take(&mut self.sheet_taps);
         let options = std::mem::take(&mut self.options_taps);
-        (sheet, options, std::mem::take(&mut self.timer_taps))
+        let mut timer = std::mem::take(&mut self.timer_taps);
+        timer.append(&mut self.home_timer_taps);
+        (sheet, options, timer)
     }
 
     /// The next picture the practice options want read (a pack's, by its item), once each: the
