@@ -2,7 +2,8 @@
 //! sheet read, and what its exercises printed; a new one started with its project and its
 //! lesson's givens in one write, the project becoming the open one; a lesson appended with its
 //! givens and the sheet's record in one write; a sheet's record replaced whole after each change
-//! (its givens stay as they were written); one removed with its givens and its project.
+//! (its givens stay as they were written); its last lesson cut by the Pomodoro's End with that
+//! lesson's givens in one write (`trim`); one removed with its givens and its project.
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Title};
 use openpaint_core::Artwork;
@@ -111,8 +112,34 @@ pub fn append(
 /// # Errors
 /// Whatever reading the givens or the write fails with; nothing is written then.
 pub fn trim(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<(), PortError> {
-    // S124a: the last lesson's givens read and written again without the slots gone.
-    save(store, sheet)
+    let corrupt = || PortError::Corrupt {
+        what: "practice givens",
+    };
+    let index = sheet.lessons.len().checked_sub(1).ok_or_else(corrupt)?;
+    let lesson = u16::try_from(index).map_err(|_| corrupt())?;
+    let key = givens_key(sheet.canvas, lesson);
+    let records = store.records(GIVENS, &key[1..])?;
+    let (_, value) = (records.iter())
+        .find(|(held, _)| *held == key)
+        .ok_or_else(corrupt)?;
+    let mut givens = decode_givens(value)?;
+    let kept = &sheet.lessons[index].exercises;
+    givens
+        .slots
+        .retain(|(slot, _)| kept.iter().any(|laid| laid.slot == *slot));
+    if givens.slots.len() != kept.len() {
+        return Err(corrupt());
+    }
+    store.put_records(&[
+        (PRACTICE, (sheet_key(sheet.id), encode_sheet(sheet))),
+        (GIVENS, (key, encode_givens(&givens))),
+    ])?;
+    log::info!(
+        "practice sheet {} lesson {lesson} ended at {} exercises",
+        sheet.id,
+        kept.len()
+    );
+    Ok(())
 }
 
 /// `sheet`'s stored record replaced whole (by its id); its project is saved as any artwork.

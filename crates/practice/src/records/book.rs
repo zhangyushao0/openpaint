@@ -58,11 +58,10 @@ pub struct LineShown {
 
 impl Book {
     /// The book of `records` and the Pomodoro's blocks completed (`blocks`, S124: each day's
-    /// count, S124a), its days on a clock `offset` minutes from UTC.
+    /// count, a day with a block and no time among the days), its days on a clock `offset`
+    /// minutes from UTC; a block counts on the local day it started (`Block::day`).
     #[must_use]
     pub fn of(records: &[Sheet], blocks: &[Block], offset: i32) -> Self {
-        // S124a: each day's blocks, a day with one added when it has no time.
-        let _ = blocks;
         let mut ordered: Vec<&Sheet> = records.iter().collect();
         ordered.sort_by_key(|record| record.id);
         let taken: Vec<OnSheet<'_>> = (lessons(records).into_iter())
@@ -74,7 +73,7 @@ impl Book {
         Self {
             sessions: u32::try_from(finished).unwrap_or(u32::MAX),
             seconds: ordered.iter().map(|record| seconds(&record.spans)).sum(),
-            days: days(&ordered, offset),
+            days: sealed(days(&ordered, offset), blocks),
             colour: taken.iter().filter_map(first_pick).collect(),
             lines: lines(records, &taken),
             seals: earned(records),
@@ -105,6 +104,24 @@ fn days(records: &[&Sheet], offset: i32) -> Vec<Day> {
                     blocks: 0,
                 }),
             }
+        }
+    }
+    days.sort_by_key(|day| day.day);
+    days
+}
+
+/// `days` with each block of `blocks` counted on the day it started; a day with a block and no
+/// time joins them.
+fn sealed(mut days: Vec<Day>, blocks: &[Block]) -> Vec<Day> {
+    for block in blocks {
+        match days.iter_mut().find(|kept| kept.day == block.day) {
+            Some(kept) => kept.blocks += 1,
+            None => days.push(Day {
+                day: block.day,
+                seconds: 0,
+                records: Vec::new(),
+                blocks: 1,
+            }),
         }
     }
     days.sort_by_key(|day| day.day);

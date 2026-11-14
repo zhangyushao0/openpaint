@@ -19,9 +19,11 @@
 //!
 //! No streak, no daily goal: blocks count what was done, never days in a row (D109).
 
+use crate::course::learner::Learner;
 use crate::kinds::Skill;
 use crate::marks::compared::Outcome;
-use crate::records::sheet::Sheet;
+use crate::records::lessons::lessons;
+use crate::records::sheet::{Picked, Sheet};
 
 /// A break's length after a block completed, in seconds: five minutes.
 pub const BREAK: u32 = 300;
@@ -137,9 +139,7 @@ impl Blocks {
     /// How many blocks were completed on local day `day`: the red seals of that day.
     #[must_use]
     pub fn on(&self, day: i64) -> usize {
-        // S124a
-        let _ = day;
-        0
+        self.done.iter().filter(|block| block.day == day).count()
     }
 }
 
@@ -161,8 +161,32 @@ impl BlockTally {
     /// tell of.
     #[must_use]
     pub fn of(sheets: &[Sheet], since: u64) -> Self {
-        // S124a
-        let _ = (sheets, since);
-        Self::default()
+        let mut before = Learner::default();
+        let mut tally = Self::default();
+        let mut met: Vec<Skill> = Vec::new();
+        for on in lessons(sheets).iter().filter(|on| !on.is_copy()) {
+            if on.finished().is_none_or(|finished| finished < since) {
+                before.take(on.lesson);
+                continue;
+            }
+            tally.lessons += 1;
+            // The first lesson is never scored: its exercises show no result.
+            let scored = on.lesson.picked != Picked::First;
+            for laid in &on.lesson.exercises {
+                tally.exercises += 1;
+                let result = laid.result.filter(|_| scored);
+                tally.results.push(result.map(|(outcome, _)| outcome));
+                let skill = Skill::of(laid.exercise.kind);
+                if let Some(skill) = skill.filter(|skill| !met.contains(skill)) {
+                    met.push(skill);
+                }
+            }
+        }
+        let after = Learner::of(sheets);
+        tally.skills = (met.into_iter())
+            .map(|skill| (skill, before.dots(skill), after.dots(skill)))
+            .filter(|(_, before, after)| after > before)
+            .collect();
+        tally
     }
 }
