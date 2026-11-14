@@ -38,8 +38,6 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     private var frameRequested = false
     private lateinit var view: CanvasView
     private val pickers = Pickers(this) { handle }
-    /** Frames run on this (the main) thread: its performance hint session. */
-    private val hint = FrameHint(this)
     /** The Pomodoro's frames, the screen kept on and the chime; a wake draws only on a surface. */
     private val timer = TimerHost(this) { if (attached) requestFrame() }
     /** The app used the back button's press; its release is the app's too. */
@@ -92,7 +90,6 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     override fun onDestroy() {
         Choreographer.getInstance().removeFrameCallback(this)
         frameRequested = false
-        hint.close()
         timer.stop()
         Native.destroy(handle)
         handle = 0L
@@ -107,7 +104,6 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         } else {
             Native.attach(handle, holder.surface, width, height, density())
             attached = true
-            hint.open()
         }
         requestFrame()
     }
@@ -118,17 +114,13 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        hint.close()
         Native.detach(handle)
         attached = false
     }
 
     override fun doFrame(frameTimeNanos: Long) {
         frameRequested = false
-        val start = System.nanoTime()
-        val again = Native.frame(handle, start)
-        hint.report(System.nanoTime() - start)
-        if (again) requestFrame()
+        if (Native.frame(handle, System.nanoTime())) requestFrame()
         timer.after(handle)
         syncKeyboard()
         if (handle != 0L) pickers.serve()
