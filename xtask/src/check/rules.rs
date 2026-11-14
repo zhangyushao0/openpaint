@@ -15,6 +15,10 @@ pub const HELD_FOLDERS: &[(&str, usize)] = &[
     ("crates/render/src", 98),
 ];
 
+/// The workspace's `#[path]` siblings when the rule came (S118b), held at their count: it may only
+/// go down, the number lowered as it does (`paths.rs`).
+pub const HELD_PATH_SIBLINGS: usize = 114;
+
 /// A markdown file allowed outside `docs/archive/` and its limits.
 pub struct Doc {
     pub path: &'static str,

@@ -6,6 +6,7 @@ mod folders;
 mod hygiene;
 mod kinds;
 mod lengths;
+mod paths;
 mod purity;
 mod rules;
 mod tools;
@@ -43,6 +44,7 @@ pub fn run() -> Result<(), String> {
     findings.extend(words::check(&root, &files));
     findings.extend(kinds::check(&root, &files));
     findings.extend(folders::check(&files));
+    findings.extend(paths::check(&root, &files));
     findings.extend(tools::check(&root));
     if findings.is_empty() {
         println!(
