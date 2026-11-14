@@ -36,7 +36,8 @@ impl Ends {
     /// The copy menu's commands (`Session::clipboard`, after its check), as any edit.
     pub(super) const EDIT: Self = Self::row([Y, Y, Y, Y, Y, N]);
 
-    /// A step of a mode's own (`Session::lend`): the shape, an adjustment, a transform.
+    /// A step of a mode's own (`Session::make_way_for_step`): the shape, an adjustment, a
+    /// transform.
     pub(super) const STEP: Self = Self::row([Y, Y, Y, N, N, N]);
 
     /// One row, in the fields' order: shape, adjustment, transform, fill, slide, selecting.

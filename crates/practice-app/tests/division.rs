@@ -12,8 +12,8 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -23,9 +23,8 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{
     DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER, Pen, PracticeIntent, PracticeLog, PracticePens,
-    PracticeProjection, Start,
+    SheetSession, Start,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -54,7 +53,7 @@ fn compositions() -> Pack {
     }
 }
 
-fn opened(kind: Kind) -> Session {
+fn opened(kind: Kind) -> SheetSession {
     opened_with(vec![copied(kind)])
 }
 
@@ -69,7 +68,7 @@ fn copied(kind: Kind) -> Exercise {
     }
 }
 
-fn opened_with(exercises: Vec<Exercise>) -> Session {
+fn opened_with(exercises: Vec<Exercise>) -> SheetSession {
     let packs = [compositions()];
     let record = support::laid(exercises, 0).framed(&packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
@@ -80,13 +79,13 @@ fn opened_with(exercises: Vec<Exercise>) -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let mut session = openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT);
+    let mut session = SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }
 
 /// A pen stroke along `points` (frame units of `frame`).
-fn draw(session: &mut Session, frame: &Frame, points: &[Point]) {
+fn draw(session: &mut SheetSession, frame: &Frame, points: &[Point]) {
     let path: Vec<[f32; 2]> = (resample(points, 0.002).into_iter())
         .map(|p| frame.to_canvas(p).map(|v| v as f32))
         .collect();
@@ -115,21 +114,21 @@ fn draw(session: &mut Session, frame: &Frame, points: &[Point]) {
     }
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, NOW).expect("practised");
 }
 
-fn copy_frame(session: &Session) -> Frame {
-    let practice = PracticeProjection::of(session).expect("a sheet");
+fn copy_frame(session: &SheetSession) -> Frame {
+    let practice = session.projection();
     practice.sheet.pairs[0].copy
 }
 
 /// A division drawn on `session`'s sheet: two main lines (one in two pieces through the picture's
 /// pixel (400, 330) of 800 by 600, returned with its frame), a part's frame in three strokes with
 /// Second and a short line with Third.
-fn divided(session: &mut Session) -> (Frame, Point) {
+fn divided(session: &mut SheetSession) -> (Frame, Point) {
     let frame = copy_frame(session);
-    let practice = PracticeProjection::of(session).expect("a sheet");
+    let practice = session.projection();
     let picture = practice.sheet.pictures[0].clone().expect("its picture");
     let known = picture.fit.to_frame([400.0, 330.0]);
     draw(session, &frame, &[[0.08, known[1]], known]);
@@ -146,8 +145,8 @@ fn divided(session: &mut Session) -> (Frame, Point) {
 }
 
 /// The division's overlay as compared: the picture's corners, how strongly it shows, the check.
-fn division_overlay(session: &Session) -> ([[f32; 2]; 4], f32, DivisionCheck) {
-    let practice = PracticeProjection::of(session).expect("a sheet");
+fn division_overlay(session: &SheetSession) -> ([[f32; 2]; 4], f32, DivisionCheck) {
+    let practice = session.projection();
     let compared = practice.compared.as_ref().expect("compared");
     let division = compared
         .downcast::<DivisionCompared>()
@@ -162,7 +161,7 @@ fn division_overlay(session: &Session) -> ([[f32; 2]; 4], f32, DivisionCheck) {
 #[test]
 fn a_division_is_drawn_by_level_and_compared_with_its_picture_under_it() {
     let mut session = opened(Kind::Division(Tier::Simple));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::Division(Tier::Simple)));
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Main));
     assert!(!practice.aligned_offered);
@@ -207,7 +206,7 @@ fn lines_drawn_after_a_divisions_compare_are_part_of_it_and_the_first_numbers_ke
     practise(&mut session, PracticeIntent::Compare(true));
     let (_, _, check) = division_overlay(&session);
     // No correcting pen: lines drawn after Compare are the division's.
-    let pen = PracticeProjection::of(&session).and_then(|p| p.pen);
+    let pen = session.projection().pen;
     assert_eq!(pen.map(|(pen, _)| pen), Some(Pen::Third));
     let first = check.metrics.clone();
     assert_eq!(value(&first, Metric::DivisionLines(Level::Main)), Some(2.0));
@@ -218,13 +217,16 @@ fn lines_drawn_after_a_divisions_compare_are_part_of_it_and_the_first_numbers_ke
         let y = 0.55 + 0.04 * f64::from(k);
         draw(&mut session, &frame, &[[0.1, y], [0.5, y]]);
     }
-    let gone = (PracticeProjection::of(&session)).is_some_and(|p| !p.comparing);
+    let gone = !session.projection().comparing;
     assert!(gone, "the comparison goes as the pen lands");
     practise(&mut session, PracticeIntent::Compare(true));
     let (_, _, check) = division_overlay(&session);
     assert_eq!(check.rows[0].lines, 6);
     assert!(check.too_many_main());
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session
+        .sheet_mut()
+        .save_request()
+        .expect("the record changed");
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(result.metrics, first, "the first Compare's numbers kept");
@@ -232,8 +234,8 @@ fn lines_drawn_after_a_divisions_compare_are_part_of_it_and_the_first_numbers_ke
 
 /// The layer named `name` of `session`'s artwork: its opacity, whether it shows, its strokes and
 /// whether it is drawn on.
-fn layer(session: &Session, name: &str) -> (f32, bool, usize, bool) {
-    let artwork = session.artwork();
+fn layer(session: &SheetSession, name: &str) -> (f32, bool, usize, bool) {
+    let artwork = session.session().artwork();
     let layer = (artwork.layers().iter())
         .find(|layer| layer.name().as_str() == name)
         .unwrap_or_else(|| panic!("no layer {name}"));
@@ -248,8 +250,8 @@ fn layer(session: &Session, name: &str) -> (f32, bool, usize, bool) {
 }
 
 /// How strongly a whole copy's picture lies over the copy, compared (no outline).
-fn picture_shown(session: &Session) -> f32 {
-    let practice = PracticeProjection::of(session).expect("a sheet");
+fn picture_shown(session: &SheetSession) -> f32 {
+    let practice = session.projection();
     let compared = practice.compared.as_ref().expect("compared");
     assert!(
         compared.downcast::<PictureCompared>().is_some(),
@@ -263,7 +265,7 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
     let mut session = opened(Kind::WholeCopy(Tier::Simple));
     let frame = copy_frame(&session);
     assert_eq!(
-        session.artwork().layers().len(),
+        session.session().artwork().layers().len(),
         3,
         "the sheet's and two more"
     );
@@ -282,7 +284,7 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
     draw(&mut session, &frame, &[[0.29, 0.72], [0.31, 0.38]]);
     assert_eq!(layer(&session, LINES_LAYER), (1.0, true, 2, true));
     // Undo takes back strokes only: four strokes, four steps; the division stays dimmed.
-    assert_eq!(session.history().undo_steps(), 4);
+    assert_eq!(session.session().history().undo_steps(), 4);
     session
         .dispatch(Intent::History(openpaint_app::HistoryIntent::Undo))
         .expect("undo");
@@ -297,7 +299,7 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
     assert!((picture_shown(&session) - 0.5).abs() < 1e-6);
     practise(&mut session, PracticeIntent::Shown(0.85));
     assert!((picture_shown(&session) - 0.85).abs() < 1e-6);
-    let record = session.sheet().save_request().expect("compared");
+    let record = session.sheet_mut().save_request().expect("compared");
     let metrics = &record.first(0).expect("compared").metrics;
     for level in [Level::Main, Level::Second] {
         assert_eq!(value(metrics, Metric::DivisionLines(level)), Some(1.0));
@@ -311,7 +313,7 @@ fn a_whole_copys_division_dims_under_draw_and_hides_at_compare_never_a_step() {
     // Back to a level's pen: the division whole again, drawn on.
     practise(&mut session, PracticeIntent::Pen(Pen::Third));
     assert_eq!(layer(&session, DIVISION_LAYER), (1.0, true, 2, true));
-    assert_eq!(session.history().undo_steps(), 5);
+    assert_eq!(session.session().history().undo_steps(), 5);
 }
 
 #[test]
@@ -324,7 +326,7 @@ fn after_a_whole_copy_the_next_exercise_draws_on_the_sheets_first_layer_the_divi
     draw(&mut session, &frame, &[[0.1, 0.52], [0.9, 0.47]]);
     assert_eq!(layer(&session, DIVISION_LAYER).0, DIVISION_DIMMED);
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    let artwork = session.artwork();
+    let artwork = session.session().artwork();
     let first = artwork.layers().first().expect("the sheet's layer").id();
     assert_eq!(
         artwork.active(),
@@ -332,11 +334,12 @@ fn after_a_whole_copy_the_next_exercise_draws_on_the_sheets_first_layer_the_divi
         "the line drawn on the sheet's layer"
     );
     assert_eq!(layer(&session, DIVISION_LAYER), (1.0, true, 1, false));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     let line_frame = practice.sheet.pairs[1].copy;
     draw(&mut session, &line_frame, &[[0.2, 0.2], [0.8, 0.8]]);
-    let strokes = |s: &Session| {
-        s.artwork()
+    let strokes = |s: &SheetSession| {
+        s.session()
+            .artwork()
             .layers()
             .first()
             .map_or(0, |l| l.strokes().len())

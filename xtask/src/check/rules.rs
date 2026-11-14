@@ -88,9 +88,9 @@ pub const LAYERS: &[(&str, &[&str])] = &[
     ("crates/practice", &[]),
     // Pure pixel geometry (flood fill): no GPU, no threads, no file system.
     ("crates/raster", &["openpaint-core"]),
-    // The painting flow knows no mode but its slot (D112).
+    // The painting flow knows no mode; a mode sets and steps the session it owns (D112).
     ("crates/app", &["openpaint-core"]),
-    // Practice's flow on the painting flow (S110b): the sheet as the session's mode, its log, the
+    // Practice's flow on the painting flow (S110b): the sheet owning its session, its log, the
     // practice options.
     (
         "crates/practice-app",

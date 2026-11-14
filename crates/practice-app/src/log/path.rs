@@ -132,7 +132,7 @@ impl PracticeLog {
     }
 
     /// The sheet of `sheet` opening on its lesson in hand, on its canvas of `size` pixels, titled
-    /// `title`, what each exercise printed as `printed` holds it: what `open_sheet` takes. The
+    /// `title`, what each exercise printed as `printed` holds it: what `SheetSession::open` takes. The
     /// one place a `Practising` is made.
     #[must_use]
     pub fn practising(

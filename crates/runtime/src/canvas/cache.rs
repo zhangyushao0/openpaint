@@ -63,7 +63,7 @@ impl Canvas {
         self.cache.project = Some(held.project);
         let wanted = held.saved.map(|saved| key(core, &self.target, saved));
         if let Some(saved) = held.saved {
-            self.cache.stored = Some((self.session.artwork().clone(), saved));
+            self.cache.stored = Some((self.work.session().artwork().clone(), saved));
         }
         let (format, size) = (self.target.format_code(), self.target.size());
         let why = match (&held.cached, wanted) {
@@ -159,8 +159,8 @@ impl Canvas {
         let complete = self.evaluated
             && self.changed_from.is_none()
             && !self.target.pending()
-            && self.session.active().is_none()
-            && self.session.shown().same_version(version);
+            && self.work.session().active().is_none()
+            && self.work.session().shown().same_version(version);
         let key = key(core, &self.target, *saved);
         if !complete || self.cache.written == Some(key) {
             return;

@@ -10,15 +10,14 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Estimate, Given, Kind, Layout, PAUSE, ScaleTone, Seal, Sheet, Solid, Span, Trick,
 };
-use openpaint_practice_app::{Mark, PracticeIntent, PracticePens, PracticeProjection, SheetRead};
-use support::OnSheet;
+use openpaint_practice_app::{Mark, PracticeIntent, PracticePens, SheetRead, SheetSession};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -29,7 +28,7 @@ const VIEWPORT: Viewport = Viewport {
 const NOON: u64 = 1_791_201_600;
 
 /// `record` open as a log of `others` opens it.
-fn practising(record: &Sheet, others: Vec<Sheet>) -> Session {
+fn practising(record: &Sheet, others: Vec<Sheet>) -> SheetSession {
     let size = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -38,7 +37,7 @@ fn practising(record: &Sheet, others: Vec<Sheet>) -> Session {
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
     let opening = support::opening(record, (&[], others), size);
-    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A full lesson of six lines, four combined lines and six colours, sheet `id`, seeded `seed`.
@@ -49,12 +48,12 @@ fn mixed_lesson(id: u64, seed: u64) -> Sheet {
     }
 }
 
-fn first_session() -> Session {
+fn first_session() -> SheetSession {
     practising(&mixed_lesson(1, 0x5EED_0045), Vec::new())
 }
 
 /// A pen stroke through `points` (canvas pixels).
-fn draw(session: &mut Session, points: &[[f32; 2]]) {
+fn draw(session: &mut SheetSession, points: &[[f32; 2]]) {
     let sample = |index: usize| InputSample {
         position: points[index],
         pressure: 0.6,
@@ -81,15 +80,15 @@ fn draw(session: &mut Session, points: &[[f32; 2]]) {
     }
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, NOON + 600).expect("practised");
 }
 
 #[test]
 fn a_sheet_s_time_runs_on_its_uses_and_reaches_the_store_at_least_once_a_minute() {
     let mut session = first_session();
-    session.sheet().practised(NOON);
-    let saved = session.sheet().save_request().expect("a span began");
+    session.sheet_mut().practised(NOON);
+    let saved = session.sheet_mut().save_request().expect("a span began");
     assert_eq!(
         saved.spans,
         [Span {
@@ -98,11 +97,11 @@ fn a_sheet_s_time_runs_on_its_uses_and_reaches_the_store_at_least_once_a_minute(
         }]
     );
     for second in 1..60 {
-        session.sheet().practised(NOON + second);
-        assert_eq!(session.sheet().save_request(), None, "{second} s");
+        session.sheet_mut().practised(NOON + second);
+        assert_eq!(session.sheet_mut().save_request(), None, "{second} s");
     }
-    session.sheet().practised(NOON + 60);
-    let saved = session.sheet().save_request().expect("a minute");
+    session.sheet_mut().practised(NOON + 60);
+    let saved = session.sheet_mut().save_request().expect("a minute");
     assert_eq!(
         saved.spans,
         [Span {
@@ -112,23 +111,23 @@ fn a_sheet_s_time_runs_on_its_uses_and_reaches_the_store_at_least_once_a_minute(
     );
     // Left open and untouched two hours: they count nothing.
     let back = NOON + 60 + 2 * 3600;
-    session.sheet().practised(back);
-    let saved = session.sheet().save_request().expect("a span began");
+    session.sheet_mut().practised(back);
+    let saved = session.sheet_mut().save_request().expect("a span began");
     assert_eq!(saved.spans.len(), 2);
-    session.sheet().practised(back + 30);
-    assert_eq!(session.sheet().save_request(), None, "half a minute");
+    session.sheet_mut().practised(back + 30);
+    assert_eq!(session.sheet_mut().save_request(), None, "half a minute");
     // Hidden: the time so far goes to the store, and the next use starts again.
-    session.sheet().hidden();
-    let saved = session.sheet().save_request().expect("hidden");
+    session.sheet_mut().hidden();
+    let saved = session.sheet_mut().save_request().expect("hidden");
     assert_eq!(openpaint_practice::seconds(&saved.spans), 60 + 30);
     let seconds = saved.laid(0).map(|laid| laid.seconds);
     assert_eq!(seconds, Some(60 + 30), "the exercise in hand's");
-    session.sheet().practised(back + 30 + PAUSE / 2);
-    let saved = session.sheet().save_request().expect("a span began");
+    session.sheet_mut().practised(back + 30 + PAUSE / 2);
+    let saved = session.sheet_mut().save_request().expect("a span began");
     assert_eq!(saved.spans.len(), 3);
     assert_eq!(openpaint_practice::seconds(&saved.spans), 60 + 30);
-    session.sheet().flush();
-    assert_eq!(session.sheet().save_request(), None, "nothing new");
+    session.sheet_mut().flush();
+    assert_eq!(session.sheet_mut().save_request(), None, "nothing new");
 }
 
 #[test]
@@ -144,11 +143,11 @@ fn a_finished_lesson_s_end_stamps_the_seal_it_earned() {
     let count = record.exercises().count();
     let mut session = practising(&record, before);
     for _ in 0..count {
-        let end = PracticeProjection::of(&session).and_then(|p| p.end);
+        let end = session.projection().end;
         assert_eq!(end, None, "not done yet");
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    let end = PracticeProjection::of(&session).and_then(|p| p.end);
+    let end = session.projection().end;
     let end = end.expect("the lesson's end");
     assert_eq!(end.sealed, [Seal::TenLessons]);
     assert!(end.next.is_some(), "the lesson One more starts");
@@ -157,7 +156,7 @@ fn a_finished_lesson_s_end_stamps_the_seal_it_earned() {
 #[test]
 fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     let mut session = first_session();
-    let pairs = (PracticeProjection::of(&session).expect("sheet").sheet.pairs).clone();
+    let pairs = (session.projection().sheet.pairs).clone();
     let at = |frame: usize, [x, y]: [f64; 2]| {
         let copy = pairs[frame].copy;
         copy.to_canvas([x, y]).map(|v| v as f32)
@@ -177,9 +176,9 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     practise(&mut session, PracticeIntent::Compare(true));
     let later = Color::rgb(0.1, 0.2, 0.8).expect("colour");
     practise(&mut session, PracticeIntent::Fill(later));
-    let record = session.sheet().save_request().expect("the record");
+    let record = session.sheet_mut().save_request().expect("the record");
     let printed = Given::of_sheet(&record, &[]);
-    let read = SheetRead::of(session.artwork(), &record, &printed);
+    let read = SheetRead::of(session.session().artwork(), &record, &printed);
     assert_eq!(
         read.size,
         Layout::of(&vec![None; record.exercises().count()]).size
@@ -188,7 +187,7 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     // A kind built in one frame shows that one (S97).
     let mut scaled = record.clone();
     scaled.laid_mut(3).expect("an exercise").exercise.kind = Kind::Scale(ScaleTone::Grey, 9);
-    let one_less = SheetRead::of(session.artwork(), &scaled, &printed)
+    let one_less = SheetRead::of(session.session().artwork(), &scaled, &printed)
         .frames
         .len();
     assert_eq!(one_less, 2 * record.exercises().count() - 1);
@@ -196,7 +195,7 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     scaled.laid_mut(4).expect("an exercise").exercise.kind = Kind::Space(Trick::Centre);
     scaled.laid_mut(5).expect("an exercise").exercise.kind = Kind::Solid(Solid::Cone);
     scaled.laid_mut(6).expect("an exercise").exercise.kind = Kind::Flat(Estimate::Point);
-    let alike = SheetRead::of(session.artwork(), &scaled, &printed)
+    let alike = SheetRead::of(session.session().artwork(), &scaled, &printed)
         .frames
         .len();
     assert_eq!(alike, 2 * record.exercises().count() - 3);

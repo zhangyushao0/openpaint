@@ -11,8 +11,8 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StreamLine,
-    StrokeIntent, Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StreamLine, StrokeIntent,
+    Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -20,9 +20,8 @@ use openpaint_practice::{
     Pair, Purity, Tone, value,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, PracticeProjection,
+    Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, SheetSession,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -42,17 +41,17 @@ fn pens() -> PracticePens {
     PracticePens::built_in().expect("pens")
 }
 
-fn practising() -> Session {
+fn practising() -> SheetSession {
     let record = support::laid(mixed::mixed(0x5EED_0045), 1_791_201_600);
     let [width, height] = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
     let opening = support::opening(&record, (&[], Vec::new()), [width, height]);
-    openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
+    SheetSession::open(sheet, tools, opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.
-fn draw(session: &mut Session, points: &[[f32; 2]]) {
+fn draw(session: &mut SheetSession, points: &[[f32; 2]]) {
     let sample = |index: usize| InputSample {
         position: points[index],
         pressure: 0.6,
@@ -80,8 +79,8 @@ fn draw(session: &mut Session, points: &[[f32; 2]]) {
 }
 
 /// Every stroke's id and colour, oldest first.
-fn strokes(session: &Session) -> Vec<(u64, Color)> {
-    let artwork = session.artwork();
+fn strokes(session: &SheetSession) -> Vec<(u64, Color)> {
+    let artwork = session.session().artwork();
     let mut all: Vec<(u64, Color)> = (artwork.layers().iter())
         .flat_map(|l| l.strokes().iter())
         .map(|s| (s.id().get(), s.style().color()))
@@ -90,14 +89,14 @@ fn strokes(session: &Session) -> Vec<(u64, Color)> {
     all
 }
 
-fn notice(session: &Session) -> Option<PracticeNotice> {
-    PracticeProjection::of(session).and_then(|p| p.notice)
+fn notice(session: &SheetSession) -> Option<PracticeNotice> {
+    session.projection().notice
 }
 
 /// Where `point` (canvas pixels) shows now.
-fn on_screen(session: &Session, point: [f64; 2]) -> [f32; 2] {
-    let canvas = session.artwork().canvas();
-    let mapping = session.view().mapping(canvas, &VIEWPORT);
+fn on_screen(session: &SheetSession, point: [f64; 2]) -> [f32; 2] {
+    let canvas = session.session().artwork().canvas();
+    let mapping = session.session().view().mapping(canvas, &VIEWPORT);
     mapping.to_screen(point.map(|v| v as f32))
 }
 
@@ -105,21 +104,21 @@ fn close(a: [f32; 2], b: [f32; 2], within: f32) -> bool {
     (a[0] - b[0]).abs() < within && (a[1] - b[1]).abs() < within
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_201_700).expect("practised");
     fit(session);
 }
 
 /// The aligned fit asked for, found as the runtime's worker finds it.
-fn fit(session: &mut Session) {
-    if let Some(job) = session.sheet().fit_request() {
-        session.sheet().fitted(job.sequence, job.run());
+fn fit(session: &mut SheetSession) {
+    if let Some(job) = session.sheet_mut().fit_request() {
+        session.sheet_mut().fitted(job.sequence, job.run());
     }
 }
 
 /// The overlay's line laid over the copy (canvas pixels), while it shows.
-fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
-    let practice = PracticeProjection::of(session)?;
+fn overlay(session: &SheetSession) -> Option<Vec<[f32; 2]>> {
+    let practice = session.projection();
     let frame = practice.sheet.pairs[practice.current?].copy;
     let canvas = |p: &[f64; 2]| frame.to_canvas(*p).map(|v| v as f32);
     practice
@@ -135,9 +134,9 @@ fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
 /// A sheet whose first line was copied, moved 30 px right and drawn smaller about its frame's
 /// middle, with StreamLine asked for and not used: the session, the line's frames, the original
 /// line (frame units) and the copy's points (canvas pixels).
-fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
+fn copied() -> (SheetSession, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     let mut session = practising();
-    let practice = PracticeProjection::of(&session).expect("a practice sheet");
+    let practice = session.projection();
     let (pair, original) = (
         practice.sheet.pairs[0],
         (practice.original.as_deref()).and_then(|o| o.lines().map(<[_]>::to_vec)),
@@ -153,7 +152,9 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     assert!(session.practise(PracticeIntent::Compare(true), 1).is_err());
     // The copy: the original moved 30 px right and drawn smaller about its frame's middle;
     // StreamLine asked for and not used.
-    session.set_streamline(StreamLine::new(1.0).expect("streamline"));
+    session
+        .session_mut()
+        .set_streamline(StreamLine::new(1.0).expect("streamline"));
     let Some(mut lines) = original else {
         panic!("a line first")
     };
@@ -178,7 +179,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
         None,
         "a stroke that begins lets the refusal go"
     );
-    let artwork = session.artwork();
+    let artwork = session.session().artwork();
     let layer = artwork.layer(artwork.active()).expect("layer");
     let stroke = layer.strokes().iter().next().expect("stroke");
     let drawn: Vec<[f32; 2]> = (stroke.samples().iter())
@@ -192,7 +193,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
 fn a_line_is_compared_in_place_and_aligned_and_its_pen_turns_blue() {
     let (mut session, pair, line, copy) = copied();
     practise(&mut session, PracticeIntent::Compare(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     let result = record.first(0).expect("compared");
     let (compares, judged) = (record.laid(0)).map_or((0, None), |l| (l.compares, l.result));
     let kept = (compares, result.metrics.len(), judged);
@@ -212,9 +213,8 @@ fn a_line_is_compared_in_place_and_aligned_and_its_pen_turns_blue() {
         copy[0]
     );
     assert!(close(aligned[480], copy[copy.len() - 1], 1.0));
-    let projection = PracticeProjection::of(&session);
     assert_eq!(
-        projection.as_ref().and_then(|p| p.pen).map(|p| p.0),
+        session.projection().pen.map(|p| p.0),
         Some(Pen::Correct),
         "the pen turned blue"
     );
@@ -225,17 +225,17 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     let (mut session, _, _, copy) = copied();
     practise(&mut session, PracticeIntent::Compare(true));
     practise(&mut session, PracticeIntent::Aligned(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     let first_correction = record.first(0).and_then(|r| r.corrected_from);
     // Drawing in the frame takes the comparison away and is a correction, in blue.
     draw(&mut session, &copy[..20]);
     assert!(overlay(&session).is_none(), "corrected by eye");
     let (id, colour) = strokes(&session)[1];
     assert_eq!(colour, pens().style(Pen::Correct).color());
-    let record = session.sheet().save_request();
+    let record = session.sheet_mut().save_request();
     assert!(record.is_none(), "a stroke changes no record");
     practise(&mut session, PracticeIntent::Compare(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(
@@ -244,10 +244,10 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     );
     assert!(result.corrects(id) && !result.corrects(strokes(&session)[0].0));
     assert!(overlay(&session).is_some(), "compared again, still aligned");
-    let zoom = session.view().zoom();
+    let zoom = session.session().view().zoom();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    assert_eq!(session.view().zoom(), zoom, "the zoom kept");
-    let practice = PracticeProjection::of(&session).expect("a practice sheet");
+    assert_eq!(session.session().view().zoom(), zoom, "the zoom kept");
+    let practice = session.projection();
     let place = practice.lesson.map(|lesson| lesson.place);
     assert_eq!((practice.current, place), (Some(1), Some((2, 6))));
     assert_eq!(
@@ -265,10 +265,7 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
 #[test]
 fn the_sketch_pen_and_the_full_interface_draw_their_own_way() {
     let mut session = practising();
-    let pair = PracticeProjection::of(&session)
-        .expect("a sheet")
-        .sheet
-        .pairs[0];
+    let pair = session.projection().sheet.pairs[0];
     let at = pair.copy.to_canvas([0.5, 0.5]).map(|v| v as f32);
     assert!(
         session
@@ -279,7 +276,7 @@ fn the_sketch_pen_and_the_full_interface_draw_their_own_way() {
     practise(&mut session, PracticeIntent::Pen(Pen::Sketch));
     draw(&mut session, &[at, [at[0] + 40.0, at[1]]]);
     practise(&mut session, PracticeIntent::AllTools(true));
-    assert_eq!(PracticeProjection::of(&session).and_then(|p| p.pen), None);
+    assert_eq!(session.projection().pen, None);
     draw(&mut session, &[at, [at[0], at[1] + 40.0]]);
     practise(&mut session, PracticeIntent::AllTools(false));
     draw(&mut session, &[at, [at[0] - 40.0, at[1]]]);
@@ -302,7 +299,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
     for _ in 0..10 {
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    let practice = PracticeProjection::of(&session).expect("a practice sheet");
+    let practice = session.projection();
     let muted = Kind::Colour(Tone {
         purity: Purity::Muted,
         lightness: Lightness::Middle,
@@ -316,7 +313,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
         panic!("a colour")
     };
     let middle = pair.original.to_canvas([0.5, 0.5]).map(|v| v as f32);
-    assert_eq!(session.sheet().pick(middle), PracticePick::Refused);
+    assert_eq!(session.sheet_mut().pick(middle), PracticePick::Refused);
     assert_eq!(notice(&session), Some(PracticeNotice::PickAfterCompare));
     let colour = |[r, g, b]: [u8; 3]| {
         let c = |v: u8| f32::from(v) / 255.0;
@@ -326,7 +323,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
         practise(&mut session, PracticeIntent::Fill(laid));
     }
     practise(&mut session, PracticeIntent::Compare(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     let metrics = &record.first(10).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::Corrections), Some(1.0));
     assert_eq!(value(metrics, Metric::FinalDelta), Some(0.0));
@@ -334,7 +331,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
     assert_eq!(judged, Some((Outcome::Clean, Judge::App)), "clean");
     assert!(value(metrics, Metric::FirstDelta).expect("first") > 0.1);
     assert_eq!(
-        session.sheet().pick(middle),
+        session.sheet_mut().pick(middle),
         PracticePick::Colour(colour(swatch))
     );
     filled_again(&mut session, metrics);
@@ -346,15 +343,15 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
 
 /// The colour shown, compared with `metrics`, filled again: the comparison goes, and Compare
 /// again shows the copy as it is now with the numbers as they were.
-fn filled_again(session: &mut Session, metrics: &Metrics) {
+fn filled_again(session: &mut SheetSession, metrics: &Metrics) {
     practise(session, PracticeIntent::Fill(Color::WHITE));
-    let taken = PracticeProjection::of(session).map(|p| p.overlay.is_none());
+    let taken = Some(session.projection().overlay.is_none());
     assert_eq!(taken, Some(true));
     practise(session, PracticeIntent::Compare(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     assert_eq!(&record.first(10).expect("compared").metrics, metrics);
-    let projection = PracticeProjection::of(session);
-    let compared = (projection.as_ref()).and_then(|p| p.compared.as_ref());
+    let projection = session.projection();
+    let compared = projection.compared.as_ref();
     let Some(ColourCompared { last, .. }) = compared.and_then(|c| c.downcast()) else {
         panic!("the colours compared");
     };
@@ -364,13 +361,13 @@ fn filled_again(session: &mut Session, metrics: &Metrics) {
 /// `session`, its eleventh exercise compared, taken past its last: the end shows each exercise's
 /// result (the colour's the app's, the rest none), One more is offered and the pen draws nowhere
 /// (`at`: a place it lands).
-fn finished(session: &mut Session, at: [f32; 2]) {
+fn finished(session: &mut SheetSession, at: [f32; 2]) {
     let more = PracticeIntent::OneMore(VIEWPORT);
     assert!(session.practise(more, 30).is_err(), "not done yet");
     for _ in 10..16 {
         practise(session, PracticeIntent::Next(VIEWPORT));
     }
-    let practice = PracticeProjection::of(session).expect("a practice sheet");
+    let practice = session.projection();
     assert_eq!(practice.current, None);
     let end = practice.end.as_ref().expect("the end");
     let judged: Vec<(usize, Option<Outcome>)> = (0..16)
@@ -386,7 +383,7 @@ fn finished(session: &mut Session, at: [f32; 2]) {
     );
     assert!(
         session
-            .sheet()
+            .sheet_mut()
             .save_request()
             .and_then(|r| r.finished())
             .is_some()

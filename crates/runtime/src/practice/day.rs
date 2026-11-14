@@ -7,7 +7,7 @@
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Viewport};
 use openpaint_practice::{Givens, Layout, Lesson, Sheet};
-use openpaint_practice_app::{PracticeLog, PracticeProjection, Start, append_lesson};
+use openpaint_practice_app::{PracticeLog, SheetSession, Start};
 use openpaint_practice_store::{Packs, append};
 use openpaint_store::DisplayCache;
 
@@ -109,8 +109,10 @@ pub(crate) fn one_more(
         return false;
     };
     let givens = Givens::of_lesson(&lesson, log.packs());
-    let session = canvas.session_mut();
-    let Some((sheet, givens)) = append_lesson(session, (lesson, givens), log, viewport) else {
+    let Some(open) = canvas.sheet_mut() else {
+        return false;
+    };
+    let Some((sheet, givens)) = open.append_lesson((lesson, givens), log, viewport) else {
         return false;
     };
     log::info!(
@@ -141,15 +143,15 @@ pub(crate) fn appended(
             log.keep(kept);
         }
     }
-    if let Some(canvas) = canvas {
-        openpaint_practice_app::append_stored(canvas.session_mut(), id, result.is_ok());
+    if let Some(open) = canvas.and_then(Canvas::sheet_mut) {
+        open.append_stored(id, result.is_ok());
     }
 }
 
 /// The lesson One more starts from `canvas`'s sheet: what its end names (`End::next`, a skill of
 /// a unit ahead of the learner's again), the next lesson where it names none.
 pub(crate) fn named(canvas: &Canvas) -> Start {
-    (PracticeProjection::of(canvas.session()))
+    (canvas.sheet().map(SheetSession::projection))
         .and_then(|shown| shown.end?.next)
         .map_or(Start::Next, |offer| Start::Skill(offer.skill))
 }

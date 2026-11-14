@@ -9,16 +9,15 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Combination, Exercise, Figure, First, Kind, Layout, Lesson, LinePen, Picked, Planned, Purpose,
     Sheet, SkillLevel,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
-use support::OnSheet;
+use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, SheetSession};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -31,7 +30,7 @@ fn pens() -> PracticePens {
 }
 
 /// The full lesson after a first that compared a line and a colour.
-fn second() -> Session {
+fn second() -> SheetSession {
     after_first(true)
 }
 
@@ -52,7 +51,7 @@ fn full_lesson() -> Sheet {
 }
 
 /// The full lesson after a first that compared a line and a colour, finished or still open.
-fn after_first(finished: bool) -> Session {
+fn after_first(finished: bool) -> SheetSession {
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
     let brush =
@@ -70,11 +69,11 @@ fn after_first(finished: bool) -> Session {
     let size = Layout::of(&vec![None; record.exercises().count()]).size;
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let opening = support::opening(&record, (&[], vec![first]), size);
-    openpaint_practice_app::open_sheet(sheet, (brush, pens()), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens()), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.
-fn draw(session: &mut Session, points: &[[f32; 2]]) {
+fn draw(session: &mut SheetSession, points: &[[f32; 2]]) {
     let sample = |index: usize| InputSample {
         position: points[index],
         pressure: 0.6,
@@ -100,16 +99,16 @@ fn draw(session: &mut Session, points: &[[f32; 2]]) {
     }
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_290_100).expect("practised");
-    if let Some(job) = session.sheet().fit_request() {
-        session.sheet().fitted(job.sequence, job.run());
+    if let Some(job) = session.sheet_mut().fit_request() {
+        session.sheet_mut().fitted(job.sequence, job.run());
     }
 }
 
 /// The shown exercise's kind, whether it warms up, its place and the How shown.
-fn shown(session: &Session) -> (Option<Kind>, bool, (usize, usize), Option<Kind>) {
-    let p = PracticeProjection::of(session).expect("a practice sheet");
+fn shown(session: &SheetSession) -> (Option<Kind>, bool, (usize, usize), Option<Kind>) {
+    let p = session.projection();
     let lesson = p.lesson.expect("the lesson in hand");
     (p.kind, lesson.warming_up, lesson.place, p.how)
 }
@@ -120,8 +119,8 @@ fn first_kind(index: usize) -> Option<Kind> {
 }
 
 /// The original's lines laid over the copy (canvas pixels), while they show.
-fn laid(session: &Session) -> Option<Vec<Vec<[f32; 2]>>> {
-    let practice = PracticeProjection::of(session)?;
+fn laid(session: &SheetSession) -> Option<Vec<Vec<[f32; 2]>>> {
+    let practice = session.projection();
     let frame = practice.sheet.pairs[practice.current?].copy;
     let lines: Vec<Vec<[f32; 2]>> = (practice.overlay.as_ref()?.iter())
         .filter_map(|mark| match &mark.drawn {
@@ -163,7 +162,7 @@ fn a_full_lesson_warms_up_then_meets_combined_lines_with_their_how() {
     let joined = Some(Kind::Combined(Combination::Joined));
     let group = (joined, false, (1, 4), joined);
     assert_eq!(shown(&session), group, "their How by itself");
-    let pen = PracticeProjection::of(&session).and_then(|p| p.pen);
+    let pen = session.projection().pen;
     assert_eq!(
         pen.map(|(pen, _)| pen),
         Some(Pen::Draw),
@@ -187,15 +186,10 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
     for _ in 0..10 {
         practise(&mut session, PracticeIntent::Next(VIEWPORT));
     }
-    let practice = PracticeProjection::of(&session).expect("a practice sheet");
+    let practice = session.projection();
     let pair = practice.sheet.pairs[10];
-    let Some(lines) = practice
-        .original
-        .as_deref()
-        .expect("in hand")
-        .lines()
-        .map(<[_]>::to_vec)
-    else {
+    let original = practice.original.as_deref().expect("in hand");
+    let Some(lines) = original.lines().map(<[_]>::to_vec) else {
         panic!("combined lines")
     };
     assert!(lines.len() >= 2);
@@ -235,13 +229,16 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
         assert!(close(*first, copy[0], 1.5), "{first:?} {:?}", copy[0]);
         assert!(close(*last, copy[copy.len() - 1], 1.5));
     }
-    let pen = PracticeProjection::of(&session).and_then(|p| p.pen);
+    let pen = session.projection().pen;
     assert_eq!(pen.map(|(pen, _)| pen), Some(Pen::Correct), "blue now");
     // A correction takes the comparison away; Compare again counts.
     draw(&mut session, &copies[0][..10]);
     assert!(laid(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session
+        .sheet_mut()
+        .save_request()
+        .expect("the record changed");
     assert_eq!(record.laid(10).map(|l| l.compares), Some(2));
     assert_eq!(record.lesson().map(Lesson::warm_up), Some(4));
 }

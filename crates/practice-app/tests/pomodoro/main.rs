@@ -8,16 +8,15 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Title, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Exercise, Given, Kind, LineTier, Picked, Planned, Purpose, Sheet, SkillLevel, local_day,
 };
 use openpaint_practice_app::{
-    BlockShown, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, PracticeSheet,
-    open_sheet, practise,
+    BlockShown, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession,
 };
 
 mod away;
@@ -67,7 +66,7 @@ fn six_lines(log: &PracticeLog, (started, canvas): (u64, u64), purpose: Purpose)
 }
 
 /// `record` open on a canvas of `size` as `log` opens it.
-fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> Session {
+fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> SheetSession {
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
@@ -76,22 +75,19 @@ fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> Session {
     let pens = PracticePens::built_in().expect("pens");
     let printed = Given::of_sheet(record, &[]);
     let opening = log.practising(record, &printed, (size, &Title::untitled()));
-    open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
-fn shown(session: &Session) -> PracticeProjection {
-    PracticeProjection::of(session).expect("a sheet")
+fn shown(session: &SheetSession) -> PracticeProjection {
+    session.projection()
 }
 
-fn record_of(session: &Session) -> Sheet {
-    PracticeSheet::of(session)
-        .expect("a sheet")
-        .record()
-        .clone()
+fn record_of(session: &SheetSession) -> Sheet {
+    session.sheet().record().clone()
 }
 
 /// A pen stroke across the shown exercise's copy frame: the exercise begun.
-fn drawn(session: &mut Session) {
+fn drawn(session: &mut SheetSession) {
     let practice = shown(session);
     let frame = practice.sheet.pairs[practice.current.expect("shown")].copy;
     let at = |x: f64| frame.to_canvas([x, 0.5]).map(|v| v as f32);
@@ -119,8 +115,10 @@ fn drawn(session: &mut Session) {
 }
 
 /// Next at `now`.
-fn next(session: &mut Session, now: u64) {
-    practise(session, PracticeIntent::Next(VIEWPORT), now).expect("next");
+fn next(session: &mut SheetSession, now: u64) {
+    session
+        .practise(PracticeIntent::Next(VIEWPORT), now)
+        .expect("next");
 }
 
 /// The block as the frame shows it: the minutes left and whether paused, while it runs.

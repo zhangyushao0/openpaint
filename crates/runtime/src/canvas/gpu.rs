@@ -68,15 +68,16 @@ impl Canvas {
             vec![PixelRect::full(self.target.size())]
         };
         if let Some(before) = self.changed_from.take() {
-            regions.extend(changed_regions(&before, self.session.shown()));
+            regions.extend(changed_regions(&before, self.work.session().shown()));
         }
-        let request = request(&self.session);
+        let request = request(self.work.session());
         if frame {
             self.target.draw_frame(core, &request, &regions)?;
         } else {
             self.target.draw(core, &request, &regions)?;
         }
-        self.target.show_selection(core, self.session.selection());
+        self.target
+            .show_selection(core, self.work.session().selection());
         self.evaluated = true;
         self.filled(core);
         Ok(())
@@ -107,7 +108,7 @@ impl Canvas {
 
     /// A stroke is being drawn (the pen is on the glass).
     pub(crate) fn drawing(&self) -> bool {
-        self.session.active().is_some()
+        self.work.session().active().is_some()
     }
 
     /// Counts a frame of the canvas filling in after it opened, and logs the time, the frames
@@ -146,7 +147,7 @@ impl Canvas {
         core: &Core,
         (frame, now): (&ViewFrame, f64),
     ) -> Result<(), RuntimeError> {
-        let request = request(&self.session);
+        let request = request(self.work.session());
         self.view_pending = self
             .view
             .update(core, &mut self.target, &request, (frame, now))?
@@ -267,12 +268,17 @@ impl Canvas {
     /// The canvas shows a preview over the current version (a stroke's mirrored copies, a
     /// transform, an adjustment, a fill being placed): it evaluates from its snapshot.
     pub(crate) fn previewing(&self) -> bool {
-        !self.session.shown().same_version(self.session.artwork())
+        !self
+            .work
+            .session()
+            .shown()
+            .same_version(self.work.session().artwork())
     }
 
     /// A smudge is being drawn: it works in the arena's material.
     pub(crate) fn smudging(&self) -> bool {
-        self.session
+        self.work
+            .session()
             .active()
             .is_some_and(|active| active.style().tool() == StrokeTool::Smudge)
     }

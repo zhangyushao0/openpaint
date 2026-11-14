@@ -9,8 +9,8 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -18,9 +18,8 @@ use openpaint_practice::{
     ShapeCompared, Tier,
 };
 use openpaint_practice_app::{
-    GROUND_SHOWN, PictureImage, PracticeIntent, PracticePens, PracticeProjection,
+    GROUND_SHOWN, PictureImage, PracticeIntent, PracticePens, PracticeProjection, SheetSession,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -59,7 +58,7 @@ fn pack() -> Pack {
     }
 }
 
-fn opened(picture: &str) -> Session {
+fn opened(picture: &str) -> SheetSession {
     let packs = [pack()];
     let exercise = Exercise {
         picture: Some(ItemRef {
@@ -77,21 +76,21 @@ fn opened(picture: &str) -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let mut session = openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT);
+    let mut session = SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, NOW).expect("practised");
 }
 
-fn practice(session: &Session) -> PracticeProjection {
-    PracticeProjection::of(session).expect("a sheet")
+fn practice(session: &SheetSession) -> PracticeProjection {
+    session.projection()
 }
 
 /// A pen stroke through `points` (canvas pixels).
-fn draw(session: &mut Session, points: &[[f32; 2]]) {
+fn draw(session: &mut SheetSession, points: &[[f32; 2]]) {
     let sample = |index: usize| InputSample {
         position: points[index],
         pressure: 0.8,
@@ -119,16 +118,16 @@ fn draw(session: &mut Session, points: &[[f32; 2]]) {
 }
 
 /// The picture read for the screen at half its size, one colour all over.
-fn read_picture(session: &mut Session) -> PictureImage {
+fn read_picture(session: &mut SheetSession) -> PictureImage {
     let item = session
-        .sheet()
+        .sheet_mut()
         .picture_request()
         .expect("its picture asked for");
     let image = PictureImage {
         size: [150, 200],
         pixels: [90, 120, 60, 255].repeat(150 * 200),
     };
-    session.sheet().picture_read(item, Some(image.clone()));
+    session.sheet_mut().picture_read(item, Some(image.clone()));
     image
 }
 

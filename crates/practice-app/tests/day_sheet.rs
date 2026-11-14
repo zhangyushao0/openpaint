@@ -10,8 +10,8 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, CanvasView, Fitted, Intent, MAX_ZOOM, Session, Title, Toolbox, ViewGesture,
-    ViewIntent, Viewport,
+    BrushLibrary, CanvasView, Fitted, Intent, MAX_ZOOM, Title, Toolbox, ViewGesture, ViewIntent,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -19,8 +19,7 @@ use openpaint_practice::{
     Skill, SkillLevel,
 };
 use openpaint_practice_app::{
-    PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticeProjection, PracticeSheet,
-    append_lesson, append_stored, open_sheet, practise,
+    PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticeProjection, SheetSession,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -55,7 +54,7 @@ fn six_lines(log: &PracticeLog, started: u64, canvas: u64) -> Sheet {
 }
 
 /// `record` open on a canvas of `size` as `log` opens it.
-fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> Session {
+fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> SheetSession {
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library).style().expect("style");
@@ -64,24 +63,23 @@ fn practising(record: &Sheet, size: [u32; 2], log: &PracticeLog) -> Session {
     let pens = PracticePens::built_in().expect("pens");
     let printed = Given::of_sheet(record, &[]);
     let opening = log.practising(record, &printed, (size, &Title::untitled()));
-    open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
-fn shown(session: &Session) -> PracticeProjection {
-    PracticeProjection::of(session).expect("a sheet")
+fn shown(session: &SheetSession) -> PracticeProjection {
+    session.projection()
 }
 
-fn record_of(session: &Session) -> Sheet {
-    PracticeSheet::of(session)
-        .expect("a sheet")
-        .record()
-        .clone()
+fn record_of(session: &SheetSession) -> Sheet {
+    session.sheet().record().clone()
 }
 
 /// Next until the lesson in hand is done.
-fn finish(session: &mut Session) {
+fn finish(session: &mut SheetSession) {
     while shown(session).current.is_some() {
-        practise(session, PracticeIntent::Next(VIEWPORT), NOON + 300).expect("next");
+        session
+            .practise(PracticeIntent::Next(VIEWPORT), NOON + 300)
+            .expect("next");
     }
 }
 
@@ -106,9 +104,9 @@ fn pinch(zoom: f32) -> Intent {
 }
 
 /// Where `session`'s view shows canvas point `point`, in screen pixels.
-fn on_screen(session: &Session, point: [f64; 2]) -> [f32; 2] {
-    let canvas = session.artwork().canvas();
-    let mapping = session.view().mapping(canvas, &VIEWPORT);
+fn on_screen(session: &SheetSession, point: [f64; 2]) -> [f32; 2] {
+    let canvas = session.session().artwork().canvas();
+    let mapping = session.session().view().mapping(canvas, &VIEWPORT);
     mapping.to_screen(point.map(|v| v as f32))
 }
 
@@ -153,24 +151,27 @@ fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
     let mut log = log_of(vec![drill.clone()], NOON + 600);
     let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
     assert_eq!(
-        session.artwork().canvas().height(),
+        session.session().artwork().canvas().height(),
         6280,
         "twelve rows laid ahead"
     );
-    practise(&mut session, PracticeIntent::Instructions(false), NOON).expect("closed");
+    session
+        .practise(PracticeIntent::Instructions(false), NOON)
+        .expect("closed");
     session.dispatch(pinch(1.5)).expect("pinch");
-    let zoom = session.view().zoom();
+    let zoom = session.session().view().zoom();
     finish(&mut session);
     log.keep(record_of(&session));
-    let finished_view = session.view();
+    let finished_view = session.session().view();
     assert_eq!(
         finished_view.fits().map(|f| f.size),
         Some([2920, 1080]),
         "the finish fits the two rows used"
     );
     let (lesson, givens) = next_lesson(&log);
-    let (record, moved) =
-        append_lesson(&mut session, (lesson, givens), &log, &VIEWPORT).expect("in place");
+    let (record, moved) = session
+        .append_lesson((lesson, givens), &log, &VIEWPORT)
+        .expect("in place");
     assert_eq!(record.lessons.len(), 2);
     assert_eq!(record.lessons[1].exercises[0].slot, 6, "from the third row");
     assert_eq!(moved.slots[0].0, 6);
@@ -188,18 +189,22 @@ fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
         (6, 2, Some(lines))
     );
     assert_eq!(lesson.row, labelled);
-    let view = session.view();
+    let view = session.session().view();
     assert!((view.zoom() - zoom).abs() < 1e-6, "the zoom before Finish");
     assert_eq!(view.fits(), Some(row(6)));
     let pair = practice.sheet.pairs[6];
     assert!(close(on_screen(&session, pair.centre()), [1076.0, 942.0]));
     // Undo reaches only the exercise shown; the record waits for the store.
-    assert_eq!(session.history().undo_steps(), 0);
-    let sheet = PracticeSheet::of_mut(&mut session).expect("a sheet");
+    assert_eq!(session.session().history().undo_steps(), 0);
+    let sheet = session.sheet_mut();
     assert_eq!(sheet.save_request(), None, "held until the store answers");
-    assert!(practise(&mut session, PracticeIntent::OneMore(VIEWPORT), NOON).is_err());
-    append_stored(&mut session, record.id, true);
-    let saved = PracticeSheet::of_mut(&mut session).and_then(PracticeSheet::save_request);
+    assert!(
+        session
+            .practise(PracticeIntent::OneMore(VIEWPORT), NOON)
+            .is_err()
+    );
+    session.append_stored(record.id, true);
+    let saved = session.sheet_mut().save_request();
     assert_eq!(saved.map(|s| s.lessons.len()), Some(2));
 }
 
@@ -211,20 +216,25 @@ fn a_failed_write_rolls_the_lesson_back_with_the_failed_save_s_notice() {
     let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
     finish(&mut session);
     log.keep(record_of(&session));
-    let finished_view = session.view();
+    let finished_view = session.session().view();
     let ended = shown(&session).end.expect("the first lesson's end");
-    let (record, _) =
-        append_lesson(&mut session, next_lesson(&log), &log, &VIEWPORT).expect("in place");
+    let (record, _) = session
+        .append_lesson(next_lesson(&log), &log, &VIEWPORT)
+        .expect("in place");
     assert!(shown(&session).end.is_none(), "the next lesson in hand");
-    append_stored(&mut session, record.id, false);
+    session.append_stored(record.id, false);
     let practice = shown(&session);
     assert_eq!(practice.current, None);
     assert_eq!(practice.end, Some(ended), "its end as it was");
     assert_eq!(practice.sheet.rows.len(), 1);
     assert_eq!(practice.notice, Some(PracticeNotice::NotSaved));
     assert_eq!(practice.sheet.pairs.len(), 6);
-    assert_eq!(session.view(), finished_view, "the view as before One more");
-    let saved = PracticeSheet::of_mut(&mut session).and_then(PracticeSheet::save_request);
+    assert_eq!(
+        session.session().view(),
+        finished_view,
+        "the view as before One more"
+    );
+    let saved = session.sheet_mut().save_request();
     assert_eq!(saved.map(|s| s.lessons.len()), Some(1));
 }
 
@@ -236,12 +246,18 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
     // A sheet from before: its canvas holds only the rows it uses.
     let mut old = practising(&drill, Layout::used(&drill), &log);
     finish(&mut old);
-    assert!(append_lesson(&mut old, next_lesson(&log), &log, &VIEWPORT).is_none());
+    assert!(
+        old.append_lesson(next_lesson(&log), &log, &VIEWPORT)
+            .is_none()
+    );
     // Yesterday's: One more after midnight starts a new sheet.
     let tomorrow = log_of(vec![drill.clone()], NOON + DAY);
     let mut late = practising(&drill, Layout::laid_ahead(&drill), &tomorrow);
     finish(&mut late);
-    assert!(append_lesson(&mut late, next_lesson(&tomorrow), &tomorrow, &VIEWPORT).is_none());
+    assert!(
+        late.append_lesson(next_lesson(&tomorrow), &tomorrow, &VIEWPORT)
+            .is_none()
+    );
     // Six drills of two rows fill the twelve: a seventh does not fit.
     let mut full = drill.clone();
     for _ in 1..6 {
@@ -253,7 +269,11 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
     assert_eq!(Layout::next_slot(&full), 36);
     let mut filled = practising(&full, Layout::laid_ahead(&drill), &log);
     finish(&mut filled);
-    assert!(append_lesson(&mut filled, next_lesson(&log), &log, &VIEWPORT).is_none());
+    assert!(
+        filled
+            .append_lesson(next_lesson(&log), &log, &VIEWPORT)
+            .is_none()
+    );
     // A test's sheet appends a test lesson in place.
     let test = Sheet {
         purpose: Purpose::Test,
@@ -261,8 +281,8 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
     };
     let mut tested = practising(&test, Layout::laid_ahead(&test), &log);
     finish(&mut tested);
-    let (record, _) = (append_lesson(&mut tested, next_lesson(&log), &log, &VIEWPORT))
-        .expect("a test lesson in place");
+    let (record, _) =
+        (tested.append_lesson(next_lesson(&log), &log, &VIEWPORT)).expect("a test lesson in place");
     assert_eq!((record.purpose, record.lessons.len()), (Purpose::Test, 2));
 }
 
@@ -274,8 +294,10 @@ fn a_kind_s_how_told_on_a_sheet_is_not_told_again_when_the_sheet_opens_again() {
     let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
     assert!(shown(&session).how.is_some(), "the lines' How by itself");
     // Read and closed (a use of the sheet), then Home: nothing compared yet.
-    (PracticeSheet::of_mut(&mut session).expect("a sheet")).practised(NOON + 20);
-    practise(&mut session, PracticeIntent::Instructions(false), NOON + 20).expect("closed");
+    session.sheet_mut().practised(NOON + 20);
+    session
+        .practise(PracticeIntent::Instructions(false), NOON + 20)
+        .expect("closed");
     let record = record_of(&session);
     // Continue from the home, or a restart: the log holds the record as the store kept it.
     let log = log_of(vec![record.clone()], NOON + 600);
@@ -305,10 +327,11 @@ fn every_view_of_a_pair_fits_its_row_as_a_one_row_sheet_did() {
     // A sheet from before of one row: the first row exactly.
     let mut one = practising(&drill, Layout::of(&[None]).size, &log);
     let pairs = shown(&tall).sheet.pairs.clone();
-    let same =
-        |a: &Session, b: &Session, point: [f64; 2]| close(on_screen(a, point), on_screen(b, point));
+    let same = |a: &SheetSession, b: &SheetSession, point: [f64; 2]| {
+        close(on_screen(a, point), on_screen(b, point))
+    };
     assert_eq!(
-        tall.view().fits(),
+        tall.session().view().fits(),
         Some(row(0)),
         "opening on the row in hand"
     );
@@ -317,19 +340,20 @@ fn every_view_of_a_pair_fits_its_row_as_a_one_row_sheet_did() {
     // The zoom's limits are a row's: as far in as on the one-row sheet.
     for session in [&mut tall, &mut one] {
         session.dispatch(pinch(100.0)).expect("pinch");
-        assert_eq!(session.view().zoom(), MAX_ZOOM);
+        assert_eq!(session.session().view().zoom(), MAX_ZOOM);
     }
-    let canvas = |s: &Session| s.artwork().canvas();
-    let scale = |s: &Session| s.view().mapping(canvas(s), &VIEWPORT).scale();
+    let canvas = |s: &SheetSession| s.session().artwork().canvas();
+    let scale = |s: &SheetSession| s.session().view().mapping(canvas(s), &VIEWPORT).scale();
     assert!((scale(&tall) - scale(&one)).abs() < 1e-4);
     // A quick pinch fits the row in hand.
     tall.dispatch(Intent::View(ViewIntent::Fit)).expect("fit");
-    assert_eq!(tall.view(), CanvasView::fitting(Some(row(0))));
+    assert_eq!(tall.session().view(), CanvasView::fitting(Some(row(0))));
     // Next on to the second row: the row fitted moves, the zoom kept.
     for _ in 0..3 {
-        practise(&mut tall, PracticeIntent::Next(VIEWPORT), NOON + 60).expect("next");
+        tall.practise(PracticeIntent::Next(VIEWPORT), NOON + 60)
+            .expect("next");
     }
-    assert_eq!(tall.view().fits(), Some(row(3)));
-    assert!((tall.view().zoom() - 1.0).abs() < 1e-6);
+    assert_eq!(tall.session().view().fits(), Some(row(3)));
+    assert!((tall.session().view().zoom() - 1.0).abs() < 1e-6);
     assert!(close(on_screen(&tall, pairs[3].centre()), [1076.0, 942.0]));
 }

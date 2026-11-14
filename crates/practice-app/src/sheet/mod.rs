@@ -30,7 +30,7 @@ use openpaint_app::Availability;
 use openpaint_app::CanvasView;
 
 /// A practice sheet opening, as `PracticeLog::practising` makes it (the one place one is made)
-/// and `open_sheet` takes it: its record, the sheet as the screen draws it, what its lesson in
+/// and `SheetSession::open` takes it: its record, the sheet as the screen draws it, what its lesson in
 /// hand is set beside, and the kinds whose How was told (compared or come up on any sheet, by
 /// their facts' keys: `log/path.rs`). The flow works on the lesson in hand.
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +64,6 @@ mod read;
 mod time;
 mod view;
 
-pub(crate) use block::{begun_on, end_block};
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
 pub use read::ReadJob;

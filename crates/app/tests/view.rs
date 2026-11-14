@@ -5,10 +5,9 @@
 
 use openpaint_app::{
     BrushLibrary, CanvasView, ContactPhase, FIT_MARGIN, Fitted, GestureFrame, Gestures, Intent,
-    MAX_ZOOM, MIN_ZOOM, Mode, Session, Toolbox, Touch, TouchAction, ViewGesture, ViewIntent,
-    Viewport,
+    MAX_ZOOM, MIN_ZOOM, Session, Toolbox, Touch, TouchAction, ViewGesture, ViewIntent, Viewport,
 };
-use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
+use openpaint_core::{Artwork, CanvasSize};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 96.0],
@@ -67,34 +66,13 @@ const ROW: Fitted = Fitted {
     size: [2920, 560],
 };
 
-/// A mode that only holds the session's view as it opens it.
-#[derive(Debug)]
-struct Held;
-
-impl Mode for Held {
-    fn raw(&self) -> bool {
-        false
-    }
-    fn lands(&mut self, _: [f32; 2]) -> bool {
-        true
-    }
-    fn clip(&self) -> Option<&RegionMask> {
-        None
-    }
-    fn style(&self, _: &StrokeStyle) -> Option<StrokeStyle> {
-        None
-    }
-    fn amended(&self, _: &Artwork) -> Option<Artwork> {
-        None
-    }
-    fn laid(&mut self) {}
-}
-
+/// A sheet's session showing its row, as a mode opens it.
 fn sheet() -> (CanvasSize, Session) {
     let canvas = CanvasSize::new(SHEET[0], SHEET[1]).expect("size");
-    let brush = session().brush().clone();
-    let view = CanvasView::fitting(Some(ROW));
-    let held = Session::with_mode(Artwork::new(canvas), brush, Box::new(Held), view);
+    let library = BrushLibrary::built_in().expect("built-in brushes");
+    let brush = Toolbox::new(library).style().expect("style");
+    let mut held = Session::open(Artwork::new(canvas), brush);
+    *held.view_mut() = CanvasView::fitting(Some(ROW));
     (canvas, held)
 }
 

@@ -4,14 +4,14 @@
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, ProjectId, Session, Title, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, ProjectId, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Given, ItemRef, Judge, Kind, Layout, Needs, Outcome, Pack, PackItem, Picked, PictureKind,
     Sheet, Skill, SkillLevel, Tier,
 };
 use openpaint_practice_app::{
-    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start, open_sheet, practise,
+    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession, Start,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -27,7 +27,7 @@ fn lines() -> Skill {
 }
 
 /// `record` open as `log` opens it, on a sheet laid ahead for it.
-fn opened(record: &Sheet, log: &PracticeLog) -> Session {
+fn opened(record: &Sheet, log: &PracticeLog) -> SheetSession {
     let size = Layout::laid_ahead(record);
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -37,11 +37,11 @@ fn opened(record: &Sheet, log: &PracticeLog) -> Session {
     let pens = PracticePens::built_in().expect("pens");
     let printed = Given::of_sheet(record, &[]);
     let opening = log.practising(record, &printed, (size, &Title::untitled()));
-    open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
-fn shown(session: &Session) -> PracticeProjection {
-    PracticeProjection::of(session).expect("a sheet")
+fn shown(session: &SheetSession) -> PracticeProjection {
+    session.projection()
 }
 
 #[test]
@@ -121,15 +121,23 @@ fn the_lesson_in_hand_is_named_judged_and_ended() {
     assert!(practice.judged.is_none() && practice.end.is_none());
     // A scribble has no Compare and no result; none is chosen while nothing is compared.
     assert!(!practice.compare.is_available());
-    assert!(practise(&mut session, PracticeIntent::Compare(true), NOON + 5).is_err());
+    assert!(
+        session
+            .practise(PracticeIntent::Compare(true), NOON + 5)
+            .is_err()
+    );
     let judge = PracticeIntent::Judge(Outcome::Clean);
-    assert!(practise(&mut session, judge, NOON + 10).is_err());
+    assert!(session.practise(judge, NOON + 10).is_err());
     for place in 2..=3 {
-        practise(&mut session, PracticeIntent::Next(VIEWPORT), NOON + 20).expect("next");
+        session
+            .practise(PracticeIntent::Next(VIEWPORT), NOON + 20)
+            .expect("next");
         let lesson = shown(&session).lesson.expect("the lesson in hand");
         assert_eq!(lesson.place, (place, 3));
     }
-    practise(&mut session, PracticeIntent::Next(VIEWPORT), NOON + 30).expect("its end");
+    session
+        .practise(PracticeIntent::Next(VIEWPORT), NOON + 30)
+        .expect("its end");
     let practice = shown(&session);
     let end = practice.end.expect("the lesson's end");
     assert!(

@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent, Title,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Title, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -16,7 +16,7 @@ use openpaint_practice::{
     schedule,
 };
 use openpaint_practice_app::{
-    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, PracticeSheet, Start, practise,
+    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession, Start,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -39,7 +39,7 @@ fn lesson_of(log: &PracticeLog, key: &str, canvas: u64) -> Sheet {
 }
 
 /// `record` open as `log` opens it, on a sheet laid ahead for it.
-fn opened(record: &Sheet, log: &PracticeLog) -> Session {
+fn opened(record: &Sheet, log: &PracticeLog) -> SheetSession {
     let size = Layout::laid_ahead(record);
     let sheet = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -49,22 +49,19 @@ fn opened(record: &Sheet, log: &PracticeLog) -> Session {
     let pens = PracticePens::built_in().expect("pens");
     let printed = Given::of_sheet(record, log.packs());
     let opening = log.practising(record, &printed, (size, &Title::untitled()));
-    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
-fn shown(session: &Session) -> PracticeProjection {
-    PracticeProjection::of(session).expect("a sheet")
+fn shown(session: &SheetSession) -> PracticeProjection {
+    session.projection()
 }
 
-fn record_of(session: &Session) -> Sheet {
-    PracticeSheet::of(session)
-        .expect("a sheet")
-        .record()
-        .clone()
+fn record_of(session: &SheetSession) -> Sheet {
+    session.sheet().record().clone()
 }
 
 /// A pen stroke across the shown exercise's copy frame, then Compare.
-fn compared(session: &mut Session) {
+fn compared(session: &mut SheetSession) {
     let practice = shown(session);
     let frame = practice.sheet.pairs[practice.current.expect("shown")].copy;
     let points: Vec<[f32; 2]> = (0..=20)
@@ -96,11 +93,15 @@ fn compared(session: &mut Session) {
         let intent = Intent::Stroke(StrokeIntent::Contact(contact));
         session.dispatch(intent).expect("dispatch");
     }
-    practise(session, PracticeIntent::Compare(true), NOON + 60).expect("compared");
+    session
+        .practise(PracticeIntent::Compare(true), NOON + 60)
+        .expect("compared");
 }
 
-fn next(session: &mut Session) {
-    practise(session, PracticeIntent::Next(VIEWPORT), NOON + 120).expect("next");
+fn next(session: &mut SheetSession) {
+    session
+        .practise(PracticeIntent::Next(VIEWPORT), NOON + 120)
+        .expect("next");
 }
 
 #[test]
@@ -110,20 +111,22 @@ fn a_line_is_judged_by_eye_once_and_next_without_a_choice_leaves_no_result() {
     let mut session = opened(&record, &log);
     let judge = |outcome| PracticeIntent::Judge(outcome);
     assert!(
-        practise(&mut session, judge(Outcome::Clean), NOON).is_err(),
+        session.practise(judge(Outcome::Clean), NOON).is_err(),
         "before Compare"
     );
     compared(&mut session);
     let judged = shown(&session).judged.expect("judged while compared");
     assert_eq!((judged.verdict, judged.result), (Verdict::Eye, None));
-    practise(&mut session, judge(Outcome::Near), NOON + 70).expect("chosen");
+    session
+        .practise(judge(Outcome::Near), NOON + 70)
+        .expect("chosen");
     let judged = shown(&session).judged.expect("judged while compared");
     assert_eq!(judged.result, Some((Outcome::Near, Judge::Eye)));
     assert!(
-        practise(&mut session, judge(Outcome::Clean), NOON + 80).is_err(),
+        session.practise(judge(Outcome::Clean), NOON + 80).is_err(),
         "once"
     );
-    let saved = PracticeSheet::of_mut(&mut session).and_then(PracticeSheet::save_request);
+    let saved = session.sheet_mut().save_request();
     let result = saved.and_then(|sheet| sheet.laid(0).and_then(|laid| laid.result));
     assert_eq!(
         result,
@@ -158,14 +161,18 @@ fn where_the_app_judges_its_result_stands_and_no_choice_is_taken() {
     };
     let c = |v: u8| f32::from(v) / 255.0;
     let exact = Color::rgb(c(r), c(g), c(b)).expect("colour");
-    practise(&mut session, PracticeIntent::Fill(exact), NOON).expect("filled");
-    practise(&mut session, PracticeIntent::Compare(true), NOON + 10).expect("compared");
+    session
+        .practise(PracticeIntent::Fill(exact), NOON)
+        .expect("filled");
+    session
+        .practise(PracticeIntent::Compare(true), NOON + 10)
+        .expect("compared");
     let judged = shown(&session).judged.expect("judged");
     assert_eq!(judged.verdict, Verdict::App(Outcome::Clean));
     assert_eq!(judged.result, Some((Outcome::Clean, Judge::App)));
     let judge = PracticeIntent::Judge(Outcome::Redo);
     assert!(
-        practise(&mut session, judge, NOON + 20).is_err(),
+        session.practise(judge, NOON + 20).is_err(),
         "the app's stands"
     );
 }
@@ -189,12 +196,9 @@ fn the_end_shows_each_result_the_dot_earned_and_the_lesson_one_more_starts() {
     let record = lesson_of(&log, "line", 40);
     let mut session = opened(&record, &log);
     compared(&mut session);
-    practise(
-        &mut session,
-        PracticeIntent::Judge(Outcome::Clean),
-        NOON + 70,
-    )
-    .expect("chosen");
+    session
+        .practise(PracticeIntent::Judge(Outcome::Clean), NOON + 70)
+        .expect("chosen");
     assert!(shown(&session).end.is_none(), "not done yet");
     assert!(
         shown(&session).marked.is_empty(),

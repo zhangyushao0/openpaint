@@ -8,7 +8,7 @@ mod support;
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Areas, Exercise, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack, PackItem,
@@ -16,9 +16,8 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, Start,
+    SheetSession, Start,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -63,7 +62,7 @@ const BLUE: Tendency = Tendency {
     hue: 250,
 };
 
-fn opened(packs: &[Pack]) -> Session {
+fn opened(packs: &[Pack]) -> SheetSession {
     let exercise = Exercise {
         picture: Some(ItemRef {
             pack: "test-crops".to_owned(),
@@ -82,27 +81,27 @@ fn opened(packs: &[Pack]) -> Session {
         brush.expect("style"),
         PracticePens::built_in().expect("pens"),
     );
-    openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
+    SheetSession::open(sheet, tools, opening, &VIEWPORT)
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_400_000).expect("practised");
 }
 
 /// The sheet opened with the crops, its picture read.
-fn read_sheet() -> Session {
+fn read_sheet() -> SheetSession {
     let mut session = opened(&[crops()]);
-    let item = session.sheet().picture_request().expect("its picture");
+    let item = session.sheet_mut().picture_request().expect("its picture");
     let image = PictureImage {
         size: SIZE,
         pixels: bands(SIZE, BANDS),
     };
-    session.sheet().picture_read(item, Some(image));
+    session.sheet_mut().picture_read(item, Some(image));
     session
 }
 
-fn overlay(session: &Session) -> Option<(KeyCompared, bool, bool)> {
-    let practice = PracticeProjection::of(session)?;
+fn overlay(session: &SheetSession) -> Option<(KeyCompared, bool, bool)> {
+    let practice = session.projection();
     let compared = practice
         .compared
         .as_ref()?
@@ -114,7 +113,7 @@ fn overlay(session: &Session) -> Option<(KeyCompared, bool, bool)> {
 #[test]
 fn a_key_shift_shows_its_tendency_and_its_original_is_never_picked() {
     let mut session = read_sheet();
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::KeyShift(BLUE)));
     let tendency = practice.sheet.givens[0]
         .iter()
@@ -132,16 +131,16 @@ fn a_key_shift_shows_its_tendency_and_its_original_is_never_picked() {
     );
     let pair = practice.sheet.pairs[0];
     let on = pair.original.to_canvas([0.1, 0.3]).map(|v| v as f32);
-    assert_eq!(session.sheet().pick(on), PracticePick::Refused);
-    let notice = PracticeProjection::of(&session).and_then(|p| p.notice);
+    assert_eq!(session.sheet_mut().pick(on), PracticePick::Refused);
+    let notice = session.projection().notice;
     assert_eq!(notice, Some(PracticeNotice::OriginalLocked));
     // The copy's frame picks the canvas, compared or not.
     let mine = pair.copy.to_canvas([0.1, 0.3]).map(|v| v as f32);
-    assert_eq!(session.sheet().pick(mine), PracticePick::Canvas);
+    assert_eq!(session.sheet_mut().pick(mine), PracticePick::Canvas);
     practise(&mut session, PracticeIntent::Fill(Color::BLACK));
     practise(&mut session, PracticeIntent::Compare(true));
-    assert_eq!(session.sheet().pick(mine), PracticePick::Canvas);
-    assert_eq!(session.sheet().pick(on), PracticePick::Refused);
+    assert_eq!(session.sheet_mut().pick(mine), PracticePick::Canvas);
+    assert_eq!(session.sheet_mut().pick(on), PracticePick::Refused);
 }
 
 #[test]
@@ -150,7 +149,10 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     assert!(session.practise(PracticeIntent::Grey(true), 1).is_err());
     practise(&mut session, PracticeIntent::Fill(Color::BLACK));
     practise(&mut session, PracticeIntent::Compare(true));
-    let job = session.sheet().read_request().expect("the copy asked for");
+    let job = session
+        .sheet_mut()
+        .read_request()
+        .expect("the copy asked for");
     let Some(KeyReading { tendency, .. }) = job.reading.downcast::<KeyReading>() else {
         panic!("read as a key shift")
     };
@@ -161,7 +163,7 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
         size: job.size,
         pixels: bands(job.size, copy),
     };
-    session.sheet().read(job.sequence, job.run(&pixels));
+    session.sheet_mut().read(job.sequence, job.run(&pixels));
     let Some((
         KeyCompared {
             read: Some(read), ..
@@ -179,7 +181,7 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     assert!(read.check.off_lightness.contains(&grey), "the grey lighter");
     assert_eq!(read.check.lighter_darker(), (1, 0));
     assert!(read.outline(grey).is_some() && read.outline(rust).is_some());
-    let result = PracticeProjection::of(&session).and_then(|p| p.result.clone());
+    let result = session.projection().result;
     let metrics = result.expect("stored").metrics;
     assert_eq!(value(&metrics, Metric::KeyLightness), Some(1.0));
     // The Grey view, until the comparison goes.

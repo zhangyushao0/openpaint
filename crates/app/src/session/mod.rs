@@ -13,7 +13,6 @@ use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
 use crate::layer_rules;
 use crate::layers::{LayerList, Layers};
-use crate::mode::Mode;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::selection::{Selection, SelectionIntent};
 use crate::storage::Autosave;
@@ -46,12 +45,10 @@ pub struct Session {
     adjusts: Adjusts,
     autosave: Autosave,
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit, one
-    /// held by a mode as the mode opens it).
+    /// of a mode's where the mode sets it, `view_mut`).
     view: CanvasView,
-    /// What the artwork is for beyond painting, if anything (`session/mode.rs`).
-    mode: Option<Box<dyn Mode>>,
-    /// The toolbox's style; strokes start with it unless the mode draws with its own.
-    brush: StrokeStyle,
+    /// What a mode keeps strokes and fills inside, beside the selection (`mode.rs`).
+    bounds: Option<RegionMask>,
 }
 
 impl Session {
@@ -69,15 +66,14 @@ impl Session {
         Self {
             autosave: Autosave::new(artwork.clone()),
             history: History::new(artwork, HISTORY_BUDGET),
-            strokes: Strokes::new(brush.clone(), guide),
-            brush,
+            strokes: Strokes::new(brush, guide),
             layers: Layers::default(),
             fills: Fills::default(),
             selection: Selection::default(),
             transforms: Transforms::default(),
             adjusts: Adjusts::default(),
             view: CanvasView::FIT,
-            mode: None,
+            bounds: None,
         }
     }
 
@@ -90,11 +86,10 @@ impl Session {
         session
     }
 
-    /// The next stroke starts with `brush` (unless the mode draws with its own); a stroke being
-    /// drawn keeps the style it began with.
+    /// The next stroke starts with `brush` (the toolbox's, or a mode's pen); a stroke being drawn
+    /// keeps the style it began with.
     pub fn set_brush(&mut self, brush: StrokeStyle) {
-        self.brush = brush;
-        self.restyle();
+        self.strokes.set_style(brush);
     }
 
     /// The next stroke follows the pen through `streamline` (the toolbox's, per brush); a
@@ -109,21 +104,14 @@ impl Session {
         self.strokes.set_seed(seed);
     }
 
-    /// Applies one intent. On error the session is as it was before, except that a stroke
-    /// whose lift failed to extend is still committed with the samples it had. The mode's layers
-    /// are then amended as it keeps them (`Mode::amended`).
+    /// Applies one intent, after what it ends (`drafts.rs`). On error the session is as it was
+    /// before, except that a stroke whose lift failed to extend is still committed with the
+    /// samples it had.
     ///
     /// # Errors
     /// `Core` when the artwork refuses the edit (a locked layer, an invalid sample);
     /// `Unavailable` when the projection does not offer the action.
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
-        let result = self.apply(intent);
-        self.mode_layers();
-        result
-    }
-
-    /// `dispatch`'s intent applied.
-    fn apply(&mut self, intent: Intent) -> Result<(), AppError> {
         self.end(Ends::by(&intent, self.transforms.active()));
         match intent {
             Intent::Adjust(adjust) => self.adjust(adjust),
@@ -137,15 +125,11 @@ impl Session {
                 Ok(())
             }
             Intent::Fill(fill) => {
-                self.filling_frame();
                 let drawing = self.strokes.active().is_some();
-                let (clip, within) = (self.clip(), self.mode_bounds());
+                let (clip, within) = (self.clip(), self.bounds_box());
                 (self.fills).handle(&mut self.history, drawing, fill, clip.as_ref(), within)
             }
-            Intent::Stroke(stroke) if self.refuses(&stroke) => Ok(()),
             Intent::Stroke(stroke) => {
-                // A stroke begins on the layer the mode keeps for its style.
-                self.mode_layers();
                 let clip = self.clip();
                 self.strokes
                     .handle(&mut self.history, stroke, clip.as_ref())
@@ -287,9 +271,7 @@ impl Session {
             shape: self.strokes.shape().map(Box::new),
             brush: None,
             transfers: None,
-            pen: (self.mode.as_ref())
-                .and_then(|mode| mode.style(&self.brush))
-                .map(|style| style.size()),
+            pen: None,
         }
     }
 

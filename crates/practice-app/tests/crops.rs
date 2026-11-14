@@ -8,17 +8,15 @@ mod support;
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Areas, AreasCompared, Exercise, Figure, ItemRef, Kind, Needs, Pack, PackItem, PictureKind,
     SheetPicture, Skill, SkillLevel, Tier,
 };
 use openpaint_practice_app::{
-    PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, PracticeProjection,
-    Start,
+    PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, SheetSession, Start,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -66,7 +64,7 @@ fn rust() -> ItemRef {
 }
 
 /// A sheet of one combination of the crop, opened with `packs`.
-fn opened(packs: &[Pack]) -> Session {
+fn opened(packs: &[Pack]) -> SheetSession {
     let combination = Exercise {
         picture: Some(rust()),
         ..Exercise::generated(Kind::Crop(Tier::Simple), 7)
@@ -82,17 +80,17 @@ fn opened(packs: &[Pack]) -> Session {
         brush.expect("style"),
         PracticePens::built_in().expect("pens"),
     );
-    openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
+    SheetSession::open(sheet, tools, opening, &VIEWPORT)
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_400_000).expect("practised");
 }
 
 /// The colour combination as compared, and the outline of the area the card compares as the
 /// frames show it.
-fn overlay(session: &Session) -> Option<(AreasCompared, Vec<Vec<[f64; 2]>>)> {
-    let practice = PracticeProjection::of(session)?;
+fn overlay(session: &SheetSession) -> Option<(AreasCompared, Vec<Vec<[f64; 2]>>)> {
+    let practice = session.projection();
     let compared = practice
         .compared
         .as_ref()?
@@ -109,8 +107,11 @@ fn overlay(session: &Session) -> Option<(AreasCompared, Vec<Vec<[f64; 2]>>)> {
 
 /// The copy Compare asks for, read as painted: the bands right, but the second pushed far from
 /// the first.
-fn read_wide_copy(session: &mut Session) {
-    let job = session.sheet().read_request().expect("the copy asked for");
+fn read_wide_copy(session: &mut SheetSession) {
+    let job = session
+        .sheet_mut()
+        .read_request()
+        .expect("the copy asked for");
     assert_eq!(job.size, [400, 267]);
     let wide = [BANDS[0], [200, 170, 120], BANDS[2]];
     let copy: Vec<u8> = (0..400 * 267)
@@ -123,13 +124,13 @@ fn read_wide_copy(session: &mut Session) {
         size: job.size,
         pixels: copy,
     };
-    session.sheet().read(job.sequence, job.run(&pixels));
+    session.sheet_mut().read(job.sequence, job.run(&pixels));
 }
 
 #[test]
 fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas() {
     let mut session = opened(&[crops()]);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::Crop(Tier::Simple)));
     let pair = practice.sheet.pairs[0];
     let height = 400.0 * 400.0 / 600.0;
@@ -145,14 +146,14 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
         "the pack's picture, read"
     );
     let item = session
-        .sheet()
+        .sheet_mut()
         .picture_request()
         .expect("its picture asked");
     let image = PictureImage {
         size: SIZE,
         pixels: picture(BANDS),
     };
-    session.sheet().picture_read(item, Some(image));
+    session.sheet_mut().picture_read(item, Some(image));
     practise(
         &mut session,
         PracticeIntent::Fill(Color::rgb(0.5, 0.35, 0.25).expect("c")),
@@ -181,7 +182,7 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
     assert!(outline.iter().flatten().all(inside));
     // The eyedropper on the original compares the pack's picture there.
     let on = pair.original.to_canvas([0.1, 0.3]).map(|v| v as f32);
-    let PracticePick::Probe { original, .. } = session.sheet().pick(on) else {
+    let PracticePick::Probe { original, .. } = session.sheet_mut().pick(on) else {
         panic!("a probe")
     };
     let expected = Color::rgb(120.0 / 255.0, 80.0 / 255.0, 60.0 / 255.0).expect("c");
@@ -191,7 +192,7 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
 #[test]
 fn a_removed_crop_shows_no_areas_and_compares_nothing() {
     let mut session = opened(&[]);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert!(
         practice.sheet.pictures[0]
             .as_deref()

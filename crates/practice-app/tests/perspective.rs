@@ -9,16 +9,15 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, EllipseGuide, Exercise, Frame,
     FreeCompared, FreePage, Guide, Horizon, Kind, PerspectiveBox, Point, Roundness,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
-use support::OnSheet;
+use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, SheetSession};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -26,7 +25,7 @@ const VIEWPORT: Viewport = Viewport {
     pixels_per_point: 1.75,
 };
 
-fn opened() -> Session {
+fn opened() -> SheetSession {
     let exercises = vec![
         Exercise::generated(Kind::Box(BoxView::TwoPoint), 0x5EED_0084),
         Exercise::generated(Kind::FreeBoxes(Horizon::Middle), 0x5EED_0085),
@@ -41,11 +40,11 @@ fn opened() -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (frame units of `frame`), sampled finely.
-fn draw(session: &mut Session, frame: &Frame, points: &[Point]) {
+fn draw(session: &mut SheetSession, frame: &Frame, points: &[Point]) {
     let mut path: Vec<[f32; 2]> = Vec::new();
     for pair in points.windows(2) {
         for k in 0..20 {
@@ -79,19 +78,19 @@ fn draw(session: &mut Session, frame: &Frame, points: &[Point]) {
     }
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_500_000).expect("practised");
 }
 
-fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
-    let practice = PracticeProjection::of(session)?;
+fn compared<T: Compared + Clone>(session: &SheetSession) -> Option<T> {
+    let practice = session.projection();
     practice.compared.as_ref()?.downcast::<T>().cloned()
 }
 
 /// The opened sheet's box completed (the nine edges but the front corner's, one of them a little
 /// off) and compared; its copy's frame.
-fn completed(session: &mut Session) -> Frame {
-    let practice = PracticeProjection::of(session).expect("a sheet");
+fn completed(session: &mut SheetSession) -> Frame {
+    let practice = session.projection();
     let frame = practice.sheet.pairs[0].copy;
     let Some(&exact) = practice
         .original
@@ -117,7 +116,7 @@ fn completed(session: &mut Session) -> Frame {
 #[test]
 fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     let mut session = opened();
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     let two_point = Kind::Box(BoxView::TwoPoint);
     assert_eq!(practice.kind, Some(two_point));
     assert_eq!(practice.how, Some(two_point), "told the first time");
@@ -137,14 +136,17 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     let extended: Vec<bool> = check.edges.iter().map(|e| e.off.is_some()).collect();
     let missed: Vec<bool> = check.edges.iter().map(|e| !e.on).collect();
     assert_eq!(extended, missed);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Correct));
     assert!(session.practise(PracticeIntent::Aligned(true), 1).is_err());
     // A correction takes the check away; Compare again counts, no numbers kept.
     draw(&mut session, &frame, &[[0.4, 0.4], [0.45, 0.47]]);
     assert!(compared::<BoxCompared>(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session
+        .sheet_mut()
+        .save_request()
+        .expect("the record changed");
     let result = record.first(0).expect("compared");
     assert_eq!(
         (
@@ -160,8 +162,7 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
 #[test]
 fn a_compared_box_s_construction_shows_on_request() {
     let mut session = opened();
-    let construction =
-        |session: &Session| (PracticeProjection::of(session)).map(|p| p.construction);
+    let construction = |session: &SheetSession| Some(session.projection().construction);
     assert!(
         session
             .practise(PracticeIntent::Construction(true), 1)
@@ -197,7 +198,7 @@ fn a_compared_box_s_construction_shows_on_request() {
 fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::FreeBoxes(Horizon::Middle)));
     let frame = practice.sheet.pairs[1].copy;
     let Some(FreePage(example)) = practice
@@ -232,7 +233,7 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::Ellipse(Guide::Frame)));
     let frame = practice.sheet.pairs[2].copy;
     let Some(&guide) = practice

@@ -8,8 +8,8 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -17,9 +17,8 @@ use openpaint_practice::{
     Original, Point, Skill, SkillLevel, SpaceAnswer, SpaceCompared, SpaceTask, Trick, value,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start,
+    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession, Start,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -27,7 +26,7 @@ const VIEWPORT: Viewport = Viewport {
     pixels_per_point: 1.75,
 };
 
-fn opened() -> Session {
+fn opened() -> SheetSession {
     let exercises = vec![
         Exercise::generated(Kind::Flat(Estimate::Point), 0x5EED_0090),
         Exercise::generated(Kind::Flat(Estimate::Angle), 0x5EED_0091),
@@ -42,11 +41,11 @@ fn opened() -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT)
+    SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (frame units of `frame`), sampled finely.
-fn draw(session: &mut Session, frame: &Frame, points: &[Point]) {
+fn draw(session: &mut SheetSession, frame: &Frame, points: &[Point]) {
     let mut path: Vec<[f32; 2]> = Vec::new();
     for pair in points.windows(2) {
         for k in 0..20 {
@@ -82,17 +81,17 @@ fn draw(session: &mut Session, frame: &Frame, points: &[Point]) {
 }
 
 /// A small cross at `p`, two strokes.
-fn cross(session: &mut Session, frame: &Frame, p: Point) {
+fn cross(session: &mut SheetSession, frame: &Frame, p: Point) {
     draw(session, frame, &[[p[0] - 0.02, p[1]], [p[0] + 0.02, p[1]]]);
     draw(session, frame, &[[p[0], p[1] - 0.02], [p[0], p[1] + 0.02]]);
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_900_000).expect("practised");
 }
 
-fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
-    let practice = PracticeProjection::of(session)?;
+fn compared<T: Compared + Clone>(session: &SheetSession) -> Option<T> {
+    let practice = session.projection();
     practice.compared.as_ref()?.downcast::<T>().cloned()
 }
 
@@ -105,7 +104,7 @@ fn in_hand<T: Original>(practice: &PracticeProjection) -> &T {
 #[test]
 fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     let mut session = opened();
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     let point = Kind::Flat(Estimate::Point);
     assert_eq!(practice.kind, Some(point));
     assert_eq!(practice.how, Some(point), "told the first time");
@@ -127,7 +126,7 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     };
     let mark = check.mark.expect("the cross read");
     assert!((mark[0] - at[0] - 0.05).abs() < 1e-3 && (mark[1] - at[1]).abs() < 1e-3);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Correct));
     assert!(session.practise(PracticeIntent::Aligned(true), 1).is_err());
     // Corrected onto the answer: read in place of the first, the first error kept.
@@ -142,7 +141,10 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     };
     let mark = check.mark.expect("the correction read");
     assert!((mark[0] - at[0]).abs() < 1e-3);
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session
+        .sheet_mut()
+        .save_request()
+        .expect("the record changed");
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     let across = value(&result.metrics, Metric::PointAcross).expect("kept");
@@ -153,7 +155,7 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
 fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::Flat(Estimate::Angle)));
     let frame = practice.sheet.pairs[1].copy;
     let flat @ Flat::Angle { .. } = *in_hand::<Flat>(&practice) else {
@@ -170,7 +172,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let off = value(&check.metrics, Metric::AngleOff).expect("measured");
     assert!(off.abs() < 0.5, "drawn along the answer: {off}");
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::Space(Trick::Centre)));
     let frame = practice.sheet.pairs[2].copy;
     let task = in_hand::<SpaceTask>(&practice);
@@ -208,9 +210,8 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
 #[test]
 fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
     let mut session = opened();
-    let construction =
-        |session: &Session| (PracticeProjection::of(session)).map(|p| p.construction);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let construction = |session: &SheetSession| Some(session.projection().construction);
+    let practice = session.projection();
     let frame = practice.sheet.pairs[0].copy;
     let flat = *in_hand::<Flat>(&practice);
     let FlatAnswer::Point(at) = flat.answer() else {

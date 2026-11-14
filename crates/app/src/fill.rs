@@ -67,8 +67,8 @@ pub struct FillJob {
     pub point: [u32; 2],
     pub threshold: f32,
     /// The box the region is found within, `(origin, size)` in canvas pixels: the bounding box of
-    /// the mode's clip, so a flood never leaks round it through the paper outside; `None` is the
-    /// whole canvas (painting, and a selection's flood).
+    /// a mode's bounds (`Session::set_bounds`), so a flood never leaks round them through the
+    /// paper outside; `None` is the whole canvas (painting, and a selection's flood).
     pub within: Option<([u32; 2], [u32; 2])>,
 }
 

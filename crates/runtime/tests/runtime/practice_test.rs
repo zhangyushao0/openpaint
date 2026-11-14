@@ -2,11 +2,12 @@
 //! loop on a real library: a test lesson started from the home beside the author's open one,
 //! drawn on and compared, then removed. The author's record, their sheet (as the bytes of its
 //! OpenPaint file) and the path are as before; the store's own test holds every other record to
-//! its bytes. Motion runs on the hand's held clock, 16 ms a frame, as in scenarios.
+//! its bytes. On a sheet the hover outline is the sheet's pen's. Motion runs on the hand's held
+//! clock, 16 ms a frame, as in scenarios.
 
 use openpaint_app::{ProjectId, ProjectStore};
 use openpaint_practice::{Purpose, Skill, SkillLevel};
-use openpaint_practice_app::PathProjection;
+use openpaint_practice_app::{INK_DIAMETER, PathProjection};
 use openpaint_practice_store::sheets;
 use openpaint_runtime::{Runtime, Start, ToolKind, skill_start};
 use openpaint_store::Library;
@@ -68,6 +69,9 @@ fn a_test_lesson_beside_the_authors_leaves_theirs_as_it_was() {
     runtime.start_lesson(theirs).expect("their lesson");
     until(&mut runtime, &mut hand, |r| r.practice().is_some());
     hand.tap(&mut runtime, "Got it");
+    // The hover outline is the sheet's pen's, not the brush's.
+    let outline = runtime.projection().pen();
+    assert_eq!(outline, Some(INK_DIAMETER), "the pen's outline");
     copy_and_compare(&mut runtime, &mut hand);
     let theirs = path(&runtime);
     let sheet = theirs.open.expect("their lesson open").sheet;

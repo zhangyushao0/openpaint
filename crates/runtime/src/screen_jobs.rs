@@ -3,7 +3,7 @@
 
 use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice_app::{Options, PracticeLog, PracticeSheet};
+use openpaint_practice_app::{Options, PracticeLog};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
@@ -116,7 +116,9 @@ impl Screen {
 
 /// Whether `canvas` shows practice sheet `id`.
 fn sheet_of(canvas: &Canvas, id: u64) -> bool {
-    PracticeSheet::of(canvas.session()).is_some_and(|sheet| sheet.record().id == id)
+    canvas
+        .sheet()
+        .is_some_and(|open| open.sheet().record().id == id)
 }
 
 /// The store's job for leaving `canvas`: `version` (from `Session::leave_request`) and the

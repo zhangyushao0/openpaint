@@ -9,11 +9,12 @@
 //! A lesson whose first exercise is the one in hand, neither drawn in nor compared, leaves nothing
 //! (a lesson the chain laid as the time ran out), unless it is its sheet's only one: a sheet keeps
 //! a lesson, so that lesson keeps its first exercise. Whether anything of the block was begun on
-//! the sheet at all (`begun_on`) the log asks first: a block with nothing begun is not ended here.
+//! the sheet at all (`begun_since`) the log asks first: a block with nothing begun is not ended
+//! here. The session's side of End (what it ends first, the history cut) is `SheetSession`'s.
 
 use std::sync::Arc;
 
-use openpaint_app::{Availability, Session, Viewport};
+use openpaint_app::{Availability, Viewport};
 use openpaint_practice::{Layout, Sheet, seconds};
 
 use super::{Beside, PracticeSheet, unavailable};
@@ -42,7 +43,7 @@ impl PracticeSheet {
     /// End at `now` of a block begun at `since`: the lesson in hand cut to the exercises begun and
     /// finished, the view fitting the rows drawn in the block within `viewport`. Returns the
     /// record as it stands.
-    fn end_block(
+    pub(crate) fn end_block(
         &mut self,
         session: (&openpaint_core::Artwork, &mut openpaint_app::CanvasView),
         since: u64,
@@ -102,7 +103,7 @@ impl PracticeSheet {
     /// Whether an exercise of a block begun at `since` was begun on this sheet (drawn in on
     /// `artwork` or compared): those of its lessons finished at or after `since` and of the lesson
     /// in hand up to the exercise shown.
-    fn begun_since(&self, artwork: &openpaint_core::Artwork, since: u64) -> bool {
+    pub(crate) fn begun_since(&self, artwork: &openpaint_core::Artwork, since: u64) -> bool {
         let mut first = 0;
         let mut indices = Vec::new();
         for lesson in &self.record.lessons {
@@ -131,31 +132,4 @@ impl PracticeSheet {
             top as u32
         })
     }
-}
-
-/// Whether an exercise of a block begun at `since` was begun on the sheet `session` holds (see
-/// `PracticeSheet::begun_since`); false off a sheet.
-pub(crate) fn begun_on(session: &Session, since: u64) -> bool {
-    PracticeSheet::of(session).is_some_and(|sheet| sheet.begun_since(session.artwork(), since))
-}
-
-/// End (`crate::pomodoro::TimerIntent::End`) on the sheet `session` holds, at `now`, for a block
-/// begun at `since`, the view fitting the rows drawn in it within `viewport`; undo and redo then
-/// reach nothing before it. Returns the record as it stands.
-///
-/// # Errors
-/// `Unavailable` off a day's or a test's sheet, or while a lesson appended waits for the store.
-pub(crate) fn end_block(
-    session: &mut Session,
-    since: u64,
-    (now, viewport): (u64, &Viewport),
-) -> Result<Sheet, Refused> {
-    session
-        .lend::<PracticeSheet, _>(|sheet, lent| {
-            let artwork = lent.artwork().clone();
-            let record = sheet.end_block((&artwork, lent.view()), since, (now, viewport))?;
-            lent.keep_only_current();
-            Ok(record)
-        })
-        .unwrap_or(Err(unavailable(Availability::NothingLeft)))
 }

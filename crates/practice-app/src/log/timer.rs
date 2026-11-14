@@ -1,17 +1,18 @@
 //! The Pomodoro from the log (S124, `crate::pomodoro`): what the runtime asks of the timer and
 //! hands it, all through the log that holds it. Each frame the runtime ticks it with its clock and
 //! the sheet in front (`tick`, before the UI pass, so the pass shows that tick's state), shows it
-//! (`timer`), applies the screens' timer intents (`time`, with the open sheet's session), lays the
+//! (`timer`), applies the screens' timer intents (`time`, with the open sheet), lays the
 //! chain after a Next (`chains`), asks for the frame it wants (`wake`), keeps the screen on
 //! (`screen_on`), sounds the chime (`take_chime`) and stores what changed (`timer_request`).
 
-use openpaint_app::{Availability, Session};
+use openpaint_app::Availability;
 use openpaint_practice::{Blocks, Sheet, TimerWrite};
 
 use super::PracticeLog;
 use crate::pomodoro::{Pomodoro, Timed, TimerIntent, TimerShown, TimerTold};
 use crate::refused::Refused;
-use crate::sheet::{PracticeSheet, begun_on, end_block};
+use crate::session::SheetSession;
+use crate::sheet::PracticeSheet;
 
 impl PracticeLog {
     /// What the store kept of the Pomodoro (`practice_store::blocks`), as the app starts: a block
@@ -46,8 +47,8 @@ impl PracticeLog {
         self.pomodoro.shown()
     }
 
-    /// `intent` at the last tick, the open sheet's `session` when a canvas shows one: what the
-    /// runtime does next.
+    /// `intent` at the last tick, the open `sheet` when a canvas shows one: what the runtime does
+    /// next.
     ///
     /// # Errors
     /// `Unavailable` for an intent the timer's state does not take: Pause, Continue and Stop with
@@ -55,7 +56,7 @@ impl PracticeLog {
     pub fn time(
         &mut self,
         intent: TimerIntent,
-        session: Option<&mut Session>,
+        sheet: Option<&mut SheetSession>,
     ) -> Result<Timed, Refused> {
         match intent {
             TimerIntent::Length(length) => self.pomodoro.choose(length),
@@ -69,20 +70,18 @@ impl PracticeLog {
             TimerIntent::Stop => self.pomodoro.stop()?,
             TimerIntent::End(viewport) => {
                 let block = self.pomodoro.up().ok_or(NOT_NOW)?;
-                let session = session.ok_or(NOT_NOW)?;
-                if !self.begun_in(session, block.started) {
+                let sheet = sheet.ok_or(NOT_NOW)?;
+                if !self.begun_in(sheet, block.started) {
                     // Nothing begun in it: End leaves it as Stop timer does.
                     self.pomodoro.stop()?;
                     self.pomodoro.tell_end();
                     return Ok(Timed::Done);
                 }
                 let now = self.pomodoro.now();
-                let record = end_block(session, block.started, (now, &viewport))?;
+                let record = sheet.end_block(block.started, (now, &viewport))?;
                 // A lesson taken off leaves the one before it in hand: set beside the log again.
                 let beside = self.beside(&record);
-                if let Some(sheet) = PracticeSheet::of_mut(session) {
-                    sheet.set_beside(beside);
-                }
+                sheet.sheet_mut().set_beside(beside);
                 self.pomodoro.complete();
                 // The log takes the sheet cut: its book, its seals and the block's end made again.
                 self.keep(record);
@@ -99,24 +98,22 @@ impl PracticeLog {
         Ok(Timed::Done)
     }
 
-    /// Whether an exercise of a block begun at `since` was begun: on `session`'s sheet (drawn in
-    /// or compared), or a lesson finished in it on another sheet (one the chain left).
-    fn begun_in(&self, session: &Session, since: u64) -> bool {
-        let here = PracticeSheet::of(session).map(|sheet| sheet.record().id);
+    /// Whether an exercise of a block begun at `since` was begun: on `open` (drawn in or
+    /// compared), or a lesson finished in it on another sheet (one the chain left).
+    fn begun_in(&self, open: &SheetSession, since: u64) -> bool {
+        let here = open.sheet().record().id;
         let elsewhere = (self.sheets.iter())
-            .filter(|sheet| Some(sheet.id) != here && !sheet.is_copy())
+            .filter(|sheet| sheet.id != here && !sheet.is_copy())
             .flat_map(|sheet| &sheet.lessons)
             .any(|lesson| lesson.finished.is_some_and(|finished| finished >= since));
-        elsewhere || begun_on(session, since)
+        elsewhere || open.begun_since(since)
     }
 
-    /// Whether the lesson in hand on `session`'s sheet has just ended while a block counts with
-    /// time left: the runtime then lays the next lesson as One more lays it (the chain).
+    /// Whether the lesson in hand on `sheet` has just ended while a block counts with time left:
+    /// the runtime then lays the next lesson as One more lays it (the chain).
     #[must_use]
-    pub fn chains(&self, session: &Session) -> bool {
-        let Some(record) = PracticeSheet::of(session).map(PracticeSheet::record) else {
-            return false;
-        };
+    pub fn chains(&self, sheet: &PracticeSheet) -> bool {
+        let record = sheet.record();
         self.pomodoro.counts_on() && !record.is_copy() && record.finished().is_some()
     }
 

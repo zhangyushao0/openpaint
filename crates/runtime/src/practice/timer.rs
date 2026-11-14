@@ -14,8 +14,7 @@ use std::time::Duration;
 
 use openpaint_app::{Gallery, GalleryIntent};
 use openpaint_practice_app::{
-    Options, OptionsIntent, PracticeLog, PracticeSheet, Start, Timed, TimerIntent, TimerShown,
-    TimerTold,
+    Options, OptionsIntent, PracticeLog, Start, Timed, TimerIntent, TimerShown, TimerTold,
 };
 
 use super::jobs::PracticeJob;
@@ -37,8 +36,8 @@ impl Runtime {
     pub(crate) fn clocked(&mut self, now: u64) {
         self.practice.set_clock(now, self.utc_offset);
         let front = (self.screen.canvas())
-            .and_then(|canvas| PracticeSheet::of(canvas.session()))
-            .map(PracticeSheet::record);
+            .and_then(Canvas::sheet)
+            .map(|open| open.sheet().record());
         self.practice.tick(now, front);
         timer_saved(&mut self.practice, &mut self.storage);
     }
@@ -106,7 +105,7 @@ pub(crate) fn timed_on_sheet(
     now: u64,
 ) {
     for intent in intents {
-        match log.time(intent, Some(canvas.session_mut())) {
+        match log.time(intent, canvas.sheet_mut()) {
             Ok(Timed::OneMore(viewport)) => {
                 super::lay_next(
                     canvas,

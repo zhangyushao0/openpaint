@@ -23,8 +23,6 @@ mod stretch;
 
 use std::path::PathBuf;
 
-use openpaint_practice_app::PracticeSheet;
-
 use crate::bench::VSYNC;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
@@ -210,9 +208,7 @@ impl Runtime {
     /// Which screen the last frame drew.
     fn screen_kind(&self) -> ScreenKind {
         match &self.screen {
-            Screen::Canvas(canvas) if PracticeSheet::of(canvas.session()).is_some() => {
-                ScreenKind::Sheet
-            }
+            Screen::Canvas(canvas) if canvas.sheet().is_some() => ScreenKind::Sheet,
             Screen::Canvas(_) => ScreenKind::Canvas,
             Screen::Gallery(..) if self.practice_screens.page_shows() => ScreenKind::Page,
             Screen::Gallery(..) | Screen::Opening(_) => ScreenKind::Home,

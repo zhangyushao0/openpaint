@@ -1,5 +1,6 @@
 //! The gallery's OpenPaint files and kept versions without a store: what the system is asked
-//! for, the jobs its answers start, one dialog at a time, and what the user is told.
+//! for, the jobs its answers start, one dialog at a time (a mode's picker taking its turn), and
+//! what the user is told.
 
 use openpaint_app::{
     BytesSource, FileJob, FileProblem, Gallery, GalleryIntent, GalleryNotice, HostAnswer,
@@ -140,4 +141,47 @@ fn a_version_is_restored_as_a_copy_and_listed() {
     assert_eq!(gallery.projection().notice(), GalleryNotice::None);
     gallery.answer(LibraryAnswer::Restored(Err(PortError::Missing(id))));
     assert_eq!(gallery.projection().notice(), GalleryNotice::RestoreFailed);
+}
+
+#[test]
+fn a_mode_s_picker_takes_its_turn_with_the_gallery_s_dialogs() {
+    let mut gallery = Gallery::listed(Vec::new());
+    gallery.choose(HostRequest::OpenFile, 7).expect("a picker");
+    assert_eq!(gallery.host_request(), Some(HostRequest::OpenFile));
+    assert!(
+        gallery.dispatch(GalleryIntent::OpenFile).is_err(),
+        "one at a time"
+    );
+    assert!(gallery.choose(HostRequest::OpenImage, 2).is_err());
+    let answer = HostAnswer::Image(Box::new(BytesSource(vec![1, 2])));
+    let job = gallery.host_answer(answer);
+    assert!(matches!(
+        job,
+        Some(FileJob::Mode {
+            tag: 7,
+            source: Some(_)
+        })
+    ));
+    assert!(
+        gallery.choose(HostRequest::OpenImage, 2).is_err(),
+        "while it is read"
+    );
+    gallery.file_done();
+    gallery.choose(HostRequest::OpenImage, 2).expect("the next");
+    let failed = gallery.host_answer(HostAnswer::Failed(PortError::Stopped));
+    assert!(matches!(
+        failed,
+        Some(FileJob::Mode {
+            tag: 2,
+            source: None
+        })
+    ));
+    gallery
+        .dispatch(GalleryIntent::OpenFile)
+        .expect("free again");
+    gallery.opening();
+    assert!(
+        !gallery.availability().is_available(),
+        "held while a mode opens"
+    );
 }

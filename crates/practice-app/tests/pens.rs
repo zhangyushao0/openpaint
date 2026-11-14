@@ -9,15 +9,15 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushKey, BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session,
-    StrokeIntent, Title, Toolbox, Viewport,
+    BrushKey, BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent,
+    Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
     Arrangement, Exercise, Given, Kind, LineTier, Pack, Picked, Planned, Purpose, ScaleTone, Sheet,
     SkillLevel,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection};
+use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, SheetSession};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -124,7 +124,7 @@ fn edited_toolbox() -> Toolbox {
 }
 
 /// A sheet of `exercises` (and `packs`) opened with `toolbox`'s brush, its How closed.
-fn opened(record: Sheet, packs: &[Pack], toolbox: &Toolbox) -> Session {
+fn opened(record: Sheet, packs: &[Pack], toolbox: &Toolbox) -> SheetSession {
     let record = record.framed(packs);
     let [width, height] = openpaint_practice::Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
@@ -132,13 +132,12 @@ fn opened(record: Sheet, packs: &[Pack], toolbox: &Toolbox) -> Session {
     let printed = Given::of_sheet(&record, packs);
     let opening = log.practising(&record, &printed, ([width, height], &Title::untitled()));
     let brush = toolbox.style().expect("style");
-    let mut session =
-        openpaint_practice_app::open_sheet(sheet, (brush, pens()), opening, &VIEWPORT);
+    let mut session = SheetSession::open(sheet, (brush, pens()), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }
 
-fn session_of(kinds: &[Kind], toolbox: &Toolbox) -> Session {
+fn session_of(kinds: &[Kind], toolbox: &Toolbox) -> SheetSession {
     let exercises = (kinds.iter())
         .map(|kind| (Exercise::generated(*kind, 0x5EED_0100), SkillLevel::First))
         .collect();
@@ -150,12 +149,12 @@ fn session_of(kinds: &[Kind], toolbox: &Toolbox) -> Session {
     opened(Sheet::begun(1, (Purpose::Day, 0), planned), &[], toolbox)
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
-    openpaint_practice_app::practise(session, intent, NOW).expect("practised");
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
+    session.practise(intent, NOW).expect("practised");
 }
 
 /// A pen stroke through `points` (canvas pixels) at `pressure`.
-fn draw(session: &mut Session, points: &[[f32; 2]], pressure: f32) {
+fn draw(session: &mut SheetSession, points: &[[f32; 2]], pressure: f32) {
     let sample = |index: usize| InputSample {
         position: points[index],
         pressure,
@@ -183,8 +182,8 @@ fn draw(session: &mut Session, points: &[[f32; 2]], pressure: f32) {
 }
 
 /// The last stroke's style on the sheet, if any.
-fn last_stroke(session: &Session) -> Option<StrokeStyle> {
-    let artwork = session.artwork();
+fn last_stroke(session: &SheetSession) -> Option<StrokeStyle> {
+    let artwork = session.session().artwork();
     let strokes = artwork
         .layers()
         .iter()
@@ -193,8 +192,8 @@ fn last_stroke(session: &Session) -> Option<StrokeStyle> {
 }
 
 /// The shown exercise's copy frame's middle, canvas pixels.
-fn middle(session: &Session) -> [f32; 2] {
-    let practice = PracticeProjection::of(session).expect("a sheet");
+fn middle(session: &SheetSession) -> [f32; 2] {
+    let practice = session.projection();
     let pair = practice.sheet.pairs[practice.current.expect("one shows")];
     pair.copy.to_canvas([0.5, 0.5]).map(|v| v as f32)
 }
@@ -213,6 +212,12 @@ fn every_practice_pen_is_independent_of_the_toolbox_s_edits() {
         practise(&mut session, PracticeIntent::Pen(pen));
         draw(&mut session, &[at, [at[0] + 40.0, at[1]]], 0.02);
         let stroke = last_stroke(&session).expect("painted");
+        let outline = session.pen();
+        assert_eq!(
+            outline,
+            Some(pens().style(pen).size()),
+            "{pen:?}: its outline"
+        );
         let own = pens().style(pen).clone();
         assert_eq!(stroke.recipe(), own.recipe(), "{pen:?}: its own recipe");
         assert_ne!(
@@ -229,7 +234,14 @@ fn every_practice_pen_is_independent_of_the_toolbox_s_edits() {
         practise(&mut session, PracticeIntent::Pen(pen));
         draw(&mut session, &[at, [at[0] + 40.0, at[1] + 10.0]], 0.5);
         assert_eq!(last_stroke(&session).as_ref(), Some(pens().style(pen)));
+        assert_eq!(
+            session.pen(),
+            Some(pens().style(pen).size()),
+            "{pen:?}: its outline"
+        );
     }
+    practise(&mut session, PracticeIntent::AllTools(true));
+    assert_eq!(session.pen(), None, "with all tools the brush's outline");
 }
 
 #[test]
@@ -238,27 +250,22 @@ fn a_value_scale_is_filled_its_pen_only_taking_a_cell_in_hand() {
         &[Kind::Scale(ScaleTone::Grey, 5)],
         &Toolbox::new(BrushLibrary::built_in().expect("built-in brushes")),
     );
-    let pen = |session: &Session| PracticeProjection::of(session).and_then(|p| p.pen);
+    let pen = |session: &SheetSession| session.projection().pen;
     assert_eq!(pen(&session), None, "no pen offered");
     for refused in [Pen::Big, Pen::Small, Pen::Soft, Pen::Draw] {
-        assert!(
-            openpaint_practice_app::practise(&mut session, PracticeIntent::Pen(refused), NOW)
-                .is_err()
-        );
+        assert!(session.practise(PracticeIntent::Pen(refused), NOW).is_err());
     }
-    let cell = |session: &Session| PracticeProjection::of(session).and_then(|p| p.cell);
+    let cell = |session: &SheetSession| session.projection().cell;
     assert_eq!(cell(&session), Some(1));
     // The middle cell touched: taken in hand, nothing laid, no notice.
     let at = middle(&session);
     draw(&mut session, &[at, [at[0], at[1] + 6.0]], 0.5);
     assert_eq!(cell(&session), Some(2));
     assert!(last_stroke(&session).is_none(), "nothing painted");
-    assert_eq!(
-        PracticeProjection::of(&session).and_then(|p| p.notice),
-        None
-    );
+    assert_eq!(session.projection().notice, None);
     // With all tools the toolbox's brush paints the cell it lands in.
     practise(&mut session, PracticeIntent::AllTools(true));
     draw(&mut session, &[at, [at[0], at[1] + 6.0]], 0.5);
     assert!(last_stroke(&session).is_some(), "the brush paints");
+    assert_eq!(session.pen(), None, "the brush's outline, no pen's");
 }

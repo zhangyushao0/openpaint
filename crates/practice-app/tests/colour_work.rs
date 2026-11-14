@@ -9,8 +9,8 @@ mod support;
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox, Viewport,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, StrokeIntent, Toolbox,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -20,9 +20,8 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{
     Pen, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    PracticeProjection, Probe, Start,
+    Probe, SheetSession, Start,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -41,17 +40,17 @@ fn pens() -> PracticePens {
 }
 
 /// The sheet of `record` with `packs`, opened.
-fn opened(record: Sheet, packs: &[Pack]) -> Session {
+fn opened(record: Sheet, packs: &[Pack]) -> SheetSession {
     let record = record.framed(packs);
     let [width, height] = Layout::of_sheet(&record).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let opening = support::opening(&record, (packs, Vec::new()), [width, height]);
     let tools = (brush(Color::rgb(0.2, 0.4, 0.6).expect("colour")), pens());
-    openpaint_practice_app::open_sheet(sheet, tools, opening, &VIEWPORT)
+    SheetSession::open(sheet, tools, opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels).
-fn draw(session: &mut Session, points: &[[f32; 2]]) {
+fn draw(session: &mut SheetSession, points: &[[f32; 2]]) {
     let sample = |index: usize| InputSample {
         position: points[index],
         pressure: 0.8,
@@ -78,7 +77,7 @@ fn draw(session: &mut Session, points: &[[f32; 2]]) {
     }
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_400_000).expect("practised");
 }
 
@@ -87,7 +86,7 @@ fn colour([r, g, b]: [u8; 3]) -> Color {
     Color::rgb(c(r), c(g), c(b)).expect("colour")
 }
 
-fn colour_work() -> Session {
+fn colour_work() -> SheetSession {
     let exercises = vec![
         Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
         Exercise::generated(Kind::Scale(ScaleTone::Grey, 9), 0x5EED_0083),
@@ -96,25 +95,25 @@ fn colour_work() -> Session {
 }
 
 /// The copy's frame as the runtime reads it: `pixels` of the frame's size.
-fn read(session: &mut Session, pixels: Vec<u8>) {
-    let job = session.sheet().read_request().expect("the copy asked for");
+fn read(session: &mut SheetSession, pixels: Vec<u8>) {
+    let job = session.sheet_mut().read_request().expect("asked for");
     assert_eq!(job.size, [400, 400]);
     let image = PictureImage {
         size: job.size,
         pixels,
     };
-    session.sheet().read(job.sequence, job.run(&image));
+    session.sheet_mut().read(job.sequence, job.run(&image));
 }
 
 /// The comparison shown, as its kind's own.
-fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
-    let shown = PracticeProjection::of(session)?.compared.clone()?;
+fn compared<T: Compared + Clone>(session: &SheetSession) -> Option<T> {
+    let shown = session.projection().compared.clone()?;
     shown.downcast::<T>().cloned()
 }
 
 /// How strongly the original shows, the area compared, whether it is outlined over the frames.
-fn seen(session: &Session) -> (f32, usize, bool) {
-    let p = PracticeProjection::of(session).expect("a sheet");
+fn seen(session: &SheetSession) -> (f32, usize, bool) {
+    let p = session.projection();
     let haloed = |m: &openpaint_practice::SheetMark| match &m.drawn {
         Figure::Haloed { lines, red } => !red && !lines.is_empty(),
         _ => false,
@@ -124,8 +123,8 @@ fn seen(session: &Session) -> (f32, usize, bool) {
 
 /// The combination's frames and areas, painted (its tone filled, a stroke of Big in the colour
 /// picked) and compared.
-fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
-    let practice = PracticeProjection::of(session).expect("a sheet");
+fn painted_and_compared(session: &mut SheetSession) -> (Pair, GeneratedAreas) {
+    let practice = session.projection();
     let patches = Some(Kind::Areas(Arrangement::Patches));
     assert_eq!((practice.kind, practice.how), (patches, patches));
     assert_eq!(practice.pen, Some((Pen::Big, 64.0)));
@@ -141,7 +140,7 @@ fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
     practise(session, PracticeIntent::Fill(tone));
     let at = pair.copy.to_canvas([0.5, 0.5]).map(|v| v as f32);
     draw(session, &[at, [at[0] + 60.0, at[1]]]);
-    let artwork = session.artwork();
+    let artwork = session.session().artwork();
     let stroke = (artwork.layers().iter())
         .flat_map(|l| l.strokes().iter())
         .next()
@@ -174,7 +173,7 @@ fn a_colour_combination_is_painted_and_compared_its_numbers_kept_from_its_pixels
     let all: Vec<_> = areas.areas.colours.iter().copied().map(Some).collect();
     assert_eq!(read.copy.colours, all);
     assert!(read.strong.is_empty() && outlined);
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     let metrics = &record.first(0).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::AreasDelta), Some(0.0));
     assert_eq!(value(metrics, Metric::AreasMadeStrong), Some(0.0));
@@ -192,7 +191,7 @@ fn a_combination_s_card_shows_any_area_and_the_eyedropper_compares_a_point() {
     assert!((shown - 0.8).abs() < 1e-6);
     assert!(session.practise(PracticeIntent::Area(9), 1).is_err());
     let point = pair.copy.to_canvas([0.3, 0.6]).map(|v| v as f32);
-    let picked = session.sheet().pick(point);
+    let picked = session.sheet_mut().pick(point);
     let PracticePick::Probe {
         copy,
         on_original: false,
@@ -202,13 +201,13 @@ fn a_combination_s_card_shows_any_area_and_the_eyedropper_compares_a_point() {
         panic!("a probe")
     };
     assert_eq!(copy, point);
-    session.sheet().probed([1, 2, 3]);
-    let probe = PracticeProjection::of(&session).and_then(|p| p.probe);
+    session.sheet_mut().probed([1, 2, 3]);
+    let probe = session.projection().probe;
     let expected = areas.colour_at([0.3, 0.6], 0.0);
     assert!(matches!(probe, Some(Probe { original, copy: [1, 2, 3], .. }) if original == expected));
     // Another area chosen: the card shows it, not the point.
     practise(&mut session, PracticeIntent::Area(1));
-    assert_eq!(PracticeProjection::of(&session).and_then(|p| p.probe), None);
+    assert_eq!(session.projection().probe, None);
 }
 
 /// A copy's frame with every cell of `scale` painted at its even value, the paper round them.
@@ -229,7 +228,7 @@ fn even_scale(scale: &ValueScale) -> Vec<u8> {
 fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
     let mut session = colour_work();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     let grey = Some(Kind::Scale(ScaleTone::Grey, 9));
     assert_eq!(
         (practice.kind, practice.cell),
@@ -245,15 +244,15 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
         let at = pair.copy.to_canvas([(l + r) / 2.0, (t + b) / 2.0]);
         at.map(|v| v as f32)
     };
-    let cell = |session: &Session| PracticeProjection::of(session).and_then(|p| p.cell);
+    let cell = |session: &SheetSession| session.projection().cell;
     // The given ends are picked as given; the pen never paints them.
     let end = PracticePick::Colour(colour(scale.ends()[0]));
-    assert_eq!(session.sheet().pick(middle(0)), end);
+    assert_eq!(session.sheet_mut().pick(middle(0)), end);
     draw(
         &mut session,
         &[middle(0), [middle(0)[0], middle(0)[1] + 5.0]],
     );
-    let notice = PracticeProjection::of(&session).and_then(|p| p.notice);
+    let notice = session.projection().notice;
     assert_eq!(notice, Some(PracticeNotice::DrawInCell));
     // Fill takes the next cell in hand; the pen landing in a cell takes that one.
     let first = scale.colour(scale.targets()[1]);
@@ -273,7 +272,7 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
         panic!("the scale read")
     };
     assert!(check.uneven.is_empty() && check.reversed.is_empty());
-    let record = session.sheet().save_request().expect("the record changed");
+    let record = session.sheet_mut().save_request().expect("changed");
     let metrics = &record.first(1).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::ScaleReversed), Some(0.0));
 }
@@ -306,7 +305,7 @@ fn teapot() -> ItemRef {
 
 /// A colour copy of the pack's one picture begun (chosen) and opened, its picture read: the log,
 /// the copy's record, the session and its frames.
-fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
+fn copy_opened() -> (PracticeLog, Sheet, SheetSession, Pair) {
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![pack()]);
     let elsewhere = ItemRef {
         pack: "personal".to_owned(),
@@ -319,7 +318,7 @@ fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
     assert!(record.is_copy());
     record.canvas = 40;
     let mut session = opened(record.clone(), &[pack()]);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     // The full interface only, painted with the toolbox's own brushes: no pen (S104).
     assert!(practice.all_tools, "the full interface");
     assert_eq!(practice.pen, None);
@@ -328,14 +327,14 @@ fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
     let pair = practice.sheet.pairs[0];
     assert_eq!(pair.copy.size, [1600.0, 1200.0]);
     let item = session
-        .sheet()
+        .sheet_mut()
         .picture_request()
         .expect("its picture asked for");
     let image = PictureImage {
         size: [80, 60],
         pixels: [200, 120, 40, 255].repeat(80 * 60),
     };
-    session.sheet().picture_read(item, Some(image));
+    session.sheet_mut().picture_read(item, Some(image));
     (log, record, session, pair)
 }
 
@@ -343,7 +342,7 @@ fn copy_opened() -> (PracticeLog, Sheet, Session, Pair) {
 fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_next() {
     let (_, _, mut session, pair) = copy_opened();
     let on_original = pair.original.to_canvas([0.5, 0.375]).map(|v| v as f32);
-    let before = session.sheet().pick(on_original);
+    let before = session.sheet_mut().pick(on_original);
     assert_eq!(before, PracticePick::Refused, "not before a check");
     let at = pair.copy.to_canvas([0.5, 0.375]).map(|v| v as f32);
     draw(&mut session, &[at, [at[0] + 80.0, at[1]]]);
@@ -354,9 +353,10 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
     assert!((seen(&session).0 - 0.5).abs() < 1e-6);
     let corner = pair.copy.to_canvas([1.0, 0.75]).map(|v| v as f32);
     assert_eq!(pair.copy.to_canvas(corners[2]).map(|v| v as f32), corner);
-    assert!(session.sheet().read_request().is_none(), "nothing to read");
+    let unread = session.sheet_mut().read_request().is_none();
+    assert!(unread, "nothing to read");
     practise(&mut session, PracticeIntent::Shown(1.0));
-    let picked = session.sheet().pick(on_original);
+    let picked = session.sheet_mut().pick(on_original);
     let PracticePick::Probe {
         copy,
         on_original: true,
@@ -366,8 +366,8 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
         panic!("a probe")
     };
     assert_eq!(copy, at);
-    session.sheet().probed([190, 130, 50]);
-    let probe = PracticeProjection::of(&session).and_then(|p| p.probe);
+    session.sheet_mut().probed([190, 130, 50]);
+    let probe = session.projection().probe;
     let probe = probe.expect("compared");
     assert_eq!(
         (probe.original, probe.copy),
@@ -375,7 +375,7 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
     );
     let next = session.practise(PracticeIntent::Next(VIEWPORT), 3);
     assert!(next.is_err(), "never ended by Next");
-    let saved = session.sheet().save_request().expect("the record changed");
+    let saved = session.sheet_mut().save_request().expect("changed");
     let first = saved.first(0).map(|first| first.metrics.len());
     let compares = saved.laid(0).map(|l| l.compares);
     assert_eq!((compares, first), (Some(1), Some(0)));

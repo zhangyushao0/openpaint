@@ -61,7 +61,8 @@ impl Screen {
                     session
                         .with_brush(toolbox.projection())
                         .with_transfers(transfers.projection())
-                        .with_clipboard(clipboard.canvas()),
+                        .with_clipboard(clipboard.canvas())
+                        .with_pen(canvas.pen()),
                 ))
             }
             Self::Gallery(gallery, _) => ScreenProjection::Gallery(gallery.projection()),

@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushIntent, BrushKey, BrushLibrary, BrushSet, Contact, ContactPhase, Device, HARD_PAINT,
-    InputSample, Intent, Session, StrokeIntent, Title, Tool, ToolIntent, Toolbox, Viewport,
+    InputSample, Intent, StrokeIntent, Title, Tool, ToolIntent, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
     Given, ItemRef, Pack, PackItem, PictureKind, Sheet, Skill, SkillLevel, Tier,
 };
 use openpaint_practice_app::{
-    Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start, copy_brush,
+    Pen, PracticeIntent, PracticeLog, PracticePens, SheetSession, Start, copy_brush,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -181,7 +181,7 @@ fn sheet(record: Sheet, log: &PracticeLog) -> (Artwork, openpaint_practice_app::
 }
 
 /// A pen stroke from `at` 60 pixels right at `pressure`.
-fn draw(session: &mut Session, at: [f32; 2], pressure: f32) {
+fn draw(session: &mut SheetSession, at: [f32; 2], pressure: f32) {
     for (phase, dx, time_ms) in [
         (ContactPhase::Down, 0.0, 1000),
         (ContactPhase::Move, 30.0, 1008),
@@ -260,13 +260,13 @@ fn a_long_copy_is_painted_with_the_toolbox_s_brush_in_the_full_interface_only() 
     let colour = toolbox.projection().color;
     let style = toolbox.style().expect("style");
     let pens = PracticePens::built_in().expect("pens");
-    let mut session =
-        openpaint_practice_app::open_sheet(artwork, (style, pens.clone()), opening, &VIEWPORT);
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let mut session = SheetSession::open(artwork, (style, pens.clone()), opening, &VIEWPORT);
+    let practice = session.projection();
     assert!(practice.all_tools && practice.pen.is_none());
     let at = practice.sheet.pairs[0].copy.to_canvas([0.4, 0.5]);
     draw(&mut session, at.map(|v| v as f32), 0.02);
     let strokes = session
+        .session()
         .artwork()
         .layers()
         .iter()
@@ -280,12 +280,9 @@ fn a_long_copy_is_painted_with_the_toolbox_s_brush_in_the_full_interface_only() 
         PracticeIntent::AllTools(false),
         PracticeIntent::Pen(Pen::Big),
     ] {
-        assert!(
-            openpaint_practice_app::practise(&mut session, refused, NOW).is_err(),
-            "{refused:?}"
-        );
+        assert!(session.practise(refused, NOW).is_err(), "{refused:?}");
     }
     let own = StrokeStyle::new(Arc::clone(stroke.recipe()), 80.0, 1.0, colour);
     session.set_brush(own.expect("style"));
-    assert_eq!(PracticeProjection::of(&session).and_then(|p| p.pen), None);
+    assert_eq!(session.projection().pen, None);
 }

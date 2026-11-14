@@ -83,8 +83,8 @@ pub(crate) struct Strokes {
     reshown: bool,
     /// The last intent committed a stroke of this tool (its brush becomes Recent's newest).
     committed: Option<StrokeTool>,
-    /// Asked by the mode: strokes keep the pen's own samples, with no StreamLine, QuickShape
-    /// or guide.
+    /// Asked by a mode (`Session::keep_raw`): strokes keep the pen's own samples, with no
+    /// StreamLine, QuickShape or guide.
     raw: bool,
 }
 
@@ -104,7 +104,7 @@ impl Strokes {
         }
     }
 
-    /// From now on strokes keep the pen's own samples (`Mode::raw`).
+    /// From now on strokes keep the pen's own samples (`Session::keep_raw`).
     pub(crate) const fn set_raw(&mut self) {
         self.raw = true;
         self.streamline = StreamLine::OFF;

@@ -21,7 +21,7 @@ impl Runtime {
             None => (self.toolbox.style(), self.toolbox.streamline()),
         };
         if let (Some(canvas), Ok(style)) = (self.screen.canvas_mut(), style) {
-            canvas.session_mut().set_brush(style);
+            canvas.set_brush(style);
             canvas.session_mut().set_streamline(streamline);
         }
     }

@@ -11,7 +11,7 @@ mod support;
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Session, Toolbox, Viewport};
+use openpaint_app::{BrushLibrary, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     Exercise, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Needs, Pack, PackItem,
@@ -19,9 +19,8 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent, PracticeLog,
-    PracticePens, PracticePick, PracticeProjection, Start, value_colour,
+    PracticePens, PracticePick, SheetSession, Start, value_colour,
 };
-use support::OnSheet;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -57,7 +56,7 @@ fn compositions() -> Pack {
     }
 }
 
-fn opened(kind: Kind) -> Session {
+fn opened(kind: Kind) -> SheetSession {
     let packs = [compositions()];
     let exercise = Exercise {
         picture: Some(ItemRef {
@@ -75,12 +74,12 @@ fn opened(kind: Kind) -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::built_in().expect("pens");
-    let mut session = openpaint_practice_app::open_sheet(sheet, (brush, pens), opening, &VIEWPORT);
+    let mut session = SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT);
     practise(&mut session, PracticeIntent::Instructions(false));
     session
 }
 
-fn practise(session: &mut Session, intent: PracticeIntent) {
+fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, NOW).expect("practised");
 }
 
@@ -110,7 +109,7 @@ fn painted(masses: &ValueMasses, [origin, size]: [[f64; 2]; 2], frame: [u32; 2])
 #[test]
 fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     let mut session = opened(Kind::ValueMasses(Tier::Simple));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::ValueMasses(Tier::Simple)));
     // Middle first: Fill frame lays the overall tone before Dark and Light (S100).
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Middle));
@@ -121,7 +120,7 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     // Fill frame with Middle: the picture's place filled in its grey, whatever colour is asked.
     practise(&mut session, PracticeIntent::Pen(Pen::Middle));
     practise(&mut session, PracticeIntent::Fill(Color::BLACK));
-    let fill = (session.artwork().layers().iter())
+    let fill = (session.session().artwork().layers().iter())
         .flat_map(|layer| layer.edits().iter())
         .find_map(|edit| edit.fill())
         .expect("a fill");
@@ -142,7 +141,7 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     }
     // Compare asks the copy of the worker, the frame read against the answer over it whole.
     practise(&mut session, PracticeIntent::Compare(true));
-    let job = session.sheet().read_request().expect("the copy asked for");
+    let job = session.sheet_mut().read_request().expect("asked for");
     assert_eq!(job.size, [400, 300]);
     let Some(MassesReading { answer, place, .. }) = job.reading.downcast::<MassesReading>() else {
         panic!("{:?}", job.reading);
@@ -158,15 +157,15 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
         panic!("{read:?}");
     };
     assert!(check.hatching.is_empty() && check.matched > 0.99);
-    session.sheet().read(job.sequence, Some(read.clone()));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    session.sheet_mut().read(job.sequence, Some(read.clone()));
+    let practice = session.projection();
     assert!((practice.shown - 0.5).abs() < 1e-6);
     let shown = practice
         .compared
         .as_ref()
         .and_then(|c| c.downcast::<MassesCompared>());
     assert!(shown.is_some_and(|masses| masses.check.is_some()));
-    let record = session.sheet().save_request().expect("compared");
+    let record = session.sheet_mut().save_request().expect("compared");
     let kept = value(
         &record.first(0).expect("compared").metrics,
         Metric::MassesMatched,
@@ -175,8 +174,8 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
 }
 
 /// The layer named `name`: its place among the layers, its opacity and whether it is drawn on.
-fn layer(session: &Session, name: &str) -> (usize, f32, bool) {
-    let artwork = session.artwork();
+fn layer(session: &SheetSession, name: &str) -> (usize, f32, bool) {
+    let artwork = session.session().artwork();
     let at = (artwork.layers().iter())
         .position(|layer| layer.name().as_str() == name)
         .unwrap_or_else(|| panic!("no layer {name}"));
@@ -187,7 +186,11 @@ fn layer(session: &Session, name: &str) -> (usize, f32, bool) {
 #[test]
 fn a_whole_copy_in_colour_blocks_paints_under_its_division_and_compares_a_point() {
     let mut session = opened(Kind::WholeCopy(Tier::Simple));
-    assert_eq!(session.artwork().layers().len(), 3, "no blocks' layer yet");
+    assert_eq!(
+        session.session().artwork().layers().len(),
+        3,
+        "no blocks' layer yet"
+    );
     // Big: the blocks' layer made under the division, drawn on; the division dimmed over it.
     practise(&mut session, PracticeIntent::Pen(Pen::Big));
     let (blocks, _, drawn_on) = layer(&session, BLOCKS_LAYER);
@@ -197,7 +200,7 @@ fn a_whole_copy_in_colour_blocks_paints_under_its_division_and_compares_a_point(
     // Fill frame fills the picture's place on it in the colour picked.
     let sky = Color::rgb(0.5, 0.7, 0.9).expect("a colour");
     practise(&mut session, PracticeIntent::Fill(sky));
-    let artwork = session.artwork();
+    let artwork = session.session().artwork();
     let filled = artwork.layers()[blocks]
         .edits()
         .iter()
@@ -207,32 +210,28 @@ fn a_whole_copy_in_colour_blocks_paints_under_its_division_and_compares_a_point(
     // screen); one left bare compares none.
     let (size, pixels) = Masses::generate(9, 0.75).picture(800);
     let item = session
-        .sheet()
+        .sheet_mut()
         .picture_request()
         .expect("its picture asked for");
     session
-        .sheet()
+        .sheet_mut()
         .picture_read(item, Some(PictureImage { size, pixels }));
     practise(&mut session, PracticeIntent::Compare(true));
-    let practice = PracticeProjection::of(&session).expect("a sheet");
+    let practice = session.projection();
     let frame = practice.sheet.pairs[0].copy;
     let picture = practice.sheet.pictures[0].clone().expect("its picture");
     let at = picture.fit.to_frame([400.0, 300.0]);
     let point = frame.to_canvas(at).map(|v| v as f32);
     assert!(matches!(
-        session.sheet().pick(point),
+        session.sheet_mut().pick(point),
         PracticePick::Probe { .. }
     ));
-    session.sheet().probed([128, 180, 230]);
-    let probe = PracticeProjection::of(&session).and_then(|p| p.probe);
+    session.sheet_mut().probed([128, 180, 230]);
+    let probe = session.projection().probe;
     assert!(probe.is_some_and(|probe| probe.copy == [128, 180, 230]));
-    let _ = session.sheet().pick(point);
-    session.sheet().probed([255; 3]);
-    assert!(
-        PracticeProjection::of(&session)
-            .and_then(|p| p.probe)
-            .is_none()
-    );
+    let _ = session.sheet_mut().pick(point);
+    session.sheet_mut().probed([255; 3]);
+    assert!(session.projection().probe.is_none());
     // Draw: the line drawing's layer drawn on, the division still dimmed.
     practise(&mut session, PracticeIntent::Compare(false));
     practise(&mut session, PracticeIntent::Pen(Pen::Draw));

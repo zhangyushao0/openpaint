@@ -136,7 +136,7 @@ pub struct SessionProjection {
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
     /// The diameter of the pen the mode draws with instead of the brush (canvas pixels), for the
-    /// hover outline.
+    /// hover outline (`with_pen`).
     pub(crate) pen: Option<f32>,
 }
 
@@ -304,6 +304,13 @@ impl SessionProjection {
     #[must_use]
     pub const fn pen(&self) -> Option<f32> {
         self.pen
+    }
+
+    /// This projection with the diameter of the pen a mode draws with instead of the brush, which
+    /// the composition root asks of the mode.
+    #[must_use]
+    pub fn with_pen(self, pen: Option<f32>) -> Self {
+        Self { pen, ..self }
     }
 
     /// This projection with the export and reference flows, which belong to the app.
