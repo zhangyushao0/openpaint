@@ -197,14 +197,13 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
 }
 
 #[test]
-fn a_lesson_step_names_a_skill_and_level_a_unit_or_a_word() {
+fn a_lesson_step_names_a_skill_and_level_or_a_word() {
     let text = r#"{
         "screen": [640, 400],
         "density": 2,
         "steps": [
             { "lesson": { "skill": "line", "level": 1 } },
             { "lesson": { "skill": "points-in-space" } },
-            { "lesson": { "full": 2 } },
             { "lesson": "first" },
             { "lesson": "next" }
         ]
@@ -216,13 +215,13 @@ fn a_lesson_step_names_a_skill_and_level_a_unit_or_a_word() {
             _ => panic!("a lesson step"),
         })
         .collect();
-    assert_eq!(starts[2], "Full(2)");
-    assert_eq!(starts[3], "First");
-    assert_eq!(starts[4], "Next");
+    assert_eq!(starts[2], "First");
+    assert_eq!(starts[3], "Next");
     let step = |lesson: &str| {
         format!(r#"{{ "screen": [640, 400], "density": 2, "steps": [{{ "lesson": {lesson} }}] }}"#)
     };
     for bad in [
+        r#"{ "full": 2 }"#,
         r#"{ "skill": "stage" }"#,
         r#"{ "skill": "line", "level": 4 }"#,
         r#""later""#,

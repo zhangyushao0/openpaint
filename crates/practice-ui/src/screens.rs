@@ -6,6 +6,7 @@
 use openpaint_practice::ItemRef;
 use openpaint_practice_app::{
     OptionsIntent, OptionsNotice, PathProjection, PictureImage, PracticeIntent, PracticeProjection,
+    TimerIntent, TimerShown,
 };
 use openpaint_ui::{CanvasHook, HomeHook, Hooks};
 
@@ -20,18 +21,29 @@ pub struct PracticeScreens {
     sheet_taps: Vec<PracticeIntent>,
     home: HomePart,
     options_taps: Vec<OptionsIntent>,
+    /// The Pomodoro's taps (S124): the home's row, the bar's ring and End, the block's end, the
+    /// options' chime switch.
+    timer_taps: Vec<TimerIntent>,
 }
 
 /// What practice shows in one frame: the open `sheet` on the canvas, or on the home the path
-/// (its column, the path page, the practice options and book) with what the options tell.
+/// (its column, the path page, the practice options and book) with what the options tell; and
+/// the Pomodoro's timer on either (S124).
 pub type Shown<'a> = (
     Option<&'a PracticeProjection>,
     Option<(&'a PathProjection, Option<OptionsNotice>)>,
+    &'a TimerShown,
 );
+
+/// Practice's taps of one frame: the sheet's, the options' and the timer's.
+pub type Taken = (Vec<PracticeIntent>, Vec<OptionsIntent>, Vec<TimerIntent>);
 
 impl PracticeScreens {
     /// The hooks practice fills in one frame for what it shows (`shown`).
-    pub fn hooked<'a>(&'a mut self, (sheet, path): Shown<'a>) -> Hooked<'a> {
+    pub fn hooked<'a>(&'a mut self, (sheet, path, timer): Shown<'a>) -> Hooked<'a> {
+        // S124c: the timer to the sheet's bar and card and to the home's row, header, book and
+        // options; their timer taps to `timer_taps`.
+        let _ = (timer, &mut self.timer_taps);
         let sheet = sheet.map(|sheet| SheetHook {
             part: &mut self.sheet,
             sheet,
@@ -46,11 +58,13 @@ impl PracticeScreens {
         Hooked { sheet, home }
     }
 
-    /// Practice's taps since the last call: the sheet's and the options'. Call after the shell's
-    /// `route`; the runtime applies them after the frame's painting intents.
-    pub fn take(&mut self) -> (Vec<PracticeIntent>, Vec<OptionsIntent>) {
+    /// Practice's taps since the last call: the sheet's, the options' and the timer's. Call after
+    /// the shell's `route`; the runtime applies them after the frame's painting intents, the
+    /// timer's last.
+    pub fn take(&mut self) -> Taken {
         let sheet = std::mem::take(&mut self.sheet_taps);
-        (sheet, std::mem::take(&mut self.options_taps))
+        let options = std::mem::take(&mut self.options_taps);
+        (sheet, options, std::mem::take(&mut self.timer_taps))
     }
 
     /// The next picture the practice options want read (a pack's, by its item), once each: the

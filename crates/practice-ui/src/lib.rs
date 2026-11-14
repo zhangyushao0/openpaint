@@ -20,5 +20,5 @@ mod screens;
 mod sheet;
 mod text;
 
-pub use crate::screens::{Hooked, PracticeScreens, Shown};
+pub use crate::screens::{Hooked, PracticeScreens, Shown, Taken};
 pub use crate::text::NAMES;

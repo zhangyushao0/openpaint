@@ -142,7 +142,7 @@ impl Screen {
         (toolbox, core, cache, practice): Answered<'_>,
     ) -> Option<Start> {
         match done {
-            Done::Started(opened, editor, (sessions, titles, packs)) => {
+            Done::Started(opened, editor, (sessions, titles, packs, blocks)) => {
                 if let Some(state) = editor
                     && !toolbox.restore(&state)
                 {
@@ -155,6 +155,7 @@ impl Screen {
                     log::warn!("the stored brush sets list {key} for no brush or again; dropped");
                 }
                 *practice = PracticeLog::new(sessions, titles, packs);
+                practice.set_blocks(blocks);
                 *self = started(opened);
             }
             Done::EditorSaved(result) => {

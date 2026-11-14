@@ -101,7 +101,6 @@ fn the_path_page_shows_the_units_the_skills_and_the_offers() {
             t::COLOURS_SKILL.id(),
             t::START.id(),
             t::REVIEW.id(),
-            t::FULL_LESSON.id(),
             t::PRACTICE_BOOK.id(),
         ];
         for unit in [1, 8] {

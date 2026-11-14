@@ -314,7 +314,7 @@ impl Runtime {
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
         let now = self.frame_clock.wall_seconds();
-        self.practice.set_clock(now, self.utc_offset);
+        self.clocked(now);
         // A use of the pen (touching or hovering), a finger or a control on a practice sheet.
         if let (false, Some(canvas)) = (batches.is_empty(), self.screen.canvas_mut())
             && let Some(sheet) = practice::sheet(canvas)

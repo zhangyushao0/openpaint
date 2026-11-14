@@ -52,6 +52,7 @@ pub(crate) struct Beside {
 }
 
 mod append;
+mod block;
 mod checks;
 mod compare;
 mod lesson;

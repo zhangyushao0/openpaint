@@ -4,7 +4,7 @@
 
 use openpaint_practice::{
     Combination, CombinedLines, Exercise, Family, ItemRef, Kind, Learner, LineExercise, LineTier,
-    Original, Pictures, Standing, Tier, Tone, hsv, length, schedule,
+    Original, Pictures, SkillLevel, Standing, Tier, Tone, hsv, length, schedule,
 };
 
 #[test]
@@ -124,18 +124,17 @@ fn colours_follow_their_tone_and_the_seed() {
 }
 
 #[test]
-fn a_unit_s_full_lesson_holds_its_skills_each_exercise_its_own_seed_colours_mostly_low() {
+fn a_colour_lesson_holds_each_exercise_its_own_seed_its_colours_mostly_low() {
     let (pictures, learner) = (Pictures::default(), Learner::default());
     let standing = Standing {
         pictures: &pictures,
         learner: &learner,
     };
-    let planned = schedule::full(1, 0x5EED_0045, &standing).expect("unit 1's");
-    assert_eq!(
-        Some(&planned),
-        schedule::full(1, 0x5EED_0045, &standing).as_ref()
-    );
-    assert_ne!(Some(&planned), schedule::full(1, 1, &standing).as_ref());
+    let colour = openpaint_practice::Skill::of_key("colour").expect("colours");
+    let lesson = |seed| schedule::lesson(colour, SkillLevel::First, seed, &standing);
+    let planned = lesson(0x5EED_0045).expect("a colour lesson");
+    assert_eq!(Some(&planned), lesson(0x5EED_0045).as_ref());
+    assert_ne!(Some(&planned), lesson(1).as_ref());
     let lesson: Vec<&Exercise> = planned.exercises.iter().map(|(e, _)| e).collect();
     let colours: Vec<&&Exercise> = (lesson.iter())
         .filter(|e| e.kind.family() == Family::Colour)

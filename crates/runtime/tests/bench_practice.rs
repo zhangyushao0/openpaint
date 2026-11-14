@@ -78,13 +78,18 @@ fn the_book_and_practice_benchmarks_run_on_the_home_and_on_sheets() {
     unit_three(runtime, hand);
 }
 
-/// Unit `unit`'s full lesson started from the home (`Runtime::start_lesson`, as a scenario's
-/// `lesson` step starts it), once its sheet shows and its motion settled.
+/// A lesson of unit `unit`'s first skill started from the home (`Runtime::start_lesson`, as a
+/// scenario's `lesson` step starts it), once its sheet shows and its motion settled.
+///
+/// S124 integration: the full lesson this walked is gone; the walk goes through a Pomodoro's
+/// lessons one after another (unit 1's line, group and colour; unit 3's point, point in space and
+/// solid), the bench (`runtime/src/bench/practice.rs`) looking ahead past the lesson in hand.
 fn started(runtime: &mut Runtime, hand: &mut Hand, unit: u8) {
-    runtime.start_lesson(Start::Full(unit)).expect("started");
+    let skill = openpaint_practice::UNITS[usize::from(unit) - 1].skills[0];
+    runtime.start_lesson(Start::Skill(skill)).expect("started");
     until(runtime, hand, |runtime| {
         let lesson = runtime.practice().and_then(|practice| practice.lesson);
-        lesson.is_some_and(|lesson| lesson.row.unit == Some(unit))
+        lesson.is_some_and(|lesson| lesson.row.skill == Some(skill))
     });
     settle(runtime, hand);
 }

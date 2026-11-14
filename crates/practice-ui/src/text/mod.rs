@@ -12,12 +12,27 @@
 //! The path's controls (S122), their English fixed with the contract because scenarios tap them
 //! by it. The home's two entrances: Practice, Studio (画室; the ui's word). The home's column and
 //! the path page: Start (开始), Continue (继续, a lesson under way), Review (复习), All units
-//! (全部单元), Practice book (练习簿), Full lesson (完整一课); the home's unit tiles by their
-//! skills' names. On the sheet the bar is the skill and its place ("skill 3/5", "First lesson
-//! 2/3"), How, Compare and Next as they are; a How's replay Watch again (再看一遍). An exercise's
-//! result: Accurate (准), Almost (差一点), Again (重来). A lesson's end: One more (再来一课),
-//! That's all for today (今天到这儿). A skill's words go by `Skill::key`, a kind's by its
-//! `Facts::key`.
+//! (全部单元), Practice book (练习簿); the home's unit tiles by their skills' names; Full lesson
+//! (完整一课) only names an old record's full lesson (S124 took it off the path). On the sheet the
+//! bar is the skill and its place ("skill 3/5", "First lesson 2/3"), How, Compare and Next as
+//! they are; a How's replay Watch again (再看一遍). An exercise's result: Accurate (准), Almost
+//! (差一点), Again (重来). A lesson's end: One more (再来一课), That's all for today (今天到这儿).
+//! A skill's words go by `Skill::key`, a kind's by its `Facts::key`.
+//!
+//! The Pomodoro's controls (S124), their English fixed with its contract: the home's row Pomodoro
+//! (番茄钟) with 15, 25 and 40 (the lengths, "min" / 分钟 after them as a label) and Start timer
+//! (开始计时), Continue (继续) while a block is under way; on the bar the ring before the
+//! lesson's place named by its minutes left ("18 min", "18 分"), its menu Pause (暂停) or Continue
+//! and Stop timer (结束番茄钟); at the time Time (到点, no control) and Next reading End (结束); the
+//! block's end Another pomodoro (再来一个番茄钟) and That's all for today; the practice options'
+//! switch Break chime (休息结束提示音). The seal reads 番茄 and a short English word.
+//!
+//! No sentence on a screen states a rule (the author, 2026-11-13: "a screen never explains how
+//! it works"). A screen holds names, states, numbers and controls: the test for any word added is
+//! whether it names something or says what is, never how the app works or what will happen. So
+//! S124 takes off the eye-judged result's note (`EYE_NOTE`), One more's ", on the next row of
+//! this sheet" (`one_more_line`), the first lesson's "Nothing is scored here…" (`NOTHING_SCORED`),
+//! and the full lesson's line went with it.
 
 pub(crate) use openpaint_ui::text::*;
 

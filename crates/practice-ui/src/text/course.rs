@@ -19,9 +19,7 @@ texts! { PRACTICE_COURSE;
     UNDER_WAY = "Today's lesson, under way", "今天这一课还没上完";
     ON_THE_SIDE = "Review on the side", "顺手复习";
     REDO_WAITS = "Again last time", "上次有题重来";
-    LONGER = "To practise longer", "想坐下来多练";
     UNIT_IN_THE_MAKING = "Its lessons are still being made", "这一单元的课还在准备中";
-    FULL_LINE = "A warm-up, then each skill of this unit", "热身，再把这一单元的各项练一遍";
     FIRST_LESSON = "First lesson", "第一课";
     LEVEL_FIRST = "Beginning", "入门";
     LEVEL_SECOND = "Fluent", "熟练";
@@ -166,14 +164,6 @@ pub(crate) fn exercises_line(language: Language, (exercises, minutes): (u8, u8))
         Language::English if exercises == 1 => format!("1 exercise · about {minutes} min"),
         Language::English => format!("{exercises} exercises · about {minutes} min"),
         Language::Chinese => format!("{exercises} 题 · 约 {minutes} 分钟"),
-    }
-}
-
-/// About how long a full lesson takes: "About 28 minutes", "约 28 分钟".
-pub(crate) fn about_minutes(language: Language, minutes: u8) -> String {
-    match language {
-        Language::English => format!("About {minutes} minutes"),
-        Language::Chinese => format!("约 {minutes} 分钟"),
     }
 }
 
@@ -328,12 +318,11 @@ mod tests {
     }
 
     #[test]
-    fn a_lesson_s_end_says_its_exercises_and_time_and_a_full_lesson_its_minutes() {
+    fn a_lesson_s_end_says_its_exercises_and_time() {
         assert_eq!(
             lesson_took(Language::English, (5, 192)),
             "5 exercises · 3 min 12 s"
         );
         assert_eq!(lesson_took(Language::Chinese, (3, 45)), "3 题 · 45 秒");
-        assert_eq!(about_minutes(Language::English, 28), "About 28 minutes");
     }
 }

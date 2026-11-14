@@ -1,5 +1,5 @@
 //! For debug builds only (`cargo device-input practice-test start|end`, DECISIONS D102): a test
-//! lesson (the next one, a skill's at a level, a unit's full lesson, the first lesson; or a test
+//! lesson (the next one, a skill's at a level, the first lesson; or a test
 //! colour copy, `start copy`) started beside any open one, and removed afterwards with its sheet,
 //! so a practice slice walks its lesson on the tablet while the author's lessons, copies, records
 //! and the path's dots stay as they were. A test lesson's sheet is a `Purpose::Test` sheet (a
@@ -100,12 +100,11 @@ impl FromStr for PracticeTest {
 impl Runtime {
     /// For debug builds only: a test lesson as `start` names it (`skill_start` for a skill's),
     /// started from the home beside any open one on a test's sheet; its sheet opens once the
-    /// store wrote it (`test_practice` names it then). A full lesson without a unit given is the
-    /// learner's unit's. Returns its id.
+    /// store wrote it (`test_practice` names it then). Returns its id.
     ///
     /// # Errors
     /// `NotNow` when the home does not show, or nothing is there to start (a skill whose
-    /// pictures are not kept, a unit not built); a sheet that cannot be made.
+    /// pictures are not kept); a sheet that cannot be made.
     pub fn start_test_lesson(&mut self, start: Start) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
             return Err(RuntimeError::NotNow("the home"));
@@ -116,16 +115,6 @@ impl Runtime {
         let job = lesson_job(&self.practice, start, &mut self.seeds, now)?;
         self.storage.submit(job);
         Ok(id)
-    }
-
-    /// For debug builds only: the full lesson of `unit`, else of the learner's unit (the one the
-    /// path offers), as `start_test_lesson`.
-    ///
-    /// # Errors
-    /// As `start_test_lesson`.
-    pub fn start_test_full(&mut self, unit: Option<u8>) -> Result<u64, RuntimeError> {
-        let unit = unit.unwrap_or_else(|| self.practice.path().unit);
-        self.start_test_lesson(Start::Full(unit))
     }
 
     /// For debug builds only: a test colour copy of an official pack's picture not copied before

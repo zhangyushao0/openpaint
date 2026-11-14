@@ -64,7 +64,6 @@ impl PracticeLog {
                 number: unit.number,
                 open: learner.open(unit.number, &pictures),
                 skills: unit.skills.iter().copied().map(shown).collect(),
-                full: schedule::full_offer(unit.number, &standing),
             })
             .collect();
         let first = learner.fresh();
@@ -106,7 +105,7 @@ impl PracticeLog {
     /// sheet of its own for the day (the runtime lays it onto today's sheet where that takes it,
     /// S121c), with its sheet's title; it has no canvas until the store gives it one. None where
     /// there is nothing to start: no skill to practise, no redo to review, a skill whose
-    /// pictures are not kept, a unit not built.
+    /// pictures are not kept.
     #[must_use]
     pub fn start(&self, start: Start, seed: u64, now: u64) -> Option<(Sheet, Title)> {
         let pictures = Pictures::of(&self.packs);
@@ -124,7 +123,6 @@ impl PracticeLog {
             Start::Review => schedule::reviewed(seed, &standing)?,
             Start::Skill(skill) => schedule::chosen(skill, seed, &standing)?,
             Start::At(skill, level) => schedule::lesson(skill, level, seed, &standing)?,
-            Start::Full(unit) => schedule::full(unit, seed, &standing)?,
         };
         let record = Sheet::begun(self.next_id(), (Purpose::Day, now), planned);
         let lesson = self.learner.lessons() + 1;

@@ -26,7 +26,7 @@ const PACK: u32 = 0;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionsIntent {
     /// A lesson started and opened at once (S122: the home's and the path's Start, Review, a
-    /// skill's tile, Full lesson), onto the day's sheet where it takes it; one left unfinished is
+    /// skill's tile), onto the day's sheet where it takes it; one left unfinished is
     /// continued by opening its sheet (`PathProjection::open`).
     Lesson(Start),
     /// A new long colour copy of the picture chosen, opened at once (the practice options' New

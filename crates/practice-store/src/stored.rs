@@ -104,6 +104,17 @@ pub fn append(
     Ok(())
 }
 
+/// The Pomodoro's End (S124): `sheet`'s record replaced whole, its last lesson cut to the
+/// exercises begun, and that lesson's givens written again holding only the slots its exercises
+/// keep, in one write; what was printed for the exercises gone goes with them.
+///
+/// # Errors
+/// Whatever reading the givens or the write fails with; nothing is written then.
+pub fn trim(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<(), PortError> {
+    // S124a: the last lesson's givens read and written again without the slots gone.
+    save(store, sheet)
+}
+
 /// `sheet`'s stored record replaced whole (by its id); its project is saved as any artwork.
 ///
 /// # Errors

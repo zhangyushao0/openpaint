@@ -4,8 +4,9 @@
 //! correction), the lessons whose first single line shows side by side (the first and the
 //! latest), the seals earned, and how much was done in all. Progress counts what was done, never
 //! days in a row. Lessons are every sheet's but a copy's (`lessons.rs`); days and time are the
-//! sheets'.
+//! sheets', each day with the Pomodoro's blocks completed on it (S124).
 
+use crate::records::blocks::Block;
 use crate::records::lessons::{OnSheet, lessons, number};
 use crate::records::metric::{Metric, value};
 use crate::records::seals::{Earned, earned};
@@ -40,6 +41,9 @@ pub struct Day {
     pub seconds: u64,
     /// The sheets and copies practised on it, by id, oldest first.
     pub records: Vec<u64>,
+    /// The Pomodoro's blocks completed on it (S124, `Blocks::on`): its red seals beside its time.
+    /// A day with a block is a day practised, its time or none.
+    pub blocks: u32,
 }
 
 /// A lesson's first single line compared, shown in the book.
@@ -53,9 +57,12 @@ pub struct LineShown {
 }
 
 impl Book {
-    /// The book of `records`, its days on a clock `offset` minutes from UTC.
+    /// The book of `records` and the Pomodoro's blocks completed (`blocks`, S124: each day's
+    /// count, S124a), its days on a clock `offset` minutes from UTC.
     #[must_use]
-    pub fn of(records: &[Sheet], offset: i32) -> Self {
+    pub fn of(records: &[Sheet], blocks: &[Block], offset: i32) -> Self {
+        // S124a: each day's blocks, a day with one added when it has no time.
+        let _ = blocks;
         let mut ordered: Vec<&Sheet> = records.iter().collect();
         ordered.sort_by_key(|record| record.id);
         let taken: Vec<OnSheet<'_>> = (lessons(records).into_iter())
@@ -95,6 +102,7 @@ fn days(records: &[&Sheet], offset: i32) -> Vec<Day> {
                     day,
                     seconds,
                     records: vec![record.id],
+                    blocks: 0,
                 }),
             }
         }

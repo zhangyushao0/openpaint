@@ -4,7 +4,8 @@
 
 use openpaint_app::Intent;
 use openpaint_practice::Purpose;
-use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeSheet};
+use openpaint_practice_app::PracticeSheet;
+use openpaint_practice_ui::Taken;
 
 use super::Runtime;
 use crate::error::RuntimeError;
@@ -44,14 +45,11 @@ impl Runtime {
         self.open_canvas()
     }
 
-    /// The frame's intents applied to the canvas (then practice's on its sheet, its fill, Compare's
-    /// fit and copy read off the frame loop, pictures and brush rows) or the gallery (then the
-    /// practice options'). Returns whether brush pictures arrived.
-    pub(super) fn apply(
-        &mut self,
-        intents: Vec<Intent>,
-        (sheet, options): (Vec<PracticeIntent>, Vec<OptionsIntent>),
-    ) -> bool {
+    /// The frame's intents applied to the canvas (then practice's on its sheet and the timer's,
+    /// its fill, Compare's fit and copy read off the frame loop, pictures and brush rows) or the
+    /// gallery (then the practice options' and the timer's). Returns whether brush pictures
+    /// arrived.
+    pub(super) fn apply(&mut self, intents: Vec<Intent>, (sheet, options, timer): Taken) -> bool {
         match &mut self.screen {
             Screen::Canvas(canvas) => {
                 let now = self.frame_clock.wall_seconds();
@@ -59,6 +57,8 @@ impl Runtime {
                 canvas.dispatch(&self.core, intents, app);
                 let day = (&mut self.practice, &mut self.seeds, &mut self.storage);
                 practice::apply(canvas, sheet, day, now);
+                let day = (&mut self.practice, &mut self.seeds, &mut self.storage);
+                practice::timed_on_sheet(canvas, timer, day, now);
                 self.fill.step(canvas);
                 self.compare.step(canvas);
                 while let Some(item) =
@@ -73,6 +73,7 @@ impl Runtime {
             Screen::Gallery(gallery, asked) => {
                 dispatch_gallery(gallery, intents);
                 practice::dispatch_options((gallery, asked), options);
+                practice::timed_at_home((gallery, asked), timer, &mut self.practice);
                 self.pack_pictures.step(&mut self.practice_screens);
                 false
             }

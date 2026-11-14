@@ -67,7 +67,8 @@ pub enum Picked {
     /// copy's picture. Stored as 2.
     Chosen,
     /// A full lesson of unit `stage` (S122; a stage's session before it), its first `warm_up`
-    /// exercises the warm-up. Stored as 3.
+    /// exercises the warm-up. Stored as 3; none is laid since S124 (the Pomodoro took its
+    /// place), an old record's still reads and is named as before.
     Full { stage: u8, warm_up: u8 },
     /// The first lesson (S122): a free scribble, a straight line, an arc. Stored as 4.
     First,

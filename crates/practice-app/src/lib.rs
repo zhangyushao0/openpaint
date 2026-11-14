@@ -1,7 +1,8 @@
 //! Practice's flow (G9, D112, S122): the open practice sheet as the session's mode, its pens,
 //! Compare, a painted copy's reading, the eyedropper and the views it glides to, a lesson's
 //! results and its end; the log of every practice sheet, the learner and the path it tells of,
-//! the practice book; the practice options on the home. A practice sheet is stored like an
+//! the practice book; the practice options on the home; the Pomodoro's timer, its chain of
+//! lessons and its blocks (S124, `pomodoro/`). A practice sheet is stored like an
 //! artwork (its strokes and fills through the same history, autosave and library), but the
 //! gallery never lists it: it belongs to its record, which `openpaint-practice-store` keeps in
 //! the library's record space.
@@ -20,6 +21,7 @@ mod options;
 mod path;
 mod pens;
 mod pictures;
+mod pomodoro;
 mod projection;
 mod refused;
 mod sheet;
@@ -37,6 +39,7 @@ pub use crate::options::{
 pub use crate::path::{OpenLesson, PathProjection, SkillShown, Start, UnitShown};
 pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};
+pub use crate::pomodoro::{BlockEnd, BlockShown, Timed, TimerIntent, TimerShown};
 pub use crate::projection::{
     CopyRead, Greys, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe, SHOWN,
     SheetView,

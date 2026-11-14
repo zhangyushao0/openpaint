@@ -5,8 +5,7 @@
 
 use openpaint_practice::{
     Book, Exercise, First, Given, Givens, Kind, Layout, Learner, Lesson, LineShown, LineTier,
-    Picked, Pictures, Planned, Purpose, Seal, Sheet, SkillLevel, Standing, Tally, lessons, number,
-    schedule, sealed,
+    Picked, Planned, Purpose, Seal, Sheet, SkillLevel, Tally, lessons, number, sealed,
 };
 
 /// 2026-10-05 12:00 UTC.
@@ -29,14 +28,22 @@ fn line_lesson(id: u64) -> Sheet {
     Sheet::begun(id, (Purpose::Day, NOON), planned)
 }
 
-/// Unit 1's full lesson as a lesson to append, seeded `seed`.
+/// Unit 1's full lesson as an old record holds it (none is laid since S124), as a lesson to
+/// append, seeded `seed`: a warm-up of three, then lines.
 fn full_lesson(seed: u64) -> Lesson {
-    let (pictures, learner) = (Pictures::default(), Learner::default());
-    let standing = Standing {
-        pictures: &pictures,
-        learner: &learner,
+    let exercises = (0..7)
+        .map(|at| {
+            let kind = Kind::Line(LineTier::Arc);
+            (Exercise::generated(kind, seed + at), SkillLevel::First)
+        })
+        .collect();
+    let planned = Planned {
+        picked: Picked::Full {
+            stage: 1,
+            warm_up: 3,
+        },
+        exercises,
     };
-    let planned = schedule::full(1, seed, &standing).expect("unit 1's");
     Sheet::begun(0, (Purpose::Day, NOON + 600), planned)
         .lessons
         .remove(0)
@@ -157,7 +164,7 @@ fn every_count_sees_each_lesson_in_the_order_of_sheet_and_lesson() {
     alone.lessons.truncate(1);
     assert_eq!(sealed(&Tally::default(), &alone), [Seal::FirstSession]);
     // The book: lessons finished, and the first and the latest lesson's first line compared.
-    let book = Book::of(&sheets, 0);
+    let book = Book::of(&sheets, &[], 0);
     assert_eq!(book.sessions, 2);
     let shown = |number, index| LineShown {
         record: 1,

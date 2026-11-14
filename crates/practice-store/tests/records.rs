@@ -13,8 +13,8 @@ use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectId, ProjectStore, Record, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{
-    First, Given, Givens, Layout, Learner, Lesson, Metric, Pictures, Purpose, Sheet, Standing,
-    schedule,
+    First, Given, Givens, Layout, Learner, Lesson, Metric, Picked, Pictures, Planned, Purpose,
+    Sheet, Skill, SkillLevel, Standing, schedule,
 };
 use openpaint_practice_store::{
     GIVENS, decode_givens, encode_givens, printed, remove, save, sheets, start,
@@ -26,13 +26,29 @@ fn artwork() -> Artwork {
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 
-/// Unit 1's full lesson, the `id`th sheet, seeded `seed`, after the lessons of `before`.
+/// Unit 1's full lesson as an old record holds it (stored as 3; none is laid since S124), the
+/// `id`th sheet, seeded `seed`, after the lessons of `before`: a warm-up of a line, a group and a
+/// colour, then a lesson of each.
 fn session(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
     let standing = Standing {
         pictures: &Pictures::default(),
         learner: &Learner::of(before),
     };
-    let planned = schedule::full(1, seed, &standing).expect("unit 1 is built");
+    let lessons: Vec<Planned> = (["line", "combined", "colour"].iter())
+        .map(|key| {
+            let skill = Skill::of_key(key).expect("a skill of unit 1");
+            schedule::lesson(skill, SkillLevel::First, seed, &standing).expect("its lesson")
+        })
+        .collect();
+    let warm_up = lessons.iter().filter_map(|lesson| lesson.exercises.first());
+    let parts = lessons.iter().flat_map(|lesson| lesson.exercises.iter());
+    let planned = Planned {
+        picked: Picked::Full {
+            stage: 1,
+            warm_up: 3,
+        },
+        exercises: warm_up.chain(parts).cloned().collect(),
+    };
     Sheet::begun(id, (Purpose::Day, started), planned)
 }
 

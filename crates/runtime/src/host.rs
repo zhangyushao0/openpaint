@@ -19,13 +19,16 @@ use crate::storage::Job;
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
 impl Runtime {
-    /// The user is leaving the app (Android `onPause`): a stroke still being drawn is committed
-    /// as drawn so far, then the open artwork's current version (a failed one included) and
+    /// The user is leaving the app (Android `onPause`): the Pomodoro's timer holds, then a stroke
+    /// still being drawn is committed as drawn so far, then the open artwork's current version (a failed one included) and
     /// its thumbnail are handed to the store, and this waits until they are written, at most
     /// `LEAVE_WAIT`; a longer save goes on in the background (it is one batch: it lands whole or
     /// not at all, also if the process is killed meanwhile). In the gallery, the calls handed over
     /// are waited for.
     pub fn leave(&mut self) {
+        // The Pomodoro's timer holds while the app is hidden (S124), stored as it stands.
+        self.practice.tick(self.frame_clock.wall_seconds(), None);
+        practice::timer_saved(&mut self.practice, &mut self.storage);
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);
             // Time hidden is no practice: a sheet's time so far goes to the store.

@@ -1,13 +1,13 @@
-//! `cargo device-input practice-test start [lesson <skill> [level] | full [unit] | first | copy]
-//! | end` (DECISIONS D102): a test lesson (or a test colour copy) beside the author's, for a
+//! `cargo device-input practice-test start [lesson <skill> [level] | first | copy] | end`
+//! (DECISIONS D102): a test lesson (or a test colour copy) beside the author's, for a
 //! practice slice to walk on the tablet, and removed afterwards with its sheet, so the author's
 //! lessons, copies, records and the path's dots stay as they were.
 //!
 //! `start` goes to the home (a canvas showing is left by its Home button, nothing drawn), starts
 //! the lesson Start would start next (`lesson <skill> [level]`: a lesson of the skill named by its
 //! key in a-z and '-' as `line`, `points-in-space` or `key-shift`, at level 1 to 3 or the
-//! learner's, the app refusing another name with the list; `full [unit]`: a unit's full lesson,
-//! the learner's unit without one; `first`: the first lesson; `copy`: a colour copy of a pack's
+//! learner's, the app refusing another name with the list; `first`: the first lesson; `copy`: a
+//! colour copy of a pack's
 //! picture), beside any open one, and keeps its name (id, sheet, start) in
 //! `artifacts/device/practice-test`; it refuses while a name is kept. `end` goes to the home,
 //! has the app remove the lesson of the name kept (its record and sheet) and forgets the name; a
@@ -37,7 +37,7 @@ fn failed(why: impl Into<String>) -> DeviceError {
     }
 }
 
-/// `start [lesson <skill> [level] | full [unit] | first | copy]` or `end`.
+/// `start [lesson <skill> [level] | first | copy]` or `end`.
 pub(super) fn practice_test(adb: &Adb, what: &str, given: &[&str]) -> Result<()> {
     match what {
         "start" => start(adb, &kept(), &command(given)?),
@@ -48,14 +48,13 @@ pub(super) fn practice_test(adb: &Adb, what: &str, given: &[&str]) -> Result<()>
 
 fn usage() -> DeviceError {
     DeviceError::Usage(
-        "cargo device-input practice-test start [lesson <skill> [level] | full [unit] | first | \
-         copy] | end",
+        "cargo device-input practice-test start [lesson <skill> [level] | first | copy] | end",
     )
 }
 
 /// What `start` and the words after it ask the app: `start`, `start:lesson:<skill>[:<level>]`,
-/// `start:full[:<unit>]`, `start:first`, `start:copy`. A skill goes in a-z and '-' (the app
-/// refuses another name with the list), a level 1 to 3, a unit 1 to 8.
+/// `start:first`, `start:copy`. A skill goes in a-z and '-' (the app refuses another name with
+/// the list), a level 1 to 3.
 fn command(given: &[&str]) -> Result<String> {
     let within = |text: &str, most: u8| {
         let number = text.parse::<u8>().ok().filter(|n| (1..=most).contains(n));
@@ -65,8 +64,6 @@ fn command(given: &[&str]) -> Result<String> {
         [] => "start".to_owned(),
         ["first"] => "start:first".to_owned(),
         ["copy"] => "start:copy".to_owned(),
-        ["full"] => "start:full".to_owned(),
-        ["full", unit] => format!("start:full:{}", within(unit, 8)?),
         ["lesson", skill] => format!("start:lesson:{}", super::plain(skill)?),
         ["lesson", skill, level] => {
             let skill = super::plain(skill)?;
@@ -156,8 +153,6 @@ mod tests {
             (&[][..], "start"),
             (&["first"][..], "start:first"),
             (&["copy"][..], "start:copy"),
-            (&["full"][..], "start:full"),
-            (&["full", "2"][..], "start:full:2"),
             (
                 &["lesson", "points-in-space"][..],
                 "start:lesson:points-in-space",
@@ -170,7 +165,7 @@ mod tests {
             &["lesson"][..],
             &["lesson", "Line"][..],
             &["lesson", "line", "4"][..],
-            &["full", "9"][..],
+            &["full"][..],
             &["stage", "2"][..],
         ] {
             assert!(command(bad).is_err(), "{bad:?}");

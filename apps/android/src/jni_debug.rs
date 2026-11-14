@@ -229,8 +229,6 @@ fn test_start(runtime: &mut Runtime, given: &str) -> Option<Result<u64, RuntimeE
         [] => runtime.start_test_lesson(Start::Next),
         ["first"] => runtime.start_test_lesson(Start::First),
         ["copy"] => runtime.start_test_copy(),
-        ["full"] => runtime.start_test_full(None),
-        ["full", unit] => runtime.start_test_full(Some(number(unit)?)),
         ["lesson", skill] => skill_start(skill, None).and_then(|s| runtime.start_test_lesson(s)),
         ["lesson", skill, level] => skill_start(skill, Some(number(level)?))
             .and_then(|start| runtime.start_test_lesson(start)),
@@ -238,8 +236,7 @@ fn test_start(runtime: &mut Runtime, given: &str) -> Option<Result<u64, RuntimeE
     })
 }
 
-/// `command` (`start`, `start:first`, `start:copy`, `start:full[:<unit>]`,
-/// `start:lesson:<skill>[:<level>]` or `end:<name>`) on `runtime`, frames run here until it is
+/// `command` (`start`, `start:first`, `start:copy`, `start:lesson:<skill>[:<level>]` or `end:<name>`) on `runtime`, frames run here until it is
 /// done, at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
     let start =
