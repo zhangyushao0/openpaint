@@ -246,6 +246,8 @@ impl PracticeBar {
             self.ring = Some(ring);
             self.menu_open ^= tapped;
             divider(ui);
+            // As far from the divider as the ring's word is on its other side.
+            ui.add_space(1.5 * SPACE);
         }
         let up = matches!(block, Some(BlockShown::Up));
         if practice.current.is_none() {

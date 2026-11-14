@@ -20,61 +20,109 @@ const RING: f32 = 16.0;
 const SMALL_SEAL: f32 = 12.0;
 const SEAL_PITCH: f32 = 22.0;
 
-/// The row under the next lesson; what was tapped and where.
+/// The row under the next lesson; what was tapped and where. Start timer (Continue) stands at
+/// the row's right where the row leaves it room, else on a line of its own under it, at the left
+/// as Start's pill; where even the lengths leave no room for the ring's glyph, they go without it.
 pub(super) fn pomodoro_row(ui: &mut egui::Ui, timer: &TimerShown) -> Option<(TimerIntent, Rect)> {
     ui.add_space(SPACE);
     rule(ui);
     label(ui, t::POMODORO);
+    let under_way = timer
+        .block
+        .as_ref()
+        .filter(|block| matches!(block, BlockShown::Running { .. } | BlockShown::Up));
+    let go = if under_way.is_some() {
+        t::CONTINUE
+    } else {
+        t::START_TIMER
+    };
+    let pill = word_width(ui, Words::from(go)) + PILL_PAD;
+    let (chosen, started) = ui
+        .horizontal(|ui| {
+            let chosen = state_or_lengths(ui, timer, under_way);
+            // Only beside the row when it fits there whole: never over a length.
+            if ui.available_width() < pill {
+                return (chosen, None);
+            }
+            let tapped = ui
+                .with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    pill_button(ui, go, true)
+                })
+                .inner;
+            (chosen, Some(tapped))
+        })
+        .inner;
+    let tapped = started.unwrap_or_else(|| pill_button(ui, go, true));
+    let started = (tapped.clicked()).then_some((TimerIntent::Start, tapped.rect));
+    chosen
+        .map(|(length, at)| (TimerIntent::Length(length), at))
+        .or(started)
+}
+
+/// The room a pilled word takes beyond its word, as `pill_button` lays it, in points.
+const PILL_PAD: f32 = 7.0 * SPACE;
+
+/// The width `words` take in a button's font, in points.
+fn word_width(ui: &egui::Ui, words: Words<'_>) -> f32 {
+    let font = TextStyle::Button.resolve(ui.style());
+    let shown = words.shown(ui.ctx()).to_owned();
+    ui.painter().layout_no_wrap(shown, font, INK).size().x
+}
+
+/// The ring and the block's state under way (the minutes left, Paused, Time), or the ring's glyph
+/// and the lengths; the length tapped and where.
+fn state_or_lengths(
+    ui: &mut egui::Ui,
+    timer: &TimerShown,
+    under_way: Option<&BlockShown>,
+) -> Option<(Length, Rect)> {
     let language = t::language(ui.ctx());
-    ui.horizontal(|ui| {
-        let (glyph, _) =
-            ui.allocate_exact_size(Vec2::new(2.5 * RING, TOUCH_TARGET), Sense::hover());
-        let centre = Pos2::new(glyph.left() + RING + 2.0, glyph.center().y);
-        let under_way = timer
-            .block
-            .as_ref()
-            .filter(|block| matches!(block, BlockShown::Running { .. } | BlockShown::Up));
-        let (ring, chosen) = match under_way {
-            Some(BlockShown::Running {
-                left,
-                share,
-                paused,
-            }) => {
-                let gone = 1.0 - share;
-                let (ring, word) = if *paused {
-                    (Ring::Held { gone }, t::PAUSED.get(language).to_owned())
-                } else {
-                    (Ring::Counting { gone }, t::minutes_left(language, *left))
-                };
-                ui.label(egui::RichText::new(word).color(INK));
-                (ring, None)
-            }
-            Some(_) => {
-                let word = t::TIME_UP.get(language);
-                ui.label(egui::RichText::new(word).color(VERMILION_INK));
-                (Ring::Whole(VERMILION), None)
-            }
-            None => (Ring::Glyph, lengths(ui, timer.length)),
-        };
+    let glyph_width = 2.5 * RING;
+    // The lengths keep their room before the glyph does.
+    let glyph = under_way.is_some() || ui.available_width() >= glyph_width + lengths_width(ui);
+    let centre = glyph.then(|| {
+        let size = Vec2::new(glyph_width, TOUCH_TARGET);
+        let (glyph, _) = ui.allocate_exact_size(size, Sense::hover());
+        Pos2::new(glyph.left() + RING + 2.0, glyph.center().y)
+    });
+    let (ring, chosen) = match under_way {
+        Some(BlockShown::Running {
+            left,
+            share,
+            paused,
+        }) => {
+            let gone = 1.0 - share;
+            let (ring, word) = if *paused {
+                (Ring::Held { gone }, t::PAUSED.get(language).to_owned())
+            } else {
+                (Ring::Counting { gone }, t::minutes_left(language, *left))
+            };
+            ui.label(egui::RichText::new(word).color(INK));
+            (ring, None)
+        }
+        Some(_) => {
+            let word = t::TIME_UP.get(language);
+            ui.label(egui::RichText::new(word).color(VERMILION_INK));
+            (Ring::Whole(VERMILION), None)
+        }
+        None => (Ring::Glyph, lengths(ui, timer.length)),
+    };
+    if let Some(centre) = centre {
         paint_ring(ui.painter(), (centre, RING), ring);
-        let go = if under_way.is_some() {
-            t::CONTINUE
-        } else {
-            t::START_TIMER
-        };
-        let tapped = ui
-            .with_layout(Layout::right_to_left(Align::Center), |ui| {
-                pill_button(ui, go, true)
-            })
-            .inner;
-        let started = tapped
-            .clicked()
-            .then_some((TimerIntent::Start, tapped.rect));
-        chosen
-            .map(|(length, at)| (TimerIntent::Length(length), at))
-            .or(started)
-    })
-    .inner
+    }
+    chosen
+}
+
+/// The room the three lengths and "min" take in a row, in points.
+fn lengths_width(ui: &egui::Ui) -> f32 {
+    let gap = ui.spacing().item_spacing.x;
+    let numbers: f32 = (Length::ALL.into_iter())
+        .map(|length| {
+            let number = t::length_number(length);
+            (word_width(ui, Words::made(&number)) + 4.0 * SPACE).max(TOUCH_TARGET) + gap
+        })
+        .sum();
+    numbers + word_width(ui, Words::from(t::MINUTES)) + gap
 }
 
 /// The three lengths, the one chosen ringed, and "min" after them; the one tapped and where.

@@ -11,7 +11,7 @@ texts! { PRACTICE_POMODORO;
     MINUTES = "min", "分钟";
     START_TIMER = "Start timer", "开始计时";
     PAUSE = "Pause", "暂停";
-    PAUSED = "Paused", "暂停";
+    PAUSED = "Paused", "已暂停";
     STOP_TIMER = "Stop timer", "结束番茄钟";
     TIME_UP = "Time", "到点";
     END = "End", "结束";
@@ -120,5 +120,13 @@ mod tests {
             "线条到“入门”了"
         );
         assert_eq!(length_number(Length::Forty), "40");
+    }
+
+    #[test]
+    fn the_paused_state_never_reads_as_the_pause_command() {
+        // The walk (S124): 暂停 in the bar read as a control where the block was held.
+        for language in [Language::English, Language::Chinese] {
+            assert_ne!(PAUSED.get(language), PAUSE.get(language), "{language:?}");
+        }
     }
 }

@@ -106,7 +106,7 @@ fn under_way_the_row_shows_what_is_left_and_continue() {
     };
     let states = [
         (running(false), ["18 min", "18 分"]),
-        (running(true), ["Paused", "暂停"]),
+        (running(true), ["Paused", "已暂停"]),
         (BlockShown::Up, ["Time", "到点"]),
     ];
     for (place, (block, shown)) in states.into_iter().enumerate() {
@@ -131,6 +131,65 @@ fn under_way_the_row_shows_what_is_left_and_continue() {
     );
     let asked = home.tapped((&going, &up), t::CONTINUE.id(), 50.0);
     assert_eq!(asked, [TimerIntent::Start]);
+}
+
+/// The home's column for a screen `width` points wide, as the home lays it (600 at most, 0.42 of
+/// the screen).
+fn column_for(width: f32) -> Rect {
+    let wide = 600.0_f32.min(0.42 * width);
+    Rect::from_min_size(COLUMN.min, egui::vec2(wide, COLUMN.height()))
+}
+
+#[test]
+fn the_row_s_controls_never_overlap_nor_leave_the_column_at_any_width() {
+    let (_, going) = paths();
+    let idle = timer(None, 0);
+    let held = timer(
+        Some(BlockShown::Running {
+            left: 18,
+            share: 0.72,
+            paused: true,
+        }),
+        0,
+    );
+    let ctx = context();
+    let mut time = 0.0;
+    // A third and a half of the tablet's landscape, the tablet upright, the tablet.
+    for width in [549.0, 800.0, 823.0, 1029.0, 1646.0] {
+        let column = column_for(width);
+        for language in [Language::English, Language::Chinese] {
+            for (shown, names) in [
+                (&idle, &["15", "25", "40", t::START_TIMER.id()][..]),
+                (&held, &[t::CONTINUE.id()][..]),
+            ] {
+                time += 1.0;
+                let mut part = HomePart::default();
+                let (map, _) = drawn(&ctx, (time, language, Vec::new()), |ui| {
+                    let (mut taps, mut asked, mut timed) = (Vec::new(), Vec::new(), Vec::new());
+                    let taps = ((&mut taps, &mut asked), &mut timed);
+                    part.column(ui, column, (&going, shown, true), taps);
+                });
+                let ppp = ctx.pixels_per_point();
+                let rects: Vec<[f32; 4]> = (names.iter())
+                    .map(|name| map.find(name).expect("on the row").rect)
+                    .collect();
+                for (name, [left, _, right, _]) in names.iter().zip(&rects) {
+                    let inside = *left >= column.left() * ppp && *right <= column.right() * ppp;
+                    assert!(inside, "{name} within the column at {width} ({language:?})");
+                }
+                for (a, one) in rects.iter().enumerate() {
+                    for (b, other) in rects.iter().enumerate().skip(a + 1) {
+                        let apart = one[2] <= other[0]
+                            || other[2] <= one[0]
+                            || one[3] <= other[1]
+                            || other[3] <= one[1];
+                        let (a, b) = (names[a], names[b]);
+                        assert!(apart, "{a} and {b} overlap at {width} ({language:?})");
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]

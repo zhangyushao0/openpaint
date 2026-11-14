@@ -31,7 +31,7 @@ fn the_bar_s_ring_is_named_by_its_minutes_and_a_tap_opens_its_menu() {
     let ctx = context();
     for (language, minutes, paused) in [
         (Language::English, "18 min", "Paused"),
-        (Language::Chinese, "18 分", "暂停"),
+        (Language::Chinese, "18 分", "已暂停"),
     ] {
         let (map, shapes) = drawn(&ctx, (1.0, language, Vec::new()), |ui| {
             ring_word(ui, &COUNTING);
