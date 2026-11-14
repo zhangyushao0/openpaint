@@ -29,6 +29,9 @@ mod jni_entry;
 #[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
 mod jni_keyboard;
 #[cfg(target_os = "android")]
+#[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
+mod jni_timer;
+#[cfg(target_os = "android")]
 #[expect(
     unsafe_code,
     reason = "JNI entry points export unmangled symbols and take over file descriptors"

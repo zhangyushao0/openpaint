@@ -1,7 +1,8 @@
 //! The practice book's days (S89): a month as a calendar, Monday first, earlier months a swipe (or
 //! the chevrons beside its name) away; a day practised an ink wash behind its number, darker the
 //! longer, today ringed, days ahead pale, a day without practice plain paper. A day practised,
-//! tapped, shows its card grown out of it over progress: its date, its time, its sheets small (a
+//! tapped, shows its card grown out of it over progress: its date, its time with a small red seal
+//! for each Pomodoro block completed on it (S124), its sheets small (a
 //! day's sheet the rows its lessons used, named by them; a tap opens one) and the colours matched,
 //! each a square split corner to corner, the original above the diagonal and the copy's first pick
 //! below it.
@@ -16,6 +17,7 @@ use openpaint_ui::design::{
     CORNER, DIVIDER, INK, INK_SECONDARY, Icon, MARK_LINE, SPACE, TOUCH_TARGET, surface_frame,
 };
 
+use super::super::pomodoro::{small_seals, small_seals_width};
 use super::{BookTap, layout};
 use crate::palette::PENCIL;
 use crate::text::{self as t, Language};
@@ -190,7 +192,11 @@ pub(super) fn day_card(
                 let language = t::language(ui.ctx());
                 ui.heading(t::day_title(language, Date::of(day), weekday(day)));
                 let time = t::practice_time(language, shown.seconds);
-                ui.label(egui::RichText::new(time).color(INK_SECONDARY));
+                let blocks = u8::try_from(shown.blocks).unwrap_or(u8::MAX);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(time).color(INK_SECONDARY));
+                    seals(ui, blocks);
+                });
                 ui.add_space(SPACE);
                 let tapped = sheets(ui, book, &shown.records);
                 colours(ui, book, &shown.records);
@@ -199,6 +205,19 @@ pub(super) fn day_card(
             .inner
     });
     tapped
+}
+
+/// A day's Pomodoro blocks completed, each a small red seal beside its time (S124).
+fn seals(ui: &mut egui::Ui, blocks: u8) {
+    if blocks == 0 {
+        return;
+    }
+    let size = Vec2::new(
+        small_seals_width(blocks),
+        ui.text_style_height(&TextStyle::Body),
+    );
+    let (band, _) = ui.allocate_exact_size(size, Sense::hover());
+    small_seals(ui.painter(), (band.left_center(), blocks));
 }
 
 /// The sheets of `records`, small, side by side, each named under its picture; the one tapped.

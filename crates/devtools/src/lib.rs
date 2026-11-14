@@ -6,6 +6,7 @@
 mod diff;
 mod error;
 mod gesture;
+mod host;
 mod lesson;
 mod pen;
 mod report;
@@ -20,6 +21,7 @@ mod watched;
 
 pub use crate::diff::{Diff, diff};
 pub use crate::error::ScenarioError;
+pub use crate::host::HostExpect;
 pub use crate::pen::Pen;
 pub use crate::report::{Checkpoint, Record, Report, Screenshot, ViewCheck};
 pub use crate::runner::run;

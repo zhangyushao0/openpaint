@@ -24,6 +24,9 @@ use openpaint_runtime::{
 use crate::error::HostError;
 use crate::jni_entry::runtime;
 
+/// The seconds of a test Pomodoro's block when the chore names none.
+const TEST_BLOCK: u32 = 60;
+
 /// The handle of the running activity's runtime; 0 while there is none.
 static HANDLE: AtomicI64 = AtomicI64::new(0);
 
@@ -196,12 +199,13 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input practice-test start [lesson <skill> [level] | full [unit] | first |
-/// copy] | end`:
-/// `start` starts a test lesson (or a test colour copy) beside any open one, from the
-/// home, and answers "started <name>" once its sheet shows; `end:<name>` removes the lesson
-/// of that name, its record and sheet, from the home, and answers "removed <name>" once the
-/// store did, or "no such lesson". Otherwise why not.
+/// For `cargo device-input practice-test start [lesson <skill> [level] | first | copy |
+/// pomodoro [seconds]] | end`:
+/// `start` starts a test lesson (or a test colour copy, or a test lesson with a Pomodoro's block
+/// of that many seconds) beside any open one, from the home, and answers "started <name>" once
+/// its sheet shows; `end:<name>` removes the lesson of that name, its record and sheet, the test
+/// sheets and blocks since, from the home, and answers "removed <name>" once the store did, or
+/// "no such lesson". Otherwise why not.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     mut env: EnvUnowned<'local>,
@@ -229,8 +233,8 @@ fn test_start(runtime: &mut Runtime, given: &str) -> Option<Result<u64, RuntimeE
         [] => runtime.start_test_lesson(Start::Next),
         ["first"] => runtime.start_test_lesson(Start::First),
         ["copy"] => runtime.start_test_copy(),
-        ["full"] => runtime.start_test_full(None),
-        ["full", unit] => runtime.start_test_full(Some(number(unit)?)),
+        ["pomodoro"] => runtime.start_test_pomodoro(TEST_BLOCK),
+        ["pomodoro", seconds] => runtime.start_test_pomodoro(seconds.parse().ok()?),
         ["lesson", skill] => skill_start(skill, None).and_then(|s| runtime.start_test_lesson(s)),
         ["lesson", skill, level] => skill_start(skill, Some(number(level)?))
             .and_then(|start| runtime.start_test_lesson(start)),
@@ -238,9 +242,9 @@ fn test_start(runtime: &mut Runtime, given: &str) -> Option<Result<u64, RuntimeE
     })
 }
 
-/// `command` (`start`, `start:first`, `start:copy`, `start:full[:<unit>]`,
-/// `start:lesson:<skill>[:<level>]` or `end:<name>`) on `runtime`, frames run here until it is
-/// done, at most a minute: the answer.
+/// `command` (`start`, `start:first`, `start:copy`, `start:lesson:<skill>[:<level>]`,
+/// `start:pomodoro[:<seconds>]` or `end:<name>`) on `runtime`, frames run here until it is done,
+/// at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
     let start =
         (command.strip_prefix("start")).filter(|given| given.is_empty() || given.starts_with(':'));

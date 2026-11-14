@@ -121,6 +121,14 @@ impl ProjectStore for Nowhere {
         Ok(())
     }
 
+    fn rewrite_records(
+        &mut self,
+        _put: &[(Space, Record)],
+        _gone: &[(Space, Vec<u8>)],
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+
     fn create_owned(
         &mut self,
         (artwork, _title): (&Artwork, &Title),

@@ -5,13 +5,12 @@
 //! ```json
 //! { "lesson": { "skill": "line", "level": 1 } }
 //! { "lesson": { "skill": "points-in-space" } }
-//! { "lesson": { "full": 2 } }
 //! { "lesson": "first" }
 //! { "lesson": "next" }
 //! ```
 //!
 //! A skill goes by its key (`Skill::key`: `line`, `colour`, `free-boxes`…), its level 1 to 3
-//! (入门, 熟练, 稳; without one the learner's); `full` is a unit's full lesson; `first` the first
+//! (入门, 熟练, 稳; without one the learner's); `first` the first
 //! lesson whatever was practised; `next` what the home's main control does: Start's lesson, or
 //! Continue's (the day's unfinished lesson opened) while one is under way
 //! (`Runtime::start_lesson` with `Start::Next`).
@@ -30,8 +29,6 @@ pub enum Lesson {
         #[serde(default)]
         level: Option<u8>,
     },
-    /// The full lesson of unit `full`.
-    Full { full: u8 },
     /// `first` or `next`.
     Named(Named),
 }
@@ -52,7 +49,6 @@ impl Lesson {
     pub fn start(&self) -> Result<Start, RuntimeError> {
         match self {
             Self::Skill { skill, level } => skill_start(skill, *level),
-            Self::Full { full } => Ok(Start::Full(*full)),
             Self::Named(Named::First) => Ok(Start::First),
             Self::Named(Named::Next) => Ok(Start::Next),
         }

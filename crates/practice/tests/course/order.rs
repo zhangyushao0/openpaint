@@ -1,13 +1,12 @@
 //! The schedule (S122): the First-prefix rule against the drills before S122, the next lesson's
-//! order, a lesson chosen with its redo, a unit's full lesson.
+//! order, a lesson chosen with its redo.
 
 use openpaint_practice::{
     BoxView, Carve, Combination, Exercise, Guide, Kind, Learner, Lightness, LineTier, Outcome,
-    Picked, Pictures, Purity, Purpose, ScaleTone, Sheet, Skill, SkillLevel, Standing, Tone,
-    derived, schedule,
+    Pictures, Purity, ScaleTone, SkillLevel, Standing, Tone, derived, schedule,
 };
 
-use crate::{CLEAN, NOON, after, ended, skill};
+use crate::{CLEAN, after, ended, skill};
 
 /// Each kind's first drill before S122, its kinds in order.
 fn drills() -> Vec<(&'static str, Vec<Kind>)> {
@@ -141,44 +140,4 @@ fn a_lesson_chosen_lays_its_redo_first_and_keeps_its_size() {
     // Laid again, it is answered.
     let answered = learner.with(&ended(chosen, &[Clean]));
     assert!(answered.redo(colours).is_none());
-}
-
-#[test]
-fn a_full_lesson_warms_up_on_three_skills_longest_unpractised_then_holds_its_unit() {
-    let pictures = Pictures::default();
-    let mut learner = Learner::default();
-    for key in ["line", "combined", "colour"] {
-        learner = after(&learner, key, SkillLevel::First, &CLEAN);
-    }
-    let standing = Standing {
-        pictures: &pictures,
-        learner: &learner,
-    };
-    // Unit 2 without a pack: its scales, boxes, free boxes and ellipses after a warm-up of unit 1.
-    let full = schedule::full(2, 6, &standing).expect("unit 2's");
-    let picked = Picked::Full {
-        stage: 2,
-        warm_up: 3,
-    };
-    assert_eq!(full.picked, picked);
-    let skills: Vec<&str> = (full.exercises.iter())
-        .map(|(e, _)| Skill::of(e.kind).expect("a skill").key())
-        .collect();
-    let warm = ["line", "combined", "colour"];
-    assert_eq!(skills[..3], warm, "the longest unpractised first");
-    let mut unit: Vec<&str> = skills[3..].to_vec();
-    unit.dedup();
-    assert_eq!(unit, ["scale", "box", "free-boxes", "ellipse"]);
-    let seconds: u32 = (full.exercises.iter())
-        .map(|(e, _)| u32::from(e.kind.facts().seconds))
-        .sum();
-    assert!((900..=2400).contains(&seconds), "{seconds} s");
-    for (index, (exercise, _)) in full.exercises.iter().enumerate() {
-        assert_eq!(exercise.seed, derived(6, index as u64));
-    }
-    let sheet = Sheet::begun(1, (Purpose::Day, NOON), full);
-    let lesson = &sheet.lessons[0];
-    assert_eq!((lesson.unit(), lesson.warm_up()), (Some(2), 3));
-    // A unit not built has none.
-    assert!(schedule::full(6, 6, &standing).is_none());
 }

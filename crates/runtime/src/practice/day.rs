@@ -92,19 +92,18 @@ fn onto(
     }))
 }
 
-/// One more on `canvas`'s sheet: the lesson its end names (`End::next`: a skill of a unit ahead
-/// again, else the next lesson; `Start::Next` where the end names none,
-/// the log holding the finished record, `save_record`; seeded from `seeds`, begun at `now` by
-/// `log`) appended in place where the sheet takes it, the view gliding to it in `viewport`, its
-/// record kept in `log` and written by `storage`. Returns whether it was; else the sheet is left
-/// for a new one.
+/// One more on `canvas`'s sheet: `start`'s lesson (One more's and the Pomodoro's chain: what its
+/// end names, `named`; the practice bench: the next skill of its unit) seeded from `seeds`, begun
+/// at `now` by `log` (the log holding the finished record, `save_record`), appended in place
+/// where the sheet takes it, the view gliding to it in `viewport`, its record kept in `log` and
+/// written by `storage`. Returns whether it was.
 pub(crate) fn one_more(
     canvas: &mut Canvas,
     (log, seeds, storage): (&mut PracticeLog, &mut Seeds, &mut Storage),
-    (now, viewport): (u64, &Viewport),
+    (start, now, viewport): (Start, u64, &Viewport),
 ) -> bool {
     let seed = seed(seeds);
-    let begun = log.start(named(canvas), seed, now);
+    let begun = log.start(start, seed, now);
     let begun = begun.map(|(sheet, _)| sheet);
     let Some(lesson) = begun.and_then(|sheet| sheet.lessons.into_iter().last()) else {
         return false;

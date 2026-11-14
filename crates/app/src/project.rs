@@ -217,6 +217,14 @@ pub trait ProjectStore: Send {
     /// Each record under its key in its space, replacing what was there, all in one write.
     fn put_records(&mut self, records: &[(Space, Record)]) -> Result<(), PortError>;
 
+    /// Each record of `put` under its key, replacing what was there, and the records `gone`
+    /// removed for good, all in one write (a mode's record cut and another taken off with it).
+    fn rewrite_records(
+        &mut self,
+        put: &[(Space, Record)],
+        gone: &[(Space, Vec<u8>)],
+    ) -> Result<(), PortError>;
+
     /// `project`'s artwork as a new project of its title, which becomes the open one, and every
     /// record `owned` makes for it, given the project, in one write. Returns the project.
     fn create_owned(

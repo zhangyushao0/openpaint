@@ -4,8 +4,8 @@
 //! them the packs kept, the long colour copies, the pictures a copy can be begun of and the
 //! practice book. The home's column shows the next lesson
 //! (its skill, level, exercises and minutes; Start), the review while a redo waits (Review), All
-//! units and Practice book; the path page the units, the next lesson, the review and a unit's
-//! full lesson (Full lesson). And how a lesson is started from them (`Start`).
+//! units and Practice book; the path page the units, the next lesson and the review. And how a
+//! lesson is started from them (`Start`).
 
 use std::sync::Arc;
 
@@ -29,8 +29,6 @@ pub enum Start {
     /// A lesson of a skill at a level given, whatever the learner's: a scenario's `lesson` step
     /// and the test chore.
     At(Skill, SkillLevel),
-    /// The full lesson of a unit.
-    Full(u8),
     /// The first lesson, whatever was practised.
     First,
 }
@@ -40,7 +38,7 @@ pub enum Start {
 pub struct PathProjection {
     /// The eight units in order.
     pub units: Vec<UnitShown>,
-    /// The unit in hand: the one whose full lesson the path offers.
+    /// The unit in hand: the one the path page opens on.
     pub unit: u8,
     /// The next lesson (`Start::Next`); none while the first lesson is due or nothing can be
     /// practised.
@@ -83,9 +81,6 @@ pub struct UnitShown {
     pub open: bool,
     /// Its skills in the course's order; none while its kinds are not built.
     pub skills: Vec<SkillShown>,
-    /// Its full lesson (`Start::Full`): how many exercises and about how many minutes they take
-    /// (`schedule::full_offer`); none while it lays none.
-    pub full: Option<Offer>,
 }
 
 /// A skill's tile on the path.

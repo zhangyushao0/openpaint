@@ -4,11 +4,11 @@
 //! on the point, a line along the angle, the answer of the point in space a little off, each edge
 //! and seen curve of the object, each of the solid's ellipses round once and its sides), then
 //! Compare opened (the copy read and the answer drawn, at once on the frame loop) and closed: a
-//! line each.
+//! line each. A kind no lesson ahead holds is reached by laying the unit's next skills
+//! (`practice_chain.rs`).
 
 use super::hand::to_screen;
 use super::motion::{by_pen, drag};
-use super::practice::key_of;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::ToolKind;
@@ -20,7 +20,7 @@ const ROUND_MS: i64 = 900;
 const OFF: f64 = 0.02;
 /// The kinds visited, by their keys: an estimate's two; V大's five tricks, of which the first
 /// held is visited; the objects; the three solids, likewise.
-const ESTIMATES: [(&str, &str); 2] = [("point", "point"), ("angle", "angle")];
+const ESTIMATES: [&str; 2] = ["point", "angle"];
 const TRICKS: [&str; 5] = ["centre", "halves", "thirds", "next-face", "mirror"];
 const OBJECT: &str = "objects";
 const SOLIDS: [&str; 3] = ["cylinder", "cone", "sphere"];
@@ -28,26 +28,20 @@ const SOLIDS: [&str; 3] = ["cylinder", "cone", "sphere"];
 impl Runtime {
     /// See the module.
     pub(super) fn bench_points(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let first = |keys: &[&str]| {
-            self.practice().and_then(|p| {
-                let from = p.current.unwrap_or(p.sheet.kinds.len());
-                (p.sheet.kinds.iter().skip(from))
-                    .map(|kind| key_of(*kind))
-                    .find(|key| keys.contains(key))
-            })
-        };
-        let (space, solid) = (first(&TRICKS), first(&SOLIDS));
-        let space = space.map(|key| (key, "point in space"));
-        let solid = solid.map(|key| (key, "solid"));
         // Unit 4's objects come before its solid.
-        let object = [(OBJECT, "object")];
-        let all = ESTIMATES
-            .into_iter()
-            .chain(space)
-            .chain(object)
-            .chain(solid);
-        for (key, name) in all {
-            if !self.bench_on_to(key)? {
+        let all: [(&[&str], &str); 5] = [
+            (&[ESTIMATES[0]], "point"),
+            (&[ESTIMATES[1]], "angle"),
+            (&TRICKS, "point in space"),
+            (&[OBJECT], "object"),
+            (&SOLIDS, "solid"),
+        ];
+        for (keys, name) in all {
+            let reached = match self.bench_reach(keys)? {
+                Some(key) => self.bench_on_to(key)?,
+                None => false,
+            };
+            if !reached {
                 lines.push(format!("no {name} after this point of the lesson"));
                 continue;
             }

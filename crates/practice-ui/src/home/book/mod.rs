@@ -8,6 +8,8 @@
 
 mod days;
 mod progress;
+#[cfg(test)]
+mod tests;
 
 use std::collections::HashSet;
 

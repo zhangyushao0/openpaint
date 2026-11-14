@@ -75,6 +75,9 @@ pub(crate) struct FrameClock {
     started: Instant,
     /// Milliseconds the harness holds the clock at, instead of the wall clock.
     fixed: Option<i64>,
+    /// The harness held it once: its wall clock stays on the harness's calendar (`FIXED_WALL`)
+    /// when it runs on in real time, so a day's sheet and a Pomodoro's block do not jump to today.
+    harnessed: bool,
 }
 
 impl Default for FrameClock {
@@ -82,6 +85,7 @@ impl Default for FrameClock {
         Self {
             started: Instant::now(),
             fixed: None,
+            harnessed: false,
         }
     }
 }
@@ -90,6 +94,7 @@ impl FrameClock {
     /// From now on the clock reads `ms` until the next call or `release`.
     pub(crate) const fn fix(&mut self, ms: i64) {
         self.fixed = Some(ms);
+        self.harnessed = true;
     }
 
     /// The clock runs on with the wall clock again, from the time it was held at.
@@ -108,11 +113,13 @@ impl FrameClock {
         }
     }
 
-    /// The wall clock in seconds since 1970 UTC, for dating kept versions; while the harness
-    /// holds the clock, `FIXED_WALL` plus the held time, so scenarios date them alike.
+    /// The wall clock in seconds since 1970 UTC, for dating kept versions; once the harness held
+    /// the clock, `FIXED_WALL` plus its time (held, or run on from there), so scenarios date them
+    /// alike.
     pub(crate) fn wall_seconds(&self) -> u64 {
         match self.fixed {
             Some(ms) => FIXED_WALL + u64::try_from(ms / 1000).unwrap_or(0),
+            None if self.harnessed => FIXED_WALL + self.started.elapsed().as_secs(),
             None => SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_or(0, |since| since.as_secs()),

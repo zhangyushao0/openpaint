@@ -103,21 +103,30 @@ impl PracticeSheet {
 
     /// The rows used upright in the room left of the card (a colour copy's whole sheet).
     pub(super) fn whole(&self, viewport: &Viewport) -> CanvasView {
+        self.rows_from(0, viewport)
+    }
+
+    /// The rows used from canvas row `top` down (a Pomodoro's block's, S124), upright in the room
+    /// left of the card (a colour copy's whole sheet).
+    pub(super) fn rows_from(&self, top: u32, viewport: &Viewport) -> CanvasView {
         let used = (!self.record.is_copy()).then(|| {
             let [width, height] = Layout::used(&self.record);
+            let height = height.min(self.canvas.height());
+            let top = top.min(height.saturating_sub(1));
             Fitted {
-                origin: [0, 0],
-                size: [
-                    width.min(self.canvas.width()),
-                    height.min(self.canvas.height()),
-                ],
+                origin: [0, top],
+                size: [width.min(self.canvas.width()), height - top],
             }
         });
-        let [cw, ch] = used.map_or([self.canvas.width(), self.canvas.height()], |f| f.size);
-        let [cw, ch] = [cw, ch].map(|side| side.max(1) as f32);
+        let fitted = used.unwrap_or(Fitted {
+            origin: [0, 0],
+            size: [self.canvas.width(), self.canvas.height()],
+        });
+        let [cw, ch] = fitted.size.map(|side| side.max(1) as f32);
         let ([width, height], _) = room(viewport);
         let scale = (width / cw).min(height / ch) * FIT_MARGIN;
-        let middle = [f64::from(cw) / 2.0, f64::from(ch) / 2.0];
+        let [x, y] = fitted.origin.map(f64::from);
+        let middle = [x + f64::from(cw) / 2.0, y + f64::from(ch) / 2.0];
         self.at_scale(scale, (middle, used), viewport)
     }
 

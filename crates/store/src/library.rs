@@ -287,7 +287,15 @@ impl ProjectStore for Library {
     }
 
     fn put_records(&mut self, records: &[(Space, Record)]) -> Result<(), PortError> {
-        self.with(|open| spaces::put(open, records))
+        self.with(|open| spaces::put(open, records, &[]))
+    }
+
+    fn rewrite_records(
+        &mut self,
+        put: &[(Space, Record)],
+        gone: &[(Space, Vec<u8>)],
+    ) -> Result<(), PortError> {
+        self.with(|open| spaces::put(open, put, gone))
     }
 
     fn create_owned(

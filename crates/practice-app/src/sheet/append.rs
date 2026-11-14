@@ -3,7 +3,8 @@
 //! on its canvas hold it, and the view glides to its first pair. Its record and what it prints go
 //! to the store in one write; until the store answers the record waits (`save_request`), and a
 //! write that failed rolls the lesson back: the sheet, the end and the view as they were, the
-//! notice a failed save shows.
+//! notice a failed save shows, and the end shown even while a Pomodoro's block runs (the chain's
+//! lesson rolled back leaves One more to try again, S124).
 
 use std::sync::Arc;
 
@@ -61,6 +62,7 @@ impl PracticeSheet {
         let sheet = (self.sheet).appended(&self.record, &printed, log.packs(), rows);
         self.sheet = Arc::new(sheet);
         self.appending = Some(Box::new(kept));
+        self.rolled_back = false;
         self.anew();
         *view = self.one_more_view(viewport);
         (self.record.clone(), moved)
@@ -86,6 +88,7 @@ impl PracticeSheet {
         *view = kept.view;
         self.anew();
         self.notice = Some(PracticeNotice::NotSaved);
+        self.rolled_back = true;
     }
 
     /// The lesson in hand shown afresh, as a sheet opening on it shows it.

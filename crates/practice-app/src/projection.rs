@@ -233,6 +233,9 @@ pub struct PracticeProjection {
     pub judged: Option<Judged>,
     /// Once the lesson is done: its end (S122), shown over the rows it used.
     pub end: Option<End>,
+    /// The lesson laid after it (One more, or a Pomodoro's chain) was rolled back, the store not
+    /// taking it: the end shows even while a block runs, its One more trying again (S124).
+    pub rolled_back: bool,
     /// Each result marked under its pair, by the exercise's index among the sheet's: every
     /// lesson's before the one in hand, and its own once it is done (S122).
     pub marked: Vec<(usize, Outcome)>,

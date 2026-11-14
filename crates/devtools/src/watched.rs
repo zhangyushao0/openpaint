@@ -156,6 +156,14 @@ impl ProjectStore for Watched {
         self.on(|library| library.put_records(records))
     }
 
+    fn rewrite_records(
+        &mut self,
+        put: &[(Space, Record)],
+        gone: &[(Space, Vec<u8>)],
+    ) -> Result<(), PortError> {
+        self.on(|library| library.rewrite_records(put, gone))
+    }
+
     fn create_owned(
         &mut self,
         project: (&Artwork, &Title),

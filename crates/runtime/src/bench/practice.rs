@@ -14,7 +14,9 @@
 //! free boxes' drawn, Compare (the edges found and extended, at once on the frame loop) and taken
 //! away, an ellipse's loop, Compare and taken away; then, the session taken on to its next colour
 //! (if one is left), the inline wheel's square dragged round, Fill frame and Compare (the colours
-//! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on.
+//! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on. A
+//! "session" here is the lessons on the sheet: where none ahead holds a kind, the unit's later
+//! skills are laid after the lesson in hand (`practice_chain.rs`).
 
 use openpaint_practice::Kind;
 use openpaint_practice_app::PracticeIntent;
@@ -124,15 +126,12 @@ impl Runtime {
         Ok(())
     }
 
-    /// Next until an exercise keyed `key` shows, its instructions closed and the hand at rest;
+    /// Next until an exercise keyed `key` shows, its instructions closed and the hand at rest,
+    /// the next skills of the unit laid where the sheet holds none ahead (`practice_chain.rs`);
     /// false when none comes after the one shown.
     pub(super) fn bench_on_to(&mut self, key: &str) -> Result<bool, RuntimeError> {
         let shown = |runtime: &Self| runtime.practice().and_then(|p| p.kind.map(key_of));
-        let holds = self.practice().is_some_and(|p| {
-            let from = p.current.unwrap_or(p.sheet.kinds.len());
-            (p.sheet.kinds.iter().skip(from)).any(|held| key_of(*held) == key)
-        });
-        if !holds {
+        if self.bench_reach(&[key])?.is_none() {
             return Ok(false);
         }
         let mut watch = Watch::paced(self);
@@ -336,7 +335,7 @@ impl Runtime {
     }
 
     /// The canvas area's viewport now, which Next moves the view within.
-    fn bench_viewport(&self) -> Result<openpaint_app::Viewport, RuntimeError> {
+    pub(super) fn bench_viewport(&self) -> Result<openpaint_app::Viewport, RuntimeError> {
         let area = (self.shell.canvas_area()).ok_or(RuntimeError::NotNow("a canvas area"))?;
         Ok(area.viewport(self.pixels_per_point))
     }

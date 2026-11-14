@@ -1,29 +1,28 @@
-//! A lesson appended to a stored sheet (S121b): the sheet's record and the new lesson's givens in
-//! one write; the sheet of two lessons reads back whole, its givens resolving every exercise;
-//! a write refused leaves the sheet and its givens as they were.
+//! A lesson appended to a stored sheet (S121b) and cut by the Pomodoro's End (S124): the sheet's
+//! record and the lesson's givens in one write; the sheet reads back whole, its givens resolving
+//! every exercise; a write refused leaves the sheet and its givens as they were.
 
+mod support;
 #[path = "../../store/tests/common/test_dir.rs"]
 mod test_dir;
 
-use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Record, SaveId,
-    Space, Thumbnail, Title, VersionId,
-};
+use openpaint_app::{PortError, ProjectStore, Record, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{
     Exercise, Given, Givens, Kind, Layout, LineTier, Picked, Planned, Purpose, Sheet, SkillLevel,
     schedule,
 };
-use openpaint_practice_store::{GIVENS, append, printed, sheets, start};
+use openpaint_practice_store::{GIVENS, append, decode_givens, printed, sheets, start, trim};
 use openpaint_store::Library;
+use support::Batches;
 use test_dir::TestDir;
 
 /// 2026-10-05 12:00 UTC.
 const NOON: u64 = 1_791_201_600;
 
-/// A lesson of four single lines started in `library` (finished), as stored.
-fn started(library: &mut dyn ProjectStore) -> Sheet {
-    let exercises = (0..4)
+/// A lesson of `n` single lines begun at `started`, the `id`th sheet's.
+fn lines(id: u64, n: u64, started: u64) -> Sheet {
+    let exercises = (0..n)
         .map(|seed| {
             let line = Exercise::generated(Kind::Line(LineTier::Arc), seed);
             (line, SkillLevel::First)
@@ -33,7 +32,12 @@ fn started(library: &mut dyn ProjectStore) -> Sheet {
         picked: Picked::Chosen,
         exercises,
     };
-    let mut lesson = Sheet::begun(1, (Purpose::Day, NOON), planned);
+    Sheet::begun(id, (Purpose::Day, started), planned)
+}
+
+/// A lesson of four single lines started in `library` (finished), as stored.
+fn started(library: &mut dyn ProjectStore) -> Sheet {
+    let mut lesson = lines(1, 4, NOON);
     let [width, height] = Layout::of_sheet(&lesson).size;
     let artwork = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let givens = Givens::of_lesson(&lesson.lessons[0], &[]);
@@ -44,22 +48,27 @@ fn started(library: &mut dyn ProjectStore) -> Sheet {
     lesson
 }
 
-/// `sheet` with the first lesson appended, and what it prints.
-fn appended(mut sheet: Sheet) -> (Sheet, Givens) {
-    let session = Sheet::begun(0, (Purpose::Day, NOON + 600), schedule::first(5));
-    let lesson = session.lessons[0].clone();
+/// `sheet` with `lesson`, the first of a sheet, appended, and what it prints.
+fn appended(mut sheet: Sheet, lesson: Sheet) -> (Sheet, Givens) {
+    let lesson = lesson.lessons[0].clone();
     let givens = Givens::of_lesson(&lesson, &[]);
     let givens = sheet.append(lesson, givens);
     (sheet, givens)
 }
 
+/// The first lesson, to append.
+fn first() -> Sheet {
+    Sheet::begun(0, (Purpose::Day, NOON + 600), schedule::first(5))
+}
+
 #[test]
 fn a_sheet_of_two_lessons_round_trips_its_givens_resolving_every_exercise() {
     let dir = TestDir::new("practice-append");
-    let mut library = Library::at(&dir);
-    let (sheet, givens) = appended(started(&mut library));
-    append(&mut library, &sheet, &givens).expect("appended");
-    drop(library);
+    let mut store = Batches::of(Library::at(&dir));
+    let (sheet, givens) = appended(started(&mut store), first());
+    append(&mut store, &sheet, &givens).expect("appended");
+    assert_eq!(store.writes, [2], "the record and its givens in one write");
+    drop(store);
     let mut library = Library::at(&dir);
     let read = sheets(&mut library).expect("practice");
     assert_eq!(read, std::slice::from_ref(&sheet));
@@ -77,11 +86,13 @@ fn a_sheet_of_two_lessons_round_trips_its_givens_resolving_every_exercise() {
 #[test]
 fn an_append_refused_leaves_the_sheet_and_its_givens_as_they_were() {
     let dir = TestDir::new("practice-append-refused");
-    let mut store = RefusingGivens(Library::at(&dir));
+    let mut store = Batches::of(Library::at(&dir));
+    store.refused = |(space, _)| *space == GIVENS;
     let sheet = started(&mut store);
     let before = sheets(&mut store).expect("practice");
-    let (longer, givens) = appended(sheet);
+    let (longer, givens) = appended(sheet, first());
     assert!(append(&mut store, &longer, &givens).is_err());
+    assert!(store.writes.is_empty());
     assert_eq!(
         sheets(&mut store).expect("practice"),
         before,
@@ -94,110 +105,105 @@ fn an_append_refused_leaves_the_sheet_and_its_givens_as_they_were() {
     );
 }
 
-/// The library, refusing any write of records that holds a lesson's givens, as a full disk would
-/// refuse the batch: what a second write of the sheet's record alone would let through.
-struct RefusingGivens(Library);
+/// A stored sheet of four lines, then six more appended from its third row: the sheet and every
+/// givens record as stored.
+fn two_lessons(store: &mut Batches) -> (Sheet, Vec<Record>) {
+    let (sheet, givens) = appended(started(store), lines(0, 6, NOON + 600));
+    append(store, &sheet, &givens).expect("appended");
+    store.writes.clear();
+    let kept = store.records(GIVENS, &[]).expect("givens");
+    (sheet, kept)
+}
 
-impl ProjectStore for RefusingGivens {
-    fn put_records(&mut self, records: &[(Space, Record)]) -> Result<(), PortError> {
-        if records.iter().any(|(space, _)| *space == GIVENS) {
-            return Err(PortError::Device {
-                detail: "refused by the test".into(),
-            });
-        }
-        self.0.put_records(records)
-    }
+/// `sheet` as End leaves it at the exercise `at` of its last lesson: those after it gone, the
+/// lesson finished.
+fn cut(sheet: &Sheet, at: usize) -> Sheet {
+    let mut cut = sheet.clone();
+    let lesson = cut.lessons.last_mut().expect("a lesson");
+    lesson.at = u16::try_from(at).expect("at");
+    lesson.exercises.truncate(at + 1);
+    lesson.finished = Some(NOON + 1500);
+    cut
+}
 
-    fn records(&mut self, space: Space, under: &[u8]) -> Result<Vec<Record>, PortError> {
-        self.0.records(space, under)
-    }
+#[test]
+fn end_mid_lesson_shortens_the_record_and_its_givens_in_one_write_freeing_the_slots() {
+    let dir = TestDir::new("practice-trim");
+    let mut store = Batches::of(Library::at(&dir));
+    let (sheet, kept) = two_lessons(&mut store);
+    assert_eq!(Layout::next_slot(&sheet), 12, "rows 1 to 4 used");
+    let ended = cut(&sheet, 1);
+    trim(&mut store, &ended).expect("trimmed");
+    assert_eq!(store.writes, [2], "the record and its givens in one write");
+    let read = sheets(&mut store).expect("practice");
+    assert_eq!(read, std::slice::from_ref(&ended));
+    assert_eq!(Layout::next_slot(&read[0]), 9, "the fourth row free again");
+    let givens = store.records(GIVENS, &[]).expect("givens");
+    assert_eq!(givens[0], kept[0], "the first lesson's givens as they were");
+    let last = decode_givens(&givens[1].1).expect("the last lesson's");
+    assert_eq!(last, Givens::of_lesson(&ended.lessons[1], &[]));
+    assert_eq!(
+        last.slots.iter().map(|(slot, _)| *slot).collect::<Vec<_>>(),
+        [6, 7]
+    );
+    let printed = printed(&mut store, &read[0]).expect("every exercise's");
+    assert_eq!(printed, Given::of_sheet(&ended, &[]));
+}
 
-    fn create_owned(
-        &mut self,
-        project: (&Artwork, &Title),
-        owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
-    ) -> Result<ProjectId, PortError> {
-        self.0.create_owned(project, owned)
-    }
+#[test]
+fn end_on_a_lesson_s_last_exercise_removes_nothing() {
+    let dir = TestDir::new("practice-trim-last");
+    let mut store = Batches::of(Library::at(&dir));
+    let (sheet, kept) = two_lessons(&mut store);
+    let ended = cut(&sheet, 5);
+    assert_eq!(ended.lessons[1].exercises.len(), 6);
+    trim(&mut store, &ended).expect("trimmed");
+    assert_eq!(sheets(&mut store).expect("practice"), [ended]);
+    assert_eq!(store.records(GIVENS, &[]).expect("givens"), kept);
+}
 
-    fn remove_owned(
-        &mut self,
-        keys: &[(Space, Vec<u8>)],
-        project: Option<ProjectId>,
-    ) -> Result<(), PortError> {
-        self.0.remove_owned(keys, project)
-    }
+#[test]
+fn end_taking_a_lesson_off_whole_removes_its_givens_in_the_same_write() {
+    let dir = TestDir::new("practice-trim-whole");
+    let mut store = Batches::of(Library::at(&dir));
+    let (sheet, kept) = two_lessons(&mut store);
+    // The lesson the chain laid as the time ran out, never begun: End takes it off.
+    let mut ended = sheet.clone();
+    ended.lessons.truncate(1);
+    trim(&mut store, &ended).expect("trimmed");
+    assert_eq!(
+        store.writes,
+        [3],
+        "the record, the last lesson's givens and the gone one's in one write"
+    );
+    assert_eq!(sheets(&mut store).expect("practice"), [ended.clone()]);
+    assert_eq!(
+        store.records(GIVENS, &[]).expect("givens"),
+        kept[..1],
+        "only the lesson kept holds givens"
+    );
+    let printed = printed(&mut store, &ended).expect("every exercise's");
+    assert_eq!(printed, Given::of_sheet(&ended, &[]));
+}
 
-    fn open_last(&mut self) -> Result<Option<Project>, PortError> {
-        self.0.open_last()
-    }
-
-    fn list(&mut self) -> Result<Vec<ProjectSummary>, PortError> {
-        self.0.list()
-    }
-
-    fn create(&mut self, artwork: &Artwork, title: &Title) -> Result<ProjectId, PortError> {
-        self.0.create(artwork, title)
-    }
-
-    fn load(&mut self, id: ProjectId) -> Result<Project, PortError> {
-        self.0.load(id)
-    }
-
-    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError> {
-        self.0.save(id, artwork)
-    }
-
-    fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError> {
-        self.0.save_thumbnail(id, thumbnail)
-    }
-
-    fn close(&mut self) -> Result<(), PortError> {
-        self.0.close()
-    }
-
-    fn rename(&mut self, id: ProjectId, title: &Title) -> Result<(), PortError> {
-        self.0.rename(id, title)
-    }
-
-    fn duplicate(&mut self, id: ProjectId) -> Result<ProjectId, PortError> {
-        self.0.duplicate(id)
-    }
-
-    fn delete(&mut self, id: ProjectId) -> Result<(), PortError> {
-        self.0.delete(id)
-    }
-
-    fn editor(&mut self) -> Result<Option<EditorState>, PortError> {
-        self.0.editor()
-    }
-
-    fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError> {
-        self.0.save_editor(state)
-    }
-
-    fn artwork_file(&mut self, id: ProjectId) -> Result<Vec<u8>, PortError> {
-        self.0.artwork_file(id)
-    }
-
-    fn import_file(&mut self, bytes: &[u8]) -> Result<ProjectId, PortError> {
-        self.0.import_file(bytes)
-    }
-
-    fn keep_version(&mut self, id: ProjectId, kept_at: u64) -> Result<(), PortError> {
-        self.0.keep_version(id, kept_at)
-    }
-
-    fn restore_version(
-        &mut self,
-        id: ProjectId,
-        version: VersionId,
-        title: &Title,
-    ) -> Result<ProjectId, PortError> {
-        self.0.restore_version(id, version, title)
-    }
-
-    fn artwork(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
-        self.0.artwork(id)
-    }
+#[test]
+fn end_refused_leaves_the_record_and_its_givens_as_they_were() {
+    let dir = TestDir::new("practice-trim-refused");
+    let mut store = Batches::of(Library::at(&dir));
+    let (sheet, kept) = two_lessons(&mut store);
+    store.refused = |(space, _)| *space == GIVENS;
+    assert!(trim(&mut store, &cut(&sheet, 1)).is_err());
+    let stored = sheets(&mut store).expect("practice");
+    assert_eq!(stored, std::slice::from_ref(&sheet));
+    assert_eq!(store.records(GIVENS, &[]).expect("givens"), kept);
+    // A sheet whose last lesson's givens are not kept is refused before any write.
+    store.refused = |_| false;
+    let mut other = cut(&sheet, 1);
+    other.canvas += 1;
+    let corrupt = PortError::Corrupt {
+        what: "practice givens",
+    };
+    assert_eq!(trim(&mut store, &other), Err(corrupt));
+    assert!(store.writes.is_empty());
+    assert_eq!(sheets(&mut store).expect("practice"), stored);
 }

@@ -197,14 +197,13 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
 }
 
 #[test]
-fn a_lesson_step_names_a_skill_and_level_a_unit_or_a_word() {
+fn a_lesson_step_names_a_skill_and_level_or_a_word() {
     let text = r#"{
         "screen": [640, 400],
         "density": 2,
         "steps": [
             { "lesson": { "skill": "line", "level": 1 } },
             { "lesson": { "skill": "points-in-space" } },
-            { "lesson": { "full": 2 } },
             { "lesson": "first" },
             { "lesson": "next" }
         ]
@@ -216,16 +215,35 @@ fn a_lesson_step_names_a_skill_and_level_a_unit_or_a_word() {
             _ => panic!("a lesson step"),
         })
         .collect();
-    assert_eq!(starts[2], "Full(2)");
-    assert_eq!(starts[3], "First");
-    assert_eq!(starts[4], "Next");
+    assert_eq!(starts[2], "First");
+    assert_eq!(starts[3], "Next");
     let step = |lesson: &str| {
         format!(r#"{{ "screen": [640, 400], "density": 2, "steps": [{{ "lesson": {lesson} }}] }}"#)
     };
     for bad in [
+        r#"{ "full": 2 }"#,
         r#"{ "skill": "stage" }"#,
         r#"{ "skill": "line", "level": 4 }"#,
         r#""later""#,
+    ] {
+        assert!(Scenario::parse(&step(bad)).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn a_host_step_names_the_chimes_and_the_screen_kept_on() {
+    let step = |host: &str| {
+        format!(r#"{{ "screen": [640, 400], "density": 2, "steps": [{{ "host": {host} }}] }}"#)
+    };
+    let scenario = Scenario::parse(&step(r#"{ "chimes": 1, "screen_on": false }"#));
+    let expected = crate::HostExpect {
+        chimes: 1,
+        screen_on: false,
+    };
+    assert_eq!(scenario.expect("parses").steps, [Step::Host(expected)]);
+    for bad in [
+        r#"{ "chimes": 1 }"#,
+        r#"{ "chimes": 1, "screen_on": true, "x": 0 }"#,
     ] {
         assert!(Scenario::parse(&step(bad)).is_err(), "{bad}");
     }

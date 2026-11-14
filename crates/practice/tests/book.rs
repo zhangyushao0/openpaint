@@ -4,8 +4,9 @@
 //! the lines shown.
 
 use openpaint_practice::{
-    Book, Day, Family, First, ItemRef, Judge, Learner, LineShown, Metric, Outcome, PAUSE, Pictures,
-    Purpose, Seal, Sheet, Span, Standing, Tally, earned, practised, schedule, sealed, seconds,
+    Book, Day, Family, First, ItemRef, Judge, Learner, LineShown, Metric, Outcome, PAUSE, Picked,
+    Pictures, Planned, Purpose, Seal, Sheet, Skill, SkillLevel, Span, Standing, Tally, earned,
+    practised, schedule, sealed, seconds,
 };
 
 /// 2026-10-05 12:00 UTC, a Monday.
@@ -14,15 +15,30 @@ const DAY: u64 = 86_400;
 /// The device's offset in Beijing, minutes.
 const BEIJING: i32 = 8 * 60;
 
-/// Unit 1's full lesson for a learner who has practised nothing: five lines, four groups and four
-/// colours.
+/// Unit 1's full lesson as an old record holds it (none is laid since S124) for a learner who has
+/// practised nothing: a warm-up of a line, a group and a colour, then a lesson of each skill.
 fn session(id: u64, started: u64) -> Sheet {
     let (pictures, learner) = (Pictures::default(), Learner::default());
     let standing = Standing {
         pictures: &pictures,
         learner: &learner,
     };
-    let planned = schedule::full(1, 0x5EED_0045 + id, &standing).expect("unit 1's");
+    let lessons: Vec<Planned> = (["line", "combined", "colour"].iter())
+        .map(|key| {
+            let skill = Skill::of_key(key).expect("a skill of unit 1");
+            let seed = 0x5EED_0045 + id;
+            schedule::lesson(skill, SkillLevel::First, seed, &standing).expect("its lesson")
+        })
+        .collect();
+    let warm_up = lessons.iter().filter_map(|lesson| lesson.exercises.first());
+    let parts = lessons.iter().flat_map(|lesson| lesson.exercises.iter());
+    let planned = Planned {
+        picked: Picked::Full {
+            stage: 1,
+            warm_up: 3,
+        },
+        exercises: warm_up.chain(parts).cloned().collect(),
+    };
     Sheet::begun(id, (Purpose::Day, started), planned)
 }
 
@@ -63,7 +79,7 @@ fn a_session_left_untouched_two_hours_counts_only_its_minutes() {
     let back = NOON + 12 * 60 + 2 * 3600;
     uses(&mut record.spans, back, 8, 45);
     assert_eq!(seconds(&record.spans), 720 + 450);
-    let book = Book::of(std::slice::from_ref(&record), BEIJING);
+    let book = Book::of(std::slice::from_ref(&record), &[], BEIJING);
     assert_eq!(book.seconds, seconds(&record.spans));
     assert_eq!(book.days.len(), 1);
     assert_eq!(book.days[0].records, [1]);
@@ -99,7 +115,7 @@ fn a_copy_painted_over_two_days_shows_on_both() {
     // 21:00 to 21:40 in Beijing (13:00 UTC), and the next evening 20:00 to 20:30.
     uses(&mut copy.spans, NOON + 3600, 40, 60);
     uses(&mut copy.spans, NOON + DAY, 30, 60);
-    let book = Book::of(std::slice::from_ref(&copy), BEIJING);
+    let book = Book::of(std::slice::from_ref(&copy), &[], BEIJING);
     let days: Vec<(i64, u64, Vec<u64>)> = (book.days.iter())
         .map(|day| (day.day, day.seconds, day.records.clone()))
         .collect();
@@ -113,19 +129,21 @@ fn a_copy_painted_over_two_days_shows_on_both() {
     let picture = (copy.laid(0)).and_then(|laid| laid.exercise.picture.clone());
     let mut late = Sheet::copy(3, (9, NOON), picture.expect("picture"));
     uses(&mut late.spans, NOON + 3 * 3600 + 50 * 60, 20, 60);
-    let book = Book::of(std::slice::from_ref(&late), BEIJING);
+    let book = Book::of(std::slice::from_ref(&late), &[], BEIJING);
     assert_eq!(
         book.days,
         [
             Day {
                 day: 20_731,
                 seconds: 600,
-                records: vec![3]
+                records: vec![3],
+                blocks: 0
             },
             Day {
                 day: 20_732,
                 seconds: 600,
-                records: vec![3]
+                records: vec![3],
+                blocks: 0
             }
         ]
     );
@@ -226,7 +244,7 @@ fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
     let line = of(&open, Family::Line, 1);
     compared(&mut open, line, NOON + 4 * DAY + 60, Vec::new());
     records.push(open);
-    let book = Book::of(&records, 0);
+    let book = Book::of(&records, &[], 0);
     assert_eq!(book.sessions, 3);
     assert_eq!(
         book.colour,

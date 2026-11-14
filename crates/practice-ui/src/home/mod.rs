@@ -1,11 +1,12 @@
 //! Practice on the home (S122, D112), the ui's home hook (`openpaint_ui::HomeHook`) filled: the
 //! practice column beside the studio's artworks (`column.rs`: the next lesson and Start, the
-//! review on the side, All units, Practice book), the path page grown out of All units over the
-//! whole home (`path.rs`: the units, each skill's tile and dots, the next lesson, the review and a
-//! unit's full lesson), the practice book (`book/`), the practice options grown out of their
-//! button (`options.rs`, `pictures.rs`, `copies.rs`) and what they tell in the home's notice pill
-//! after the home's own. The taps are practice's own (`OptionsIntent`); opening a sheet asks the
-//! home, and the sheet grows out of what was tapped.
+//! Pomodoro's row and today's seals, `pomodoro.rs`, the review on the side, All units, Practice
+//! book), the path page grown out of All units over the whole home (`path.rs`: the units, each
+//! skill's tile and dots, the next lesson and the review), the practice book (`book/`), the
+//! practice options grown out of their button (`options.rs`, `pictures.rs`, `copies.rs`) and what
+//! they tell in the home's notice pill after the home's own. The taps are practice's own
+//! (`OptionsIntent`, the timer's `TimerIntent`); opening a sheet asks the home, and the sheet grows
+//! out of what was tapped.
 
 mod book;
 mod column;
@@ -13,13 +14,18 @@ mod copies;
 mod options;
 mod path;
 mod pictures;
+mod pomodoro;
+#[cfg(test)]
+mod pomodoro_tests;
 #[cfg(test)]
 mod tests;
 
 use egui::{Context, Rect, Ui};
 use openpaint_app::{GalleryIntent, Intent};
 use openpaint_practice::ItemRef;
-use openpaint_practice_app::{OptionsIntent, OptionsNotice, PathProjection, PictureImage, Start};
+use openpaint_practice_app::{
+    OptionsIntent, OptionsNotice, PathProjection, PictureImage, Start, TimerIntent, TimerShown,
+};
 use openpaint_ui::components::carry::Opening;
 use openpaint_ui::{HomeHook, Page};
 
@@ -70,12 +76,15 @@ impl HomePart {
     }
 }
 
-/// Practice's home hook for one frame: its state, the path, the options' notice and their taps.
+/// Practice's home hook for one frame: its state, the path, the options' notice, the Pomodoro's
+/// timer and their taps.
 pub(crate) struct PathHook<'a> {
     pub(crate) part: &'a mut HomePart,
     pub(crate) path: &'a PathProjection,
     pub(crate) notice: Option<OptionsNotice>,
     pub(crate) taps: &'a mut Vec<OptionsIntent>,
+    pub(crate) timer: &'a TimerShown,
+    pub(crate) timer_taps: &'a mut Vec<TimerIntent>,
 }
 
 impl HomeHook for PathHook<'_> {
@@ -97,12 +106,15 @@ impl HomeHook for PathHook<'_> {
     }
 
     fn column(&mut self, ui: &mut Ui, rect: Rect, enabled: bool, taps: &mut Vec<Intent>) -> Rect {
-        self.part
-            .column(ui, rect, (self.path, enabled), (taps, self.taps))
+        let shown = (self.path, self.timer, enabled);
+        let taps = ((taps, &mut *self.taps), &mut *self.timer_taps);
+        self.part.column(ui, rect, shown, taps)
     }
 
     fn dialogs(&mut self, ctx: &Context, taps: &mut Vec<Intent>) {
-        self.part.practice_dialog(ctx, self.path, (taps, self.taps));
+        let shown = (self.path, self.timer);
+        let taps = (taps, &mut *self.taps, &mut *self.timer_taps);
+        self.part.practice_dialog(ctx, shown, taps);
     }
 
     fn notice(&self) -> Option<Text> {

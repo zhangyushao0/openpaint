@@ -11,7 +11,7 @@
     "A stroke after Compare takes the comparison away, as on every sheet; Undo takes the stroke back; Compare again shows the marks as before.",
     "Finish: the lesson's end, Key shifts, 1 exercise, its dot; One more names Key shifts again (unit 5 chosen while unit 1 is in hand), not the path's next. One more: a second lesson of Key shifts (what its card named) on the next row of the same sheet, Lesson 2 · Key shifts; the crop that came out Again is laid again first, a tendency of its own, never near the crop's own main hue.",
     "Reopen: Home leaves it under way; Continue (Start while no lesson is under way) on the home reopens it at its key shift.",
-    "Unit 5's full lesson (the path's Full lesson): a warm-up of three exercises of the kinds met before, then the unit's key shifts.",
+    "Unit 5's key shifts again from the home by their skill's lesson, at the learner's level (the full lesson is gone, S124).",
     "Chinese: s107-key-shifts-zh runs this walk-through on a Chinese tablet: 变调, 倾向色, 看黑白, the card's lines in V大's words.",
     "Not here: the author's hand on the tablet; the checks judged on the official packs' crops (the harness's key-shifts contact sheets)."
   ],
@@ -67,7 +67,7 @@
     { "tap": { "at": "Continue" } },
     { "screenshot": { "name": "key-lesson-reopened" } },
     { "tap": { "at": "Home" } },
-    { "lesson": { "full": 5 } },
-    { "screenshot": { "name": "unit-five-full-lesson" } }
+    { "lesson": { "skill": "key-shift" } },
+    { "screenshot": { "name": "unit-five-key-shifts" } }
   ]
 }

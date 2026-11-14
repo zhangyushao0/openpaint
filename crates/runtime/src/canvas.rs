@@ -51,8 +51,9 @@ pub(crate) enum Leaving {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Then {
     Gallery,
-    /// The next lesson's sheet: One more's, the lesson the end named.
-    Practice(openpaint_practice_app::Start),
+    /// The next lesson's sheet: One more's (or the chain's), the lesson the end named, of the
+    /// purpose of the sheet left (a test's stays a test's).
+    Practice(openpaint_practice_app::Start, openpaint_practice::Purpose),
 }
 
 /// A practice sheet: its session record, the finished sessions of its stage before it and the

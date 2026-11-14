@@ -14,34 +14,24 @@ texts! { PRACTICE_PACKS_TABLE;
     MY_PICTURES = "My pictures", "我的图片";
     IMPORT_PACK = "Import practice pack…", "导入素材包…";
     ADD_PICTURE = "Add my picture…", "添加我的图片…";
-    NO_PACKS = "No pack yet: single shapes copy a pack's pictures.",
-        "还没有素材包：单体图形要临摹素材包里的图片。";
-    PACKS_NOTE = "Your own pictures stay on this tablet; lessons of single shapes use them once \
-        they reach their tier.",
-        "你的图片只存在这台平板上。单体图形的课练到它的难度后会用到它们。";
+    NO_PACKS = "No pack yet.", "还没有素材包。";
 }
 
 texts! { PRACTICE_NOTICES;
-    PACK_IMPORTED = "Practice pack imported: its pictures come up in single shapes.",
-        "素材包已导入：单体图形会用到里面的图片。";
-    COMPOSITIONS_IMPORTED = "Practice pack imported: for divisions, value masses and whole \
-        copies.", "素材包已导入：用于画面分割、黑白灰和整图复制。";
-    COMPOSITIONS_AND_CROPS_IMPORTED = "Practice pack imported: for divisions, value masses and \
-        whole copies, and its crops for colour combinations.",
-        "素材包已导入：用于画面分割、黑白灰和整图复制，截取的局部用于色彩组合。";
-    CROPS_IMPORTED = "Practice pack imported: its crops come up in colour combinations.",
-        "素材包已导入：截取的局部用于色彩组合。";
+    PACK_IMPORTED = "Practice pack imported: single shapes.", "素材包已导入：单体图形。";
+    COMPOSITIONS_IMPORTED = "Practice pack imported: compositions.", "素材包已导入：构图。";
+    COMPOSITIONS_AND_CROPS_IMPORTED = "Practice pack imported: compositions and colour crops.",
+        "素材包已导入：构图和色彩组合的局部。";
+    CROPS_IMPORTED = "Practice pack imported: colour crops.", "素材包已导入：色彩组合的局部。";
     PACK_DAMAGED = "Couldn't import: the file is not a practice pack, or it is damaged.",
         "无法导入：这不是素材包，或文件已损坏。";
     PACK_OTHER_FORMAT = "Couldn't import: the pack is from another version of OpenPaint.",
         "无法导入：这个素材包来自其他版本的 OpenPaint。";
-    PICTURE_ADDED = "Added to My pictures. Its outline was found: Compare lays it over your copy.",
-        "已添加到“我的图片”，并找到了它的外轮廓：叠图对比时会把轮廓叠在你的临摹上。";
-    PICTURE_ADDED_PLAIN = "Added to My pictures. No outline was found for it: Compare lays the \
-        picture itself over your copy, faint.",
-        "已添加到“我的图片”，但没找到外轮廓：叠图对比时会把原图淡淡地叠在你的临摹上。";
-    PICTURE_REFUSED = "Couldn't add the picture: only PNG and JPEG pictures are taken.",
-        "无法添加图片：只支持 PNG 和 JPEG 图片。";
+    PICTURE_ADDED = "Added to My pictures, with its outline.", "已添加到“我的图片”，有外轮廓。";
+    PICTURE_ADDED_PLAIN = "Added to My pictures, without an outline.",
+        "已添加到“我的图片”，没有外轮廓。";
+    PICTURE_REFUSED = "Couldn't add the picture: not a PNG or JPEG.",
+        "无法添加图片：不是 PNG 或 JPEG。";
 }
 
 /// What the practice options' notice says.
@@ -108,7 +98,6 @@ texts! { PRACTICE_OPTIONS_TABLE;
     HARD_HINT = "Many parts and overlaps", "部件多，互相遮挡";
     NEW_COPY = "New copy…", "新建临摹…";
     CHOOSE_PICTURE = "Choose a picture", "选一张图片";
-    CHOOSE_HINT = "Tap a picture to begin a long copy of it.", "轻点一张图片，开始一幅色彩临摹。";
     NO_PICTURES_HERE = "No pictures here.", "这里没有图片。";
     COPIED_BEFORE = "Copied before", "已临摹过";
     COPY_OPTIONS = "Copy options", "临摹选项";
@@ -118,17 +107,10 @@ texts! { PRACTICE_OPTIONS_TABLE;
     COPY_GOES = "Your painting on it goes for good. Its picture stays.",
         "你画的内容会永久删除，原图会保留。";
     ADD_MY_PICTURE = "Add my picture", "添加我的图片";
-    TIER_FIRST = "How hard is it to copy? Choose, then the picture.",
-        "临摹它有多难？先选难度，再选图片。";
     HOW_HARD = "How hard to copy", "临摹难度";
-    WITH_OUTLINE = "With an outline: Compare lays it over your copy.",
-        "有外轮廓：叠图对比时会把轮廓叠在你的临摹上。";
-    WITHOUT_OUTLINE = "No outline: Compare lays the picture itself over your copy, faint.",
-        "没有外轮廓：叠图对比时会把原图淡淡地叠在你的临摹上。";
+    WITH_OUTLINE = "With an outline", "有外轮廓";
+    WITHOUT_OUTLINE = "No outline", "没有外轮廓";
     REMOVE_PICTURE = "Delete picture", "删除图片";
-    MINE_NOTE = "Your own pictures stay on this tablet. Lessons of single shapes use one once they \
-        reach its tier.",
-        "你的图片只存在这台平板上。单体图形的课练到它的难度后，每课会用到其中一张。";
     NO_PICTURE_OF_MINE = "No picture of your own yet.", "还没有你自己的图片。";
 }
 

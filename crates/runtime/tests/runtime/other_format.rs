@@ -114,6 +114,14 @@ impl ProjectStore for Other {
         self.wrote("record")
     }
 
+    fn rewrite_records(
+        &mut self,
+        _put: &[(Space, Record)],
+        _gone: &[(Space, Vec<u8>)],
+    ) -> Result<(), PortError> {
+        self.wrote("record rewrite")
+    }
+
     fn create_owned(
         &mut self,
         _project: (&Artwork, &Title),

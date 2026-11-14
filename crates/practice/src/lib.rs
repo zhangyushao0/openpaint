@@ -135,6 +135,7 @@ pub use packs::pack::{
     PackProblem, PictureKind, Tier, valid_id,
 };
 pub use packs::pictures::Pictures;
+pub use records::blocks::{BREAK, Block, BlockTally, Blocks, Length, TimerWrite, Timing, UnderWay};
 pub use records::book::{Book, Day, LineShown};
 pub use records::givens::{Given, Givens};
 pub use records::lessons::{OnSheet, lessons, number};

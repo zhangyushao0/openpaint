@@ -2,7 +2,8 @@
 //! sheet read, and what its exercises printed; a new one started with its project and its
 //! lesson's givens in one write, the project becoming the open one; a lesson appended with its
 //! givens and the sheet's record in one write; a sheet's record replaced whole after each change
-//! (its givens stay as they were written); one removed with its givens and its project.
+//! (its givens stay as they were written); its last lesson cut by the Pomodoro's End with that
+//! lesson's givens in one write (`trim`); one removed with its givens and its project.
 
 use openpaint_app::{PortError, ProjectId, ProjectStore, Title};
 use openpaint_core::Artwork;
@@ -101,6 +102,53 @@ pub fn append(
         ),
     ])?;
     log::info!("practice sheet {} took lesson {lesson}", sheet.id);
+    Ok(())
+}
+
+/// The Pomodoro's End (S124): `sheet`'s record replaced whole, its last lesson cut to the
+/// exercises begun, and that lesson's givens written again holding only the slots its exercises
+/// keep, in one write; what was printed for the exercises gone goes with them, and the givens of
+/// a lesson End took off whole (one after the sheet's last now) are removed in the same write.
+///
+/// # Errors
+/// Whatever reading the givens or the write fails with; nothing is written then.
+pub fn trim(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<(), PortError> {
+    let corrupt = || PortError::Corrupt {
+        what: "practice givens",
+    };
+    let index = sheet.lessons.len().checked_sub(1).ok_or_else(corrupt)?;
+    let lesson = u16::try_from(index).map_err(|_| corrupt())?;
+    let key = givens_key(sheet.canvas, lesson);
+    let records = store.records(GIVENS, &sheet.canvas.to_be_bytes())?;
+    let (_, value) = (records.iter())
+        .find(|(held, _)| *held == key)
+        .ok_or_else(corrupt)?;
+    let held: Vec<Vec<u8>> = (0..=lesson)
+        .map(|lesson| givens_key(sheet.canvas, lesson))
+        .collect();
+    let gone: Vec<_> = (records.iter())
+        .filter(|(key, _)| !held.contains(key))
+        .map(|(key, _)| (GIVENS, key.clone()))
+        .collect();
+    let mut givens = decode_givens(value)?;
+    let kept = &sheet.lessons[index].exercises;
+    givens
+        .slots
+        .retain(|(slot, _)| kept.iter().any(|laid| laid.slot == *slot));
+    if givens.slots.len() != kept.len() {
+        return Err(corrupt());
+    }
+    let put = [
+        (PRACTICE, (sheet_key(sheet.id), encode_sheet(sheet))),
+        (GIVENS, (key, encode_givens(&givens))),
+    ];
+    store.rewrite_records(&put, &gone)?;
+    log::info!(
+        "practice sheet {} lesson {lesson} ended at {} exercises, {} lessons' givens gone",
+        sheet.id,
+        kept.len(),
+        gone.len()
+    );
     Ok(())
 }
 

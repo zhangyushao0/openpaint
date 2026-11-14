@@ -52,6 +52,7 @@ impl PracticeSheet {
             how: self.instructions,
             judged: self.judged(),
             end: self.end(),
+            rolled_back: self.rolled_back,
             marked: self.marked(),
         }
     }

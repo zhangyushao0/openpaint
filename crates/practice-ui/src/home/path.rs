@@ -4,12 +4,10 @@
 //! a tap away (a unit not open yet is entered all the same); under them the unit shown, its skills
 //! as tiles (`components/skill_tile.rs`: each skill's three dots, the next lesson's ringed, one
 //! lacking its pictures greyed with what it lacks; a tile tapped starts its lesson), the seals
-//! earned and Practice book; beside them the next lesson, the review on the side and the unit's
-//! full lesson (about as many minutes as its kinds take: a warm-up, then each skill of the unit).
+//! earned and Practice book; beside them the next lesson and the review on the side.
 
 use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Stroke, TextStyle, UiBuilder, Vec2};
 use openpaint_app::Language;
-use openpaint_practice::Offer;
 use openpaint_practice_app::{PathProjection, Start, UnitShown};
 use openpaint_ui::components::chrome::{self, Source};
 use openpaint_ui::components::{
@@ -19,7 +17,7 @@ use openpaint_ui::design::{
     INK, INK_SECONDARY, Outline, PANEL, SPACE, TOUCH_TARGET, paint_mark, panel_frame,
 };
 
-use super::column::{label, next_lesson, review, rule};
+use super::column::{label, next_lesson, review};
 use super::{HomePart, Taps};
 use crate::components::{SkillTile, paint_seal, seal_turn, skill_tile};
 use crate::palette::PENCIL;
@@ -148,7 +146,7 @@ fn page(ui: &mut egui::Ui, screen: Rect, (path, unit): (&PathProjection, u8)) ->
     );
     let shown = path.units.iter().find(|shown| shown.number == unit);
     let tapped = unit_skills(ui, skills, (path, shown, unit));
-    let offered = offers(ui, side, (path, unit));
+    let offered = offers(ui, side, path);
     picked.map(Tapped::Unit).or(tapped).or(offered)
 }
 
@@ -294,8 +292,8 @@ fn seals_and_book(ui: &mut egui::Ui, foot: Rect, path: &PathProjection) -> Optio
     book.clicked().then_some(Tapped::Book(book.rect))
 }
 
-/// The next lesson, the review on the side and the unit's full lesson in `side`, on a panel.
-fn offers(ui: &mut egui::Ui, side: Rect, (path, unit): (&PathProjection, u8)) -> Option<Tapped> {
+/// The next lesson and the review on the side in `side`, on a panel.
+fn offers(ui: &mut egui::Ui, side: Rect, path: &PathProjection) -> Option<Tapped> {
     let mut column = ui.new_child(
         UiBuilder::new()
             .id_salt("path offers")
@@ -307,35 +305,9 @@ fn offers(ui: &mut egui::Ui, side: Rect, (path, unit): (&PathProjection, u8)) ->
         .show(&mut column, |ui| {
             ui.set_width(side.width() - 6.0 * SPACE);
             ui.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
-            let next = next_lesson(ui, path).map(|from| Tapped::Start(Start::Next, from));
+            let next = next_lesson(ui, path, true).map(|from| Tapped::Start(Start::Next, from));
             let review = review(ui, path).map(|from| Tapped::Start(Start::Review, from));
-            let full = (path.units.iter()).find(|shown| shown.number == unit);
-            let full = full_block(ui, (unit, full.and_then(|shown| shown.full)));
-            next.or(review).or(full)
+            next.or(review)
         })
         .inner
-}
-
-/// The full lesson of `unit` (its offer, `full`): about how many minutes it takes, a warm-up then
-/// each skill of the unit; Full lesson greyed while it lays none.
-fn full_block(ui: &mut egui::Ui, (unit, full): (u8, Option<Offer>)) -> Option<Tapped> {
-    let language = t::language(ui.ctx());
-    ui.add_space(SPACE);
-    rule(ui);
-    label(ui, t::LONGER);
-    let tapped = ui
-        .horizontal(|ui| {
-            if let Some(full) = full {
-                ui.label(t::about_minutes(language, full.minutes));
-            }
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                text_button(ui, t::FULL_LESSON, full.is_some())
-            })
-            .inner
-        })
-        .inner;
-    label(ui, t::FULL_LINE);
-    tapped
-        .clicked()
-        .then_some(Tapped::Start(Start::Full(unit), tapped.rect))
 }

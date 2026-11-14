@@ -85,6 +85,13 @@ impl Skill {
         Self::all().find(|skill| skill.key() == key)
     }
 
+    /// Whether its lessons lay exercises of the topic keyed `key` (`Facts::key`): the practice
+    /// bench's walk laying the skills of a unit one after another until one holds what it wants.
+    #[must_use]
+    pub fn teaches(self, key: &str) -> bool {
+        (self.described().facts().iter()).any(|facts| facts.key == key)
+    }
+
     /// What its lessons need kept before one starts (a pack's pictures, compositions, crops).
     #[must_use]
     pub fn needs(self) -> Needs {

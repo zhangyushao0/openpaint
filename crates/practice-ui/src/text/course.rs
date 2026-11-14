@@ -19,9 +19,7 @@ texts! { PRACTICE_COURSE;
     UNDER_WAY = "Today's lesson, under way", "今天这一课还没上完";
     ON_THE_SIDE = "Review on the side", "顺手复习";
     REDO_WAITS = "Again last time", "上次有题重来";
-    LONGER = "To practise longer", "想坐下来多练";
     UNIT_IN_THE_MAKING = "Its lessons are still being made", "这一单元的课还在准备中";
-    FULL_LINE = "A warm-up, then each skill of this unit", "热身，再把这一单元的各项练一遍";
     FIRST_LESSON = "First lesson", "第一课";
     LEVEL_FIRST = "Beginning", "入门";
     LEVEL_SECOND = "Fluent", "熟练";
@@ -34,16 +32,12 @@ texts! { PRACTICE_COURSE;
     ALMOST = "Almost", "差一点";
     REDO_RESULT = "Again", "重来";
     YOUR_EYE = "How close is it?", "你看这一题";
-    EYE_NOTE = "No score here: your eye judges. Again brings it back in a later lesson.",
-        "这题没有标准分，自己判断，练的就是这双眼睛。点了“重来”，过几课还会再出现。";
     ENOUGH = "That's all for today", "今天到这儿";
     FIRST_STEP_SCRIBBLE = "Scribble in the frame: light, then hard.", "在框里随便画几笔，轻一点、重一点都试试。";
     FIRST_STEP_COPY = "Copy the line on the left in the frame on the right.",
         "照着左边的线，在右边的框里画一条。";
     FIRST_STEP_COMPARE = "Tap Compare: the original lies over your line. See where it is off, \
         then Next.", "点“叠图对比”，原图会叠在你的线上；差在哪，看一眼，再点“下一个”。";
-    NOTHING_SCORED = "Nothing is scored here. A line off stays: after Compare, correct it in blue.",
-        "这里不打分。画歪了不用擦，对比之后用修正笔在上面改。";
 }
 
 texts! { PRACTICE_UNITS;
@@ -169,14 +163,6 @@ pub(crate) fn exercises_line(language: Language, (exercises, minutes): (u8, u8))
     }
 }
 
-/// About how long a full lesson takes: "About 28 minutes", "约 28 分钟".
-pub(crate) fn about_minutes(language: Language, minutes: u8) -> String {
-    match language {
-        Language::English => format!("About {minutes} minutes"),
-        Language::Chinese => format!("约 {minutes} 分钟"),
-    }
-}
-
 /// An offer's line under its skill: its level, its exercises and minutes.
 pub(crate) fn offer_line(language: Language, offer: &Offer) -> String {
     let counts = exercises_line(language, (offer.exercises, offer.minutes));
@@ -211,15 +197,11 @@ pub(crate) fn review_line(language: Language, offer: &Offer) -> String {
     format!("{name} · {}", exercise_count(language, offer.exercises))
 }
 
-/// What One more starts, under it: "Arcs · 5 exercises · about 4 min, on the next row of this
-/// sheet".
+/// What One more starts, under it: "Arcs · 5 exercises · about 4 min".
 pub(crate) fn one_more_line(language: Language, offer: &Offer) -> String {
     let name = skill_name(offer.skill).get(language);
     let counts = exercises_line(language, (offer.exercises, offer.minutes));
-    match language {
-        Language::English => format!("{name} · {counts}, on the next row of this sheet"),
-        Language::Chinese => format!("{name} · {counts}，接着画在这张纸的下一行"),
-    }
+    format!("{name} · {counts}")
 }
 
 /// The lesson in hand as the bar names it: "Lines 3/5", "First lesson 2/3", "Warm-up 1/3".
@@ -309,7 +291,7 @@ mod tests {
         );
         assert_eq!(
             one_more_line(Language::English, &offer),
-            "Lines · 5 exercises · about 4 min, on the next row of this sheet"
+            "Lines · 5 exercises · about 4 min"
         );
         assert_eq!(unit_title(Language::Chinese, 1), "第 1 单元 · 线条与颜色");
         assert_eq!(unit_title(Language::English, 7), "Unit 7");
@@ -328,12 +310,11 @@ mod tests {
     }
 
     #[test]
-    fn a_lesson_s_end_says_its_exercises_and_time_and_a_full_lesson_its_minutes() {
+    fn a_lesson_s_end_says_its_exercises_and_time() {
         assert_eq!(
             lesson_took(Language::English, (5, 192)),
             "5 exercises · 3 min 12 s"
         );
         assert_eq!(lesson_took(Language::Chinese, (3, 45)), "3 题 · 45 秒");
-        assert_eq!(about_minutes(Language::English, 28), "About 28 minutes");
     }
 }

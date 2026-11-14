@@ -1,9 +1,9 @@
 //! The first lesson's How (S122): in place of a kind's, whichever of its three exercises is in
 //! hand: "First lesson", its exercises and minutes, three short numbered steps (scribble, copy a
-//! line, Compare), under a rule that nothing is scored here, and Got it.
+//! line, Compare), and Got it.
 
 use openpaint_ui::components::{card_step, card_text, text_button};
-use openpaint_ui::design::{DIVIDER, INK, SPACE};
+use openpaint_ui::design::{INK, SPACE};
 
 use crate::home::FIRST;
 use crate::text::{self as t, Words, language};
@@ -23,11 +23,6 @@ pub(crate) fn first_how(ui: &mut egui::Ui) -> bool {
         card_step(ui, index + 1, step, INK);
     }
     ui.add_space(SPACE);
-    let (rule, _) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
-    ui.painter()
-        .hline(rule.x_range(), rule.center().y, (1.0, DIVIDER));
-    card_text(ui, t::NOTHING_SCORED, true);
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
         text_button(ui, t::GOT_IT, true).clicked()
     })

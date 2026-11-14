@@ -1,9 +1,11 @@
 //! For debug builds only (`cargo device-input practice-test start|end`, DECISIONS D102): a test
-//! lesson (the next one, a skill's at a level, a unit's full lesson, the first lesson; or a test
+//! lesson (the next one, a skill's at a level, the first lesson; or a test
 //! colour copy, `start copy`) started beside any open one, and removed afterwards with its sheet,
 //! so a practice slice walks its lesson on the tablet while the author's lessons, copies, records
 //! and the path's dots stay as they were. A test lesson's sheet is a `Purpose::Test` sheet (a
-//! day's in all else, never continued); a test copy stays a copy.
+//! day's in all else, never continued; a sheet the Pomodoro's chain leaves it for is a test's
+//! too); a test copy stays a copy. `start pomodoro [seconds]` begins a short Pomodoro's block
+//! with its lesson; `end` removes the test sheets started since and the blocks begun since.
 //!
 //! The test lesson is started from the home even while another is open, as the log starts it
 //! (`PracticeLog::start`). It is named by its id, its sheet and when it started
@@ -16,7 +18,7 @@ use std::str::FromStr;
 
 use openpaint_app::ProjectId;
 use openpaint_practice::{Purpose, Sheet, Skill, SkillLevel};
-use openpaint_practice_app::Start;
+use openpaint_practice_app::{BlockShown, Start};
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
@@ -100,12 +102,11 @@ impl FromStr for PracticeTest {
 impl Runtime {
     /// For debug builds only: a test lesson as `start` names it (`skill_start` for a skill's),
     /// started from the home beside any open one on a test's sheet; its sheet opens once the
-    /// store wrote it (`test_practice` names it then). A full lesson without a unit given is the
-    /// learner's unit's. Returns its id.
+    /// store wrote it (`test_practice` names it then). Returns its id.
     ///
     /// # Errors
     /// `NotNow` when the home does not show, or nothing is there to start (a skill whose
-    /// pictures are not kept, a unit not built); a sheet that cannot be made.
+    /// pictures are not kept); a sheet that cannot be made.
     pub fn start_test_lesson(&mut self, start: Start) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
             return Err(RuntimeError::NotNow("the home"));
@@ -118,14 +119,25 @@ impl Runtime {
         Ok(id)
     }
 
-    /// For debug builds only: the full lesson of `unit`, else of the learner's unit (the one the
-    /// path offers), as `start_test_lesson`.
+    /// For debug builds only (`practice-test start pomodoro [seconds]`): a test lesson as
+    /// `start_test_lesson(Start::Next)` starts it, and a Pomodoro's block begun with it as Start
+    /// timer begins one, only `seconds` of it left (the product's lengths stay 15, 25 and 40), so
+    /// the time's end, End and the block's end come within a minute. Returns the lesson's id.
     ///
     /// # Errors
-    /// As `start_test_lesson`.
-    pub fn start_test_full(&mut self, unit: Option<u8>) -> Result<u64, RuntimeError> {
-        let unit = unit.unwrap_or_else(|| self.practice.path().unit);
-        self.start_test_lesson(Start::Full(unit))
+    /// `NotNow` while a block is under way (the author's stays as it is), or as
+    /// `start_test_lesson`.
+    pub fn start_test_pomodoro(&mut self, seconds: u32) -> Result<u64, RuntimeError> {
+        let running = matches!(
+            self.practice.timer().block,
+            Some(BlockShown::Running { .. } | BlockShown::Up)
+        );
+        if running {
+            return Err(RuntimeError::NotNow("no Pomodoro under way"));
+        }
+        let id = self.start_test_lesson(Start::Next)?;
+        self.practice.begin_test_block(seconds);
+        Ok(id)
     }
 
     /// For debug builds only: a test colour copy of an official pack's picture not copied before
@@ -157,7 +169,9 @@ impl Runtime {
     }
 
     /// For debug builds only: the test lesson `test` removed from the home, its record and its
-    /// sheet; the log forgets it once the store did (`holds_practice`).
+    /// sheet, with every other test sheet started since (a Pomodoro's chain left it for a new
+    /// one) and the Pomodoro's blocks begun since (`start_test_pomodoro`'s); the log forgets each
+    /// sheet once the store did (`holds_practice`).
     ///
     /// # Errors
     /// `NotNow` when the home does not show, or no sheet holds `test`'s name.
@@ -171,10 +185,18 @@ impl Runtime {
             .ok_or(RuntimeError::NotNow(
                 "a lesson of that name (`names_practice`)",
             ))?;
-        self.cache
-            .submit(CacheJob::Delete(ProjectId::new(session.canvas)));
+        let id = session.id;
+        let later = (self.practice.tests_since(test.started).into_iter())
+            .filter(|later| later.id != id && later.canvas != 0);
+        for sheet in std::iter::once(session).chain(later) {
+            self.cache
+                .submit(CacheJob::Delete(ProjectId::new(sheet.canvas)));
+            self.storage
+                .submit(Job::Practice(PracticeJob::Remove(sheet)));
+        }
+        self.practice.forget_blocks(test.started);
         self.storage
-            .submit(Job::Practice(PracticeJob::Remove(session)));
+            .submit(Job::Practice(PracticeJob::ForgetBlocks(test.started)));
         Ok(())
     }
 

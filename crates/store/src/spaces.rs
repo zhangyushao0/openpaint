@@ -41,11 +41,17 @@ pub(crate) fn records(open: &Open, space: Space, under: &[u8]) -> Result<Vec<Rec
     Ok(records)
 }
 
-/// `records` written over what their keys held, in one batch; none, nothing written.
-pub(crate) fn put(open: &Open, records: &[(Space, Record)]) -> Result<(), PortError> {
+/// `records` written over what their keys held and the records `gone` removed, in one batch;
+/// none of either, nothing written.
+pub(crate) fn put(
+    open: &Open,
+    records: &[(Space, Record)],
+    gone: &[(Space, Vec<u8>)],
+) -> Result<(), PortError> {
     let mut batch = Batch::new(open);
     insert(open, &mut batch, records)?;
-    if records.is_empty() {
+    remove(open, &mut batch, gone)?;
+    if records.is_empty() && gone.is_empty() {
         return Ok(());
     }
     batch.commit()

@@ -5,22 +5,25 @@
 //! change, never on a frame: the learner and the path (`path.rs`: the units with their skills'
 //! dots, the lessons offered, a lesson started), the practice book. Progress counts lessons,
 //! never days; every lesson but a copy's is the learner's, in the order of sheet and lesson
-//! (`lessons`); the day's lessons follow down one sheet (`day.rs`).
+//! (`lessons`); the day's lessons follow down one sheet (`day.rs`). The Pomodoro's timer and its
+//! blocks are the log's too (S124, `timer.rs`, `crate::pomodoro`).
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use openpaint_practice::{Book, Learner, PERSONAL, Pack, Sheet, local_day};
+use openpaint_practice::{Book, Learner, PERSONAL, Pack, Purpose, Sheet, local_day};
 
 use crate::book::{BookProjection, BookRecord, SheetRead};
 use crate::copies::{PictureShown, pictures_shown};
 use crate::path::PathProjection;
+use crate::pomodoro::Pomodoro;
 use openpaint_app::ProjectId;
 use openpaint_app::Title;
 
 mod copies;
 mod day;
 mod path;
+mod timer;
 
 /// Every practice sheet the library holds, oldest first, the titles of the copies' sheets, and
 /// the practice packs kept; the practice book made of them on the device's clock, with the
@@ -45,6 +48,8 @@ pub struct PracticeLog {
     learner: Learner,
     /// The path as the home and the path page show it, made again as the log changes.
     path: PathProjection,
+    /// The Pomodoro's timer and its blocks (S124).
+    pomodoro: Pomodoro,
 }
 
 impl PracticeLog {
@@ -88,7 +93,9 @@ impl PracticeLog {
     /// The learner, the book and the path made again from the records.
     fn booked(&mut self) {
         self.learner = Learner::of(&self.sheets);
-        self.book = Arc::new(Book::of(&self.sheets, self.offset));
+        let blocks = self.pomodoro.done();
+        self.book = Arc::new(Book::of(&self.sheets, blocks, self.offset));
+        self.pomodoro.tallied(&self.sheets);
         self.named = (self.sheets.iter())
             .filter(|s| s.canvas != 0)
             .map(|s| BookRecord {
@@ -154,6 +161,15 @@ impl PracticeLog {
     #[must_use]
     pub fn session(&self, id: u64) -> Option<&Sheet> {
         self.sheets.iter().find(|s| s.id == id)
+    }
+
+    /// The test sheets (`Purpose::Test`, debug builds' chore) started at or after `since`.
+    #[must_use]
+    pub fn tests_since(&self, since: u64) -> Vec<Sheet> {
+        (self.sheets.iter())
+            .filter(|sheet| sheet.purpose == Purpose::Test && sheet.started >= since)
+            .cloned()
+            .collect()
     }
 
     /// The sheet whose canvas is project `id`.

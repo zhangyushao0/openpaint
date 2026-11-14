@@ -37,7 +37,8 @@
 //!   filled and compared, measured as `ui` measures; a line, a group and a shape compared aligned
 //!   also say when the fit showed after the tap and how long it took on its worker
 //!   (`practice.rs`); in stage 3 a point, an angle and a point in space compared
-//!   (`practice_points.rs`).
+//!   (`practice_points.rs`); the unit's later skills laid on the sheet one after another where
+//!   the lesson in hand holds no kind a phase wants (`practice_chain.rs`, S124).
 //! - `book`: in the gallery, the practice book opened and closed twice, measured as `ui` measures
 //!   (`book.rs`).
 
@@ -57,6 +58,7 @@ mod hand;
 mod motion;
 mod open;
 mod practice;
+mod practice_chain;
 mod practice_division;
 mod practice_masses;
 mod practice_points;

@@ -40,6 +40,8 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     private val pickers = Pickers(this) { handle }
     /** Frames run on this (the main) thread: its performance hint session. */
     private val hint = FrameHint(this)
+    /** The Pomodoro's frames, the screen kept on and the chime; a wake draws only on a surface. */
+    private val timer = TimerHost(this) { if (attached) requestFrame() }
     /** The app used the back button's press; its release is the app's too. */
     private var backUsed = false
 
@@ -68,9 +70,13 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         Native.zone(handle, java.util.TimeZone.getDefault().getOffset(now) / 60_000)
     }
 
-    /** Leaving (home, another app, the screen off): the artwork is stored before anything else. */
+    /**
+     * Leaving (home, another app, the screen off): the artwork is stored before anything else;
+     * the Pomodoro's timer holds with no sheet in front, so no wake is left and the screen goes.
+     */
     override fun onPause() {
         Native.leave(handle)
+        timer.after(handle)
         super.onPause()
     }
 
@@ -87,6 +93,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         Choreographer.getInstance().removeFrameCallback(this)
         frameRequested = false
         hint.close()
+        timer.stop()
         Native.destroy(handle)
         handle = 0L
         super.onDestroy()
@@ -122,6 +129,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         val again = Native.frame(handle, start)
         hint.report(System.nanoTime() - start)
         if (again) requestFrame()
+        timer.after(handle)
         syncKeyboard()
         if (handle != 0L) pickers.serve()
     }

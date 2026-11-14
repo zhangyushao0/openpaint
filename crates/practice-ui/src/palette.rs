@@ -12,5 +12,7 @@ pub(crate) const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);
 pub(crate) const PRINTED: Color32 = Color32::from_rgb(112, 122, 134);
 /// The practice book's seals (S89): its only colour besides the user's own colours.
 pub(crate) const VERMILION: Color32 = Color32::from_rgb(184, 58, 38);
+/// Words in the seal's red (the bar's Time, S124): a shade deeper, to read as text.
+pub(crate) const VERMILION_INK: Color32 = Color32::from_rgb(162, 48, 31);
 /// The pencil the practice book draws what lies ahead with.
 pub(crate) const PENCIL: Color32 = Color32::from_rgb(189, 186, 177);

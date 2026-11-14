@@ -64,7 +64,7 @@ fn before_anything_is_practised_the_path_offers_the_first_lesson() {
 }
 
 #[test]
-fn a_lesson_starts_as_the_first_a_skill_s_at_a_level_or_a_unit_s_full_one() {
+fn a_lesson_starts_as_the_first_or_a_skill_s_at_a_level() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let picked = |start: Start| {
         let (sheet, title) = log.start(start, 5, NOON)?;
@@ -91,12 +91,9 @@ fn a_lesson_starts_as_the_first_a_skill_s_at_a_level_or_a_unit_s_full_one() {
             .iter()
             .all(|level| *level == SkillLevel::Third.code())
     );
-    // A unit's full lesson; none for a unit not built, a review without a redo or a skill
-    // whose pictures are not kept.
-    let full = picked(Start::Full(1)).map(|full| full.0);
-    assert!(matches!(full, Some(Picked::Full { stage: 1, .. })));
+    // None for a review without a redo or a skill whose pictures are not kept.
     let shapes = Skill::of_key("shape").expect("the shapes' skill");
-    for none in [Start::Full(7), Start::Review, Start::Skill(shapes)] {
+    for none in [Start::Review, Start::Skill(shapes)] {
         assert!(picked(none).is_none(), "{none:?}");
     }
 }

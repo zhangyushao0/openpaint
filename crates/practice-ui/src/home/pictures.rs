@@ -114,7 +114,6 @@ pub(super) fn picker(
         .collect();
     let mut chosen = word_columns(ui, "picture tiers", &words, Lead::None)
         .map(|at| Tapped::Page(Page::Picker(tabs[at])));
-    note(ui, t::CHOOSE_HINT.into(), true);
     let rows = scrolled(ui, room - 3.0 * openpaint_ui::design::TOUCH_TARGET, |ui| {
         let mut tapped = None;
         let shown: Vec<&PictureShown> = path.pictures_of(tier).collect();
@@ -205,7 +204,6 @@ pub(super) fn mine(
         if menu_row(ui, t::ADD_PICTURE, Words::EMPTY, true).clicked() {
             tapped = Some(Tapped::Page(Page::Add));
         }
-        note(ui, t::MINE_NOTE.into(), true);
         tapped
     })
 }
@@ -272,7 +270,7 @@ pub(super) fn picture(
 /// a tier tapped opens the system's picker.
 pub(super) fn add(ui: &mut egui::Ui) -> Option<Tapped> {
     ui.heading(Words::from(t::ADD_MY_PICTURE).shown(ui.ctx()));
-    note(ui, t::TIER_FIRST.into(), true);
+    label_row(ui, t::HOW_HARD, true);
     let mut tapped = None;
     for tier in Tier::ALL {
         if menu_row(ui, t::tier(tier), t::tier_hint(tier), true).clicked() {

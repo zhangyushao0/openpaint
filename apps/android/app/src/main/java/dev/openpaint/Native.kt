@@ -87,6 +87,15 @@ internal object Native {
     /** True while a text field waits for typing: show the soft keyboard. */
     @JvmStatic external fun keyboard(handle: Long): Boolean
 
+    /** Milliseconds after the last frame at which the Pomodoro's timer wants one; -1 for none. */
+    @JvmStatic external fun wakeIn(handle: Long): Long
+
+    /** True while the screen stays on: a Pomodoro's block or its break counts. */
+    @JvmStatic external fun screenOn(handle: Long): Boolean
+
+    /** True once when the break's chime sounds. */
+    @JvmStatic external fun chime(handle: Long): Boolean
+
     /** The back button; true when the app used it, false for the system's own back. */
     @JvmStatic external fun back(handle: Long): Boolean
 

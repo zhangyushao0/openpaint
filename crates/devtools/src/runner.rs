@@ -26,6 +26,7 @@ use openpaint_runtime::{
 };
 
 use crate::error::ScenarioError;
+use crate::host::Hosted;
 use crate::report::{Record, Report, record, view_check};
 use crate::scenario::{Lesson, Scenario, StartOn, Step, SystemLanguage};
 use crate::system::{self, Written};
@@ -67,6 +68,7 @@ pub fn run(
         input_ms: 0,
         frames: 0,
         requests: Vec::new(),
+        hosted: Hosted::default(),
         written: Written::default(),
         index: 0,
         unnamed: Vec::new(),
@@ -112,6 +114,8 @@ struct Runner<'a> {
     frames: u64,
     /// What the app asked the system for and the user has not answered yet.
     requests: Vec<HostRequest>,
+    /// The chimes and the screen kept on the app asked of its host (`host.rs`).
+    hosted: Hosted,
     /// The file the last export wrote.
     written: Written,
     /// The step running, from 0.
@@ -172,6 +176,7 @@ impl Runner<'_> {
                 self.settle(runtime)?;
                 target::expect(runtime.controls(), (shown, absent))?;
             }
+            Step::Host(expected) => self.hosted.expect(*expected)?,
             Step::Back => {
                 if !runtime.back() {
                     return Err(ScenarioError::Missing("back was not used by the app"));
@@ -371,6 +376,7 @@ impl Runner<'_> {
         // The host takes what the app asks of the system after each frame.
         self.requests
             .extend(std::iter::from_fn(|| runtime.host_request()));
+        self.hosted.frame(runtime);
         Ok(())
     }
 }

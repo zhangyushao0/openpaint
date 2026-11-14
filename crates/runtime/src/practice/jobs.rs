@@ -13,9 +13,11 @@ use std::collections::HashSet;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
 use openpaint_core::Artwork;
-use openpaint_practice::{Given, Givens, ItemRef, Pack, Sheet, Tier};
+use openpaint_practice::{Given, Givens, ItemRef, Pack, Sheet, Tier, TimerWrite};
 use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
-use openpaint_practice_store::{Packs, append, printed, remove, save, sheets, start};
+use openpaint_practice_store::{
+    Packs, append, forget_blocks, printed, remove, save, save_timer, sheets, start, trim,
+};
 use openpaint_store::DisplayCache;
 
 use super::lesson::started;
@@ -48,6 +50,12 @@ pub(crate) enum PracticeJob {
     },
     /// A session's record changed.
     Save(Sheet),
+    /// A sheet's record cut by the Pomodoro's End, with its last lesson's givens (S124).
+    Trim(Sheet),
+    /// The Pomodoro's settings, its block under way and a block completed (S124).
+    Timer(TimerWrite),
+    /// The Pomodoro's blocks begun at or after this second removed (the test chore's end).
+    ForgetBlocks(u64),
     /// A colour copy's sheet titled anew.
     Rename(ProjectId, Title),
     /// A colour copy (or a test session) to remove, its record and sheet.
@@ -122,6 +130,11 @@ pub(crate) fn run(
         },
         job @ PracticeJob::Start { .. } => begun(store, kept, job),
         PracticeJob::Save(session) => PracticeDone::Saved(save(store, &session)),
+        PracticeJob::Trim(session) => PracticeDone::Saved(trim(store, &session)),
+        PracticeJob::Timer(write) => PracticeDone::Saved(save_timer(store, &write)),
+        PracticeJob::ForgetBlocks(since) => PracticeDone::Saved(
+            forget_blocks(store, since).map(|gone| log::info!("{gone} test blocks gone")),
+        ),
         PracticeJob::Rename(sheet, title) => {
             let result = store.rename(sheet, &title);
             PracticeDone::Renamed(sheet, title, result)
@@ -274,7 +287,10 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
             lessons: sheet.lessons.len(),
             result: Err(error),
         },
-        PracticeJob::Save(_) => PracticeDone::Saved(Err(error)),
+        PracticeJob::Save(_)
+        | PracticeJob::Trim(_)
+        | PracticeJob::Timer(_)
+        | PracticeJob::ForgetBlocks(_) => PracticeDone::Saved(Err(error)),
         PracticeJob::Rename(sheet, title) => {
             PracticeDone::Renamed(*sheet, title.clone(), Err(error))
         }

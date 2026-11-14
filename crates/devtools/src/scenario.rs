@@ -22,6 +22,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Deserializer};
 
 use crate::error::ScenarioError;
+use crate::host::HostExpect;
 pub use crate::lesson::Lesson;
 pub use crate::pen::Pen;
 pub use crate::system::SystemAnswer;
@@ -169,7 +170,8 @@ pub enum Step {
     Wait { frames: u32 },
     /// The user puts the tablet down for `minutes`: the app stays in front untouched, or with
     /// `hidden` it is left (Android's `onPause`) and come back to; then one frame. The clock
-    /// (the wall clock's too) moves on by that much, no frames between.
+    /// (the wall clock's too) moves on by that much, no frames between: a Pomodoro's block
+    /// counts it down with its sheet in front, and holds while hidden.
     Later {
         minutes: u32,
         #[serde(default)]
@@ -201,6 +203,8 @@ pub enum Step {
         #[serde(default)]
         absent: Vec<String>,
     },
+    /// What the app asked its host so far (`host.rs`): the chimes, the screen kept on.
+    Host(HostExpect),
     /// The brush editor's preview strip (its picture's pixels) must hash to `strip`.
     Preview {
         name: String,

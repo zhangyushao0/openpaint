@@ -56,7 +56,7 @@
     { "tap": { "at": "Continue" } },
     { "screenshot": { "name": "key-lesson-reopened" } },
     { "tap": { "at": "Home" } },
-    { "lesson": { "full": 5 } },
-    { "screenshot": { "name": "unit-five-full-lesson" } }
+    { "lesson": { "skill": "key-shift" } },
+    { "screenshot": { "name": "unit-five-key-shifts" } }
   ]
 }

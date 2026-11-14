@@ -13,7 +13,7 @@ mod version;
 
 const USAGE: &str = "usage: cargo xtask <gate|check|android-build|device-backup|device-restore|\
 device-check|device-input|device-clean|device-push|\
-                     device-info|device-smoke|device-reset|device-screens|device-idle|\
+                     device-info|device-smoke|device-reset|device-screens|device-idle|device-log|\
                      shape-assets> [args]";
 
 fn main() {
@@ -35,6 +35,7 @@ fn main() {
         Some("device-reset") => device(device::reset(rest)),
         Some("device-screens") => device(device::screens(rest)),
         Some("device-idle") => device(device::idle(rest)),
+        Some("device-log") => device(device::log(rest)),
         Some("shape-assets") => shapes::generate(&process::root()),
         _ => {
             eprintln!("{USAGE}");
