@@ -101,9 +101,11 @@ impl Pomodoro {
         Some(u64::from(left - 60 * (minutes(left) - 1)))
     }
 
-    /// Whether the screen stays on: the block or its break counts.
+    /// Whether the screen stays on: the block or its break counts, or the time is up with the
+    /// sheet in front (the exercise in hand being finished) until End.
     pub(crate) fn screen_on(&self) -> bool {
-        self.counting().is_some()
+        let up = self.ended.is_none() && self.up().is_some();
+        self.counting().is_some() || (self.front && up)
     }
 }
 

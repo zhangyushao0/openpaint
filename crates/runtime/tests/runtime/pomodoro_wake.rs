@@ -94,3 +94,49 @@ fn the_host_wakes_a_counting_block_and_its_break_to_the_chime_and_never_a_held_o
     assert!(!runtime.take_chime(), "once");
     assert_eq!(at_rest(&mut runtime, &mut hand), None, "the break is over");
 }
+
+/// The pen's path the tablet's walk injected (`cargo device-input pen 1250,1100,...`), window
+/// pixels across the first exercise's drawing frame.
+const STROKE: [[f32; 2]; 3] = [[1250.0, 1100.0], [1500.0, 930.0], [1750.0, 760.0]];
+
+#[test]
+fn one_stroke_then_end_after_the_time_gives_the_blocks_end_and_a_pause_keeps_it_to_the_chime() {
+    let dir = TestDir::new("pomodoro-one-stroke");
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
+    assert!(runtime.back(), "to the home");
+    until(&mut runtime, &mut hand, |r| gallery(r).is_some());
+    let id = runtime.start_test_pomodoro(60).expect("started");
+    until(&mut runtime, &mut hand, |r| r.test_practice(id).is_some());
+    if runtime.controls().find("Got it").is_ok() {
+        hand.tap(&mut runtime, "Got it");
+    }
+    hand.tick(&mut runtime, 4000);
+    hand.gesture(&mut runtime, ToolKind::Stylus, &STROKE);
+    // 75 s on: Time, the screen kept on while the exercise in hand is finished.
+    hand.tick(&mut runtime, 75 * 1000);
+    until(&mut runtime, &mut hand, |r| {
+        r.timer().block == Some(BlockShown::Up)
+    });
+    assert!(runtime.screen_on(), "kept on at Time");
+    hand.tap(&mut runtime, "End");
+    assert_eq!(minutes(&runtime), Some(5), "the block's end and its break");
+    assert_eq!(runtime.timer().sealed, 1);
+    // Five seconds on, the app paused and back (the host's onPause and onResume).
+    hand.tick(&mut runtime, 5000);
+    runtime.leave();
+    until(&mut runtime, &mut hand, |_| true);
+    assert_eq!(
+        minutes(&runtime),
+        Some(5),
+        "the block's end kept, its break"
+    );
+    while minutes(&runtime).is_some() {
+        woken(&mut runtime, &mut hand);
+    }
+    assert!(runtime.take_chime(), "its chime");
+    let end = runtime.timer().block;
+    assert!(
+        matches!(end, Some(BlockShown::Ended { rest: None, .. })),
+        "the ring complete, the end in place: {end:?}"
+    );
+}

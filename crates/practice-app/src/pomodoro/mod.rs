@@ -16,9 +16,9 @@
 //!   Pause. It counts on when the sheet is in front again (and Continue, if the user paused it).
 //!   A held block whose local day is past at a tick is dropped: nothing kept, no seal.
 //! - Time up (no second left): the ring red and Time in the bar; nothing interrupts the stroke;
-//!   the exercise in hand may be finished and compared; Next reads End (`TimerIntent::End`). The
-//!   projection a frame's UI pass reads is that frame's tick's, so a Next tapped as the time runs
-//!   out is laid out as End: the block ends there.
+//!   the exercise in hand may be finished and compared, the screen still kept on; Next reads End
+//!   (`TimerIntent::End`). The projection a frame's UI pass reads is that frame's tick's, so a
+//!   Next tapped as the time runs out is laid out as End: the block ends there.
 //! - The chain: while a block counts with time left, a lesson's last exercise passed (Next) ends
 //!   the lesson as ever, and the runtime at once lays the next lesson as One more would
 //!   (`PracticeLog::chains`; `End::next`: the path's next after this lesson counts, or the same
@@ -44,8 +44,9 @@
 //!
 //! Frames: the app draws none at rest; the timer wants one at the turn of each minute shown and
 //! at the end of the block or the break (`PracticeLog::wake`), never every second. The screen
-//! stays on while the block or the break counts (`PracticeLog::screen_on`). What changed goes to
-//! the store at each transition and once a minute while it counts (`PracticeLog::timer_request`).
+//! stays on while the block or the break counts and at Time on the sheet until End
+//! (`PracticeLog::screen_on`). What changed goes to the store at each transition and once a
+//! minute while it counts (`PracticeLog::timer_request`).
 
 use std::sync::Arc;
 

@@ -1,7 +1,8 @@
-//! The break with the user's tablet in hand: the app hidden a moment (a system dialog, the screen
-//! off, a launch of the app on top of itself) during the break.
+//! The time's end and the break with the user's tablet in hand: the screen kept on at Time until
+//! End, the app hidden a moment (a system dialog, the screen off, a launch of the app on top of
+//! itself) during the break.
 
-use openpaint_practice_app::{PracticeLog, TimerIntent};
+use openpaint_practice_app::{BlockShown, PracticeLog, TimerIntent};
 
 use super::block::{begun, ended, frame};
 use super::{NOON, VIEWPORT, tick};
@@ -35,4 +36,26 @@ fn the_app_hidden_during_the_break_keeps_the_blocks_end_and_holds_the_break_to_i
     // The home leaves the end.
     tick(&mut log, NOON + 3000, None);
     assert_eq!(log.timer().block, None);
+}
+
+#[test]
+fn the_screen_stays_on_at_time_on_the_sheet_until_end() {
+    let (mut log, mut session) = begun();
+    frame(&mut log, &session, NOON + 1500);
+    assert_eq!(log.timer().block, Some(BlockShown::Up));
+    assert_eq!(
+        (log.screen_on(), log.wake()),
+        (true, None),
+        "the exercise being finished"
+    );
+    tick(&mut log, NOON + 1510, None);
+    assert!(!log.screen_on(), "the home holds it");
+    frame(&mut log, &session, NOON + 1520);
+    assert!(log.screen_on());
+    hidden(&mut log, NOON + 1530);
+    assert!(!log.screen_on(), "hidden");
+    frame(&mut log, &session, NOON + 1540);
+    log.time(TimerIntent::End(VIEWPORT), Some(&mut session))
+        .expect("end");
+    assert!(log.screen_on(), "the break counts");
 }

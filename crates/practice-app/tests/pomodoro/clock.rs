@@ -109,7 +109,7 @@ fn the_minutes_shown_round_up_and_the_timer_wakes_at_each_turn() {
     assert!((share - 1.0 / 900.0).abs() < 1e-6, "the ring's share left");
     assert_eq!(at(&mut log, 900), (None, None), "Time: nothing more counts");
     assert_eq!(log.timer().block, Some(BlockShown::Up));
-    assert!(!log.screen_on());
+    assert!(log.screen_on(), "kept on at Time until End");
 }
 
 #[test]
