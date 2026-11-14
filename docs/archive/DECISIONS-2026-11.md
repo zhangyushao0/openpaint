@@ -81,3 +81,10 @@ Fragments of other decisions:
 - D98's model read "each picked (`Chosen`: a skill's lesson or a review, a copy's picture; `Full { stage, warm_up }`: a unit's full lesson, a stage's session before S122 read as that unit's; `First`: the first lesson; D115)" and its stored bullet "1.21.6's session records were converted once (S120c); S120e deleted the step."
 - D103's frames read "Frames (the author on the tablet, 2026-10-30: a picture not square lay in the square frame with its own margins, so its edge and the copy's square disagreed):".
 - D115's skills ended "; a full lesson is a warm-up of three (earlier units' skills first), then each skill of its unit."; its stored bullet read "an old `Full { stage }` reads as that unit's full lesson. Stages, their plans, the 15-session gate, drills, the warm-up rotation and the summary are gone (D110 archived)."
+
+## Archived 2026-11-14 (S123: fragments as they stood; the decisions themselves unchanged)
+
+- D99's lines bullet ended "; codes 1 to 8 retired; the strokes stay for a later study."; its compare bullet read "(S88, the author: 12 px hid it; a shape's outline, a box's or an ellipse's answer and every red mark over a copy alike)" and "on the copy's raw pen samples (resampled, a known move and size no longer comes back within 1e-6)".
+- D107's found bullet read "(`DOUBLE_*`: the author's redraws, a few px and degrees off, read as two at 4 px)"; its How bullet "has no round part (a post's step is 29 lines at least, unreadable on the card)".
+- D108's cards bullet began "Cards (the author on the tablet: they read like code comments, numbers said as sentences):" and said "in each family's How".
+- D111 before S123: its description was one trait `Described` with the original an enum `Original` (12 variants), a family list `Family` (27) keying facts, How, tiles and words, and `Tools` and `Picks` as enums; repo-check refused outside `crates/practice/` an arm over `Kind`, any `Original` variant and the name `Family`.
