@@ -1,4 +1,4 @@
-//! The estimates' demonstrations (`demos/demo.rs`, stage 3): a point run across and down against
+//! The estimates' demonstrations (`demos/demo.rs`, unit 3): a point run across and down against
 //! the frame's halves and thirds, a proportion's halves and thirds on both segments, an angle
 //! against a level and upright cross and run on to the frame's edges, then marked or drawn and
 //! compared as the exercise compares it: the answer red and only what is off (`FlatCheck`'s own

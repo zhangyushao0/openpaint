@@ -1,7 +1,7 @@
 //! Single colours to match (`Kind::Colour`): their tones and scores, the colour radar's judgement
 //! (D108), their How, tile and lessons; compared by the colours laid (`marks.rs`).
 //!
-//! A lesson (a colour about 1.75 minutes) holds three: the first level stage 1's first three
+//! A lesson (a colour about 1.75 minutes) holds three: the first level its first three
 //! (muted, near-grey and middle, each of another lightness), the second muted and near-grey ones,
 //! the third near-greys alone, where the hue hides (V大 stresses the low saturations); each
 //! level's lightnesses in turn by the lesson.

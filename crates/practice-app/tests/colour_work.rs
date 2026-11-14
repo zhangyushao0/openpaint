@@ -134,11 +134,9 @@ fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
         "its picture drawn once"
     );
     let pair = practice.sheet.pairs[0];
-    let Some(generated) =
-        (practice.original.as_deref()).and_then(|o| o.downcast::<GeneratedAreas>().cloned())
-    else {
-        panic!("a colour combination")
-    };
+    let original = practice.original.as_deref().expect("in hand");
+    let generated = original.downcast::<GeneratedAreas>().cloned();
+    let generated = generated.expect("a colour combination");
     let tone = colour(generated.areas.colours[0]);
     practise(session, PracticeIntent::Fill(tone));
     let at = pair.copy.to_canvas([0.5, 0.5]).map(|v| v as f32);

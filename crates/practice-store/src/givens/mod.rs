@@ -1,5 +1,5 @@
-//! What each exercise of a sheet printed, kept as bytes (S120a): its givens (`Exercise::givens`)
-//! and the picture its kind draws (`Exercise::painted`), so a sheet shows what it printed whatever
+//! What each exercise of a sheet printed, kept as bytes (S120a): its givens (`Original::givens`)
+//! and the picture its kind draws (`Original::painted`), so a sheet shows what it printed whatever
 //! became of the generator. Lossless: `decode(encode(x)) == x`, every float its own bits.
 //!
 //! A sheet's givens are one blob, written once when its lessons are laid: the format (u8,

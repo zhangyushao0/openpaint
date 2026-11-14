@@ -2,7 +2,7 @@
 //! How, tile and lessons of boxes. The box itself is `geometry/perspective.rs`.
 //!
 //! A lesson (a box about 2.5 minutes) holds two: the first level a two-point and a three-point
-//! box, their order in turn (stage 2's drills' first two), the second and the third two
+//! box, their order in turn, the second and the third two
 //! three-point boxes, whose third vanishing point is the harder to keep; a box has no third view.
 
 pub(crate) mod demo;

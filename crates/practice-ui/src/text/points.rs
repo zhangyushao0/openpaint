@@ -4,9 +4,4 @@
 
 texts! { PRACTICE_POINTS;
     NO_MARK = "No mark found in your lines.", "你的线条里没找到标记。";
-    OFF_ACROSS = "Off across", "横向偏差";
-    OFF_DOWN = "Off down", "纵向偏差";
-    OFF_ALONG = "Off along", "沿线偏差";
-    TURNED_OFF = "Turned off", "角度偏差";
-    OFF_ON_THE_FACE = "Off on the face", "面上偏差";
 }

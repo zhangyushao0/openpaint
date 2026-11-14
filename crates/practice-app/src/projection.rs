@@ -1,11 +1,11 @@
-//! Practice (G9): sessions of the course's exercises on practice sheets, and long colour copies
+//! Practice (G9): lessons of the course's exercises on practice sheets, and long colour copies
 //! beside them. A practice sheet is stored like an artwork (its strokes and fills through the
 //! same history, autosave and library), but the gallery never lists it: it belongs to its
-//! session's record, which practice-store keeps in the library's record space. The
+//! sheet's record, which practice-store keeps in the library's record space. The
 //! open sheet's flow is `sheet.rs` (Compare in `compare.rs`, a painted copy's
 //! reading and the eyedropper in `read.rs`, its views in `view.rs`), its pens
 //! `pens.rs`, the copy read from its records `copy.rs`; the log of every
-//! session and copy `log.rs`.
+//! sheet and copy `log.rs`.
 //!
 //! This module holds what the user asks of a sheet and what the screen draws of it (what lies
 //! over a compared copy: `shown.rs`).

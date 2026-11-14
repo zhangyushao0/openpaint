@@ -1,8 +1,8 @@
-//! Progress seen in the practice book (S89): the colour's first pick per session (ΔE × 100, the
+//! Progress seen in the practice book (S89): the colour's first pick per lesson (ΔE × 100, the
 //! eye's own level before any correction) as an ink line over a faint wash, the first and the
-//! latest written at their points, a pencil baseline; the first session's single line beside the
+//! latest written at their points, a pencil baseline; the first lesson's single line beside the
 //! latest's, each its original in thin see-through red with the copy as first drawn in ink over
-//! it, the session named under each; and the seals earned, stamped in vermilion. Only what there
+//! it, the lesson named under each; and the seals earned, stamped in vermilion. Only what there
 //! is shows: no axes, no legends.
 
 use egui::{Align2, Pos2, Rect, Shape, Stroke, TextStyle, Vec2};

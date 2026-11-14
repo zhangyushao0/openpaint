@@ -3,7 +3,7 @@
 //! outline laid over the copy, fitted for Aligned (`marks.rs`).
 //!
 //! A lesson holds one shape (about 3.5 minutes an easy one, 5.5 a hard one): the first level the
-//! easiest of three tiers in turn (entry mostly, as stage 2's first drills), the second a medium
+//! easiest of three tiers in turn (entry mostly), the second a medium
 //! picture, the third a hard one; at those two every second lesson the user's own of that tier
 //! or an easier one, when they have some.
 

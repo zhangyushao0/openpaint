@@ -2,7 +2,7 @@
 //! alone and judged by eye (S114). Their page is `geometry/perspective.rs`; its How `demo.rs`.
 //!
 //! A lesson (a page of three or four boxes, about 3 minutes): the first level one page, its
-//! horizon in the middle, high, then low by the lesson (stage 2's drills), the second one page
+//! horizon in the middle, high, then low by the lesson, the second one page
 //! high or low in turn, the boxes all seen from above or below, the third two pages, one of
 //! each. A page has no harder variant than its horizon.
 

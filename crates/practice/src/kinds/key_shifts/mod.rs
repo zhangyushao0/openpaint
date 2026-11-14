@@ -3,7 +3,7 @@
 //!
 //! A lesson holds one key shift (about 6 minutes), a crop none shown before while any is left,
 //! its tendency's hue never near the crop's own main hue: the first level a warm tendency, pure
-//! and grey in turn (stage 5's drills' first), the second a cool one, pure and grey in turn, the
+//! and grey in turn, the second a cool one, pure and grey in turn, the
 //! third the grey ones, warm and cool, whose shift is the subtlest to hold.
 
 pub(crate) mod demo;

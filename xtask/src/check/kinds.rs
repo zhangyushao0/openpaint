@@ -1,41 +1,37 @@
-//! A practice kind is told apart only in its own folder (S109, S109b, D111): outside
-//! `crates/practice/` and the tests, no source that names the practice crate matches over its
-//! `Kind` (an arm or a `matches!` naming `Kind::`), names an `Original` variant at
-//! all (an arm, a `matches!`, an `if let`, a comparison: what an original does is its
-//! kind's description's, `Facts` and the description's methods), names a `Family` at all (S122:
-//! the flow and the screens hold a kind or a skill, the family is the practice crate's own), or
-//! names the retired `Overlay`.
-//! A kind is built outside only where a stored code is read (`Kind::of_code` in the practice
-//! records, `crates/practice-store`). The flow (`crates/practice-app`)
-//! asks the facts as the app did. Core, raster, render, app and the store name no practice at all
-//! (`rules.rs`, S110, S110b); the UI follows with S110c.
+//! A practice kind is told apart only in its own folder (S109, S109b, D111, S123). The rule
+//! checks, line by line (comments and a file's `#[cfg(test)]` part left out):
+//!
+//! - Everywhere (every `.rs` file of the repository): no enum declared `Family`, `Original`,
+//!   `Tools` or `Picks` and no path naming a variant of one (`Family::Line`, `Picks::Swatch`).
+//!   The kinds' parallel lists are gone (S123): a kind's topic is its facts' key, what it gives a
+//!   value behind `Original` (a trait), its tools and picks data (`ToolSet`, `Picking`).
+//! - Outside `crates/practice/src/kinds/`, in product code (not a `tests/` folder or a
+//!   `_tests.rs` file) of the practice crate and of every source that names it: no match on
+//!   `Kind`'s variants, that is no line naming `Kind::` with an arm (`=>`), a `matches!(`, or a
+//!   `let` pattern before its `=` (`let Kind::Line(tier) = kind`, `if let`, `let (Kind::A(t) |
+//!   ..)`). A kind is built outside only where a stored code is read (`Kind::of_code`) or a
+//!   lesson names its kinds; the flow and the screens ask a kind's `Facts` and its original's
+//!   methods. The pack builder (`tools/packs/`) is held to it too.
+//! - Outside the practice crate: no `Overlay` (retired, S109).
+//!
+//! Core, raster, render, app and the store name no practice at all (`rules.rs`, S110, S110b).
 
 use std::path::Path;
 
 use super::{Finding, read};
 
-/// Where the practice crate lives: its own matches are its business.
+/// Where the practice crate lives.
 const PRACTICE: &str = "crates/practice/";
-/// The pack builder, a workspace of its own on the practice crate (S111).
-const PACK_BUILDER: &str = "tools/packs/";
+/// Where a kind's folder lives: its own matches are its business.
+const KINDS: &str = "crates/practice/src/kinds/";
+/// The kinds' retired parallel lists.
+const RETIRED: [&str; 4] = ["Family", "Original", "Tools", "Picks"];
 
 pub fn check(root: &Path, files: &[String]) -> Vec<Finding> {
     let mut findings = Vec::new();
-    let checked = files.iter().filter(|path| {
-        path.ends_with(".rs")
-            && !path.starts_with(PRACTICE)
-            && !path.starts_with(PACK_BUILDER)
-            && !path.starts_with("xtask/")
-            && !path.contains("/tests/")
-            && !path.ends_with("_tests.rs")
-    });
-    for path in checked {
+    for path in files.iter().filter(|path| path.ends_with(".rs")) {
         match read(root, path) {
-            // The practice crate itself, not `openpaint_practice_store`.
-            Ok(text) if text.contains("openpaint_practice::") => {
-                findings.extend(matches_in(path, &text));
-            }
-            Ok(_) => {}
+            Ok(text) => findings.extend(findings_in(path, &text)),
             Err(finding) => findings.push(finding),
         }
     }
@@ -43,7 +39,12 @@ pub fn check(root: &Path, files: &[String]) -> Vec<Finding> {
 }
 
 /// The findings of one source file: its lines up to its tests.
-fn matches_in(path: &str, text: &str) -> Vec<Finding> {
+fn findings_in(path: &str, text: &str) -> Vec<Finding> {
+    let practice = path.starts_with(PRACTICE);
+    let product = !path.contains("/tests/") && !path.ends_with("_tests.rs");
+    let practised = practice || text.contains("openpaint_practice::");
+    let xtask = path.starts_with("xtask/");
+    let matched = product && practised && !xtask && !path.starts_with(KINDS);
     let mut findings = Vec::new();
     for (index, line) in text.lines().enumerate() {
         let code = line.trim_start();
@@ -53,18 +54,44 @@ fn matches_in(path: &str, text: &str) -> Vec<Finding> {
         if code.starts_with("//") {
             continue;
         }
-        let arm = names(code, "Kind::") && (code.contains("=>") || code.contains("matches!("));
-        let told = word(code, "Family") || names_variant(code, "Original::");
-        if arm || told || code.contains("Overlay") {
-            let detail = format!(
-                "line {}: a practice kind, family or original told apart; ask its description \
-                 (Kind::facts, Skill, Exercise::compare)",
-                index + 1
-            );
-            findings.push(Finding::new("kinds", path, detail));
-        }
+        let detail = if retired(code) {
+            "a kinds' list retired in S123 (Family, Original, Tools, Picks as an enum); a kind's \
+             topic is its facts' key, its tools and picks are data"
+        } else if matched && matches_kind(code) {
+            "a match on a practice kind's variants outside its folder; ask its description \
+             (Kind::facts, the original's methods)"
+        } else if !practice && practised && product && !xtask && code.contains("Overlay") {
+            "the retired Overlay"
+        } else {
+            continue;
+        };
+        let detail = format!("line {}: {detail}", index + 1);
+        findings.push(Finding::new("kinds", path, detail));
     }
     findings
+}
+
+/// Whether `code` declares one of the retired lists as an enum or names a variant of one.
+fn retired(code: &str) -> bool {
+    RETIRED.iter().any(|name| {
+        let declared = named(code, "enum ").any(|after| word_at(code, after, name));
+        declared || names_variant(code, &format!("{name}::"))
+    })
+}
+
+/// Whether `code` matches on `Kind`'s variants: an arm, a `matches!`, or a `let` pattern.
+fn matches_kind(code: &str) -> bool {
+    let Some(first) = named(code, "Kind::").next() else {
+        return false;
+    };
+    if code.contains("=>") || code.contains("matches!(") {
+        return true;
+    }
+    // A `let` whose pattern (before its `=`) names a variant.
+    let bound = code.find(" = ").or_else(|| code.find(" =\t"));
+    let pattern = bound.is_none_or(|at| first < at);
+    let lets = code.starts_with("let ") || code.contains("if let ") || code.contains("while let ");
+    lets && pattern
 }
 
 /// Where `code` names `path` (`Kind::`, not `ErrorKind::` or another name ending so): the byte
@@ -77,17 +104,11 @@ fn named<'a>(code: &'a str, path: &'a str) -> impl Iterator<Item = usize> + 'a {
     })
 }
 
-/// Whether `code` names `path`.
-fn names(code: &str, path: &str) -> bool {
-    named(code, path).next().is_some()
-}
-
-/// Whether `code` names `name` as a word of its own (`Family`, not `SubFamily` or `Families`).
-fn word(code: &str, name: &str) -> bool {
-    named(code, name).any(|after| {
-        let next = code[after..].chars().next();
-        !next.is_some_and(|c| c.is_alphanumeric() || c == '_')
-    })
+/// Whether `name` stands at `at` in `code` as a word of its own (`Family`, not `Families`).
+fn word_at(code: &str, at: usize, name: &str) -> bool {
+    code[at..].starts_with(name)
+        && !(code[at + name.len()..].chars().next())
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
 }
 
 /// Whether `code` names a variant of `path` (`Family::Line`; not `Family::ALL` or a function such
@@ -104,34 +125,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_arm_over_a_kind_is_refused_a_call_is_not() {
+    fn a_match_on_a_kind_outside_its_folder_is_refused_a_call_is_not() {
         let arm = "match kind {\n    Kind::Line(_) => 1,\n}";
-        assert_eq!(matches_in("crates/ui/src/a.rs", arm).len(), 1);
-        let call = "let kind = Kind::of_code(1, 0);\nlet built = Kind::Study;";
-        assert!(matches_in("crates/app/src/b.rs", call).is_empty());
+        assert_eq!(findings_in("crates/practice/src/course/a.rs", arm).len(), 1);
+        let used = "use openpaint_practice::Kind;\n";
+        for matched in [
+            "let Kind::Line(tier) = kind else {",
+            "if let Kind::Line(tier) = kind {",
+            "let (Kind::Division(t) | Kind::WholeCopy(t)) = *kind",
+            "let massed = matches!(kind, Kind::ValueMasses(_));",
+        ] {
+            let text = format!("{used}{matched}");
+            assert_eq!(
+                findings_in("crates/ui/src/a.rs", &text).len(),
+                1,
+                "{matched}"
+            );
+        }
+        let built = "let kind = Kind::of_code(1, 0);\nlet built = Kind::Study;\n\
+                     let first = [Kind::Free, Kind::Line(LineTier::Arc)];";
+        assert!(findings_in("crates/practice/src/course/b.rs", built).is_empty());
+        assert!(findings_in("crates/practice/src/kinds/lines/mod.rs", arm).is_empty());
+        assert!(findings_in("crates/practice/tests/kinds.rs", arm).is_empty());
         let error = "Err(e) if e.kind() == ErrorKind::NotFound => {}";
-        assert!(matches_in("crates/store/src/d.rs", error).is_empty());
+        assert!(findings_in("crates/store/src/d.rs", error).is_empty());
+        let other = "match kind {\n    Kind::Png(w) => 1,\n}";
+        assert!(findings_in("crates/store/src/e.rs", other).is_empty());
         let tested = "#[cfg(test)]\nmod tests { fn t() { matches!(k, Kind::Study); } }";
-        assert!(matches_in("crates/app/src/c.rs", tested).is_empty());
+        assert!(findings_in("crates/practice/src/c.rs", tested).is_empty());
     }
 
     #[test]
-    fn a_family_named_or_an_original_told_apart_is_refused_its_facts_are_not() {
-        let told = [
+    fn the_retired_lists_are_refused_as_enums_everywhere_their_names_elsewhere_are_not() {
+        for line in [
+            "pub enum Family {",
+            "enum Picks {",
+            "pub(crate) enum Tools {",
             "if family == Some(Family::WholeCopy) {",
-            "Some(Family::Division) => level,",
-            "for family in Family::ALL {",
-            "use openpaint_practice::{Family, Kind};",
             "let Original::Scale(scale) = &original else {",
-            "matches!(original, Original::Picture(_))",
-        ];
-        for line in told {
-            assert_eq!(matches_in("crates/app/src/a.rs", line).len(), 1, "{line}");
+            "Tools::Colour | Tools::Cells => None,",
+            "Picks::Swatch if on_original => x,",
+        ] {
+            assert_eq!(
+                findings_in("crates/practice/tests/a.rs", line).len(),
+                1,
+                "{line}"
+            );
         }
-        let asked = "let tools = kind.facts().tools;\nlet lines = original.lines();\n\
-                     let families = 2;";
-        assert!(matches_in("crates/ui/src/b.rs", asked).is_empty());
-        let other = "let k = SubFamily::Thing;\nlet f: Families = x;";
-        assert!(matches_in("crates/ui/src/c.rs", other).is_empty());
+        let kept = "pub trait Original: Any {\nlet on = In::Original;\nenum FontFamily {\n\
+                    let f = egui::FontFamily::Proportional;\nlet tools = &facts.tools;\n\
+                    let all = Family::ALL;";
+        assert!(findings_in("crates/practice/src/b.rs", kept).is_empty());
     }
 }

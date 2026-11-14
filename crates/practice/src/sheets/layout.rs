@@ -1,4 +1,4 @@
-//! The sheet the app lays a session's exercises out on, a pair of frames each (the original at
+//! The sheet the app lays a lesson's exercises out on, a pair of frames each (the original at
 //! the left, the empty frame for the copy at its right), three pairs a row, each exercise at its
 //! slot, a lesson appended from the row after the last one used (`next_slot`), a day's sheet laid
 //! ahead to `ROWS` rows (`laid_ahead`); a long colour copy's

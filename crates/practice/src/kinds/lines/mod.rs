@@ -2,7 +2,7 @@
 //! lessons, and how a line's or a group's copy is compared (laid over it, fitted for Aligned:
 //! `marks.rs`).
 //!
-//! A lesson (a line about 48 seconds) holds six: the first level stage 1's (a near-straight line,
+//! A lesson (a line about 48 seconds) holds six: the first level its first (a near-straight line,
 //! arcs, S-curves, a hook), the second arcs, S-curves and hooks in even shares, the third
 //! S-curves and hooks alone, the bends hardest to keep.
 

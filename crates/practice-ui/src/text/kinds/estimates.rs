@@ -1,4 +1,4 @@
-//! The estimates' words (stage 3, V大's 二维抽象网格): a point's, a proportion's and an angle's names,
+//! The estimates' words (unit 3, V大's 二维抽象网格): a point's, a proportion's and an angle's names,
 //! How cards, after his method in our own words (points by the frame and long
 //! lines, never a grid drawn; proportions by the half and the thirds; angles by an imagined cross
 //! or the line run on to the frame's edge). In his terms: 定点, 按比例找点, 叠图对比.

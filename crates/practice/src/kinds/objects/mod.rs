@@ -3,8 +3,8 @@
 //! on the solids (`solids/`): its answer is a solid's kind (`SolidAnswer`) and its check theirs
 //! (`SolidCheck::of_object`).
 //!
-//! A lesson holds one object (about 4.5 minutes): the first level each carve in turn (stage 4's
-//! drills' first), the second a cut or a top drawn in, slanted planes, the third a round part or a
+//! A lesson holds one object (about 4.5 minutes): the first level each carve in turn,
+//! the second a cut or a top drawn in, slanted planes, the third a round part or a
 //! top drawn in, an ellipse or a slant on top of the box. Whether an object has one change or two
 //! is its seed's.
 

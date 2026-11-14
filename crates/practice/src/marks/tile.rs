@@ -1,5 +1,5 @@
-//! A kind's tile picture (S91, S109b): a line drawing of a fixed example of a family in a small
-//! frame, `TILE` units wide and high, made in its kind's folder (`Described::tile`) rather than by
+//! A kind's tile picture (S91, S109b): a line drawing of a fixed example of a skill in a small
+//! frame, `TILE` units wide and high, made in its kind's folder (`Described::glyph`) rather than by
 //! its generator (at this size a generated original reads as noise, a shape's needs a pack's
 //! picture) and drawn by the screen without knowing the kind. In single precision, as the screen
 //! draws it. The shapes several kinds share are here: a frame's corners, a curve, the box every

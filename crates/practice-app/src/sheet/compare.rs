@@ -1,5 +1,5 @@
 //! Compare on a practice sheet (D99): the original laid over the copy as the copy is now, as often
-//! as the hand asks. How the copy is compared is its kind's (`Exercise::compare`, S109b): the
+//! as the hand asks. How the copy is compared is its original's (`Original::compare`, S109b): the
 //! copy is read off the artwork as the kind asks (`checks.rs`) and the kind says what it
 //! found: shown at once (a colour's colours, a division's lines, a picture laid over the copy), its
 //! original laid over it and fitted onto it for Aligned (a line's, a group's, a single shape's

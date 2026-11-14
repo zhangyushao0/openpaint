@@ -1,4 +1,4 @@
-//! What stage 3's demonstrations share (S92, S98): a third's tick, a point moved, a small cross as
+//! What unit 3's demonstrations share (S92, S98): a third's tick, a point moved, a small cross as
 //! the hand marks it and the check reads it.
 
 use crate::maths::path::Point;

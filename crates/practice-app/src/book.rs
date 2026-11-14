@@ -1,5 +1,5 @@
 //! The practice book as one UI frame sees it (S89): the book of the log's records on the device's
-//! clock (`openpaint_practice::Book`: the road, the days, the colour's first picks, the lines
+//! clock (`openpaint_practice::Book`: the days, the colour's first picks, the lines
 //! shown, the seals), today's local day, each record's sheet, and what was read of the sheets the
 //! book asked for (`SheetRead`, on the storage worker: the store reads a sheet without writing).
 //!

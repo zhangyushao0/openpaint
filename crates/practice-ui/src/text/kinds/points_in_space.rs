@@ -1,4 +1,4 @@
-//! The points in space's words (stage 3, V大's 点定位): his five tricks' names and
+//! The points in space's words (unit 3, V大's 点定位): his five tricks' names and
 //! How cards, after his method in our own words (diagonals for the centre, the line to the
 //! vanishing point halving, equal parts by the near edge shown true, equal steps by the far edge's
 //! middle, a mirror by the rectangle to the middle; every point needs a reason). In his terms:

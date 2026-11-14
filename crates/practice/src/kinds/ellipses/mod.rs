@@ -2,7 +2,7 @@
 //! exact ellipse are `geometry/ellipse.rs`; its How `demo.rs`.
 //!
 //! A lesson (an ellipse about a minute): the first level four, in a plain frame and in a square
-//! in perspective by turns (stage 2's drills), the second five, three of them in perspective,
+//! in perspective by turns, the second five, three of them in perspective,
 //! the third five in perspective, whose tilt and roundness the plane sets.
 
 pub(crate) mod demo;

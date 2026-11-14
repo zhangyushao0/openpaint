@@ -1,7 +1,7 @@
 //! The practice options' pictures (S83): New copy's picker (the packs' pictures of a tier, or the
 //! user's own, each with its credit: tapped, a long colour copy of it begins), My pictures (each
 //! with its tier and whether it has an outline; tapped, its page: its tier chosen again, Remove…
-//! asking first and saying what the sessions and copies that used it keep), and adding one (its
+//! asking first and saying what the lessons and copies that used it keep), and adding one (its
 //! tier first, then the system's picker). Their small pictures come from the runtime's worker as
 //! the rows show (`OptionsPictures`), kept for the app's run.
 

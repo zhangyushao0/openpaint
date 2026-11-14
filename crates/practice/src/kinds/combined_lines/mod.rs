@@ -2,7 +2,7 @@
 //! given, compared and fitted as a single line's lines are (`lines/marks.rs`).
 //!
 //! A lesson (a group about 2 minutes) holds three: the first level joined, crossing and branched
-//! lines (stage 1's first three), the second the branched and the near ones with a crossing, the
+//! lines (the First-prefix rule), the second the branched and the near ones with a crossing, the
 //! third near lines, whose gaps are the proportions to keep, twice with a crossing; the
 //! arrangements in turn by the lesson.
 

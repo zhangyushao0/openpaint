@@ -1,5 +1,5 @@
 //! Every number a result holds, with its stable code: what is stored, summed up and, later,
-//! followed over sessions. Values are kept in natural units: colour differences in Oklab units
+//! followed over lessons. Values are kept in natural units: colour differences in Oklab units
 //! (0 to about 1), shares as shares, counts as counts.
 //!
 //! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;

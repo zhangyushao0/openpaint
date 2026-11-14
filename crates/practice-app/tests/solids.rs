@@ -94,14 +94,8 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     );
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
-    let Some(task) = practice
-        .original
-        .as_deref()
-        .expect("in hand")
-        .downcast::<SolidTask>()
-    else {
-        panic!("a solid")
-    };
+    let original = practice.original.as_deref().expect("in hand");
+    let task = original.downcast::<SolidTask>().expect("a solid");
     let [near, far] = [task.answer.ellipses[0], task.answer.ellipses[1]];
     // The near end's diagonals with Sketch, never read; its ellipse drawn a tenth too wide.
     practise(&mut session, PracticeIntent::Pen(Pen::Sketch));

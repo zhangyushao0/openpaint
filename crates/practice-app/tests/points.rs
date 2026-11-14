@@ -13,8 +13,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Compared, Estimate, Exercise, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off, Point,
-    Skill, SkillLevel, SpaceAnswer, SpaceCompared, SpaceTask, Trick, value,
+    Compared, Estimate, Exercise, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off,
+    Original, Point, Skill, SkillLevel, SpaceAnswer, SpaceCompared, SpaceTask, Trick, value,
 };
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, Start,
@@ -96,6 +96,12 @@ fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
     practice.compared.as_ref()?.downcast::<T>().cloned()
 }
 
+/// The original in hand, as its kind's own type `T`.
+fn in_hand<T: Original>(practice: &PracticeProjection) -> &T {
+    let original = practice.original.as_deref().expect("in hand");
+    original.downcast::<T>().expect("its kind's original")
+}
+
 #[test]
 fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     let mut session = opened();
@@ -106,14 +112,7 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
-    let Some(&flat) = practice
-        .original
-        .as_deref()
-        .expect("in hand")
-        .downcast::<Flat>()
-    else {
-        panic!("an estimate")
-    };
+    let flat = *in_hand::<Flat>(&practice);
     let FlatAnswer::Point(at) = flat.answer() else {
         panic!("a point")
     };
@@ -157,12 +156,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.kind, Some(Kind::Flat(Estimate::Angle)));
     let frame = practice.sheet.pairs[1].copy;
-    let Some(&flat @ Flat::Angle { .. }) = practice
-        .original
-        .as_deref()
-        .expect("in hand")
-        .downcast::<Flat>()
-    else {
+    let flat @ Flat::Angle { .. } = *in_hand::<Flat>(&practice) else {
         panic!("an angle")
     };
     let FlatAnswer::Line([a, b]) = flat.answer() else {
@@ -179,14 +173,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.kind, Some(Kind::Space(Trick::Centre)));
     let frame = practice.sheet.pairs[2].copy;
-    let Some(task) = practice
-        .original
-        .as_deref()
-        .expect("in hand")
-        .downcast::<SpaceTask>()
-    else {
-        panic!("a point in space")
-    };
+    let task = in_hand::<SpaceTask>(&practice);
     let SpaceAnswer::Point(centre) = task.answer() else {
         panic!("a point")
     };
@@ -225,14 +212,7 @@ fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
         |session: &Session| (PracticeProjection::of(session)).map(|p| p.construction);
     let practice = PracticeProjection::of(&session).expect("a sheet");
     let frame = practice.sheet.pairs[0].copy;
-    let Some(&flat) = practice
-        .original
-        .as_deref()
-        .expect("in hand")
-        .downcast::<Flat>()
-    else {
-        panic!("an estimate")
-    };
+    let flat = *in_hand::<Flat>(&practice);
     let FlatAnswer::Point(at) = flat.answer() else {
         panic!("a point")
     };

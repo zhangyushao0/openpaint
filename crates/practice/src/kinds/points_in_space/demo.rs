@@ -1,4 +1,4 @@
-//! V大's five tricks' demonstrations (`demos/demo.rs`, stage 3), each in its one frame (S98): the
+//! V大's five tricks' demonstrations (`demos/demo.rs`, unit 3), each in its one frame (S98): the
 //! box printed grey, the trick's construction in order with Sketch, the answer with Draw, the
 //! example framed on the shaded face; then compared as the exercise compares it: the answer red
 //! and only what is off (`SpaceCheck`'s own marks on the hand's ink, which lands a little off on

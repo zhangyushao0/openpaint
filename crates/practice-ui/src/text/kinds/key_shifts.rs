@@ -1,4 +1,4 @@
-//! Key shifts on a practice sheet (S107, V大's 变调, week 5): the kind's and the stage's names, the
+//! Key shifts on a practice sheet (S107, V大's 变调, week 5): the kind's names, the
 //! tendency's label, the card's lines after Compare (one per check that failed), the Grey view,
 //! the locked original's notice and the How card. In his terms: 变调, 倾向色, 明度, 纯度, 偏冷,
 //! 偏暖, 对比色, 看黑白, 分得开.

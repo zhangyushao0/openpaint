@@ -1,11 +1,12 @@
 //! The demonstrations of the kinds built in one frame (S97): a box's and free boxes' Compare the
-//! points ringed red and only the edge drawn off run on past its point, nothing blue; an
-//! ellipse's rings only on the middles it misses; a value scale of nine numbered in the order of
-//! halving and painted a round at a time, its uneven cell outlined with its even one.
+//! points ringed red and only the edge drawn off run on past its point, nothing blue, their
+//! vanishing points in the room the card gives; an ellipse's rings only on the middles it misses;
+//! a value scale of nine numbered in the order of halving and painted a round at a time, its
+//! uneven cell outlined with its even one.
 
 use openpaint_practice::{
     BoxView, CELLS, Carve, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind, Marker, On,
-    PAST, Point, ScaleTone, Solid, Trick, distance,
+    PAST, Point, ScaleTone, Solid, Trick, WIDE_REACH, distance,
 };
 
 fn demo(kind: Kind) -> Demo {
@@ -183,4 +184,30 @@ fn a_scale_of_nine_is_numbered_and_painted_a_round_at_a_time() {
         .filter(|m| m.pen == Marker::Answer)
         .count();
     assert_eq!(outlined, 1, "the uneven cell with its even one");
+}
+
+#[test]
+fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
+    for kind in [
+        Kind::Box(BoxView::ThreePoint),
+        Kind::FreeBoxes(Horizon::Middle),
+    ] {
+        let demo = demo(kind);
+        assert_eq!(demo.layout, DemoLayout::Wide);
+        let rings: Vec<Point> = (demo.marks.iter())
+            .filter(|m| m.pen == Marker::Pencil)
+            .filter_map(|m| match m.drawn {
+                Drawn::Ring(p) => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(rings.len(), 2, "{kind:?}");
+        for [x, y] in rings {
+            assert!(
+                (-WIDE_REACH..=1.0 + WIDE_REACH).contains(&x),
+                "{kind:?}: {x}"
+            );
+            assert!((0.0..=1.0).contains(&y), "{kind:?}: {y}");
+        }
+    }
 }

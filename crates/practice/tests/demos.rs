@@ -4,10 +4,9 @@
 use openpaint_practice::{
     BoxView, CELLS, Carve, Combination, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind,
     Lightness, LineTier, Marker, ObjectTask, On, Point, Purity, ScaleTone, Solid, Tier, Tone,
-    Trick, WIDE_REACH, distance, meet,
+    Trick, distance, meet,
 };
 
-/// A colour's tone, for its How.
 const COLOUR: Tone = Tone {
     purity: Purity::Muted,
     lightness: Lightness::Middle,
@@ -56,8 +55,8 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
             demo.layout,
             DemoLayout::Single | DemoLayout::Wide | DemoLayout::Row
         );
-        let composed = ["division", "whole-copy", "value-masses"].contains(&kind.facts().key);
-        let lone = cropped || kind == Kind::Object(Carve::Cut) || composed;
+        let lone = ["objects", "division", "whole-copy", "value-masses"];
+        let lone = cropped || lone.contains(&kind.facts().key);
         assert_eq!(demo.view.is_some(), lone, "{kind:?}");
     }
     let face_of = |demo: &Demo| -> [Point; 2] {
@@ -243,32 +242,6 @@ fn a_solids_middles_lie_on_its_red_answer_and_its_hidden_part_is_dashed() {
     }
     let hidden = |kind| demo(kind).marks.iter().any(|m| m.pen == Marker::Hidden);
     assert!(hidden(Kind::Solid(Solid::Cylinder)) && !hidden(Kind::Solid(Solid::Sphere)));
-}
-
-#[test]
-fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
-    for kind in [
-        Kind::Box(BoxView::ThreePoint),
-        Kind::FreeBoxes(Horizon::Middle),
-    ] {
-        let demo = demo(kind);
-        assert_eq!(demo.layout, DemoLayout::Wide);
-        let rings: Vec<Point> = (demo.marks.iter())
-            .filter(|m| m.pen == Marker::Pencil)
-            .filter_map(|m| match m.drawn {
-                Drawn::Ring(p) => Some(p),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(rings.len(), 2, "{kind:?}");
-        for [x, y] in rings {
-            assert!(
-                (-WIDE_REACH..=1.0 + WIDE_REACH).contains(&x),
-                "{kind:?}: {x}"
-            );
-            assert!((0.0..=1.0).contains(&y), "{kind:?}: {y}");
-        }
-    }
 }
 
 #[test]

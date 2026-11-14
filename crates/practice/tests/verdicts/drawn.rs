@@ -14,9 +14,7 @@ fn level_ellipse() -> (Exercise, EllipseGuide) {
     (0..)
         .map(|seed| Exercise::generated(Kind::Ellipse(Guide::Frame), seed))
         .find_map(|exercise| {
-            let Some(&guide) = exercise.original().downcast::<EllipseGuide>() else {
-                return None;
-            };
+            let guide = *exercise.original().downcast::<EllipseGuide>()?;
             let e = guide.exact;
             ((0.4..0.7).contains(&e.roundness()) && e.angle.abs() < 0.1)
                 .then_some((exercise, guide))

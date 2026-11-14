@@ -1,13 +1,13 @@
 //! The pictures exercises copy (S80): every shape item of the packs kept, the official packs' by
-//! tier and the user's own apart, every composition item (S95), and how a session picks one. A
-//! shape is picked by the session's seed among those of its tier not shown in an earlier session,
+//! tier and the user's own apart, every composition item (S95), and how a lesson picks one. A
+//! shape is picked by the lesson's seed among those of its tier not shown in an earlier lesson,
 //! all of them again once each was; a tier with none falls back to the nearest tier that has
-//! some, the easier first. The user's own pictures take one place in every stage-2 session, once
-//! the session's tiers reach theirs (S83: the tier the user chose for each). A composition is
-//! picked alike among those not shown in the last ten sessions, one of those only when none other
-//! is left, never one the session holds already while another is left; for value masses (S96)
+//! some, the easier first. The user's own pictures take their place in a shape's lesson, once
+//! the lesson's tiers reach theirs (S83: the tier the user chose for each). A composition is
+//! picked alike among those not shown in the last ten lessons, one of those only when none other
+//! is left, never one the lesson holds already while another is left; for value masses (S96)
 //! only among those whose masses read (the pack holds them). A crop (S101) is picked by its own
-//! sequence among those no earlier session or drill showed, any again once each was, for a
+//! sequence among those no earlier lesson showed, any again once each was, for a
 //! colour combination or a key shift (S107, which also reads its main hue).
 
 use std::collections::HashSet;

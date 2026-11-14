@@ -16,12 +16,6 @@ texts! { PRACTICE_COLOUR;
     ORIGINAL_SHOWN = "Original shown", "原图浓淡";
     READING_COPY = "Reading your copy…", "正在读取你的临摹…";
     NOT_PAINTED = "This area is not painted yet.", "这个色块还没有画。";
-    AREAS_DELTA = "Areas ΔE", "色块 ΔE";
-    WEAK_CONTRASTS = "Weak contrasts", "弱对比";
-    WEAK_MADE_STRONG = "Weak made strong", "画强的弱对比";
-    OFF_EVEN = "Off even", "明度偏差";
-    UNEVEN_CELLS = "Uneven cells", "不均匀的格子";
-    OUT_OF_ORDER = "Out of order", "明暗颠倒";
     COLOUR_COPIES = "Colour copies (long projects)", "色彩临摹（大作业）";
     OPEN = "Open", "打开";
 }

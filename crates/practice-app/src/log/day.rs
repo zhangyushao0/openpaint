@@ -1,5 +1,5 @@
 //! The day's sheet (S121c): the day's lessons follow down one sheet. A sheet is today's when it
-//! was started on today's local day; a session or drill started from the gallery or the options
+//! was started on today's local day; a lesson started from the gallery or the options
 //! goes onto today's sheet (the newest day's sheet started today) when its last lesson is
 //! finished and the rows left on its canvas hold the new lesson (the store checks the canvas),
 //! else onto a new sheet. A test's sheet is never continued from the gallery, a colour copy keeps

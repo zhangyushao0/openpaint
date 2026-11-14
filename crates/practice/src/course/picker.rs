@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 
 use crate::kinds::Kind;
-use crate::kinds::{SkillLevel, Turn};
+use crate::kinds::{Needs, SkillLevel, Turn};
 use crate::maths::random::{Random, derived};
 use crate::packs::pack::{ItemRef, Tier};
 
@@ -61,7 +61,8 @@ pub(crate) fn composition(
         SkillLevel::Second => Tier::Medium,
         SkillLevel::Third => Tier::Hard,
     };
-    Picker::new(turn, Tier::Medium).compositions(&[kind(tier)])
+    let picked = Picker::new(turn, Tier::Medium).composition(tier, kind);
+    picked.into_iter().collect()
 }
 
 /// A lesson's pictures, picked by its seed.
@@ -91,32 +92,20 @@ impl<'a> Picker<'a> {
         }
     }
 
-    /// `kinds` (divisions, whole copies and value masses) with compositions of their tiers (value
-    /// masses' among those whose masses read); none without such a composition.
-    pub(crate) fn compositions(&mut self, kinds: &[Kind]) -> Vec<(Kind, Option<ItemRef>)> {
-        let mut picked = Vec::new();
-        for kind in kinds {
-            let (Kind::Division(tier) | Kind::WholeCopy(tier) | Kind::ValueMasses(tier)) = *kind
-            else {
-                continue;
-            };
-            let massed = matches!(kind, Kind::ValueMasses(_));
-            let shown = (&self.shown, &self.recent);
-            let pictures = self.turn.pictures;
-            let Some((tier, item)) =
-                pictures.pick_composition((tier, massed), &mut self.random, shown)
-            else {
-                continue;
-            };
-            self.shown.insert(item.clone());
-            let kind = match kind {
-                Kind::Division(_) => Kind::Division(tier),
-                Kind::ValueMasses(_) => Kind::ValueMasses(tier),
-                _ => Kind::WholeCopy(tier),
-            };
-            picked.push((kind, Some(item)));
-        }
-        picked
+    /// The kind `kind` makes (a division, a whole copy, value masses) with a composition of `tier`
+    /// or the nearest the packs hold (among those whose masses read where its lesson needs them);
+    /// none without such a composition.
+    pub(crate) fn composition(
+        &mut self,
+        tier: Tier,
+        kind: fn(Tier) -> Kind,
+    ) -> Option<(Kind, Option<ItemRef>)> {
+        let massed = kind(tier).facts().needs == Needs::Masses;
+        let shown = (&self.shown, &self.recent);
+        let pictures = self.turn.pictures;
+        let (tier, item) = pictures.pick_composition((tier, massed), &mut self.random, shown)?;
+        self.shown.insert(item.clone());
+        Some((kind(tier), Some(item)))
     }
 
     /// A colour combination with its crop (S101).
