@@ -64,9 +64,8 @@ texts! { PRACTICE_SOLIDS_HOW;
     CYLINDER_SAYS = "Ghost each ellipse and side in the air, then draw it once, the far end's \
         hidden half too. Compare: the cylinder in red, its hidden part dashed; a middle your \
         ellipse misses by more than a pen's width ringed, a side off where it heads run on dashed \
-        red. Construction shows the diagonals and middles; a correction counts in place of what \
-        it redraws.",
-        "每个椭圆、每条边先在空中比划，再一笔画出，远端看不见的一半也要画。叠图对比：红色是准确的圆柱，被挡住的部分是虚线；椭圆离某个中点超过一个笔宽，这个中点就画上红圈；边的方向偏了，用红色虚线延长。点“看画法”，可以看到对角线和中点；修正的线会顶替它重画的那部分。";
+        red. Construction shows the diagonals and middles. Correct in blue and compare again.",
+        "每个椭圆、每条边先在空中比划，再一笔画出，远端看不见的一半也要画。叠图对比：红色是准确的圆柱，被挡住的部分是虚线；椭圆离某个中点超过一个笔宽，这个中点就画上红圈；边的方向偏了，用红色虚线延长。点“看画法”，可以看到对角线和中点。用修正笔（蓝色）改，再对比。";
     CONE_TRAINS = "A cone found in its box: its base, then its point.",
         "在盒子里找圆锥：先画底面，再找锥尖。";
     CONE_STEP_1 = "The base: diagonals, four middles, ellipse", "先画底面：对角线、四边中点、椭圆";

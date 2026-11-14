@@ -73,9 +73,9 @@ texts! { PRACTICE_SCALES;
     SCALE_TRAINS = "Lightness as the eye sees it, in even steps, beside the colour work.",
         "按眼睛看到的明度均匀推移，配合色彩练习。";
     SCALE_SAYS = "The numbers under the example's cells are the order. Keep the hue and purity: \
-        move only up and down in the wheel's square; Fill cell fills the cell in hand, the ends \
-        can be picked. Compare lays the even scale under your row, cell under cell; a cell of \
+        move only up and down in the wheel's square, from an end's colour picked; Fill cell fills \
+        the cell in hand. Compare lays the even scale under your row, cell under cell; a cell of \
         yours that is uneven is outlined red with its even one. To correct it, touch it with the \
         pen to take it in hand and Fill cell again.",
-        "示例格子下的数字就是填的顺序。色相和纯度保持不变：只在色环中间的方块里上下移动；“填满格子”填满选中的那一格，两端的颜色可以吸。叠图对比把均匀的推移排在你那一排下面，一格对一格；不均匀的格子和它下面的那格一起用红线描边。要修正，先用笔点一下那一格选中它，再点“填满格子”。";
+        "示例格子下的数字就是填的顺序。色相和纯度保持不变：先吸一端的颜色，只在色环中间的方块里上下移动；“填满格子”填满选中的那一格。叠图对比把均匀的推移排在你那一排下面，一格对一格；不均匀的格子和它下面的那格一起用红线描边。要修正，先用笔点一下那一格选中它，再点“填满格子”。";
 }

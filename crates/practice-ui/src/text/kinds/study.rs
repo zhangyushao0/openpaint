@@ -18,8 +18,8 @@ const STUDY: How = How {
 texts! { PRACTICE_STUDY;
     STUDY_EXERCISE = "Colour copy", "色彩临摹";
     STUDY_1 = "Copy the picture in colour into the empty frame beside it, over as many sittings as \
-        you like: about 10 to 20 hours in all. It never counts as a session.",
-        "把这张图用颜色临摹到旁边的空白框里，分几次画都行，总共约 10 到 20 小时。不计入练习次数。";
+        you like: about 10 to 20 hours in all.",
+        "把这张图用颜色临摹到旁边的空白框里，分几次画都行，总共约 10 到 20 小时。";
     STUDY_BRUSHES = "Paint with V大's four brushes, in the Painting set. Hard Paint for blocks: \
         it lays the colour you picked however lightly you press. Hard Round for transitions: \
         pressed lightly it lays a thin layer, so two colours turn into each other. Soft Brush, \
@@ -33,8 +33,8 @@ texts! { PRACTICE_STUDY;
     STUDY_3 = "Bring every part to the same finish; zoom in and work a part as if it were the \
         whole picture. Keep weak contrasts weak.",
         "各处的完成度要一致；放大画局部时，把局部当成一张完整的画来画。弱对比别画强。";
-    STUDY_4 = "The original can't be picked before Compare. Compare lays it over your copy in \
-        place, as strongly as the slider sets; then the eyedropper on any point shows both \
-        colours there on the wheel and in the table.",
-        "叠图对比之前不能吸原图的颜色。叠图对比把原图原位叠在你的临摹上，浓淡由滑块调节；之后用吸管点任意一处，色环和表格里会显示原图和你在这一处的颜色。";
+    STUDY_4 = "Compare lays the original over your copy in place, as strongly as the slider \
+        sets; the eyedropper on any point then shows both colours there on the wheel and in the \
+        table.",
+        "叠图对比把原图原位叠在你的临摹上，浓淡由滑块调节；这时用吸管点任意一处，色环和表格里显示原图和你在这一处的颜色。";
 }

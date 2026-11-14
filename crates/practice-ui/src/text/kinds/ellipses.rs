@@ -33,6 +33,6 @@ texts! { PRACTICE_ELLIPSES;
         middles; a wrong one redrawn once with Correct, never scratched over. Compare: the exact \
         ellipse in red, and a ring on each side's middle yours falls short of or runs past by \
         more than a pen's width. Construction shows the diagonals and middle lines. Compare again \
-        after a correction: it reads your correction alone.",
-        "透视中，边的中点更靠近远的一端。一笔画过四个中点；画错了用修正笔重画一次，不要来回描。叠图对比：红色是准确的椭圆；你的椭圆没碰到或超出某条边的中点一个笔宽以上，那个中点就画上红圈。点“看画法”，可以看到对角线和中线。修正后再对比，只看修正的那一笔。";
+        after a correction.",
+        "透视中，边的中点更靠近远的一端。一笔画过四个中点；画错了用修正笔重画一次，不要来回描。叠图对比：红色是准确的椭圆；你的椭圆没碰到或超出某条边的中点一个笔宽以上，那个中点就画上红圈。点“看画法”，可以看到对角线和中线。修正后再对比。";
 }
