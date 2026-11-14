@@ -22,6 +22,7 @@ mod other_format;
 mod pacing;
 mod palm;
 mod pomodoro;
+mod pomodoro_wake;
 mod practice_pens;
 mod practice_test;
 mod quickshape;
