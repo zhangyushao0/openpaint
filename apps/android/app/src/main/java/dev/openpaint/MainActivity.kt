@@ -38,6 +38,8 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     private var frameRequested = false
     private lateinit var view: CanvasView
     private val pickers = Pickers(this) { handle }
+    /** Frames run on this (the main) thread: its performance hint session. */
+    private val hint = FrameHint(this)
     /** The app used the back button's press; its release is the app's too. */
     private var backUsed = false
 
@@ -84,6 +86,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     override fun onDestroy() {
         Choreographer.getInstance().removeFrameCallback(this)
         frameRequested = false
+        hint.close()
         Native.destroy(handle)
         handle = 0L
         super.onDestroy()
@@ -97,6 +100,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         } else {
             Native.attach(handle, holder.surface, width, height, density())
             attached = true
+            hint.open()
         }
         requestFrame()
     }
@@ -107,13 +111,17 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        hint.close()
         Native.detach(handle)
         attached = false
     }
 
     override fun doFrame(frameTimeNanos: Long) {
         frameRequested = false
-        if (Native.frame(handle, System.nanoTime())) requestFrame()
+        val start = System.nanoTime()
+        val again = Native.frame(handle, start)
+        hint.report(System.nanoTime() - start)
+        if (again) requestFrame()
         syncKeyboard()
         if (handle != 0L) pickers.serve()
     }
