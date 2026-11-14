@@ -54,4 +54,10 @@ internal object DebugControls {
      * sheet ("removed <name>", or "no such session"). Otherwise why not.
      */
     @JvmStatic external fun practiceTest(command: String): String?
+
+    /**
+     * Every runtime made from now on records its frames in real use, a line a stretch of motion
+     * in `files/frames.txt` ([DebugApplication], before any activity).
+     */
+    @JvmStatic external fun recordFrames()
 }

@@ -13,6 +13,7 @@ mod drawing;
 mod export;
 mod fill;
 mod fill_edges;
+mod frames_recorded;
 mod gallery;
 mod history;
 mod interrupted;

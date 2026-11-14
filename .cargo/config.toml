@@ -17,7 +17,8 @@ android-build = "xtask android-build"
 # the installed build walked through its main features on a test artwork (about 20 s); the
 # app's data cleared, only after a backup written the same day; the tablet's newest screenshots
 # copied here, nothing on it changed; whether the tablet is free (screen off or untouched for 10
-# minutes: exit 0), read-only; the app's own last log lines, read-only.
+# minutes: exit 0), read-only; the app's own last log lines, read-only; the debug build's frames
+# in real use, a line a stretch of motion, summed up (read-only; `--clear` empties them).
 device-backup = "xtask device-backup"
 device-restore = "xtask device-restore"
 device-check = "xtask device-check"
@@ -30,6 +31,7 @@ device-screens = "xtask device-screens"
 device-reset = "xtask device-reset"
 device-idle = "xtask device-idle"
 device-log = "xtask device-log"
+device-frames = "xtask device-frames"
 # Test artworks as OpenPaint files, deterministic (apps/harness/src/test_art/):
 # `cargo test-art pile|a4|a4-plain|kinds|session [n] [out]` -> artifacts/test-art/<kind>-<n>.openpaint.
 test-art = "run --quiet --package openpaint-harness -- test-art"

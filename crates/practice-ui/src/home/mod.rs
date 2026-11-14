@@ -60,6 +60,11 @@ impl HomePart {
         self.practice.pictures.arrive(item, picture);
     }
 
+    /// Whether the path page or the practice book lies over the home.
+    pub(crate) const fn page_shows(&self) -> bool {
+        self.book.shows() || self.path.shows()
+    }
+
     /// A lesson started as `start` from what lies at `from` (the sheet grows out of it): the
     /// next lesson while today's is unfinished opens its sheet, which continues it.
     fn start(&mut self, start: Start, from: Rect, path: &PathProjection, (taps, asked): Taps<'_>) {

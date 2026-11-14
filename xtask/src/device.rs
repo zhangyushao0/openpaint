@@ -21,12 +21,15 @@
 //!   refused without a backup written today (`reset.rs`);
 //! - `cargo device-log [n]`: the app's own last log lines, every level, read-only (`log.rs`);
 //! - `cargo device-idle [--minutes N]`: whether the tablet is free (screen off, or untouched for
-//!   N minutes), read-only, the first step of every device routine (`idle.rs`).
+//!   N minutes), read-only, the first step of every device routine (`idle.rs`);
+//! - `cargo device-frames [since] [--lines] | --clear`: the debug build's frames in real use, a
+//!   line a stretch of motion, read from the app's files and summed up (`frames.rs`).
 //!
 //! Every adb call takes explicit arguments, never a host shell, so no path is rewritten.
 
 mod adb;
 mod check;
+mod frames;
 mod idle;
 mod info;
 mod input;
@@ -50,6 +53,7 @@ use adb::{Adb, Result};
 
 pub use adb::DeviceError;
 pub use check::check;
+pub use frames::frames;
 pub use idle::idle;
 pub use info::info;
 pub use input::input;

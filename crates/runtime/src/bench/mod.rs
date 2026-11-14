@@ -93,7 +93,7 @@ pub const SCENARIOS: [&str; 13] = [
 const OFFSCREEN: [u32; 2] = [2880, 1800];
 
 /// The display's frame interval: the host calls a frame at each vsync it asked for (120 Hz).
-const VSYNC: Duration = Duration::from_micros(8333);
+pub(crate) const VSYNC: Duration = Duration::from_micros(8333);
 
 /// How long a stage may take before the benchmark gives up on it.
 const LIMIT: Duration = Duration::from_secs(60);
@@ -214,8 +214,14 @@ pub(crate) fn spread(values: &[f64]) -> String {
     }
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let rank = |share: f64| sorted[((sorted.len() as f64 * share).ceil() as usize).max(1) - 1];
-    format!("{:.1}/{:.1}/{:.1}", rank(0.5), rank(0.95), rank(1.0))
+    let at = |share: f64| rank(&sorted, share);
+    format!("{:.1}/{:.1}/{:.1}", at(0.5), at(0.95), at(1.0))
+}
+
+/// The value at `share` of `sorted` (nearest rank; not empty), as `spread` and the recorder of
+/// frames in real use (`recorder/`) read it.
+pub(crate) fn rank(sorted: &[f64], share: f64) -> f64 {
+    sorted[((sorted.len() as f64 * share).ceil() as usize).max(1) - 1]
 }
 
 /// "<state> after" when a stage came to its `state` within the limit, else "NOT <state> within
@@ -276,14 +282,7 @@ impl Runtime {
 
     /// One frame call as `bench_frame` makes it, without waiting for the next vsync after it.
     pub(crate) fn bench_call(&mut self, watch: &mut Watch) -> Result<bool, RuntimeError> {
-        let started = Instant::now();
-        let again = if self.surface.is_some() {
-            self.frame()?
-        } else {
-            let size = (self.offscreen.as_ref()).map_or(OFFSCREEN, |target| target.size());
-            self.frame_offscreen(size)?
-        };
-        let ms = started.elapsed().as_secs_f64() * 1e3;
+        let (again, ms) = self.frame_timed()?;
         if self.paced().skipped {
             watch.skipped += 1;
             watch.between.push(ms);
@@ -298,6 +297,19 @@ impl Runtime {
             watch.slowest = (ms, spent);
         }
         Ok(again)
+    }
+
+    /// One frame call as the host makes it (into the window; offscreen without one) and its work,
+    /// ms: what a frame's work is to the bench and to the recorder of frames in real use.
+    pub(crate) fn frame_timed(&mut self) -> Result<(bool, f64), RuntimeError> {
+        let started = Instant::now();
+        let again = if self.surface.is_some() {
+            self.frame()?
+        } else {
+            let size = (self.offscreen.as_ref()).map_or(OFFSCREEN, |target| target.size());
+            self.frame_offscreen(size)?
+        };
+        Ok((again, started.elapsed().as_secs_f64() * 1e3))
     }
 
     /// Frames until `done` holds, at most `LIMIT` of wall time; whether it came to hold.

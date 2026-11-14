@@ -4,13 +4,14 @@
 //! precision check on and off (`gradient on|off`), loses the GPU device on purpose
 //! (`lose-device`), runs the app's scenario benchmarks (`bench`), opens a pushed
 //! OpenPaint file without the picker (`open-file`) and starts and removes a test practice
-//! lesson beside the author's (`practice-test start|end`, D102).
+//! lesson beside the author's (`practice-test start|end`, D102); and switches the recorder of
+//! frames in real use on as the debug build's process starts (`recordFrames`).
 //! Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
 //! nothing that can call them.
 
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
 use jni::EnvUnowned;
 use jni::errors::LogErrorAndDefault;
@@ -30,9 +31,28 @@ const TEST_BLOCK: u32 = 60;
 /// The handle of the running activity's runtime; 0 while there is none.
 static HANDLE: AtomicI64 = AtomicI64::new(0);
 
+/// Whether the debug build's application switched the recorder of frames in real use on.
+static RECORDING: AtomicBool = AtomicBool::new(false);
+
 /// Called by `create` and `destroy` with the handle Kotlin now holds.
 pub(crate) fn remember(handle: jlong) {
     HANDLE.store(handle, Ordering::SeqCst);
+}
+
+/// Whether `create` makes the runtime's recorder of frames in real use: only after the debug
+/// build's application asked for it (`DebugApplication`); a release has none.
+pub(crate) fn recording() -> bool {
+    RECORDING.load(Ordering::SeqCst)
+}
+
+/// For the debug build's `DebugApplication`, before any activity: every runtime made from now on
+/// records its frames in real use (`openpaint_runtime::FrameRecorder`).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_recordFrames<'local>(
+    _env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+) {
+    RECORDING.store(true, Ordering::SeqCst);
 }
 
 /// "x,y": the middle of the control called `name` (or `name #n`) in the last frame, in screen

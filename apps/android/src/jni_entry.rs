@@ -13,7 +13,10 @@ use jni::objects::{
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
 use openpaint_practice_store::Packs;
-use openpaint_runtime::{DisplayCache, Language, Runtime, StartOptions, TextFonts, take_spent};
+use openpaint_runtime::{
+    DisplayCache, FRAMES_FILE, FrameRecorder, Language, Runtime, StartOptions, TextFonts,
+    take_spent,
+};
 use openpaint_store::Library;
 
 use crate::error::HostError;
@@ -33,6 +36,8 @@ pub(crate) struct Host {
     navigation: NavigationLog,
     /// Slow frames and frames skipped while the GPU is behind.
     pacing: PacingLog,
+    /// The debug build's recorder of frames in real use (`jni_debug::recording`); none in a release.
+    recorder: Option<FrameRecorder>,
     /// Where files to share are made (`Context.getCacheDir()/share`, served by `ShareProvider`).
     pub(crate) share_dir: PathBuf,
     /// What the Kotlin host was last asked to show; its answer is for that.
@@ -108,11 +113,18 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             ..StartOptions::default()
         };
         let runtime = Runtime::start(density, Box::new(Library::at(library)), options)?;
+        let recorder = crate::jni_debug::recording()
+            .then(|| FrameRecorder::writing_to(files.join(FRAMES_FILE)))
+            .and_then(|made| {
+                made.inspect_err(|e| log::error!("no frame recorder: {e}"))
+                    .ok()
+            });
         let host = Host {
             runtime,
             latency: PenLatency::default(),
             navigation: NavigationLog::default(),
             pacing: PacingLog::default(),
+            recorder,
             share_dir,
             pending: None,
         };
@@ -166,8 +178,11 @@ pub extern "system" fn Java_dev_openpaint_Native_leave<'local>(
     _class: JClass<'local>,
     handle: jlong,
 ) {
-    if let Some(runtime) = runtime(handle) {
-        runtime.leave();
+    if let Some(host) = host(handle) {
+        host.runtime.leave();
+        if let Some(recorder) = &mut host.recorder {
+            recorder.end();
+        }
         log::info!("left the app");
     }
 }
@@ -276,7 +291,10 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
             return Ok(false);
         };
         let started = Instant::now();
-        let again = host.runtime.frame()?;
+        let again = match &mut host.recorder {
+            Some(recorder) => host.runtime.frame_recorded(recorder)?,
+            None => host.runtime.frame()?,
+        };
         let work = i64::try_from(started.elapsed().as_nanos()).unwrap_or(i64::MAX);
         let (paced, spent) = (host.runtime.paced(), take_spent());
         let called = Called {
@@ -351,7 +369,10 @@ pub extern "system" fn Java_dev_openpaint_Native_motion<'local>(
         host.latency.input(&batch, event_ns);
         host.navigation.input(&batch);
         host.pacing.input();
-        Ok(host.runtime.motion(&batch))
+        Ok(match &mut host.recorder {
+            Some(recorder) => host.runtime.motion_recorded(&batch, recorder),
+            None => host.runtime.motion(&batch),
+        })
     })
     .resolve::<LogErrorAndDefault>()
 }

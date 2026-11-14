@@ -82,6 +82,12 @@ impl PracticeScreens {
     pub fn set_pack_picture(&mut self, item: ItemRef, picture: Option<PictureImage>) {
         self.home.set_pack_picture(item, picture);
     }
+
+    /// Whether a page of practice's lies over the home: the path page or the practice book.
+    #[must_use]
+    pub const fn page_shows(&self) -> bool {
+        self.home.page_shows()
+    }
 }
 
 /// Practice's hooks for one frame.
