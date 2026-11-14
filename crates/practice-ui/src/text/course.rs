@@ -16,7 +16,7 @@ texts! { PRACTICE_COURSE;
     ALL_UNITS = "All units", "全部单元";
     FULL_LESSON = "Full lesson", "完整一课";
     NEXT_LESSON = "Next lesson", "下一课";
-    UNDER_WAY = "Today's lesson, under way", "今天这一课还没上完";
+    UNDER_WAY = "Lesson under way", "没上完的一课";
     ON_THE_SIDE = "Review on the side", "顺手复习";
     REDO_WAITS = "Again last time", "上次有题重来";
     UNIT_IN_THE_MAKING = "Its lessons are still being made", "这一单元的课还在准备中";
@@ -209,7 +209,7 @@ pub(crate) fn in_hand(language: Language, name: Text, (place, of): (usize, usize
     format!("{} {place}/{of}", name.get(language))
 }
 
-/// Today's lesson left under way as the home names it: "Lines 3/6", "First lesson 2/3", "Full
+/// A lesson left under way as the home names it: "Lines 3/6", "First lesson 2/3", "Full
 /// lesson 5/15".
 pub(crate) fn open_lesson(language: Language, open: &OpenLesson) -> String {
     let name = match (open.row.first, open.row.skill) {
@@ -316,5 +316,13 @@ mod tests {
             "5 exercises · 3 min 12 s"
         );
         assert_eq!(lesson_took(Language::Chinese, (3, 45)), "3 题 · 45 秒");
+    }
+
+    #[test]
+    fn the_lesson_left_under_way_is_named_by_its_state_true_on_any_day() {
+        // The home showed yesterday's unfinished lesson as today's (1.23.0, the tablet).
+        let english = UNDER_WAY.get(Language::English).to_lowercase();
+        assert!(!english.contains("today"), "{english}");
+        assert!(!UNDER_WAY.get(Language::Chinese).contains("今天"));
     }
 }
