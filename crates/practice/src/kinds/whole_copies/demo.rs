@@ -6,7 +6,6 @@ use crate::compositions::levels::Level;
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, wobbled};
 use crate::demos::demo_landscape::{Landscape, STRAY, TOGETHER};
 use crate::maths::path::Point;
-use crate::sheets::exercise::Family;
 
 /// A whole copy.
 pub(crate) fn whole_copy() -> Demo {
@@ -29,11 +28,7 @@ pub(crate) fn whole_copy() -> Demo {
             .collect();
         script.together(marks);
     }
-    let mut demo = script.compare(
-        Family::WholeCopy,
-        DemoLayout::Pair,
-        vec![example.laid(Marker::Faint)],
-    );
+    let mut demo = script.compare(DemoLayout::Pair, vec![example.laid(Marker::Faint)]);
     demo.dimmed = match demo.steps[..] {
         [_, draw, compare] => Some([draw, compare]),
         _ => None,

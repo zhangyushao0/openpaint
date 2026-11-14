@@ -15,7 +15,6 @@ use crate::kinds::objects::object_design::Carve;
 use crate::kinds::solids::solid_check::SolidCheck;
 use crate::maths::path::Point;
 use crate::maths::random::derived;
-use crate::sheets::exercise::Family;
 
 /// The example: a box with a slope cut down its far end and a notch out of its near corner, seen
 /// from above; of the first 2,000 cuts of its seed's sequence with a second change seen so, the
@@ -141,5 +140,5 @@ fn compared(script: Script, task: &ObjectTask, drawn: Vec<Vec<Point>>) -> Demo {
     }));
     let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
     marks.extend(off_marks(&SolidCheck::of_object(task, (&lines, &[])).off));
-    script.compare(Family::Object, DemoLayout::Pair, marks)
+    script.compare(DemoLayout::Pair, marks)
 }

@@ -7,10 +7,10 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    APART, AWAY, Areas, Arrangement, Demo, Family, GeneratedAreas, KeyCheck, Kind, LIGHTNESS_OFF,
-    Lean, Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures, Random, Rgb8,
-    Skill, SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab, main_hue, oklab, oklch,
-    schedule, toward, turn,
+    APART, AWAY, Areas, Arrangement, CELLS, GeneratedAreas, KeyCheck, Kind, LIGHTNESS_OFF, Lean,
+    Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures, Random, Rgb8, Skill,
+    SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab, main_hue, oklab, oklch, schedule,
+    toward, turn,
 };
 
 fn lab(colour: Rgb8) -> [f64; 3] {
@@ -46,8 +46,8 @@ fn a_tendency_reads_back_from_its_code_and_only_its_lean_s_hues_do() {
     let cool_hue = Lean::ALL.iter().position(|l| *l == Lean::WarmPure).unwrap() as u8 * 36 + 20;
     assert_eq!(Tendency::of_code(cool_hue), None);
     assert_eq!(
-        Kind::KeyShift(Tendency::of_code(0).unwrap()).family(),
-        Family::KeyShift
+        Kind::KeyShift(Tendency::of_code(0).unwrap()).facts().key,
+        "key-shift"
     );
 }
 
@@ -233,7 +233,9 @@ fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue
 
 #[test]
 fn the_how_shifts_its_example_step_by_step_and_compares_it_in_grey() {
-    let demo = Demo::of(Family::KeyShift).expect("a demonstration");
+    let demo = Kind::KeyShift(Tendency::of_code(0).unwrap())
+        .how(CELLS)
+        .expect("a demonstration");
     assert_eq!(demo.steps.len(), 7, "V大's six steps and Compare");
     let shift = demo.strip.as_ref().expect("its tendency and chips");
     assert_eq!(shift.chips.len(), 5, "a chip an area");

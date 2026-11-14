@@ -4,7 +4,6 @@
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, band, rect};
 use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
 use crate::maths::colour::{from_hsv, hsv};
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const COLOUR_SEED: u64 = 0xDE30_5EED_0004;
@@ -46,5 +45,5 @@ pub(crate) fn colour() -> Demo {
         (On::Original, Marker::Given, band(patch, picked)),
         (On::Wheel, Marker::Answer, Drawn::Ringed([h, s, v])),
     ];
-    script.compare(Family::Colour, DemoLayout::Wheel, compared)
+    script.compare(DemoLayout::Wheel, compared)
 }

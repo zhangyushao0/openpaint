@@ -10,22 +10,27 @@ pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod scale;
 
+use std::sync::Arc;
+
 use crate::course::picker::{laid, rotated};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, Picks, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, Picking, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, square};
+use crate::maths::colour::Rgb8;
+use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use scale::{CELLS, FIRST_CELLS, ScaleTone, ValueScale};
 
 pub(crate) struct Scales;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Scale, "scale", Tools::Cells, 180)
+const FACTS: [Facts; 1] = [Facts::of("scale", ToolSet::CELLS, 180)
     .constructed()
-    .picks(Picks::Ends)];
+    .picks(Picking::ENDS)];
 /// The second level's cells, between a beginner's and a full scale's.
 const SECOND_CELLS: usize = 7;
 
@@ -53,28 +58,19 @@ impl Described for Scales {
         kept.then_some(Kind::Scale(*tone, cells))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Scale(tone, cells) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Scale(ValueScale::generate(
+        held(ValueScale::generate(
             tone,
             usize::from(cells),
             exercise.seed,
         ))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        original.scale().map(marks::givens).unwrap_or_default()
-    }
-
-    /// Nine cells'.
-    fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo::scale(CELLS))
-    }
-
     /// The row in hand's (S97).
-    fn how_of(&self, _family: Family, cells: usize) -> Option<Demo> {
+    fn how(&self, _kind: Kind, cells: usize) -> Option<Demo> {
         Some(demo::scale(cells))
     }
 
@@ -90,12 +86,8 @@ impl Described for Scales {
         laid(tones.into_iter().map(|tone| Kind::Scale(tone, cells)))
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        marks::compare(asked)
-    }
-
     /// Five cells, darker to the right.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         (0..5)
             .flat_map(|cell| {
                 let left = 8.0 + 7.6 * cell as f32;
@@ -107,5 +99,26 @@ impl Described for Scales {
                 ]
             })
             .collect()
+    }
+}
+
+/// A value scale's ends and cells.
+impl Original for ValueScale {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self)
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        marks::compare(asked)
+    }
+
+    fn scale(&self) -> Option<&ValueScale> {
+        Some(self)
+    }
+
+    /// In its frame, its given end's where `at` lies in one.
+    fn colour_at(&self, at: Point) -> Option<Rgb8> {
+        let end = (self.cell_at(at)).filter(|cell| *cell == 0 || cell + 1 == self.cells);
+        end.map(|cell| self.ends()[usize::from(cell > 0)])
     }
 }

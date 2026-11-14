@@ -1,5 +1,5 @@
-//! The eyedropper on a practice sheet (`read.rs`), as the shown exercise's family's
-//! description says (`Picks`, S109b): an original not compared yet reads nothing; a compared
+//! The eyedropper on a practice sheet (`read.rs`), as the shown exercise's kind's
+//! facts say (`Picking`, S109b, S123): an original not compared yet reads nothing; a compared
 //! swatch its colour; a value scale's given ends their colours; and while a colour combination, a
 //! colour copy or a whole copy's colour blocks (S96) are compared, a point of either frame
 //! compares the original and the copy there (`Probe`): the runtime reads the copy's pixel and
@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use openpaint_core::Color;
-use openpaint_practice::{Original, Picks, Point, Rgb8};
+use openpaint_practice::{Original, Picking, Point, Rgb8};
 
 use super::PracticeSheet;
 use crate::copy::PAPER;
@@ -48,8 +48,9 @@ impl PracticeSheet {
     }
 
     /// What the eyedropper reads over exercise `index`'s frames.
-    fn picks(&self, index: usize) -> Picks {
-        self.facts(index).map_or(Picks::Canvas, |facts| facts.picks)
+    fn picks(&self, index: usize) -> Picking {
+        self.facts(index)
+            .map_or(Picking::default(), |facts| facts.picks)
     }
 
     /// What the eyedropper reads at `point` (canvas pixels).
@@ -64,7 +65,7 @@ impl PracticeSheet {
         };
         if let Some(index) = over(false) {
             // A key shift's original is never picked (S107): its colours are judged by eye.
-            if self.picks(index) == Picks::Locked {
+            if !self.picks(index).original {
                 self.notice = Some(PracticeNotice::OriginalLocked);
                 return PracticePick::Refused;
             }
@@ -91,19 +92,22 @@ impl PracticeSheet {
         };
         let at = frame.to_frame(point);
         let given = |sheet: &Self| sheet.made(index).and_then(|made| made.colour_at(at));
-        let original = match self.picks(index) {
-            Picks::Swatch if on_original => self.made(index).and_then(|made| made.swatch()),
-            Picks::Ends if !on_original => {
-                let end = given(self).and_then(colour);
-                return end.map_or(PracticePick::Canvas, PracticePick::Colour);
-            }
-            Picks::Probed | Picks::Blocks => given(self).or_else(|| self.picture_colour(index, at)),
-            _ => None,
+        let picks = self.picks(index);
+        if picks.ends && !on_original {
+            let end = given(self).and_then(colour);
+            return end.map_or(PracticePick::Canvas, PracticePick::Colour);
+        }
+        let original = if picks.swatch {
+            (on_original.then(|| self.made(index)).flatten()).and_then(|made| made.swatch())
+        } else if picks.probed {
+            given(self).or_else(|| self.picture_colour(index, at))
+        } else {
+            None
         };
         let Some((rgb, shown)) = original.and_then(|rgb| Some((rgb, colour(rgb)?))) else {
             return PracticePick::Canvas;
         };
-        let painted = self.picks(index) != Picks::Swatch;
+        let painted = !picks.swatch;
         if painted && self.compared.is_some() && self.current() == Some(index) {
             self.painting_state.probing = Some((at, rgb));
             PracticePick::Probe {
@@ -120,10 +124,10 @@ impl PracticeSheet {
 
     /// Exercise `index`'s original: the one in hand's, or an earlier one's made again by its
     /// generator for the pick (a known limit: not read from what the sheet printed).
-    fn made(&self, index: usize) -> Option<Arc<Original>> {
+    fn made(&self, index: usize) -> Option<Arc<dyn Original>> {
         match self.original(index) {
             Some(original) => Some(Arc::clone(original)),
-            None => Some(Arc::new(self.record.laid(index)?.exercise.original())),
+            None => Some(self.record.laid(index)?.exercise.original()),
         }
     }
 
@@ -140,7 +144,7 @@ impl PracticeSheet {
     /// paper compares nothing (a whole copy's colour blocks are compared where painted, S96), a
     /// point left bare compares nothing.
     pub fn probed(&mut self, copy: Rgb8) {
-        let blocks = (self.current()).is_some_and(|index| self.picks(index) == Picks::Blocks);
+        let blocks = (self.current()).is_some_and(|index| self.picks(index).bare);
         let bare = copy == PAPER && blocks;
         if let Some((at, original)) = self.painting_state.probing.take() {
             self.painting_state.probe = (!bare).then_some(Probe { at, original, copy });

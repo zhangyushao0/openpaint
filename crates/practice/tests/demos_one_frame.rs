@@ -3,10 +3,14 @@
 //! ellipse's rings only on the middles it misses; a value scale of nine numbered in the order of
 //! halving and painted a round at a time, its uneven cell outlined with its even one.
 
-use openpaint_practice::{Demo, DemoLayout, Drawn, Family, Marker, On, PAST, Point, distance};
+use openpaint_practice::{
+    BoxView, CELLS, Carve, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind, Marker, On,
+    PAST, Point, ScaleTone, Solid, Trick, distance,
+};
 
-fn demo(family: Family) -> Demo {
-    Demo::of(family).unwrap_or_else(|| panic!("{family:?} has no demonstration"))
+fn demo(kind: Kind) -> Demo {
+    kind.how(CELLS)
+        .unwrap_or_else(|| panic!("{kind:?} has no demonstration"))
 }
 
 /// How far the line from `from` to `to` passes `p` short of `to`, and how far off it `p` lies.
@@ -19,15 +23,18 @@ fn passing([from, to]: [Point; 2], p: Point) -> (f64, f64) {
 
 #[test]
 fn a_box_s_compare_rings_its_points_and_runs_on_only_the_edge_drawn_off() {
-    for family in [Family::Box, Family::FreeBoxes] {
-        let demo = demo(family);
+    for kind in [
+        Kind::Box(BoxView::ThreePoint),
+        Kind::FreeBoxes(Horizon::Middle),
+    ] {
+        let demo = demo(kind);
         let red_rings: Vec<Point> = (demo.marks.iter())
             .filter_map(|m| match m.drawn {
                 Drawn::Ring(p) if m.pen == Marker::Answer => Some(p),
                 _ => None,
             })
             .collect();
-        assert_eq!(red_rings.len(), 2, "{family:?}");
+        assert_eq!(red_rings.len(), 2, "{kind:?}");
         let missed: Vec<[Point; 2]> = (demo.marks.iter())
             .filter(|m| m.pen == Marker::Missed)
             .filter_map(|m| match &m.drawn {
@@ -35,19 +42,19 @@ fn a_box_s_compare_rings_its_points_and_runs_on_only_the_edge_drawn_off() {
                 _ => None,
             })
             .collect();
-        assert_eq!(missed.len(), 1, "{family:?}");
+        assert_eq!(missed.len(), 1, "{kind:?}");
         let (past, off) = (red_rings.into_iter())
             .map(|p| passing(missed[0], p))
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .expect("its point");
-        assert!((past - PAST).abs() < 1e-9, "{family:?}: {past}");
-        assert!(off > 0.01, "{family:?}: misses its point by {off}");
+        assert!((past - PAST).abs() < 1e-9, "{kind:?}: {past}");
+        assert!(off > 0.01, "{kind:?}: misses its point by {off}");
     }
 }
 
 #[test]
 fn an_ellipses_compare_rings_only_the_middles_it_misses() {
-    let demo = demo(Family::Ellipse);
+    let demo = demo(Kind::Ellipse(Guide::Plane));
     let rings = (demo.marks.iter())
         .filter(|m| m.pen == Marker::Answer && matches!(m.drawn, Drawn::Ring(_)))
         .count();
@@ -74,32 +81,32 @@ fn off_marks(demo: &Demo) -> (usize, usize) {
 #[test]
 fn the_tricks_solids_objects_and_estimates_mark_only_what_the_hand_drew_off() {
     let expected = [
-        (Family::Point, (1, 0)),
-        (Family::Proportion, (1, 0)),
-        (Family::Angle, (0, 1)),
-        (Family::Centre, (1, 0)),
-        (Family::Halves, (1, 0)),
-        (Family::Thirds, (1, 0)),
-        (Family::Step, (1, 0)),
-        (Family::Mirror, (1, 0)),
-        (Family::Cone, (1, 1)),
+        (Kind::Flat(Estimate::Point), (1, 0)),
+        (Kind::Flat(Estimate::Proportion), (1, 0)),
+        (Kind::Flat(Estimate::Angle), (0, 1)),
+        (Kind::Space(Trick::Centre), (1, 0)),
+        (Kind::Space(Trick::Halves), (1, 0)),
+        (Kind::Space(Trick::Thirds), (1, 0)),
+        (Kind::Space(Trick::Step), (1, 0)),
+        (Kind::Space(Trick::Mirror), (1, 0)),
+        (Kind::Solid(Solid::Cone), (1, 1)),
     ];
-    for (family, marks) in expected {
-        assert_eq!(off_marks(&demo(family)), marks, "{family:?}");
+    for (kind, marks) in expected {
+        assert_eq!(off_marks(&demo(kind)), marks, "{kind:?}");
     }
     // The cylinder's far end drawn narrow: the middles it falls short of ringed, nothing run on.
-    let (rings, missed) = off_marks(&demo(Family::Cylinder));
+    let (rings, missed) = off_marks(&demo(Kind::Solid(Solid::Cylinder)));
     assert!((1..=4).contains(&rings) && missed == 0, "{rings} {missed}");
     // V大's circle lies within a pen's width of the sphere's outline: nothing marked.
-    assert_eq!(off_marks(&demo(Family::Sphere)), (0, 0));
+    assert_eq!(off_marks(&demo(Kind::Solid(Solid::Sphere))), (0, 0));
     // The object's first edge drawn beside its place: its corners ringed or the edge run on.
-    let (rings, missed) = off_marks(&demo(Family::Object));
+    let (rings, missed) = off_marks(&demo(Kind::Object(Carve::Cut)));
     assert!(rings + missed >= 1 && rings <= 3, "{rings} {missed}");
-    for family in [Family::Centre, Family::Cylinder] {
-        let demo = demo(family);
-        assert_eq!(demo.layout, DemoLayout::Single, "{family:?}: one frame");
+    for kind in [Kind::Space(Trick::Centre), Kind::Solid(Solid::Cylinder)] {
+        let demo = demo(kind);
+        assert_eq!(demo.layout, DemoLayout::Single, "{kind:?}: one frame");
         let printed = (demo.marks.iter()).filter(|m| m.to == 0.0 && m.pen == Marker::Given);
-        assert_eq!(printed.count(), 0, "{family:?}: its givens printed grey");
+        assert_eq!(printed.count(), 0, "{kind:?}: its givens printed grey");
     }
 }
 
@@ -108,15 +115,12 @@ fn the_tricks_solids_objects_and_estimates_mark_only_what_the_hand_drew_off() {
 #[test]
 fn a_scale_of_five_is_numbered_and_painted_as_a_five_cell_row_is() {
     assert_eq!(
-        Demo::of_cells(Family::Scale, 9).expect("a scale's"),
-        demo(Family::Scale),
+        Kind::Scale(ScaleTone::Grey, 9).how(9).expect("a scale's"),
+        demo(Kind::Scale(ScaleTone::Grey, 9)),
         "nine's is the kind's"
     );
-    let scale = Demo::of_cells(Family::Scale, 5).expect("a scale's");
-    assert_eq!(
-        (scale.family, scale.layout),
-        (Family::Scale, DemoLayout::Row)
-    );
+    let scale = Kind::Scale(ScaleTone::Grey, 9).how(5).expect("a scale's");
+    assert_eq!(scale.layout, DemoLayout::Row);
     let numbered: Vec<(f64, u8)> = (scale.marks.iter())
         .filter_map(|m| match m.drawn {
             Drawn::Numeral(at, n) if m.to == 0.0 => Some((at[0], n)),
@@ -153,7 +157,7 @@ fn a_scale_of_five_is_numbered_and_painted_as_a_five_cell_row_is() {
 
 #[test]
 fn a_scale_of_nine_is_numbered_and_painted_a_round_at_a_time() {
-    let scale = demo(Family::Scale);
+    let scale = demo(Kind::Scale(ScaleTone::Grey, 9));
     assert_eq!(scale.layout, DemoLayout::Row);
     let numbered: Vec<u8> = (scale.marks.iter())
         .filter_map(|m| match m.drawn {

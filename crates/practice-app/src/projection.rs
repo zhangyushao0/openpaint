@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    CardItem, Exercise, First, Given, Kind, Layout, Level, Original, Outcome, Pack, Pair, Point,
-    Rgb8, Sheet, SheetMark, SheetPicture, Value,
+    CardItem, Exercise, First, Given, Kind, Layout, Original, Outcome, Pack, Pair, Point, Rgb8,
+    Sheet, SheetMark, SheetPicture,
 };
 
 use crate::lesson::{End, Judged, LessonRow, LessonShown};
@@ -71,71 +71,8 @@ pub enum PracticeIntent {
     Dismiss,
 }
 
-/// The pens an exercise's own tools offer (`pens.rs`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Pen {
-    /// A light pencil: marks and construction lines, left out of the aligned fit.
-    Sketch,
-    /// The ink pen the copy is drawn with.
-    Draw,
-    /// The blue pen that corrects a compared copy.
-    Correct,
-    /// Painting in the colour picked: a big brush for the masses, a small one for the edges and
-    /// the hierarchy, a soft one for soft edges.
-    Big,
-    Small,
-    Soft,
-    /// A division's levels in V大's colours (S95): its main lines red, the second green, the
-    /// third blue.
-    Main,
-    Second,
-    Third,
-    /// Value masses' three greys (S96): the dark, the middle and the light.
-    Dark,
-    Middle,
-    Light,
-}
-
-impl Pen {
-    /// The pens a line or a shape is drawn with, and those a colour combination or a value scale
-    /// is painted with.
-    pub const DRAWING: [Self; 3] = [Self::Sketch, Self::Draw, Self::Correct];
-    pub const PAINTING: [Self; 3] = [Self::Big, Self::Small, Self::Soft];
-    /// A division's pens, and a whole copy's: its division's, then Draw for its line drawing (and
-    /// the painting pens for its colour blocks, S96).
-    pub const DIVIDING: [Self; 3] = [Self::Main, Self::Second, Self::Third];
-    pub const COPYING: [Self; 4] = [Self::Main, Self::Second, Self::Third, Self::Draw];
-    /// Value masses' greys (S96).
-    pub const VALUES: [Self; 3] = [Self::Dark, Self::Middle, Self::Light];
-
-    /// Whether it paints in the colour picked.
-    #[must_use]
-    pub fn paints(self) -> bool {
-        Self::PAINTING.contains(&self)
-    }
-
-    /// The value it paints, if it is one of value masses' greys.
-    #[must_use]
-    pub const fn value(self) -> Option<Value> {
-        match self {
-            Self::Dark => Some(Value::Dark),
-            Self::Middle => Some(Value::Middle),
-            Self::Light => Some(Value::Light),
-            _ => None,
-        }
-    }
-
-    /// The division's level it draws, if it is a division's pen.
-    #[must_use]
-    pub const fn level(self) -> Option<Level> {
-        match self {
-            Self::Main => Some(Level::Main),
-            Self::Second => Some(Level::Second),
-            Self::Third => Some(Level::Third),
-            _ => None,
-        }
-    }
-}
+/// The pens an exercise's own tools offer, as its kind's facts list them (`pens.rs`).
+pub use openpaint_practice::Pen;
 
 /// Why the practice sheet did not take a contact or a fill.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,7 +109,7 @@ pub struct PracticeProjection {
     pub sheet: Arc<SheetView>,
     pub revealed: usize,
     /// The shown exercise's original, made by its generator (the only one made; none once done).
-    pub original: Option<Arc<Original>>,
+    pub original: Option<Arc<dyn Original>>,
     /// Whether it is a long colour copy's sheet.
     pub copy: bool,
     /// The exercise shown, an index into the sheet's; none once the lesson is done.

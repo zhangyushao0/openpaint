@@ -16,8 +16,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    ColourCompared, Figure, Judge, Kind, Layout, Lightness, LineTier, Metric, Metrics, Original,
-    Outcome, Pair, Purity, Tone, value,
+    ColourCompared, Figure, Judge, Kind, Layout, Lightness, LineTier, Metric, Metrics, Outcome,
+    Pair, Purity, Tone, value,
 };
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeNotice, PracticePens, PracticePick, PracticeProjection,
@@ -140,7 +140,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     let practice = PracticeProjection::of(&session).expect("a practice sheet");
     let (pair, original) = (
         practice.sheet.pairs[0],
-        practice.original.as_deref().cloned(),
+        (practice.original.as_deref()).and_then(|o| o.lines().map(<[_]>::to_vec)),
     );
     assert!(close(on_screen(&session, pair.centre()), ROOM_MIDDLE, 0.5));
     let straight = Some(Kind::Line(LineTier::Straight));
@@ -154,7 +154,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     // The copy: the original moved 30 px right and drawn smaller about its frame's middle;
     // StreamLine asked for and not used.
     session.set_streamline(StreamLine::new(1.0).expect("streamline"));
-    let Some(Original::Lines(mut lines)) = original else {
+    let Some(mut lines) = original else {
         panic!("a line first")
     };
     let line = lines.remove(0);
@@ -312,7 +312,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
     assert_eq!(practice.how, Some(muted), "colours' How first");
     assert_eq!(practice.pen, None, "colours have no pens");
     let pair = practice.sheet.pairs[10];
-    let Original::Colour(swatch) = *practice.original.as_deref().expect("in hand") else {
+    let Some(swatch) = practice.original.as_deref().expect("in hand").swatch() else {
         panic!("a colour")
     };
     let middle = pair.original.to_canvas([0.5, 0.5]).map(|v| v as f32);

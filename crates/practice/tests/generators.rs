@@ -3,8 +3,8 @@
 //! saturation (the sheet: `sheet.rs`).
 
 use openpaint_practice::{
-    Combination, CombinedLines, Exercise, Family, ItemRef, Kind, Learner, LineExercise, LineTier,
-    Original, Pictures, SkillLevel, Standing, Tier, Tone, hsv, length, schedule,
+    Combination, CombinedLines, Exercise, ItemRef, Kind, Learner, LineExercise, LineTier, Pictures,
+    SkillLevel, Standing, Tier, Tone, hsv, length, schedule,
 };
 
 #[test]
@@ -137,12 +137,12 @@ fn a_colour_lesson_holds_each_exercise_its_own_seed_its_colours_mostly_low() {
     assert_ne!(Some(&planned), lesson(1).as_ref());
     let lesson: Vec<&Exercise> = planned.exercises.iter().map(|(e, _)| e).collect();
     let colours: Vec<&&Exercise> = (lesson.iter())
-        .filter(|e| e.kind.family() == Family::Colour)
+        .filter(|e| e.kind.facts().key == "colour")
         .collect();
     let low = (colours.iter())
-        .filter(|e| match e.original() {
-            Original::Colour(colour) => hsv(colour)[1] < 0.36,
-            _ => false,
+        .filter(|e| match e.original().swatch() {
+            Some(colour) => hsv(colour)[1] < 0.36,
+            None => false,
         })
         .count();
     assert!(
@@ -178,12 +178,12 @@ fn a_code_past_a_kind_s_variants_reads_as_none() {
 fn an_exercise_is_its_kind_and_seed() {
     let exercise = Exercise::generated(Kind::Line(LineTier::Wave), 42);
     assert_eq!(
-        exercise.original(),
-        Original::Lines(vec![LineExercise::generate(LineTier::Wave, 42).points])
+        exercise.original().lines(),
+        Some(&[LineExercise::generate(LineTier::Wave, 42).points][..])
     );
     let group = Exercise::generated(Kind::Combined(Combination::Branched), 42);
     let lines = CombinedLines::generate(Combination::Branched, 42).lines;
-    assert_eq!(group.original(), Original::Lines(lines));
+    assert_eq!(group.original().lines(), Some(&lines[..]));
     let item = ItemRef {
         pack: "test-shapes".to_owned(),
         item: "teapot".to_owned(),
@@ -192,7 +192,7 @@ fn an_exercise_is_its_kind_and_seed() {
         picture: Some(item.clone()),
         ..Exercise::generated(Kind::Shape(Tier::Simple), 42)
     };
-    assert_eq!(shape.original(), Original::Picture(item));
+    assert_eq!(shape.original().picture(), Some(&item));
     assert_eq!(shape.kind.code(), (4, 2));
     assert_eq!(Kind::of_code(4, 2), Some(shape.kind));
 }

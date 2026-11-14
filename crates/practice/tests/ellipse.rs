@@ -4,8 +4,8 @@
 //! tilted which way, which side missed.
 
 use openpaint_practice::{
-    Ellipse, EllipseCheck, EllipseGuide, Exercise, Guide, Kind, Original, Point, Random, Reach,
-    Roundness, Side, Tilt, distance, fit_ellipse,
+    Ellipse, EllipseCheck, EllipseGuide, Exercise, Guide, Kind, Point, Random, Reach, Roundness,
+    Side, Tilt, distance, fit_ellipse,
 };
 
 /// The value of the ellipse's own equation at `p`: 0 on it, negative inside.
@@ -86,7 +86,8 @@ fn a_plain_frame_s_ellipse_is_its_cell_s_and_a_plane_s_is_seen_in_perspective() 
     assert!(shifted.count() > 80);
     let exercise = Exercise::generated(Kind::Ellipse(Guide::Plane), 9);
     assert!(
-        matches!(exercise.original(), Original::Ellipse(e) if e == EllipseGuide::generate(Guide::Plane, 9))
+        exercise.original().downcast::<EllipseGuide>()
+            == Some(&EllipseGuide::generate(Guide::Plane, 9))
     );
     assert_eq!(Kind::of_code(10, 1), Some(Kind::Ellipse(Guide::Plane)));
 }

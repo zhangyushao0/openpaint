@@ -12,18 +12,19 @@ pub(crate) mod perspective_check;
 use crate::course::picker::{laid, turned};
 use crate::demos::demo::Demo;
 use crate::geometry::perspective::{BoxView, PerspectiveBox};
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use std::sync::Arc;
 
 pub(crate) struct Boxes;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Box, "box", Tools::Drawing, 150).constructed()];
+const FACTS: [Facts; 1] = [Facts::of("box", ToolSet::DRAWING, 150).constructed()];
 /// The views the first level turns through, three a lesson's place (stage 2's drills), of which
 /// it lays the first `COUNT`.
 const TURNED: usize = 3;
@@ -51,28 +52,14 @@ impl Described for Boxes {
             .map(|v| Kind::Box(*v))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Box(view) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Box(PerspectiveBox::generate(view, exercise.seed))
+        held(PerspectiveBox::generate(view, exercise.seed))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Box(exact) => marks::givens(exact),
-            _ => Vec::new(),
-        }
-    }
-
-    fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        match original {
-            Original::Box(exact) => Some(marks::BoxCompared::of(exact, copy)),
-            _ => None,
-        }
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::perspective_box())
     }
 
@@ -88,7 +75,18 @@ impl Described for Boxes {
     }
 
     /// A box seen from above, its front corner nearest.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         boxed([0.0, 0.0], 1.0)
+    }
+}
+
+/// A box to complete: the exact box, its front corner's three edges given.
+impl Original for PerspectiveBox {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self)
+    }
+
+    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        Some(marks::BoxCompared::of(self, copy))
     }
 }

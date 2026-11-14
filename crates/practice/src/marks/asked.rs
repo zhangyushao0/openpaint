@@ -36,7 +36,7 @@ pub trait Copied {
 #[derive(Clone, Copy)]
 pub struct Asked<'a> {
     pub exercise: &'a Exercise,
-    pub original: &'a Original,
+    pub original: &'a dyn Original,
     pub picture: Option<&'a SheetPicture>,
     pub copy: &'a dyn Copied,
 }

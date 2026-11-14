@@ -11,19 +11,20 @@ pub(crate) mod demo;
 pub(crate) mod ground;
 pub(crate) mod marks;
 
+use std::sync::Arc;
+
 use crate::course::picker::{Picker, in_turn};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, Tools, Turn};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, ToolSet, Turn, held};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, line};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 
 pub(crate) struct Shapes;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Shape, "shape", Tools::Drawing, 240)
+const FACTS: [Facts; 1] = [Facts::of("shape", ToolSet::DRAWING, 240)
     .aligned()
     .needs(Needs::Pictures)
     .grounded()];
@@ -63,15 +64,11 @@ impl Described for Shapes {
         Tier::of_code(variant).map(Kind::Shape)
     }
 
-    fn givens(&self, _exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        crate::marks::drawing::pictured()
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        held(Shape(exercise.item()))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
-        exercise.picture()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::shape())
     }
 
@@ -98,12 +95,26 @@ impl Described for Shapes {
         3
     }
 
+    /// A jug's outline.
+    fn glyph(&self) -> Vec<TileMark> {
+        vec![line(&closed(&JUG))]
+    }
+}
+
+/// A single shape's original: the pack's picture it copies.
+#[derive(Debug)]
+pub(crate) struct Shape(ItemRef);
+
+impl Original for Shape {
+    fn givens(&self) -> Vec<SheetMark> {
+        crate::marks::drawing::pictured()
+    }
+
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
         marks::compare(asked)
     }
 
-    /// A jug's outline.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
-        vec![line(&closed(&JUG))]
+    fn picture(&self) -> Option<&ItemRef> {
+        Some(&self.0)
     }
 }

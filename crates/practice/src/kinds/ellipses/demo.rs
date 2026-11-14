@@ -6,7 +6,6 @@ use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, clearest, 
 use crate::demos::demo_space::red_rings;
 use crate::geometry::ellipse::{Ellipse, EllipseGuide, Guide};
 use crate::kinds::ellipses::ellipse_check::EllipseCheck;
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const ELLIPSE_SEED: u64 = 0xDE30_5EED_0009;
@@ -64,5 +63,5 @@ pub(crate) fn ellipse() -> Demo {
     let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Line(exact.outline(PIECES)))];
     let check = EllipseCheck::of(&guide, &[&drawn]);
     compared.extend(red_rings(check.sides.iter().map(|missed| missed.middle)));
-    script.compare(Family::Ellipse, DemoLayout::Single, compared)
+    script.compare(DemoLayout::Single, compared)
 }

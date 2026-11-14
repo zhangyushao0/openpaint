@@ -4,8 +4,8 @@
 //! sphere's outline is its silhouette and V大's circle lies within the Draw pen's width of it.
 
 use openpaint_practice::{
-    Ellipse, EllipseGuide, Exercise, Family, Kind, Original, PEN_WIDTH, Point, Pose, Solid,
-    SolidTask, diagonals, distance, meet,
+    Ellipse, EllipseGuide, Exercise, Kind, PEN_WIDTH, Point, Pose, Solid, SolidTask, diagonals,
+    distance, meet,
 };
 
 const SEEDS: u64 = 300;
@@ -105,17 +105,17 @@ fn every_solid_keeps_its_rules_and_is_the_same_per_seed() {
         let (code, variant) = Kind::Solid(solid).code();
         assert_eq!(code, 13);
         assert_eq!(Kind::of_code(code, variant), Some(Kind::Solid(solid)));
-        let family = solid.family();
-        assert!(family.facts().compared && !family.facts().aligned);
+        let facts = Kind::Solid(solid).facts();
+        assert!(facts.compared && !facts.aligned);
         let exercise = Exercise::generated(Kind::Solid(solid), 5);
         assert!(
-            matches!(exercise.original(), Original::Solid(task) if *task == SolidTask::generate(solid, 5))
+            exercise.original().downcast::<SolidTask>() == Some(&SolidTask::generate(solid, 5))
         );
     }
     assert_eq!(Kind::of_code(13, 3), None);
     assert_eq!(Kind::of_code(15, 0), None);
-    let families = [Family::Cylinder, Family::Cone, Family::Sphere];
-    assert_eq!(Solid::ALL.map(Solid::family), families);
+    let topics = Solid::ALL.map(|solid| Kind::Solid(solid).facts().key);
+    assert_eq!(topics, ["cylinder", "cone", "sphere"]);
 }
 
 #[test]

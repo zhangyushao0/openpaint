@@ -69,7 +69,7 @@ fn a_lesson_s_end_offers_one_more_and_that_s_all_for_today() {
         exercises: 3,
         seconds: 192,
         skill: Some((skill, 1, 2)),
-        sealed: vec![Seal::TenSessions],
+        sealed: vec![Seal::TenLessons],
         next: Some(Offer {
             skill,
             level: SkillLevel::Third,

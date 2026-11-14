@@ -12,18 +12,19 @@ pub(crate) mod marks;
 use crate::course::picker::{laid, turned};
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::{EllipseGuide, Guide};
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, curve, line};
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use std::sync::Arc;
 
 pub(crate) struct Ellipses;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Ellipse, "ellipse", Tools::Drawing, 60).constructed()];
+const FACTS: [Facts; 1] = [Facts::of("ellipse", ToolSet::DRAWING, 60).constructed()];
 /// The first level's ellipses; the others'.
 const FIRST: usize = 4;
 const SECOND: [Guide; 5] = [
@@ -57,28 +58,14 @@ impl Described for Ellipses {
             .map(|g| Kind::Ellipse(*g))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Ellipse(guide) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Ellipse(EllipseGuide::generate(guide, exercise.seed))
+        held(EllipseGuide::generate(guide, exercise.seed))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Ellipse(guide) => marks::givens(guide),
-            _ => Vec::new(),
-        }
-    }
-
-    fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        match original {
-            Original::Ellipse(guide) => Some(marks::EllipseCompared::of(guide, copy)),
-            _ => None,
-        }
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::ellipse())
     }
 
@@ -91,7 +78,7 @@ impl Described for Ellipses {
     }
 
     /// An ellipse in a square in perspective.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         vec![
             line(&closed(&[
                 [12.0, 31.0],
@@ -104,5 +91,16 @@ impl Described for Ellipses {
                 [27.0 + 12.6 * turn.cos(), 21.5 + 8.6 * turn.sin()]
             })),
         ]
+    }
+}
+
+/// An ellipse's guide and the exact ellipse.
+impl Original for EllipseGuide {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self)
+    }
+
+    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        Some(marks::EllipseCompared::of(self, copy))
     }
 }

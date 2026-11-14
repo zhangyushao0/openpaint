@@ -7,7 +7,7 @@
 //! stays a guide) and hidden while compared, as the session lays them (`layers.rs`).
 
 use openpaint_core::{Color, StrokeStyle, StrokeTool};
-use openpaint_practice::{Facts, Tools};
+use openpaint_practice::Facts;
 
 use super::{PracticeSheet, unavailable};
 use crate::pens::value_colour;
@@ -67,8 +67,8 @@ impl PracticeSheet {
     /// painted; a long colour copy shows the full interface only, so its toolbox's brush paints
     /// (S104).
     pub(crate) fn pen_style(&self, brush: &StrokeStyle) -> Option<StrokeStyle> {
-        let tools = self.shown_facts()?.tools;
-        let offered = !matches!(tools, Tools::Colour | Tools::Cells);
+        let tools = &self.shown_facts()?.tools;
+        let offered = !tools.pens.is_empty() || tools.paints;
         let pens = !self.all_tools && offered && brush.tool() == StrokeTool::Paint;
         pens.then(|| self.pens.stroke(self.pen, brush.color()))
     }
@@ -84,15 +84,9 @@ impl PracticeSheet {
             .ok_or(unavailable(Availability::NothingLeft))?;
         let compared = self.record.first(index).is_some();
         let (level, valued) = (pen.level().is_some(), pen.value().is_some());
-        let fits = match self.facts(index).map(|facts| facts.tools) {
-            Some(Tools::Dividing) => level,
-            Some(Tools::Copying) => level || pen == Pen::Draw || pen.paints(),
-            Some(Tools::Greys) => valued,
-            Some(Tools::Colour | Tools::Cells | Tools::Full) => false,
-            Some(Tools::Drawing) => {
-                !pen.paints() && !level && !valued && (pen != Pen::Correct || compared)
-            }
-            _ => pen.paints(),
+        let fits = match self.facts(index) {
+            Some(facts) => facts.tools.offers(pen, compared),
+            None => pen.paints(),
         };
         if !fits {
             return Err(unavailable(Availability::NothingLeft));
@@ -113,9 +107,7 @@ impl PracticeSheet {
     /// The colour a fill of the shown exercise takes when `asked` is the colour picked: value
     /// masses' grey chosen (S96), else `asked`.
     pub(crate) fn fill_colour(&self, asked: Color) -> Color {
-        let greys = self
-            .shown_facts()
-            .is_some_and(|facts| facts.tools == Tools::Greys);
+        let greys = (self.shown_facts()).is_some_and(|facts| facts.tools.greys());
         (greys.then(|| self.valuing.value()).flatten())
             .and_then(|value| value_colour(value).ok())
             .unwrap_or(asked)
@@ -124,7 +116,7 @@ impl PracticeSheet {
     /// What a sheet holding a whole copy wants of its layers now; none on another sheet, or while
     /// the full interface shows (the layers are the user's then).
     pub(crate) fn layering(&self) -> Option<Layering> {
-        let copying = |facts: &Facts| facts.tools == Tools::Copying;
+        let copying = |facts: &Facts| facts.tools.layered;
         let holds = (self.record.exercises()).any(|laid| copying(laid.exercise.kind.facts()));
         if !holds || self.all_tools {
             return None;

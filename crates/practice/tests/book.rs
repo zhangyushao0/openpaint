@@ -4,9 +4,9 @@
 //! the lines shown.
 
 use openpaint_practice::{
-    Book, Day, Family, First, ItemRef, Judge, Learner, LineShown, Metric, Outcome, PAUSE, Picked,
-    Pictures, Planned, Purpose, Seal, Sheet, Skill, SkillLevel, Span, Standing, Tally, earned,
-    practised, schedule, sealed, seconds,
+    Book, Day, First, ItemRef, Judge, Learner, LineShown, Metric, Outcome, PAUSE, Picked, Pictures,
+    Planned, Purpose, Seal, Sheet, Skill, SkillLevel, Span, Standing, Tally, earned, practised,
+    schedule, sealed, seconds,
 };
 
 /// 2026-10-05 12:00 UTC, a Monday.
@@ -42,13 +42,13 @@ fn session(id: u64, started: u64) -> Sheet {
     Sheet::begun(id, (Purpose::Day, started), planned)
 }
 
-/// The index of `session`'s `nth` exercise of `family`.
-fn of(session: &Sheet, family: Family, nth: usize) -> usize {
+/// The index of `session`'s `nth` exercise of the topic keyed `key`.
+fn of(session: &Sheet, key: &str, nth: usize) -> usize {
     (session.exercises().enumerate())
-        .filter(|(_, laid)| laid.exercise.kind.family() == family)
+        .filter(|(_, laid)| laid.exercise.kind.facts().key == key)
         .nth(nth)
         .map(|(index, _)| index)
-        .expect("an exercise of the family")
+        .expect("an exercise of the topic")
 }
 
 /// `session`'s exercise `index` compared first at `at` with `metrics`.
@@ -155,11 +155,11 @@ fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> 
     let at = NOON + id * DAY;
     let mut record = session(id, at);
     for nth in 0..lines {
-        let index = of(&record, Family::Line, nth);
+        let index = of(&record, "line", nth);
         compared(&mut record, index, at + 60, Vec::new());
     }
     for nth in 0..colours {
-        let index = of(&record, Family::Colour, nth);
+        let index = of(&record, "colour", nth);
         let metrics = vec![
             (Metric::FirstDelta, first),
             (Metric::FinalDelta, first / 2.0),
@@ -179,12 +179,12 @@ fn seals_are_earned_from_what_was_done_and_stamp_on_the_lesson_that_did_it() {
     let records: Vec<Sheet> = (1..=10).map(|id| done(id, (5, 4), 0.05, 40)).collect();
     let seals = earned(&records);
     let by = |seal: Seal| seals.iter().find(|e| e.seal == seal).map(|e| e.by);
-    assert_eq!(by(Seal::FirstSession), Some(1));
-    assert_eq!(by(Seal::TenSessions), Some(10));
+    assert_eq!(by(Seal::FirstLesson), Some(1));
+    assert_eq!(by(Seal::TenLessons), Some(10));
     assert_eq!(by(Seal::HundredLines), None, "50 lines");
-    assert_eq!((by(Seal::FirstCopy), by(Seal::Stage(1))), (None, None));
+    assert_eq!((by(Seal::FirstCopy), by(Seal::Unit(1))), (None, None));
     let others = Tally::of(&records[..9]);
-    assert_eq!(sealed(&others, &records[9]), [Seal::TenSessions]);
+    assert_eq!(sealed(&others, &records[9]), [Seal::TenLessons]);
     assert!(
         sealed(&Tally::of(&records), &records[9]).is_empty(),
         "earned once"
@@ -224,11 +224,11 @@ fn a_unit_s_seal_is_earned_when_each_of_its_skills_holds_its_first_dot() {
     let records = [clean(1), clean(2)];
     let seals = earned(&records);
     let by = |seal: Seal| seals.iter().find(|e| e.seal == seal).map(|e| e.by);
-    assert_eq!(by(Seal::Stage(1)), Some(2));
-    assert_eq!(by(Seal::Stage(2)), None);
+    assert_eq!(by(Seal::Unit(1)), Some(2));
+    assert_eq!(by(Seal::Unit(2)), None);
     assert_eq!(
         sealed(&Tally::of(&records[..1]), &records[1]),
-        [Seal::Stage(1)]
+        [Seal::Unit(1)]
     );
 }
 
@@ -241,7 +241,7 @@ fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
     ];
     // An open session with a line compared: the latest.
     let mut open = session(4, NOON + 4 * DAY);
-    let line = of(&open, Family::Line, 1);
+    let line = of(&open, "line", 1);
     compared(&mut open, line, NOON + 4 * DAY + 60, Vec::new());
     records.push(open);
     let book = Book::of(&records, &[], 0);
@@ -251,7 +251,7 @@ fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
         [0.08, 0.06],
         "sessions without colours left out"
     );
-    let first_line = of(&records[0], Family::Line, 0);
+    let first_line = of(&records[0], "line", 0);
     assert_eq!(
         book.lines,
         [

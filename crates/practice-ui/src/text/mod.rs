@@ -127,7 +127,7 @@ mod tests {
             .collect();
         made.push(picture_goes(zh, (2, 1)));
         made.extend((1..=8).map(|unit| unit_title(zh, unit)));
-        made.extend([Seal::Stage(2), Seal::TenSessions].map(|seal| seal_lines(zh, seal).concat()));
+        made.extend([Seal::Unit(2), Seal::TenLessons].map(|seal| seal_lines(zh, seal).concat()));
         made.extend(pomodoro::made(zh));
         let tables = every_text().into_iter().map(|text| text.get(zh).to_owned());
         for chinese in tables.chain(made) {

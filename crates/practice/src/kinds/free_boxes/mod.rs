@@ -13,19 +13,19 @@ pub(crate) mod perspective_free;
 use crate::course::picker::{laid, rotated, turned};
 use crate::demos::demo::Demo;
 use crate::geometry::perspective::{Horizon, PerspectiveBox};
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use std::sync::Arc;
 
 pub(crate) struct FreeBoxes;
 
-const FACTS: [Facts; 1] =
-    [Facts::of(Family::FreeBoxes, "free-boxes", Tools::Drawing, 180).constructed()];
+const FACTS: [Facts; 1] = [Facts::of("free-boxes", ToolSet::DRAWING, 180).constructed()];
 /// The first level's horizons in turn: in the middle first; the others' far from it.
 const HORIZONS: [Horizon; 3] = [Horizon::Middle, Horizon::High, Horizon::Low];
 const FAR: [Horizon; 2] = [Horizon::High, Horizon::Low];
@@ -50,28 +50,14 @@ impl Described for FreeBoxes {
         (Horizon::ALL.get(usize::from(variant))).map(|h| Kind::FreeBoxes(*h))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::FreeBoxes(horizon) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::FreeBoxes(PerspectiveBox::on_horizon(horizon, exercise.seed))
+        held(FreePage(PerspectiveBox::on_horizon(horizon, exercise.seed)))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::FreeBoxes(page) => marks::givens(page),
-            _ => Vec::new(),
-        }
-    }
-
-    fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        match original {
-            Original::FreeBoxes(page) => Some(marks::FreeCompared::of(page, copy)),
-            _ => None,
-        }
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::free_boxes())
     }
 
@@ -92,10 +78,24 @@ impl Described for FreeBoxes {
     }
 
     /// Two small boxes on a horizon.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let mut marks = vec![TileMark::Line(vec![[4.0, 12.0], [50.0, 12.0]])];
         marks.extend(boxed([-12.0, 6.0], 0.45));
         marks.extend(boxed([12.0, 5.0], 0.4));
         marks
+    }
+}
+
+/// A free-boxes page: its horizon is the example box's.
+#[derive(Debug)]
+pub struct FreePage(pub PerspectiveBox);
+
+impl Original for FreePage {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(&self.0)
+    }
+
+    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        Some(marks::FreeCompared::of(&self.0, copy))
     }
 }

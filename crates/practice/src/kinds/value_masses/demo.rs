@@ -11,7 +11,6 @@ use crate::compositions::value_masses::{Value, ValueMasses};
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script};
 use crate::kinds::value_masses::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
 use crate::maths::path::Point;
-use crate::sheets::exercise::Family;
 use crate::sheets::layout::PictureFit;
 
 /// The example: a landscape four by three, its picture this wide.
@@ -53,7 +52,7 @@ pub(crate) fn value_masses() -> Demo {
         script.draw(On::Copy, Marker::Ink, values);
     }
     let compared = compared(&answer, &copy, rect);
-    let mut demo = script.compare(Family::ValueMasses, DemoLayout::Pair, compared);
+    let mut demo = script.compare(DemoLayout::Pair, compared);
     demo.view = Some(rect);
     demo.masses = Some(Box::new(masses));
     demo.values = Some(Box::new([answer, copy]));

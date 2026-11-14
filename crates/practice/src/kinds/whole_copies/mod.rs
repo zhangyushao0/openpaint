@@ -8,26 +8,26 @@
 
 pub(crate) mod demo;
 
+use std::sync::Arc;
+
 use crate::course::picker::composition;
 use crate::demos::demo::Demo;
 use crate::kinds::divisions::marks::division;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, SkillLevel, Tools, Turn};
+use crate::kinds::{
+    Described, Facts, Kind, Needs, Original, Picking, SkillLevel, ToolSet, Turn, held,
+};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::drawing::picture_laid;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, curve, edge, square};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 
 pub(crate) struct WholeCopies;
 
-const FACTS: [Facts; 1] = [
-    Facts::of(Family::WholeCopy, "whole-copy", Tools::Copying, 480)
-        .composed()
-        .picks(Picks::Blocks)
-        .needs(Needs::Compositions),
-];
+const FACTS: [Facts; 1] = [Facts::of("whole-copy", ToolSet::COPYING, 480)
+    .picks(Picking::BLOCKS)
+    .needs(Needs::Compositions)];
 
 impl Described for WholeCopies {
     fn code(&self) -> u8 {
@@ -49,15 +49,11 @@ impl Described for WholeCopies {
         Tier::of_code(variant).map(Kind::WholeCopy)
     }
 
-    fn givens(&self, _exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        crate::marks::drawing::pictured()
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        held(Whole(exercise.item()))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
-        exercise.picture()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::whole_copy())
     }
 
@@ -69,17 +65,8 @@ impl Described for WholeCopies {
         3
     }
 
-    /// Once anything lies in its frame: its picture laid over it, keeping its division's numbers.
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        if !asked.held() {
-            return None;
-        }
-        let metrics = division(asked).map(|check| check.metrics);
-        picture_laid(asked, metrics.unwrap_or_default())
-    }
-
     /// A picture's edge, a ridge, a field's edge, a tree and a house.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         vec![
             edge(),
             TileMark::Line(vec![[9.0, 19.0], [22.0, 12.5], [45.0, 18.0]]),
@@ -92,5 +79,28 @@ impl Described for WholeCopies {
             })),
             TileMark::Line(vec![[16.0, 23.7], [16.0, 26.3]]),
         ]
+    }
+}
+
+/// A whole copy's original: the composition's picture it copies.
+#[derive(Debug)]
+pub(crate) struct Whole(ItemRef);
+
+impl Original for Whole {
+    fn givens(&self) -> Vec<SheetMark> {
+        crate::marks::drawing::pictured()
+    }
+
+    /// Once anything lies in its frame: its picture laid over it, keeping its division's numbers.
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        if !asked.held() {
+            return None;
+        }
+        let metrics = division(asked).map(|check| check.metrics);
+        picture_laid(asked, metrics.unwrap_or_default())
+    }
+
+    fn picture(&self) -> Option<&ItemRef> {
+        Some(&self.0)
     }
 }

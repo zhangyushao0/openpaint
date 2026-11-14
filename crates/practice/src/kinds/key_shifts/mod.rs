@@ -13,25 +13,26 @@ pub(crate) mod key_shift_rule;
 pub(crate) mod marks;
 pub(crate) mod reading;
 
+use std::sync::Arc;
+
 use crate::course::picker::{Picker, in_turn};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, SkillLevel, Tools, Turn};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Needs, Original, Picking, SkillLevel, ToolSet, Turn, held,
+};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, square};
 use crate::maths::random::{Random, derived};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use key_shift::{Lean, Tendency};
 
 pub(crate) struct KeyShifts;
 
-const FACTS: [Facts; 1] = [
-    Facts::of(Family::KeyShift, "key-shift", Tools::Painting, 360)
-        .picks(Picks::Locked)
-        .needs(Needs::Crops),
-];
+const FACTS: [Facts; 1] = [Facts::of("key-shift", ToolSet::PAINTING, 360)
+    .picks(Picking::LOCKED)
+    .needs(Needs::Crops)];
 /// How many key shifts stage 5's drills held, the leans in turn across them.
 const DRILLED: usize = 2;
 /// The second level's leans and the third's, in turn.
@@ -58,18 +59,17 @@ impl Described for KeyShifts {
         Tendency::of_code(variant).map(Kind::KeyShift)
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
-        exercise.picture()
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        let Kind::KeyShift(tendency) = exercise.kind else {
+            return held(Blank);
+        };
+        held(Shift {
+            picture: exercise.item(),
+            tendency,
+        })
     }
 
-    fn givens(&self, exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        match exercise.kind {
-            Kind::KeyShift(tendency) => marks::givens(tendency),
-            _ => Vec::new(),
-        }
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::key_shift())
     }
 
@@ -86,12 +86,8 @@ impl Described for KeyShifts {
         3
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        reading::compare(asked)
-    }
-
     /// A crop's two bands, an arrow, the tendency's disc it shifts toward.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let crop = square([7.0, 10.0], [27.0, 30.0]);
         let disc: Vec<[f32; 2]> = (0..12)
             .map(|k| {
@@ -115,6 +111,27 @@ impl Described for KeyShifts {
             TileMark::Tint(disc.clone(), 0.6),
             TileMark::Line(closed(&disc)),
         ]
+    }
+}
+
+/// A key shift's original: the crop it shifts and the tendency it shifts toward.
+#[derive(Debug)]
+pub(crate) struct Shift {
+    picture: ItemRef,
+    tendency: Tendency,
+}
+
+impl Original for Shift {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self.tendency)
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        reading::compare(asked)
+    }
+
+    fn picture(&self) -> Option<&ItemRef> {
+        Some(&self.picture)
     }
 }
 

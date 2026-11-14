@@ -24,7 +24,7 @@ use openpaint_app::{
     BrushProjection, EditorAction, HistoryIntent, Intent, SessionProjection, Tool, ToolIntent,
 };
 use openpaint_core::Color;
-use openpaint_practice::Tools;
+use openpaint_practice::{Fill, ToolSet};
 use openpaint_practice_app::{Pen, PracticeIntent, PracticeProjection};
 use openpaint_ui::components::{
     Source, UNDER_ISLANDS, card, choices, icon_button, icon_toggle, swatch, text_button,
@@ -44,10 +44,7 @@ pub(crate) fn all_tools(
     practice: &PracticeProjection,
     (painting, sheet): (&mut Vec<Intent>, &mut Vec<PracticeIntent>),
 ) {
-    if practice
-        .kind
-        .is_some_and(|kind| kind.facts().tools == Tools::Full)
-    {
+    if practice.kind.is_some_and(|kind| kind.facts().tools.full) {
         return;
     }
     choices(ui, "all tools", |ui, group| {
@@ -62,9 +59,10 @@ pub(crate) fn all_tools(
     });
 }
 
-/// The shown exercise's own tools beside its frame, under the band at the screen's right: a
-/// line's pens, undo and redo, or a colour's wheel and Fill frame. Returns where they lie, in
-/// points.
+/// The shown exercise's own tools beside its frame, under the band at the screen's right, laid
+/// out from its kind's facts (`ToolSet`): pens of its own (a line's, a division's, value masses'
+/// greys) with Fill and Undo and Redo under them; a whole copy's layered tools; or the wheel with
+/// Fill and the painting pens. Returns where they lie, in points.
 pub(crate) fn exercise_tools(
     ctx: &egui::Context,
     practice: &PracticeProjection,
@@ -76,33 +74,29 @@ pub(crate) fn exercise_tools(
         return None;
     }
     let source = (Source::Within(Align::Center), UNDER_ISLANDS);
-    let tools = practice.kind?.facts().tools;
-    let offered: &[Pen] = match tools {
-        Tools::Copying => {
-            let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, shown, taps);
-            return Some(card(ctx, "practice pens", source, tools).1);
-        }
-        Tools::Greys => {
-            let greys = |ui: &mut egui::Ui| masses_tools(ui, shown, taps);
-            return Some(card(ctx, "practice greys", source, greys).1);
-        }
-        Tools::Full => return None,
-        Tools::Drawing => &Pen::DRAWING,
-        Tools::Dividing => &Pen::DIVIDING,
-        Tools::Colour | Tools::Cells | Tools::Painting => &[],
-    };
-    if !offered.is_empty() {
-        let pens = |ui: &mut egui::Ui| {
-            ui.horizontal(|ui| pens(ui, ("pens", offered), practice, taps));
-            ui.horizontal(|ui| history(ui, projection, taps.lent.taps));
+    let facts = practice.kind?.facts();
+    let tools = &facts.tools;
+    if tools.full {
+        return None;
+    }
+    if tools.layered {
+        let laid = |ui: &mut egui::Ui| layered_tools(ui, tools, shown, taps);
+        return Some(card(ctx, "practice pens", source, laid).1);
+    }
+    if !tools.pens.is_empty() {
+        let id = if tools.greys() {
+            "practice greys"
+        } else {
+            "practice pens"
         };
-        return Some(card(ctx, "practice pens", source, pens).1);
+        let pens = |ui: &mut egui::Ui| pens_tools(ui, tools, shown, taps);
+        return Some(card(ctx, id, source, pens).1);
     }
     let brush = projection.brush()?;
     // A painted copy compared, or any How with its demonstration: the card needs the room; the
-    // wheel comes back with the pen or Got it.
-    let painted = tools != Tools::Colour;
-    let wheel = !(practice.comparing && painted) && practice.how.is_none();
+    // wheel comes back with the pen or Got it. A swatch's wheel stays while compared.
+    let painted = !facts.picks.swatch;
+    let wheel = tools.wheel && !(practice.comparing && painted) && practice.how.is_none();
     let ((), rect) = card(ctx, "practice colour", source, |ui| {
         if wheel {
             ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush));
@@ -116,98 +110,112 @@ pub(crate) fn exercise_tools(
 /// The canvas's projection and its practice sheet's.
 type Shown<'a> = (&'a SessionProjection, &'a PracticeProjection);
 
-/// A colour's, a combination's or a value scale's rows under the wheel: Fill frame or Fill cell
-/// with Undo and Redo, then the painting pens and the eyedropper (your own copy may be picked
-/// from, V大; the original only after Compare). A value scale's cells are filled, never painted
-/// (S100): no pens, the eyedropper beside Redo.
-fn colour_rows(
+/// The words of `fill`.
+const fn fill_words(fill: Fill) -> t::Text {
+    match fill {
+        Fill::Frame => t::FILL_FRAME,
+        Fill::Cell => t::FILL_CELL,
+    }
+}
+
+/// Tools of its own pens' (S95, S96): the pens, then Fill (in the grey chosen where its pens are
+/// greys) with Undo and Redo.
+fn pens_tools(
     ui: &mut egui::Ui,
-    (tools, brush): (Tools, &BrushProjection),
+    tools: &ToolSet,
     (projection, practice): Shown<'_>,
     taps: &mut SheetTaps<'_, '_>,
 ) {
-    let fill = match tools {
-        Tools::Cells => Some(t::FILL_CELL),
-        Tools::Colour | Tools::Painting => Some(t::FILL_FRAME),
-        _ => None,
-    };
-    let pick = |ui: &mut egui::Ui, taps: &mut Vec<Intent>| {
-        let picking = brush.picking;
-        if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
-            push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!picking)));
-        }
+    ui.horizontal(|ui| pens(ui, ("pens", tools.pens), practice, taps));
+    let colour = if tools.greys() {
+        (practice.pen)
+            .and_then(|(pen, _)| pen.value())
+            .and_then(|value| openpaint_practice_app::value_colour(value).ok())
+    } else {
+        projection.brush().map(|brush| brush.color)
     };
     ui.horizontal(|ui| {
-        if let Some(words) = fill {
-            fill_frame(ui, brush.color, words, taps.sheet);
+        if let (Some(fill), Some(colour)) = (tools.fill, colour) {
+            fill_frame(ui, colour, fill_words(fill), taps.sheet);
         }
-        if tools != Tools::Colour {
+        if tools.history {
             history(ui, projection, taps.lent.taps);
         }
-        if tools == Tools::Cells {
-            pick(ui, taps.lent.taps);
+    });
+}
+
+/// A colour's, a combination's or a value scale's rows under the wheel: Fill frame or Fill cell
+/// with Undo and Redo, then the painting pens and the eyedropper (your own copy may be picked
+/// from, V大; the original only after Compare). Where it does not paint (a value scale's cells
+/// are filled, never painted, S100) the eyedropper lies beside Redo.
+fn colour_rows(
+    ui: &mut egui::Ui,
+    (tools, brush): (&ToolSet, &BrushProjection),
+    (projection, practice): Shown<'_>,
+    taps: &mut SheetTaps<'_, '_>,
+) {
+    ui.horizontal(|ui| {
+        if let Some(fill) = tools.fill {
+            fill_frame(ui, brush.color, fill_words(fill), taps.sheet);
+        }
+        if tools.history {
+            history(ui, projection, taps.lent.taps);
+        }
+        if tools.eyedropper && !tools.paints {
+            eyedropper(ui, brush, taps.lent.taps);
         }
     });
-    if tools == Tools::Painting {
+    if tools.paints {
         ui.horizontal(|ui| {
             pens(ui, ("pens", &Pen::PAINTING), practice, taps);
-            pick(ui, taps.lent.taps);
+            if tools.eyedropper {
+                eyedropper(ui, brush, taps.lent.taps);
+            }
         });
     }
 }
 
-/// A whole copy's tools (S95, S96): its division's pens and Draw, then the painting pens for its
+/// A whole copy's tools (S95, S96): its pens on their layers, then the painting pens for its
 /// colour blocks with the eyedropper, Undo and Redo; while a painting pen is chosen the wheel
 /// over them (unless the comparison or How needs the room) and Fill frame beside Undo.
-fn whole_copy_tools(
+fn layered_tools(
     ui: &mut egui::Ui,
+    tools: &ToolSet,
     (projection, practice): Shown<'_>,
     taps: &mut SheetTaps<'_, '_>,
 ) {
     let painting = practice.pen.is_some_and(|(pen, _)| pen.paints());
     let brush = projection.brush().filter(|_| painting);
     let room = !practice.comparing && practice.how.is_none();
-    if let Some(brush) = brush.filter(|_| room) {
+    if let Some(brush) = brush.filter(|_| tools.wheel && room) {
         ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush));
         ui.add_space(SPACE);
     }
-    ui.horizontal(|ui| pens(ui, ("pens", &Pen::COPYING), practice, taps));
-    ui.horizontal(|ui| {
-        pens(ui, ("block pens", &Pen::PAINTING), practice, taps);
-        if let Some(brush) = projection.brush() {
-            let picking = brush.picking;
-            if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
-                push_once(
-                    taps.lent.taps,
-                    Intent::Tool(ToolIntent::Eyedropper(!picking)),
-                );
+    ui.horizontal(|ui| pens(ui, ("pens", tools.pens), practice, taps));
+    if tools.paints {
+        ui.horizontal(|ui| {
+            pens(ui, ("block pens", &Pen::PAINTING), practice, taps);
+            if let Some(brush) = projection.brush().filter(|_| tools.eyedropper) {
+                eyedropper(ui, brush, taps.lent.taps);
             }
-        }
-    });
+        });
+    }
     ui.horizontal(|ui| {
-        if let Some(brush) = brush {
-            fill_frame(ui, brush.color, t::FILL_FRAME, taps.sheet);
+        if let (Some(fill), Some(brush)) = (tools.fill, brush) {
+            fill_frame(ui, brush.color, fill_words(fill), taps.sheet);
         }
-        history(ui, projection, taps.lent.taps);
+        if tools.history {
+            history(ui, projection, taps.lent.taps);
+        }
     });
 }
 
-/// Value masses' tools (S96): the three greys, Fill frame in the grey chosen, Undo and Redo.
-fn masses_tools(
-    ui: &mut egui::Ui,
-    (projection, practice): Shown<'_>,
-    taps: &mut SheetTaps<'_, '_>,
-) {
-    ui.horizontal(|ui| pens(ui, ("pens", &Pen::VALUES), practice, taps));
-    let grey = (practice.pen)
-        .and_then(|(pen, _)| pen.value())
-        .and_then(|value| openpaint_practice_app::value_colour(value).ok());
-    ui.horizontal(|ui| {
-        if let Some(grey) = grey {
-            fill_frame(ui, grey, t::FILL_FRAME, taps.sheet);
-        }
-        history(ui, projection, taps.lent.taps);
-    });
+/// The eyedropper, on or off.
+fn eyedropper(ui: &mut egui::Ui, brush: &BrushProjection, taps: &mut Vec<Intent>) {
+    let picking = brush.picking;
+    if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
+        push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!picking)));
+    }
 }
 
 /// The colour the fill takes as a swatch beside `words`, a tap on either filling.

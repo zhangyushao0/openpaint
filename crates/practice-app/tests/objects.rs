@@ -14,7 +14,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Carve, Exercise, Frame, Kind, Metric, OBJECT_SIDE, Original, Point, Skill, SkillLevel,
+    Carve, Exercise, Frame, Kind, Metric, OBJECT_SIDE, ObjectTask, Point, Skill, SkillLevel,
     SolidCheck, resample, value,
 };
 use openpaint_practice_app::{
@@ -96,7 +96,12 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
         .expect("the object's picture");
     assert_eq!(picture.size, [OBJECT_SIDE; 2]);
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Object(task) = practice.original.as_deref().expect("in hand") else {
+    let Some(task) = practice
+        .original
+        .as_deref()
+        .expect("in hand")
+        .downcast::<ObjectTask>()
+    else {
         panic!("an object")
     };
     // The box completed and the construction drawn with Sketch: never read.

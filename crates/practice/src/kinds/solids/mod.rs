@@ -13,23 +13,25 @@ pub(crate) mod solid_check;
 
 use crate::course::picker::laid;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, arc};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use solid::{Solid, SolidTask};
 use std::sync::Arc;
 
 pub(crate) struct Solids;
 
+/// Its topics, in `Solid::ALL`'s order: each has its own instructions.
 const FACTS: [Facts; 3] = [
-    Facts::of(Family::Cylinder, "cylinder", Tools::Drawing, 150).constructed(),
-    Facts::of(Family::Cone, "cone", Tools::Drawing, 150).constructed(),
-    Facts::of(Family::Sphere, "sphere", Tools::Drawing, 150).constructed(),
+    Facts::of("cylinder", ToolSet::DRAWING, 150).constructed(),
+    Facts::of("cone", ToolSet::DRAWING, 150).constructed(),
+    Facts::of("sphere", ToolSet::DRAWING, 150).constructed(),
 ];
 /// The solids a sphere takes in turn at the third level.
 const BESIDE: [Solid; 2] = [Solid::Cylinder, Solid::Cone];
@@ -62,36 +64,25 @@ impl Described for Solids {
             .map(|s| Kind::Solid(*s))
     }
 
-    fn family(&self, kind: Kind) -> Family {
-        match kind {
-            Kind::Solid(solid) => solid.family(),
-            _ => Family::Cylinder,
-        }
-    }
-
-    fn original(&self, exercise: &Exercise) -> Original {
-        let Kind::Solid(solid) = exercise.kind else {
-            return exercise.picture();
+    fn topic(&self, kind: Kind) -> &'static Facts {
+        let Kind::Solid(solid) = kind else {
+            return &FACTS[0];
         };
-        Original::Solid(Box::new(SolidTask::generate(solid, exercise.seed)))
+        &FACTS[usize::from(place(&Solid::ALL, &solid))]
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Solid(task) => marks::givens(task),
-            _ => Vec::new(),
-        }
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        let Kind::Solid(solid) = exercise.kind else {
+            return held(Blank);
+        };
+        held(SolidTask::generate(solid, exercise.seed))
     }
 
-    fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        match original {
-            Original::Solid(task) => Some(marks::SolidCompared::of(task, copy)),
-            _ => None,
-        }
-    }
-
-    fn how(&self, family: Family) -> Option<Demo> {
-        demo::solid(family)
+    fn how(&self, kind: Kind, _cells: usize) -> Option<Demo> {
+        let Kind::Solid(solid) = kind else {
+            return None;
+        };
+        demo::solid(solid)
     }
 
     /// Each solid's pose by its seed.
@@ -104,37 +95,32 @@ impl Described for Solids {
         laid(solids.map(Kind::Solid))
     }
 
-    /// Once round each ellipse, a stroke along each side.
-    fn answer(&self, original: &Original) -> Vec<Vec<Point>> {
-        let Original::Solid(task) = original else {
-            return Vec::new();
-        };
-        (task.answer.ellipses.iter())
-            .map(|ellipse| ellipse.outline(ROUND))
-            .chain(task.answer.sides.iter().map(|side| side.to_vec()))
-            .collect()
+    /// An upright cylinder: its top whole, its bottom's front, two sides.
+    fn glyph(&self) -> Vec<TileMark> {
+        vec![
+            arc([27.0, 11.0], [11.0, 4.0], (0.0, 360.0)),
+            arc([27.0, 30.0], [11.0, 4.0], (0.0, 180.0)),
+            TileMark::Line(vec![[16.0, 11.0], [16.0, 30.0]]),
+            TileMark::Line(vec![[38.0, 11.0], [38.0, 30.0]]),
+        ]
+    }
+}
+
+/// A box with a solid to find in it.
+impl Original for SolidTask {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self)
     }
 
-    /// An upright cylinder (its top whole, its bottom's front, two sides), an upright cone (its
-    /// base's front, two sides from its point), a sphere with its middle section's front.
-    fn tile(&self, family: Family) -> Vec<TileMark> {
-        match family {
-            Family::Cylinder => vec![
-                arc([27.0, 11.0], [11.0, 4.0], (0.0, 360.0)),
-                arc([27.0, 30.0], [11.0, 4.0], (0.0, 180.0)),
-                TileMark::Line(vec![[16.0, 11.0], [16.0, 30.0]]),
-                TileMark::Line(vec![[38.0, 11.0], [38.0, 30.0]]),
-            ],
-            // The sides touch the base where lines from the point do: 10.4 degrees above its middle.
-            Family::Cone => vec![
-                arc([27.0, 30.0], [12.0, 4.5], (-10.4, 190.4)),
-                TileMark::Line(vec![[27.0, 5.0], [38.8, 29.2]]),
-                TileMark::Line(vec![[27.0, 5.0], [15.2, 29.2]]),
-            ],
-            _ => vec![
-                arc([27.0, 20.0], [13.0, 13.0], (0.0, 360.0)),
-                arc([27.0, 21.5], [13.0, 4.5], (0.0, 180.0)),
-            ],
-        }
+    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        Some(marks::SolidCompared::of(self, copy))
+    }
+
+    /// Once round each ellipse, a stroke along each side.
+    fn answer(&self) -> Vec<Vec<Point>> {
+        (self.answer.ellipses.iter())
+            .map(|ellipse| ellipse.outline(ROUND))
+            .chain(self.answer.sides.iter().map(|side| side.to_vec()))
+            .collect()
     }
 }

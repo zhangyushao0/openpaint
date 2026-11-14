@@ -10,7 +10,6 @@ use crate::demos::demo::{
 use crate::demos::demo_points::{THIRD_TICK, crossed, moved, read};
 use crate::kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
 use crate::maths::path::{Point, across_frame, distance};
-use crate::sheets::exercise::Family;
 
 /// The examples' seeds: a point's, a proportion's, an angle's.
 const SEEDS: [u64; 3] = [0xDE30_5EED_000A, 0xDE30_5EED_000B, 0xDE30_5EED_000C];
@@ -34,12 +33,11 @@ fn along([a, b]: [Point; 2], share: f64) -> Point {
 }
 
 /// An estimate on the flat: a point, a proportion or an angle.
-pub(crate) fn estimate(family: Family) -> Option<Demo> {
-    let (estimate, seed) = match family {
-        Family::Point => (Estimate::Point, SEEDS[0]),
-        Family::Proportion => (Estimate::Proportion, SEEDS[1]),
-        Family::Angle => (Estimate::Angle, SEEDS[2]),
-        _ => return None,
+pub(crate) fn estimate(estimate: Estimate) -> Option<Demo> {
+    let seed = match estimate {
+        Estimate::Point => SEEDS[0],
+        Estimate::Proportion => SEEDS[1],
+        Estimate::Angle => SEEDS[2],
     };
     // An example the frame's halves and thirds say something of: off the middle, away from the
     // edges, its segments long.
@@ -113,7 +111,7 @@ fn point(at: Point) -> Demo {
     let check = FlatCheck::of(&flat, &read(&crossed(mark)));
     let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Cross(at))];
     compared.extend(off_marks(&check.off));
-    script.compare(Family::Point, DemoLayout::Pair, compared)
+    script.compare(DemoLayout::Pair, compared)
 }
 
 /// A segment's halves and thirds ticked across it.
@@ -168,7 +166,7 @@ fn proportion(original: [Point; 2], share: f64, copy: [Point; 2]) -> Demo {
         Drawn::Line(tick(exact, copy[1], HALF_TICK)),
     )];
     compared.extend(off_marks(&check.off));
-    script.compare(Family::Proportion, DemoLayout::Pair, compared)
+    script.compare(DemoLayout::Pair, compared)
 }
 
 fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
@@ -203,5 +201,5 @@ fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
     let check = FlatCheck::of(flat, &[mine.as_slice()]);
     let mut compared = vec![(On::Copy, Marker::Answer, line(answer[0], answer[1]))];
     compared.extend(off_marks(&check.off));
-    Some(script.compare(Family::Angle, DemoLayout::Pair, compared))
+    Some(script.compare(DemoLayout::Pair, compared))
 }

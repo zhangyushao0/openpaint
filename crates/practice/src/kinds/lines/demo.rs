@@ -6,7 +6,6 @@ use crate::demos::demo::{
 };
 use crate::kinds::lines::line::{LineExercise, LineTier};
 use crate::maths::path::{Point, distance};
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const LINE_SEED: u64 = 0xDE30_5EED_0001;
@@ -44,7 +43,7 @@ pub(crate) fn line() -> Demo {
     let copy = wobbled(&original, 0.03, 0.5);
     script.draw(On::Copy, Marker::Ink, Drawn::Line(copy));
     let red = vec![(On::Copy, Marker::Answer, Drawn::Line(original))];
-    script.compare(Family::Line, DemoLayout::Pair, red)
+    script.compare(DemoLayout::Pair, red)
 }
 
 /// How far `line` lies from the chord between its ends at most.

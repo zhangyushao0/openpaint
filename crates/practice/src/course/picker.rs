@@ -7,10 +7,10 @@
 
 use std::collections::HashSet;
 
+use crate::kinds::Kind;
 use crate::kinds::{SkillLevel, Turn};
 use crate::maths::random::{Random, derived};
 use crate::packs::pack::{ItemRef, Tier};
-use crate::sheets::exercise::Kind;
 
 /// `count` of `variants` from the `turn`th lesson's place on, round and round.
 pub(crate) fn in_turn<T: Copy>(variants: &[T], turn: usize, count: usize) -> Vec<T> {

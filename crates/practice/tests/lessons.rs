@@ -154,15 +154,15 @@ fn every_count_sees_each_lesson_in_the_order_of_sheet_and_lesson() {
     assert_eq!(Learner::of(&sheets).lessons(), 4);
     // The tally: the day's two lessons finished, the lines compared in both.
     let tally = Tally::of(&sheets);
-    assert_eq!((tally.sessions, tally.lines), (2, 2));
+    assert_eq!((tally.lessons, tally.lines), (2, 2));
     // The full lesson in hand is set beside every other lesson, its sheet's first included: the
     // first lesson finished was that one, so its finish stamps nothing; the first alone did.
     let others = Tally::beside(&sheets, day);
-    assert_eq!((others.sessions, others.lines), (1, 1));
+    assert_eq!((others.lessons, others.lines), (1, 1));
     assert!(sealed(&others, day).is_empty());
     let mut alone = day.clone();
     alone.lessons.truncate(1);
-    assert_eq!(sealed(&Tally::default(), &alone), [Seal::FirstSession]);
+    assert_eq!(sealed(&Tally::default(), &alone), [Seal::FirstLesson]);
     // The book: lessons finished, and the first and the latest lesson's first line compared.
     let book = Book::of(&sheets, &[], 0);
     assert_eq!(book.sessions, 2);

@@ -52,9 +52,9 @@ pub fn compare(
     laid: &Laid,
 ) -> Option<Compare> {
     let original = exercise.original();
-    exercise.compare(&Asked {
+    original.compare(&Asked {
         exercise,
-        original: &original,
+        original: &*original,
         picture,
         copy: laid,
     })
@@ -74,7 +74,7 @@ pub fn checked(exercise: &Exercise, lines: Vec<Vec<Point>>) -> Verdict {
         all: lines,
         corrected: None,
     };
-    let compared = exercise.check(&exercise.original(), &copy);
+    let compared = exercise.original().check(&copy);
     compared.expect("checked as geometry").verdict()
 }
 

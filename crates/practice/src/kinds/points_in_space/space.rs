@@ -16,7 +16,6 @@ use crate::geometry::perspective::{Direction, PerspectiveBox, level, place};
 use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing, projected};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
-use crate::sheets::exercise::Family;
 
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps the
 /// rules well within).
@@ -62,17 +61,6 @@ impl Trick {
         Self::Step,
         Self::Mirror,
     ];
-
-    #[must_use]
-    pub const fn family(self) -> Family {
-        match self {
-            Self::Centre => Family::Centre,
-            Self::Halves => Family::Halves,
-            Self::Thirds => Family::Thirds,
-            Self::Step => Family::Step,
-            Self::Mirror => Family::Mirror,
-        }
-    }
 }
 
 /// A trick's exact answer, in frame units.

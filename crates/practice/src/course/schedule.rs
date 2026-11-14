@@ -148,7 +148,7 @@ pub fn lesson(
 
 /// The review's lesson seeded `seed` (`Picked::Chosen`): the redo `review` offers, the same kind
 /// and picture, then, where the skill's lesson holds more than one exercise, one more of its kind
-/// at the skill's level (its level's first of the redo's family and another picture, else its
+/// at the skill's level (its level's first of the redo's topic and another picture, else its
 /// first; none where the skill lays nothing now). None while `review` offers none.
 #[must_use]
 pub fn reviewed(seed: u64, standing: &Standing<'_>) -> Option<Planned> {
@@ -162,11 +162,11 @@ fn review_held(seed: u64, standing: &Standing<'_>) -> Option<(Skill, SkillLevel,
     let learner = standing.learner;
     let (skill, redo) = learner.redos().find(|(skill, _)| Some(*skill) != offered)?;
     let level = learner.level(skill);
-    let family = redo.kind.family();
+    let topic = redo.kind.facts().key;
     let held = laid(skill, level, seed, standing);
     let other = |picture: &Option<ItemRef>| picture.is_none() || *picture != redo.picture;
     let more = (held.iter())
-        .find(|(kind, picture)| kind.family() == family && other(picture))
+        .find(|(kind, picture)| kind.facts().key == topic && other(picture))
         .or_else(|| held.first())
         .filter(|_| held.len() > 1);
     let exercises = std::iter::once((redo.kind, redo.picture.clone())).chain(more.cloned());

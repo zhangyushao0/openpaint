@@ -6,7 +6,6 @@ use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, band, rect
 use crate::kinds::scales::scale::{ROW, ScaleTone, ValueScale, halving};
 use crate::maths::colour::hsv;
 use crate::maths::path::Point;
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const SCALE_SEED: u64 = 0xDE30_5EED_0006;
@@ -56,7 +55,7 @@ pub(crate) fn scale(cells: usize) -> Demo {
         );
     }
     let compared = scale_compared(&scale, &values);
-    let mut demo = script.compare(Family::Scale, DemoLayout::Row, compared);
+    let mut demo = script.compare(DemoLayout::Row, compared);
     demo.view = Some(SCALE_VIEW);
     demo
 }

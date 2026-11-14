@@ -11,7 +11,6 @@ use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, Strip, clearest};
 use crate::kinds::key_shifts::key_shift::{Lean, Tendency};
 use crate::maths::colour::{Rgb8, delta_e, from_oklab, in_gamut, oklab};
-use crate::sheets::exercise::Family;
 
 const KEY_SEED: u64 = 0xDE30_5EED_0107;
 /// Seconds the tendency is looked at before anything is painted.
@@ -79,7 +78,7 @@ pub(crate) fn key_shift() -> Demo {
         (On::Original, Marker::Given, flat(grey(&areas.colours))),
         (On::Copy, Marker::Given, flat(grey(&shifted))),
     ];
-    let mut demo = script.compare(Family::KeyShift, DemoLayout::Pair, compared);
+    let mut demo = script.compare(DemoLayout::Pair, compared);
     demo.strip = Some(Box::new(Strip {
         disc: TENDENCY.colour(),
         looked,

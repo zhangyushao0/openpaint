@@ -23,7 +23,7 @@ use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{
     Arrangement, Book, Combination, Exercise, First, GeneratedAreas, Givens, Judge, Kind, Layout,
-    Lesson, LineTier, Metric, Original, Outcome, Picked, Planned, Purpose, ScaleTone, Sheet, Skill,
+    Lesson, LineTier, Metric, Outcome, Picked, Planned, Purpose, ScaleTone, Sheet, Skill,
     SkillLevel, Span, Tally,
 };
 use openpaint_practice_store::{GIVENS, decode_givens, save, sheets, start};
@@ -227,7 +227,7 @@ fn generated_combinations_count_and_show_as_they_did() {
     assert_eq!((book.sessions, book.seconds), (1, 1600 + 420));
     assert_eq!(book.days.len(), 2);
     let tally = Tally::of(&read);
-    assert_eq!((tally.sessions, tally.lines, tally.colours), (1, 2, 0));
+    assert_eq!((tally.lessons, tally.lines, tally.colours), (1, 2, 0));
     assert_eq!(book.seals.len(), tally.seals().len());
 
     let deltas: Vec<f64> = (read[0].exercises())
@@ -251,6 +251,7 @@ fn generated_combinations_count_and_show_as_they_did() {
             continue;
         };
         let generated = GeneratedAreas::generate(arrangement, laid.exercise.seed);
-        assert_eq!(laid.exercise.original(), Original::Areas(generated));
+        let original = laid.exercise.original();
+        assert_eq!(original.downcast::<GeneratedAreas>(), Some(&generated));
     }
 }

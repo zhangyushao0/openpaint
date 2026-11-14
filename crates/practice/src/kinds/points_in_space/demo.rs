@@ -12,7 +12,6 @@ use crate::demos::demo_points::{THIRD_TICK, crossed, moved, read};
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 use crate::kinds::points_in_space::space_check::SpaceCheck;
 use crate::maths::path::Point;
-use crate::sheets::exercise::Family;
 
 /// The examples' seeds: Centre's, Halves', Thirds', Next face's, Mirror's.
 const SEEDS: [u64; 5] = [
@@ -24,19 +23,14 @@ const SEEDS: [u64; 5] = [
 ];
 
 /// A point in space by one of V大's tricks.
-pub(crate) fn trick(family: Family) -> Option<Demo> {
+pub(crate) fn trick(trick: Trick) -> Option<Demo> {
     // The construction's lines by step; the answer's step draws the last ones listed with it.
-    let (trick, seed, steps): (Trick, u64, &[&[usize]]) = match family {
-        Family::Centre => (Trick::Centre, SEEDS[0], &[&[0, 1], &[]]),
-        Family::Halves => (Trick::Halves, SEEDS[1], &[&[0, 1], &[2], &[]]),
-        Family::Thirds => (Trick::Thirds, SEEDS[2], &[&[], &[0, 1], &[2], &[]]),
-        Family::Step => (Trick::Step, SEEDS[3], &[&[0], &[2, 3], &[1], &[]]),
-        Family::Mirror => (
-            Trick::Mirror,
-            SEEDS[4],
-            &[&[0, 1, 2], &[3, 4], &[5, 6, 7], &[8], &[9]],
-        ),
-        _ => return None,
+    let (seed, steps): (u64, &[&[usize]]) = match trick {
+        Trick::Centre => (SEEDS[0], &[&[0, 1], &[]]),
+        Trick::Halves => (SEEDS[1], &[&[0, 1], &[2], &[]]),
+        Trick::Thirds => (SEEDS[2], &[&[], &[0, 1], &[2], &[]]),
+        Trick::Step => (SEEDS[3], &[&[0], &[2, 3], &[1], &[]]),
+        Trick::Mirror => (SEEDS[4], &[&[0, 1, 2], &[3, 4], &[5, 6, 7], &[8], &[9]]),
     };
     // The face as wide as the card's picture is (about twice as wide as tall), so framed on it
     // its construction reads apart; a mirror's dot well off the middle and high, so its rectangle
@@ -74,7 +68,7 @@ pub(crate) fn trick(family: Family) -> Option<Demo> {
     for drawn in mine {
         script.draw(On::Copy, Marker::Ink, drawn);
     }
-    let mut demo = script.compare(family, DemoLayout::Single, compared);
+    let mut demo = script.compare(DemoLayout::Single, compared);
     // Framed on the shaded face (and a next face beyond it), so every construction line and the
     // answer read apart; the rest of the box and the lines to its vanishing point leave the
     // picture at its edge.

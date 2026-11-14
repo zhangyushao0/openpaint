@@ -10,23 +10,21 @@ pub(crate) mod demo;
 pub(crate) mod division;
 pub(crate) mod marks;
 
+use std::sync::Arc;
+
 use crate::course::picker::composition;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, Tools, Turn};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, ToolSet, Turn, held};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, edge};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 
 pub(crate) struct Divisions;
 
-const FACTS: [Facts; 1] = [
-    Facts::of(Family::Division, "division", Tools::Dividing, 300)
-        .composed()
-        .needs(Needs::Compositions),
-];
+const FACTS: [Facts; 1] =
+    [Facts::of("division", ToolSet::DIVIDING, 300).needs(Needs::Compositions)];
 /// How many divisions stage 4's drills held.
 const DRILLED: usize = 3;
 
@@ -50,15 +48,11 @@ impl Described for Divisions {
         Tier::of_code(variant).map(Kind::Division)
     }
 
-    fn givens(&self, _exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        crate::marks::drawing::pictured()
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        held(Divided(exercise.item()))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
-        exercise.picture()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::division())
     }
 
@@ -70,18 +64,32 @@ impl Described for Divisions {
         3
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        marks::compare(asked)
-    }
-
     /// A picture's edge, a long line right through it, a bent one meeting its sides and a part's
     /// small frame standing on it.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         vec![
             edge(),
             TileMark::Line(vec![[9.0, 18.0], [45.0, 14.5]]),
             TileMark::Line(vec![[9.0, 26.0], [27.0, 23.0], [45.0, 26.5]]),
             TileMark::Line(vec![[33.0, 24.4], [33.0, 17.0], [40.0, 17.0], [40.0, 25.3]]),
         ]
+    }
+}
+
+/// A division's original: the composition's picture it divides.
+#[derive(Debug)]
+pub(crate) struct Divided(ItemRef);
+
+impl Original for Divided {
+    fn givens(&self) -> Vec<SheetMark> {
+        crate::marks::drawing::pictured()
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        marks::compare(asked)
+    }
+
+    fn picture(&self) -> Option<&ItemRef> {
+        Some(&self.0)
     }
 }

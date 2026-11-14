@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask};
 use openpaint_practice::{
-    Facts, Frame, ItemRef, Kind, Learner, Original, Pair, Pictures, Sheet, Tally, Tools, seconds,
+    Facts, Frame, ItemRef, Kind, Learner, Original, Pair, Pictures, Sheet, Tally, seconds,
 };
 
 use crate::lesson::End;
@@ -81,7 +81,7 @@ pub struct PracticeSheet {
     end: Option<End>,
     sheet: Arc<SheetView>,
     /// The shown exercise and its original, the only one its generator makes (`compare.rs`).
-    in_hand: Option<(usize, Arc<Original>)>,
+    in_hand: Option<(usize, Arc<dyn Original>)>,
     canvas: CanvasSize,
     pens: PracticePens,
     /// What strokes and fills stay inside: the shown exercise's empty frame, or a value scale's
@@ -284,10 +284,12 @@ impl PracticeSheet {
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = current.is_some_and(|index| self.record.first(index).is_some());
         let kind = current.and_then(|index| self.kind(index));
-        self.pen = match kind.map(|kind| kind.facts().tools) {
-            Some(Tools::Greys) => self.valuing,
-            Some(Tools::Colour | Tools::Cells | Tools::Painting | Tools::Full) => self.painting,
-            Some(Tools::Dividing | Tools::Copying) => self.dividing,
+        // The pen last chosen of the kind its tools' pens are: greys, a division's levels, the
+        // painting pens where it has no others, else the drawing pens (blue once compared).
+        self.pen = match kind.map(|kind| &kind.facts().tools) {
+            Some(tools) if tools.greys() => self.valuing,
+            Some(tools) if tools.pens.is_empty() => self.painting,
+            Some(tools) if tools.levels() => self.dividing,
             _ if compared => Pen::Correct,
             _ => self.drawing,
         };

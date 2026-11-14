@@ -18,7 +18,6 @@ use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::records::metric::{Metric, Metrics};
-use crate::sheets::exercise::Family;
 
 /// How far inside its frame a given segment keeps.
 const INSIDE: f64 = 0.08;
@@ -41,15 +40,6 @@ pub enum Estimate {
 
 impl Estimate {
     pub const ALL: [Self; 3] = [Self::Point, Self::Proportion, Self::Angle];
-
-    #[must_use]
-    pub const fn family(self) -> Family {
-        match self {
-            Self::Point => Family::Point,
-            Self::Proportion => Family::Proportion,
-            Self::Angle => Family::Angle,
-        }
-    }
 }
 
 /// An estimate's givens, from which its exact answer follows.

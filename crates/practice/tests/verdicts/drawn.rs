@@ -4,7 +4,7 @@
 
 use openpaint_practice::{
     Ellipse, EllipseGuide, Estimate, Exercise, Flat, Guide, Kind, NEAR_ANGLE, NEAR_FACE, NEAR_OFF,
-    Original, PEN_WIDTH, Point, REACH, SpaceAnswer, Trick, Verdict, distance,
+    PEN_WIDTH, Point, REACH, SpaceAnswer, SpaceTask, Trick, Verdict, distance,
 };
 
 use crate::{Clean, Near, Redo, checked, moved, steady};
@@ -14,7 +14,7 @@ fn level_ellipse() -> (Exercise, EllipseGuide) {
     (0..)
         .map(|seed| Exercise::generated(Kind::Ellipse(Guide::Frame), seed))
         .find_map(|exercise| {
-            let Original::Ellipse(guide) = exercise.original() else {
+            let Some(&guide) = exercise.original().downcast::<EllipseGuide>() else {
                 return None;
             };
             let e = guide.exact;
@@ -50,7 +50,7 @@ fn an_ellipse_is_clean_near_with_one_finding_redo_with_more_incomplete_unfitted(
 
 /// `exercise`'s answer as a hand draws it, moved by `by`.
 fn answer_moved(exercise: &Exercise, by: Point) -> Vec<Vec<Point>> {
-    let answer = exercise.kind.family().answer(&exercise.original());
+    let answer = exercise.original().answer();
     let strokes = answer.iter().map(|stroke| moved(stroke, by)).collect();
     steady(strokes, 7)
 }
@@ -59,7 +59,7 @@ fn answer_moved(exercise: &Exercise, by: Point) -> Vec<Vec<Point>> {
 fn a_point_or_a_proportion_is_near_within_three_pen_widths_and_redo_past() {
     for estimate in [Estimate::Point, Estimate::Proportion] {
         let exercise = Exercise::generated(Kind::Flat(estimate), 11);
-        let Original::Flat(flat) = exercise.original() else {
+        let Some(&flat) = exercise.original().downcast::<Flat>() else {
             panic!("an estimate")
         };
         // Along the copy's segment for a proportion, across for a point.
@@ -112,14 +112,14 @@ fn an_angle_is_near_within_four_degrees_and_redo_past() {
     let (exercise, through) = (0..)
         .map(|seed| Exercise::generated(Kind::Flat(Estimate::Angle), seed))
         .find_map(|exercise| {
-            let Original::Flat(Flat::Angle { through, .. }) = exercise.original() else {
+            let Some(&Flat::Angle { through, .. }) = exercise.original().downcast::<Flat>() else {
                 return None;
             };
-            let line = &exercise.kind.family().answer(&exercise.original())[0];
+            let line = &exercise.original().answer()[0];
             (distance(line[0], line[1]) > 0.5).then_some((exercise, through))
         })
         .expect("a long angle");
-    let line = exercise.kind.family().answer(&exercise.original())[0].clone();
+    let line = exercise.original().answer()[0].clone();
     let drawn = |degrees: f64| steady(vec![turned(&line, through, degrees)], 3);
     assert_eq!(checked(&exercise, drawn(0.0)), Verdict::App(Clean));
     assert_eq!(
@@ -138,7 +138,7 @@ fn an_angle_is_near_within_four_degrees_and_redo_past() {
 #[test]
 fn a_point_in_space_is_near_within_its_share_of_the_face_and_incomplete_short_of_its_lines() {
     let exercise = Exercise::generated(Kind::Space(Trick::Centre), 5);
-    let Original::Space(task) = exercise.original() else {
+    let Some(task) = exercise.original().downcast::<SpaceTask>().cloned() else {
         panic!("a point in space")
     };
     let SpaceAnswer::Point(answer) = task.answer() else {
@@ -155,7 +155,7 @@ fn a_point_in_space_is_near_within_its_share_of_the_face_and_incomplete_short_of
     assert_eq!(checked(&exercise, Vec::new()), Verdict::Incomplete);
     // The thirds ask two uprights: one drawn is not yet the copy.
     let thirds = Exercise::generated(Kind::Space(Trick::Thirds), 5);
-    let answer = thirds.kind.family().answer(&thirds.original());
+    let answer = thirds.original().answer();
     assert_eq!(answer.len(), 2);
     assert_eq!(
         checked(&thirds, steady(answer.clone(), 2)),

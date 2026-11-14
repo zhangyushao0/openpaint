@@ -6,13 +6,13 @@
 //! days in a row. Lessons are every sheet's but a copy's (`lessons.rs`); days and time are the
 //! sheets', each day with the Pomodoro's blocks completed on it (S124).
 
+use crate::kinds::Kept;
 use crate::records::blocks::Block;
 use crate::records::lessons::{OnSheet, lessons, number};
 use crate::records::metric::{Metric, value};
 use crate::records::seals::{Earned, earned};
 use crate::records::sheet::Sheet;
 use crate::records::time::{by_day, seconds};
-use crate::sheets::exercise::Family;
 
 /// The practice book's contents.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -131,7 +131,7 @@ fn sealed(mut days: Vec<Day>, blocks: &[Block]) -> Vec<Day> {
 /// The mean of `lesson`'s colours' first differences, if it compared any.
 fn first_pick(lesson: &OnSheet<'_>) -> Option<f64> {
     let picks: Vec<f64> = (lesson.lesson.exercises.iter())
-        .filter(|laid| laid.exercise.kind.family() == Family::Colour)
+        .filter(|laid| laid.exercise.kind.facts().kept == Kept::Pick)
         .filter_map(|laid| value(&laid.first.as_ref()?.metrics, Metric::FirstDelta))
         .collect();
     (!picks.is_empty()).then(|| picks.iter().sum::<f64>() / picks.len() as f64)
@@ -141,8 +141,9 @@ fn first_pick(lesson: &OnSheet<'_>) -> Option<f64> {
 /// each numbered among the lessons of `all`, its index its sheet's.
 fn lines(all: &[Sheet], taken: &[OnSheet<'_>]) -> Vec<LineShown> {
     let shown = |lesson: &OnSheet<'_>| {
-        let index = (lesson.lesson.exercises.iter())
-            .position(|laid| laid.first.is_some() && laid.exercise.kind.family() == Family::Line)?;
+        let index = (lesson.lesson.exercises.iter()).position(|laid| {
+            laid.first.is_some() && laid.exercise.kind.facts().kept == Kept::Line
+        })?;
         let index = lesson.first_exercise() + index;
         Some(LineShown {
             record: lesson.sheet.id,

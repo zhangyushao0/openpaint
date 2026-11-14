@@ -6,7 +6,6 @@ use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, TICK, tick
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
 use crate::maths::random::Random;
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const SHAPE_SEED: u64 = 0xDE30_5EED_0003;
@@ -59,7 +58,7 @@ pub(crate) fn shape() -> Demo {
         (On::Copy, Marker::Faint, faint),
         (On::Copy, Marker::Answer, Drawn::Line(outline)),
     ];
-    script.compare(Family::Shape, DemoLayout::Pair, compared)
+    script.compare(DemoLayout::Pair, compared)
 }
 
 /// A vase seen from the side: its rows from the lip down, each its left and right edge.

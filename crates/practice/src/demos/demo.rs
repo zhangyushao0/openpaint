@@ -23,7 +23,6 @@ use crate::compositions::levels::Level;
 use crate::compositions::value_masses::{Value, ValueMasses};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::{Point, length};
-use crate::sheets::exercise::Family;
 
 // Each kind's How lives in its kind's folder (`kinds/`); the hand they share is here.
 #[path = "demo_hand.rs"]
@@ -203,7 +202,6 @@ pub struct Mark {
 /// A kind's demonstration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Demo {
-    pub family: Family,
     pub layout: DemoLayout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
     pub areas: Option<crate::colour_areas::areas_generated::GeneratedAreas>,
@@ -233,19 +231,6 @@ pub struct Demo {
 }
 
 impl Demo {
-    /// `family`'s demonstration; none for the colour copy.
-    #[must_use]
-    pub fn of(family: Family) -> Option<Self> {
-        family.described().how(family)
-    }
-
-    /// `family`'s demonstration for an exercise of `cells` cells in hand (S97: a value scale's
-    /// steps name that row's cells; other kinds' are the same whatever it holds).
-    #[must_use]
-    pub fn of_cells(family: Family, cells: usize) -> Option<Self> {
-        family.described().how_of(family, cells)
-    }
-
     /// The step being drawn `seconds` after the start (the first before it begins, the last once
     /// it is over).
     #[must_use]
@@ -315,12 +300,7 @@ impl Script {
     }
 
     /// The last step: Compare, its marks shown at once; then the end.
-    pub(crate) fn compare(
-        mut self,
-        family: Family,
-        layout: DemoLayout,
-        marks: Vec<(On, Marker, Drawn)>,
-    ) -> Demo {
+    pub(crate) fn compare(mut self, layout: DemoLayout, marks: Vec<(On, Marker, Drawn)>) -> Demo {
         self.step();
         let from = self.at;
         for (on, pen, drawn) in marks {
@@ -335,7 +315,6 @@ impl Script {
         let view =
             matches!(layout, DemoLayout::Single | DemoLayout::Wide).then(|| seen(&self.marks));
         Demo {
-            family,
             layout,
             areas: None,
             shaded: None,

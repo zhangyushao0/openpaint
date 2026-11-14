@@ -1,13 +1,13 @@
 //! The course's kinds of exercise, a folder each: its generator, answer, check, reading, marks,
 //! How (its demonstration), tile and its lessons at each level, and in its `mod.rs` its
-//! description (S109, S109b, D111, S122): the one place the rest of the crate and the app and the
-//! UI learn a kind from (`Described`). A folder that is a skill (`skill.rs`) is one tile on the
-//! path. Registering a kind is its variant in `Kind` (and in `Original` when it brings a new
-//! answer) and its line in `KINDS`; the app and the UI ask its families' facts (`facts.rs`:
-//! aligned or compared, tools, what the eyedropper reads, what a lesson needs, what the book
-//! keeps, how long one takes) and its description's methods (`Exercise::compare`,
-//! `Exercise::painted`, `Family::tile`, `Family::answer`) and name its words by its key, never
-//! which kind it is.
+//! description (S109, S109b, D111, S122, S123): the one place the rest of the crate and the app
+//! and the UI learn a kind from (`Described`, and the original its generator makes, `Original`).
+//! A folder that is a skill (`skill.rs`) is one tile on the path. Registering a kind is its
+//! variant in `Kind` and its line in `KINDS`; the app and the UI read its topic's facts
+//! (`facts.rs`: aligned or compared, its tools and what the eyedropper reads as data in
+//! `tools.rs`, what a lesson needs, what the book keeps, how long one takes) and call its
+//! original's methods (`Original::compare`, `Original::givens`, `Original::painted`,
+//! `Original::answer`) and name its words by its key, never which kind it is.
 //!
 //! A kind folder may build on another's where the dependency is the course's own: objects are
 //! V大's boxes simplified (their answer and check the solids', `solids/`), solids stand in a box
@@ -38,13 +38,16 @@ mod facts;
 mod kind;
 mod original;
 mod skill;
+mod tools;
 
 pub use crate::marks::compared::DrawnCopy;
-pub use facts::{Facts, Kept, Needs, Picks, Tools};
+pub use facts::{Counted, Facts, Kept, Needs};
 pub use kind::Kind;
 pub(crate) use kind::{Described, Turn, place};
 pub use original::Original;
+pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
+pub use tools::{Fill, Pen, Picking, ToolSet};
 
 /// Every kind, by its stored code (1 to 20): its line here registers it.
 pub(crate) const KINDS: [&dyn Described; 20] = [

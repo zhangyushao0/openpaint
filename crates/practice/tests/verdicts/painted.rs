@@ -6,9 +6,9 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Arrangement, Compare, Exercise, Kind, Lean, Lightness, Masses, MassesShown, Original,
-    PictureFit, Point, Purity, Random, Rgb8, ScaleTone, SheetPicture, Tendency, Tier, Tone, Value,
-    ValueMasses, ValueScale, Verdict, from_oklab, main_hue, oklab,
+    Areas, Arrangement, Compare, Exercise, GeneratedAreas, Kind, Lean, Lightness, Masses,
+    MassesShown, PictureFit, Point, Purity, Random, Rgb8, ScaleTone, SheetPicture, Tendency, Tier,
+    Tone, Value, ValueMasses, ValueScale, Verdict, from_oklab, main_hue, oklab,
 };
 
 use crate::{Clean, Laid, Near, Redo, compare};
@@ -84,7 +84,7 @@ fn read(exercise: &Exercise, picture: Option<&SheetPicture>, pixels: &[u8]) -> V
 #[test]
 fn a_combination_is_judged_by_its_areas_mean_difference_once_every_area_is_painted() {
     let exercise = Exercise::generated(Kind::Areas(Arrangement::Patches), 21);
-    let Original::Areas(generated) = exercise.original() else {
+    let Some(generated) = exercise.original().downcast::<GeneratedAreas>().cloned() else {
         panic!("a generated combination")
     };
     let areas = &generated.areas;

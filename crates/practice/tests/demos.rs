@@ -2,53 +2,63 @@
 //! pace, ending on Compare's marks; the constructions it draws land on the exact answers.
 
 use openpaint_practice::{
-    Demo, DemoLayout, Drawn, Family, Marker, ObjectTask, On, Point, WIDE_REACH, distance, meet,
+    BoxView, CELLS, Carve, Combination, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind,
+    Lightness, LineTier, Marker, ObjectTask, On, Point, Purity, ScaleTone, Solid, Tier, Tone,
+    Trick, WIDE_REACH, distance, meet,
+};
+
+/// A colour's tone, for its How.
+const COLOUR: Tone = Tone {
+    purity: Purity::Muted,
+    lightness: Lightness::Middle,
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Family, usize); 24] = [
-    (Family::Line, 4),
-    (Family::Combined, 4),
-    (Family::Shape, 5),
-    (Family::Box, 4),
-    (Family::FreeBoxes, 5),
-    (Family::Ellipse, 5),
-    (Family::Point, 4),
-    (Family::Proportion, 4),
-    (Family::Angle, 4),
-    (Family::Centre, 3),
-    (Family::Halves, 4),
-    (Family::Thirds, 5),
-    (Family::Step, 5),
-    (Family::Mirror, 6),
-    (Family::Cylinder, 6),
-    (Family::Cone, 4),
-    (Family::Sphere, 5),
-    (Family::Object, 5),
-    (Family::Division, 4),
-    (Family::WholeCopy, 3),
-    (Family::ValueMasses, 4),
-    (Family::Colour, 5),
-    (Family::Areas, 6),
-    (Family::Scale, 4),
+const STEPS: [(Kind, usize); 24] = [
+    (Kind::Line(LineTier::Arc), 4),
+    (Kind::Combined(Combination::Joined), 4),
+    (Kind::Shape(Tier::Entry), 5),
+    (Kind::Box(BoxView::ThreePoint), 4),
+    (Kind::FreeBoxes(Horizon::Middle), 5),
+    (Kind::Ellipse(Guide::Plane), 5),
+    (Kind::Flat(Estimate::Point), 4),
+    (Kind::Flat(Estimate::Proportion), 4),
+    (Kind::Flat(Estimate::Angle), 4),
+    (Kind::Space(Trick::Centre), 3),
+    (Kind::Space(Trick::Halves), 4),
+    (Kind::Space(Trick::Thirds), 5),
+    (Kind::Space(Trick::Step), 5),
+    (Kind::Space(Trick::Mirror), 6),
+    (Kind::Solid(Solid::Cylinder), 6),
+    (Kind::Solid(Solid::Cone), 4),
+    (Kind::Solid(Solid::Sphere), 5),
+    (Kind::Object(Carve::Cut), 5),
+    (Kind::Division(Tier::Simple), 4),
+    (Kind::WholeCopy(Tier::Simple), 3),
+    (Kind::ValueMasses(Tier::Simple), 4),
+    (Kind::Colour(COLOUR), 5),
+    (Kind::Crop(Tier::Simple), 6),
+    (Kind::Scale(ScaleTone::Grey, 9), 4),
 ];
 
-fn demo(family: Family) -> Demo {
-    Demo::of(family).unwrap_or_else(|| panic!("{family:?} has no demonstration"))
+fn demo(kind: Kind) -> Demo {
+    kind.how(CELLS)
+        .unwrap_or_else(|| panic!("{kind:?} has no demonstration"))
 }
 
 #[test]
 fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
-    for (family, _) in STEPS {
-        let demo = demo(family);
+    for (kind, _) in STEPS {
+        let demo = demo(kind);
         // An object's frames side by side are cropped to its box (S94), a scale's frame to its
         // rows (S97), a composition's to its picture (S99).
         let cropped = matches!(
             demo.layout,
             DemoLayout::Single | DemoLayout::Wide | DemoLayout::Row
         );
-        let lone = cropped || family == Family::Object || family.composed();
-        assert_eq!(demo.view.is_some(), lone, "{family:?}");
+        let composed = ["division", "whole-copy", "value-masses"].contains(&kind.facts().key);
+        let lone = cropped || kind == Kind::Object(Carve::Cut) || composed;
+        assert_eq!(demo.view.is_some(), lone, "{kind:?}");
     }
     let face_of = |demo: &Demo| -> [Point; 2] {
         let rows = (demo.marks.iter())
@@ -68,21 +78,21 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
         [low, high]
     };
     // The face is the picture: its answer lies on it, the rest of the box is cut away.
-    for family in [
-        Family::Centre,
-        Family::Halves,
-        Family::Thirds,
-        Family::Mirror,
+    for kind in [
+        Kind::Space(Trick::Centre),
+        Kind::Space(Trick::Halves),
+        Kind::Space(Trick::Thirds),
+        Kind::Space(Trick::Mirror),
     ] {
-        let demo = demo(family);
+        let demo = demo(kind);
         let [low, high] = demo.view.expect("framed");
         let [face_low, face_high] = face_of(&demo);
         for (a, b) in [(low, face_low), (high, face_high)] {
-            assert!(distance(a, b) < 1e-9, "{family:?}: {a:?} {b:?}");
+            assert!(distance(a, b) < 1e-9, "{kind:?}: {a:?} {b:?}");
         }
     }
     // The next face: the face and the one beyond it.
-    let step = demo(Family::Step);
+    let step = demo(Kind::Space(Trick::Step));
     let [low, high] = step.view.expect("framed");
     let [face_low, face_high] = face_of(&step);
     assert!(low[0] <= face_low[0] + 1e-9 && high[0] >= face_high[0] - 1e-9);
@@ -91,30 +101,26 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
 
 #[test]
 fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
-    assert!(Demo::of(Family::Study).is_none());
+    assert!(Kind::Study.how(CELLS).is_none());
     let lengths: Vec<String> = (STEPS.iter())
-        .map(|(family, _)| format!("{family:?} {:.2}", demo(*family).length))
+        .map(|(kind, _)| format!("{kind:?} {:.2}", demo(*kind).length))
         .collect();
     println!("{lengths:?}");
-    for (family, steps) in STEPS {
-        let demo = demo(family);
-        assert_eq!(demo.family, family);
-        assert_eq!(demo.steps.len(), steps, "{family:?}");
+    for (kind, steps) in STEPS {
+        let demo = demo(kind);
+        assert_eq!(demo.steps.len(), steps, "{kind:?}");
         assert!((4.5..=10.3).contains(&demo.length), "{lengths:?}");
-        assert!(demo.steps.windows(2).all(|w| w[0] < w[1]), "{family:?}");
+        assert!(demo.steps.windows(2).all(|w| w[0] < w[1]), "{kind:?}");
         for mark in &demo.marks {
             assert!(
                 mark.from <= mark.to && mark.to <= demo.length,
-                "{family:?}: {mark:?}"
+                "{kind:?}: {mark:?}"
             );
         }
         // What the exercise gives shows from the start, and comes first.
         let given = demo.marks.iter().take_while(|m| m.to == 0.0).count();
-        assert!(given > 0, "{family:?}");
-        assert!(
-            demo.marks[given..].iter().all(|m| m.from > 0.0),
-            "{family:?}"
-        );
+        assert!(given > 0, "{kind:?}");
+        assert!(demo.marks[given..].iter().all(|m| m.from > 0.0), "{kind:?}");
         // Compare's marks show in the last step, and only there.
         let last = demo.steps[steps - 1];
         let compared = |mark: &&openpaint_practice::Mark| {
@@ -125,34 +131,30 @@ fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
         };
         assert!(
             demo.marks.iter().filter(compared).all(|m| m.from >= last),
-            "{family:?}"
+            "{kind:?}"
         );
         assert_eq!(demo.step_at(0.0), 0);
         assert_eq!(demo.step_at(demo.length + 5.0), steps - 1);
-        assert_eq!(
-            Demo::of(family),
-            Some(demo),
-            "{family:?}: the same every time"
-        );
+        assert_eq!(kind.how(CELLS), Some(demo), "{kind:?}: the same every time");
     }
 }
 
 #[test]
 fn the_steps_draw_with_the_pencil_and_the_ink_before_compare_shows_red() {
-    for (family, steps) in STEPS {
-        let demo = demo(family);
+    for (kind, steps) in STEPS {
+        let demo = demo(kind);
         let drawn_in = |pen: Marker| demo.marks.iter().any(|m| m.pen == pen && m.to > 0.0);
         // Free boxes have no exact answer; a combination's original lies faint over the copy.
         let red = drawn_in(Marker::Answer) || drawn_in(Marker::Faint);
-        assert!(red || family == Family::FreeBoxes, "{family:?}");
+        assert!(red || kind == Kind::FreeBoxes(Horizon::Middle), "{kind:?}");
         // A division's lines are its levels' pens' (S95).
         let levels = (demo.marks.iter()).any(|m| matches!(m.pen, Marker::Level(_)) && m.to > 0.0);
-        let inked = drawn_in(Marker::Ink) || (family == Family::Division && levels);
-        assert!(inked, "{family:?}: the answer is drawn");
+        let inked = drawn_in(Marker::Ink) || (kind == Kind::Division(Tier::Simple) && levels);
+        assert!(inked, "{kind:?}: the answer is drawn");
         let before = demo.steps[steps - 1];
         assert!(
             demo.marks.iter().any(|m| m.to > 0.0 && m.to <= before),
-            "{family:?}: the method draws before Compare"
+            "{kind:?}: the method draws before Compare"
         );
     }
 }
@@ -179,7 +181,7 @@ fn answers(demo: &Demo) -> Vec<&Drawn> {
 #[test]
 fn a_tricks_construction_lands_on_its_exact_answer() {
     // The centre: the diagonals drawn with Sketch cross at the red answer.
-    let centre = demo(Family::Centre);
+    let centre = demo(Kind::Space(Trick::Centre));
     let lines = pencil_lines(&centre);
     let crossed = meet(lines[0], lines[1]).expect("the diagonals cross");
     let [Drawn::Cross(exact)] = answers(&centre)[..] else {
@@ -187,7 +189,7 @@ fn a_tricks_construction_lands_on_its_exact_answer() {
     };
     assert!(distance(crossed, *exact) < 1e-9, "{crossed:?} {exact:?}");
     // The mirror: its last construction line stands where the red answer is.
-    let mirror = demo(Family::Mirror);
+    let mirror = demo(Kind::Space(Trick::Mirror));
     let lines = pencil_lines(&mirror);
     let [Drawn::Cross(exact)] = answers(&mirror)[..] else {
         panic!("the mirror's answer is a cross");
@@ -195,7 +197,7 @@ fn a_tricks_construction_lands_on_its_exact_answer() {
     let up = lines[lines.len() - 1];
     assert!(distance(up[1], *exact) < 1e-9, "{up:?} {exact:?}");
     // Halves: the line from the near edge through the centre heads where the red line lies.
-    let halves = demo(Family::Halves);
+    let halves = demo(Kind::Space(Trick::Halves));
     let lines = pencil_lines(&halves);
     let centre = meet(lines[0], lines[1]).expect("the diagonals cross");
     let [Drawn::Line(red)] = answers(&halves)[..] else {
@@ -217,8 +219,8 @@ fn a_tricks_construction_lands_on_its_exact_answer() {
 
 #[test]
 fn a_solids_middles_lie_on_its_red_answer_and_its_hidden_part_is_dashed() {
-    for family in [Family::Cylinder, Family::Cone] {
-        let demo = demo(family);
+    for kind in [Kind::Solid(Solid::Cylinder), Kind::Solid(Solid::Cone)] {
+        let demo = demo(kind);
         let red: Vec<&[Point]> = (demo.marks.iter())
             .filter(|m| matches!(m.pen, Marker::Answer | Marker::Hidden))
             .filter_map(|m| match &m.drawn {
@@ -233,20 +235,23 @@ fn a_solids_middles_lie_on_its_red_answer_and_its_hidden_part_is_dashed() {
                 _ => None,
             })
             .collect();
-        assert!(dots.len() >= 4, "{family:?}");
+        assert!(dots.len() >= 4, "{kind:?}");
         for dot in dots {
             let (_, off) = openpaint_practice::nearest(&red, dot).expect("a red answer");
-            assert!(off < 1e-4, "{family:?}: {dot:?} off {off}");
+            assert!(off < 1e-4, "{kind:?}: {dot:?} off {off}");
         }
     }
-    let hidden = |family| demo(family).marks.iter().any(|m| m.pen == Marker::Hidden);
-    assert!(hidden(Family::Cylinder) && !hidden(Family::Sphere));
+    let hidden = |kind| demo(kind).marks.iter().any(|m| m.pen == Marker::Hidden);
+    assert!(hidden(Kind::Solid(Solid::Cylinder)) && !hidden(Kind::Solid(Solid::Sphere)));
 }
 
 #[test]
 fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
-    for family in [Family::Box, Family::FreeBoxes] {
-        let demo = demo(family);
+    for kind in [
+        Kind::Box(BoxView::ThreePoint),
+        Kind::FreeBoxes(Horizon::Middle),
+    ] {
+        let demo = demo(kind);
         assert_eq!(demo.layout, DemoLayout::Wide);
         let rings: Vec<Point> = (demo.marks.iter())
             .filter(|m| m.pen == Marker::Pencil)
@@ -255,20 +260,20 @@ fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
                 _ => None,
             })
             .collect();
-        assert_eq!(rings.len(), 2, "{family:?}");
+        assert_eq!(rings.len(), 2, "{kind:?}");
         for [x, y] in rings {
             assert!(
                 (-WIDE_REACH..=1.0 + WIDE_REACH).contains(&x),
-                "{family:?}: {x}"
+                "{kind:?}: {x}"
             );
-            assert!((0.0..=1.0).contains(&y), "{family:?}: {y}");
+            assert!((0.0..=1.0).contains(&y), "{kind:?}: {y}");
         }
     }
 }
 
 #[test]
 fn a_combination_is_painted_area_by_area_with_its_pens_in_their_order() {
-    let areas = demo(Family::Areas);
+    let areas = demo(Kind::Crop(Tier::Simple));
     let example = &areas.areas.as_ref().expect("the combination painted").areas;
     let painted: Vec<(&Vec<openpaint_practice::Rgb8>, bool, usize)> = (areas.marks.iter())
         .filter(|m| m.on == On::Copy && m.pen == Marker::Ink)
@@ -303,7 +308,7 @@ fn a_combination_is_painted_area_by_area_with_its_pens_in_their_order() {
 
 #[test]
 fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_construction() {
-    let demo = demo(Family::Object);
+    let demo = demo(Kind::Object(Carve::Cut));
     assert_eq!(demo.layout, DemoLayout::Pair);
     let shaded = demo.shaded.as_ref().expect("the example object");
     let task = shaded.downcast::<ObjectTask>().expect("an object");
@@ -347,7 +352,7 @@ fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_co
 #[test]
 fn a_division_is_drawn_red_then_green_then_blue_and_a_whole_copy_over_it_dimmed() {
     use openpaint_practice::Level;
-    let division = demo(Family::Division);
+    let division = demo(Kind::Division(Tier::Simple));
     assert_eq!(division.layout, DemoLayout::Pair);
     assert!(division.masses.is_some() && division.dimmed.is_none());
     let drawn = |demo: &Demo, level: Level| -> Vec<f64> {
@@ -389,7 +394,7 @@ fn a_division_is_drawn_red_then_green_then_blue_and_a_whole_copy_over_it_dimmed(
     let faint = (division.marks.iter()).find(|m| m.pen == Marker::Faint);
     assert!(faint.is_some_and(|m| m.from >= compare && matches!(m.drawn, Drawn::Masses(_))));
     // A whole copy: the division, then Draw's ink over it dimmed from that step, gone at Compare.
-    let whole = demo(Family::WholeCopy);
+    let whole = demo(Kind::WholeCopy(Tier::Simple));
     let [draw, compare] = whole.dimmed.expect("dimmed");
     assert_eq!([draw, compare], [whole.steps[1], whole.steps[2]]);
     let ink = (whole.marks.iter()).filter(|m| m.pen == Marker::Ink);

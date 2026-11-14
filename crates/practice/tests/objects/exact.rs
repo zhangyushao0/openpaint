@@ -3,8 +3,7 @@
 //! object where the object in space projects it; a round part's middles are its exact ellipses'.
 
 use openpaint_practice::{
-    Carve, Exercise, Family, Kind, LEAST_EDGE, ObjectTask, Original, Point, derived, distance,
-    length,
+    Carve, Exercise, Kind, LEAST_EDGE, ObjectTask, Point, derived, distance, length,
 };
 
 /// Objects of each carve the tests lay.
@@ -93,12 +92,11 @@ fn an_object_is_the_same_per_seed_and_stored_by_its_carve() {
         assert_eq!(Kind::of_code(code, variant), Some(Kind::Object(carve)));
         let exercise = Exercise::generated(Kind::Object(carve), 9);
         assert!(
-            matches!(exercise.original(), Original::Object(task) if *task == ObjectTask::generate(carve, 9))
+            exercise.original().downcast::<ObjectTask>() == Some(&ObjectTask::generate(carve, 9))
         );
     }
-    let family = Kind::Object(Carve::Cut).family();
-    assert_eq!(family, Family::Object);
-    assert!(family.facts().compared && !family.facts().aligned);
+    let facts = Kind::Object(Carve::Cut).facts();
+    assert!(facts.compared && !facts.aligned);
 }
 
 #[test]

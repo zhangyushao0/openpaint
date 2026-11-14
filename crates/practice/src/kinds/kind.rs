@@ -1,8 +1,6 @@
-//! What a kind is and what its description tells (S109, S109b, D111): `Kind` names an exercise's
-//! kind with what varies its look, `Described` what each kind's folder implements: its stored
-//! code, its families' facts (`facts.rs`), its generator, How, a lesson at each level, givens, how
-//! its copy is compared, the picture it draws, the answer a hand would draw, its tile and glyph.
-//! Every call here goes through `KINDS`.
+//! What a kind is and what its description tells (S109, S109b, D111, S123): `Kind` names an
+//! exercise's kind with what varies its look, as stored; `Described` is what each kind's folder
+//! implements, and every call here goes through `KINDS`.
 
 use std::sync::Arc;
 
@@ -23,18 +21,13 @@ use crate::kinds::objects::object_design::Carve;
 use crate::kinds::points_in_space::space::Trick;
 use crate::kinds::scales::scale::ScaleTone;
 use crate::kinds::solids::solid::Solid;
-use crate::marks::asked::{Asked, Compare, Painted};
-use crate::marks::compared::{Compared, Comparison, DrawnCopy};
-use crate::marks::mark::SheetMark;
 use crate::marks::tile::TileMark;
-use crate::maths::path::Point;
 use crate::packs::pack::{ItemRef, Tier};
 use crate::packs::pictures::Pictures;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
-use crate::sheets::sheet_picture::SheetPicture;
 
-/// The kind of an exercise, with what varies its look; each variant's folder in `kinds/`.
+/// The kind of an exercise, with what varies its look; each variant's folder in `kinds/`. Only
+/// its folder matches on its variants (`cargo repo-check`): everyone else asks its description.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
     /// A single line to copy (`lines/`).
@@ -54,8 +47,8 @@ pub enum Kind {
     /// A row of cells (its count, the ends among them) between a given dark and light, filled in
     /// even steps of value (`scales/`).
     Scale(ScaleTone, u8),
-    /// A long colour copy of a picture (V大's 色彩临摹): a project beside the sessions, never
-    /// one of their exercises (`study/`).
+    /// A long colour copy of a picture (V大's 色彩临摹): a project beside the lessons, never one
+    /// of their exercises (`study/`).
     Study,
     /// A box in perspective given by its front corner and three edges, to complete (V大's
     /// 透视盒子, `boxes/`).
@@ -113,30 +106,18 @@ impl Kind {
         described.of_variant(variant)
     }
 
-    #[must_use]
-    pub fn family(self) -> Family {
-        self.described().family(self)
-    }
-
-    /// What the app and the UI read of its family.
+    /// What the app and the UI read of its topic: its key, its tools, what the eyedropper reads
+    /// and the rest (`Facts`).
     #[must_use]
     pub fn facts(self) -> &'static Facts {
-        self.family().facts()
+        self.described().topic(self)
     }
 
-    /// Its How (S92), for an exercise of `cells` cells in hand (a value scale's row, S97); none
-    /// for a kind without one. What the flow and the screens ask a How by (S122): the kind in
-    /// hand, never its family.
+    /// Its How (S92), for an exercise of `cells` cells in hand (a value scale's row, S97): its
+    /// topic's; none for a kind without one.
     #[must_use]
     pub fn how(self, cells: usize) -> Option<Demo> {
-        self.described().how_of(self.family(), cells)
-    }
-
-    /// `original`'s answer (an exercise of this kind's) as a hand would draw it, a stroke at a
-    /// time (frame units); none for a kind without one.
-    #[must_use]
-    pub fn answer(self, original: &Original) -> Vec<Vec<Point>> {
-        self.family().answer(original)
+        self.described().how(self, cells)
     }
 }
 
@@ -151,30 +132,42 @@ pub(crate) struct Turn<'a> {
     pub(crate) recent: &'a [ItemRef],
 }
 
-/// What a kind's folder tells of it (S109, S109b, D111).
+/// A kind's description (S109, S109b, D111, S123): everything about a kind lives in its folder,
+/// told in two halves of one description. This half is the folder itself, one line in `KINDS`,
+/// asked without an exercise in hand: its stored codes, its topics' facts as data (`Facts`: key,
+/// tools, picks…), its How, its lesson at each level, its tile. Its generator (`generate`) makes
+/// the other half, the exercise's original: a value of the folder's own type behind `Original`
+/// (`original.rs`), which says what it gives, how its copy is compared and read and its answer.
+///
+/// Why two halves and not one trait: what a kind is asked splits by what is in hand. A skill's
+/// tile, a lesson to lay or a code to read have no exercise; what an exercise prints and how its
+/// copy is compared need its generated task, typed. One trait would give either every per-exercise
+/// method an untyped value each kind downcasts, or every kind-wide one an exercise made up for it.
+/// The two meet in `generate`, and nothing outside a folder matches on which kind it is: the flow
+/// and the screens read `Facts` and call the original's methods.
+///
+/// A new kind is a folder holding a type for this (a unit struct) and a type for its original,
+/// its variant in `Kind`, and its line in `KINDS` (with its words and its place in a unit).
 pub(crate) trait Described: Sync {
     /// Its stored code, its place in `KINDS` from 1.
     fn code(&self) -> u8;
-    /// Its families: most kinds one, an estimate's three, the tricks' five, the solids' three; none
-    /// for a kind kept only for old records, which goes by another's family.
+    /// Its topics' facts: most kinds one, an estimate's three, the tricks' five, the solids'
+    /// three; none for a kind kept only for old records, which goes by another's.
     fn facts(&self) -> &'static [Facts];
     /// Its variant's stored code; none for another kind.
     fn variant(&self, kind: Kind) -> Option<u8>;
     /// Its kind of the stored variant `variant`; none for a variant it never stored.
     fn of_variant(&self, variant: u8) -> Option<Kind>;
-    /// `kind`'s family (one of its own).
-    fn family(&self, _kind: Kind) -> Family {
-        self.facts()[0].family
+    /// `kind`'s topic's facts (one of its own): its first by default.
+    fn topic(&self, _kind: Kind) -> &'static Facts {
+        &self.facts()[0]
     }
-    /// `exercise`'s original, the same for the same kind and seed.
-    fn original(&self, exercise: &Exercise) -> Original;
-    /// `family`'s How (S92); none for a kind without one.
-    fn how(&self, _family: Family) -> Option<Demo> {
+    /// `exercise`'s original, the same for the same kind and seed (and picture).
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original>;
+    /// `kind`'s How (S92) for an exercise of `cells` cells in hand (a value scale's row, S97);
+    /// none for a kind without one.
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         None
-    }
-    /// `family`'s How for an exercise of `cells` cells in hand (a value scale's row, S97).
-    fn how_of(&self, family: Family, _cells: usize) -> Option<Demo> {
-        self.how(family)
     }
     /// The key it goes by as a skill (`Skill::key`): its one topic's, or its own where it holds
     /// several topics.
@@ -195,95 +188,16 @@ pub(crate) trait Described: Sync {
     /// (`schedule::lesson`).
     ///
     /// The First-prefix rule: at `SkillLevel::First` a folder of one topic lays a prefix of what
-    /// its drill laid at the same turn before S122 (the same kinds in the same order, its pictures
+    /// it laid at the same turn before S122 (the same kinds in the same order, its pictures
     /// picked alike), so a sheet started before and after S122 holds the same first exercises
     /// (`tests/course.rs` pins them).
     fn lesson(&self, _level: SkillLevel, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         Vec::new()
     }
-    /// What `exercise` gives in its frames before Compare (its `original`); a pack's picture is
-    /// the sheet's to lay.
-    fn givens(&self, _exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        Vec::new()
-    }
-    /// `original`'s copy, drawn as `copy`, checked as geometry (S84 to S98); none for a kind not
-    /// checked so.
-    fn check(&self, _original: &Original, _copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        None
-    }
-    /// How `asked`'s copy is compared; none while there is nothing to compare (S109b). By
-    /// default its drawn lines, once anything lies in its frame, checked as geometry.
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        if !asked.held() {
-            return None;
-        }
-        let checked = self.check(asked.original, &asked.copy.drawn())?;
-        Some(Compare::Checked(Comparison(checked)))
-    }
-    /// The picture it draws for `original` (its pack's `picture`, if any): a generated
-    /// combination's, an object's, value masses' answer; none for most kinds.
-    fn painted(&self, _original: &Original, _picture: Option<&SheetPicture>) -> Option<Painted> {
-        None
-    }
-    /// `original`'s answer as a hand would draw it, a stroke at a time in frame units (a cross on a
-    /// point, a stroke along each line, once round each ellipse): what `bench practice` draws a
-    /// little off; none for a kind without one.
-    fn answer(&self, _original: &Original) -> Vec<Vec<Point>> {
-        Vec::new()
-    }
-    /// `family`'s tile picture (S91, `marks/tile.rs`).
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
-        Vec::new()
-    }
-    /// Its glyph as a skill on the path (`Skill::glyph`): its first topic's tile, or a picture of
-    /// its own where it holds several topics.
+    /// Its tile on the path (`Skill::glyph`, S91, `marks/tile.rs`); none for a kind that is no
+    /// tile.
     fn glyph(&self) -> Vec<TileMark> {
-        self.facts()
-            .first()
-            .map_or_else(Vec::new, |facts| self.tile(facts.family))
-    }
-}
-
-impl Exercise {
-    /// What it gives in its frames before Compare, as its kind draws it.
-    #[must_use]
-    pub fn givens(&self, original: &Original) -> Vec<SheetMark> {
-        self.kind.described().givens(self, original)
-    }
-
-    /// Its copy, drawn as `copy`, checked as geometry; none for a kind not checked so.
-    #[must_use]
-    pub fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Comparison> {
-        self.kind.described().check(original, copy).map(Comparison)
-    }
-
-    /// How its copy is compared, as `asked` (whose exercise it is); none while there is nothing
-    /// to compare.
-    #[must_use]
-    pub fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        self.kind.described().compare(asked)
-    }
-
-    /// The picture the practice crate draws for it (`original` its original, `picture` its
-    /// pack's): a generated combination's, an object's, value masses' answer.
-    #[must_use]
-    pub fn painted(&self, original: &Original, picture: Option<&SheetPicture>) -> Option<Painted> {
-        self.kind.described().painted(original, picture)
-    }
-}
-
-impl Family {
-    /// Its tile picture (S91), as its kind's folder draws it.
-    #[must_use]
-    pub fn tile(self) -> Vec<TileMark> {
-        self.described().tile(self)
-    }
-
-    /// `original`'s answer (an exercise of this family's) as a hand would draw it, a stroke at a
-    /// time (frame units); none for a kind without one.
-    #[must_use]
-    pub fn answer(self, original: &Original) -> Vec<Vec<Point>> {
-        self.described().answer(original)
+        Vec::new()
     }
 }
 

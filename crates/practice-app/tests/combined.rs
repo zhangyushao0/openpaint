@@ -14,8 +14,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Combination, Exercise, Figure, First, Kind, Layout, Lesson, LinePen, Original, Picked, Planned,
-    Purpose, Sheet, SkillLevel,
+    Combination, Exercise, Figure, First, Kind, Layout, Lesson, LinePen, Picked, Planned, Purpose,
+    Sheet, SkillLevel,
 };
 use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
 use support::OnSheet;
@@ -189,7 +189,13 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
     }
     let practice = PracticeProjection::of(&session).expect("a practice sheet");
     let pair = practice.sheet.pairs[10];
-    let Original::Lines(lines) = (*practice.original.as_deref().expect("in hand")).clone() else {
+    let Some(lines) = practice
+        .original
+        .as_deref()
+        .expect("in hand")
+        .lines()
+        .map(<[_]>::to_vec)
+    else {
         panic!("combined lines")
     };
     assert!(lines.len() >= 2);

@@ -16,7 +16,6 @@ use crate::geometry::ellipse::{Ellipse, EllipseGuide};
 use crate::kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
 use crate::kinds::solids::solid_check::SolidCheck;
 use crate::maths::path::Point;
-use crate::sheets::exercise::Family;
 
 /// The examples' seeds: a cylinder's, a cone's, a sphere's.
 const SEEDS: [u64; 3] = [0xDE30_5EED_0012, 0xDE30_5EED_0013, 0xDE30_5EED_0014];
@@ -28,12 +27,11 @@ const STRAY: f64 = 0.006;
 const OFF: f64 = 0.004;
 
 /// A solid's demonstration.
-pub(crate) fn solid(family: Family) -> Option<Demo> {
-    let (solid, seed) = match family {
-        Family::Cylinder => (Solid::Cylinder, SEEDS[0]),
-        Family::Cone => (Solid::Cone, SEEDS[1]),
-        Family::Sphere => (Solid::Sphere, SEEDS[2]),
-        _ => return None,
+pub(crate) fn solid(solid: Solid) -> Option<Demo> {
+    let seed = match solid {
+        Solid::Cylinder => SEEDS[0],
+        Solid::Cone => SEEDS[1],
+        Solid::Sphere => SEEDS[2],
     };
     // Upright and seen from above, its ellipses about half as deep as wide, as V大 first draws
     // it, the box about as wide as the card (a sphere's circle is near on every cube laid).
@@ -89,7 +87,7 @@ pub(crate) fn solid(family: Family) -> Option<Demo> {
         }
         Solid::Sphere => drawn.push(sphere(&mut script, &task)?),
     }
-    Some(compared(script, family, &task, drawn))
+    Some(compared(script, &task, drawn))
 }
 
 /// How clear `task` is as an example on the card (`clearest`).
@@ -207,7 +205,7 @@ fn ink_sides(script: &mut Script, sides: &[[Point; 2]], past: bool) -> Vec<Vec<P
 
 /// Compare: the exact solid red, its hidden part dashed, and what the exercise's check finds off
 /// in `drawn`.
-fn compared(script: Script, family: Family, task: &SolidTask, drawn: Vec<Vec<Point>>) -> Demo {
+fn compared(script: Script, task: &SolidTask, drawn: Vec<Vec<Point>>) -> Demo {
     let mut marks: Vec<(On, Marker, Drawn)> = Vec::new();
     for stretch in task.answer.outlines.iter().flatten() {
         let pen = if stretch.hidden {
@@ -222,5 +220,5 @@ fn compared(script: Script, family: Family, task: &SolidTask, drawn: Vec<Vec<Poi
     }
     let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
     marks.extend(off_marks(&SolidCheck::of(task, (&lines, &[])).off));
-    script.compare(family, DemoLayout::Single, marks)
+    script.compare(DemoLayout::Single, marks)
 }

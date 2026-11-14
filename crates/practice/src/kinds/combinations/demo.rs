@@ -6,7 +6,6 @@ use crate::colour_areas::areas::Areas;
 use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, clearest};
 use crate::maths::colour::{Rgb8, delta_e, from_oklab, oklab};
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const AREAS_SEED: u64 = 0xDE30_5EED_0005;
@@ -63,7 +62,7 @@ pub(crate) fn areas() -> Demo {
             compared.push((on, Marker::Given, Drawn::Line(edge)));
         }
     }
-    let mut demo = script.compare(Family::Areas, DemoLayout::Pair, compared);
+    let mut demo = script.compare(DemoLayout::Pair, compared);
     demo.areas = Some(generated.clone());
     demo
 }

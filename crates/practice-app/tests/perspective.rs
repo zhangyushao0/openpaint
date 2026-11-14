@@ -14,8 +14,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, Exercise, Frame, FreeCompared, Guide,
-    Horizon, Kind, Original, Point, Roundness,
+    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, EllipseGuide, Exercise, Frame,
+    FreeCompared, FreePage, Guide, Horizon, Kind, PerspectiveBox, Point, Roundness,
 };
 use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
 use support::OnSheet;
@@ -93,7 +93,12 @@ fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
 fn completed(session: &mut Session) -> Frame {
     let practice = PracticeProjection::of(session).expect("a sheet");
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Box(exact) = *practice.original.as_deref().expect("in hand") else {
+    let Some(&exact) = practice
+        .original
+        .as_deref()
+        .expect("in hand")
+        .downcast::<PerspectiveBox>()
+    else {
         panic!("a box")
     };
     let mut drawn = 0;
@@ -195,7 +200,12 @@ fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.kind, Some(Kind::FreeBoxes(Horizon::Middle)));
     let frame = practice.sheet.pairs[1].copy;
-    let Original::FreeBoxes(example) = *practice.original.as_deref().expect("in hand") else {
+    let Some(FreePage(example)) = practice
+        .original
+        .as_deref()
+        .expect("in hand")
+        .downcast::<FreePage>()
+    else {
         panic!("a page")
     };
     // The example box drawn twice, side by side, each made smaller about the horizon.
@@ -225,7 +235,12 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     let practice = PracticeProjection::of(&session).expect("a sheet");
     assert_eq!(practice.kind, Some(Kind::Ellipse(Guide::Frame)));
     let frame = practice.sheet.pairs[2].copy;
-    let Original::Ellipse(guide) = *practice.original.as_deref().expect("in hand") else {
+    let Some(&guide) = practice
+        .original
+        .as_deref()
+        .expect("in hand")
+        .downcast::<EllipseGuide>()
+    else {
         panic!("an ellipse")
     };
     let round = |e: &Ellipse| e.outline(48);

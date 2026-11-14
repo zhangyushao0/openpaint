@@ -7,7 +7,6 @@ use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line};
 use crate::demos::demo_space::{horizon, point, red_rings, rule_edges, within_reach};
 use crate::geometry::perspective::{BoxView, Direction, EDGES, PerspectiveBox};
 use crate::maths::path::distance;
-use crate::sheets::exercise::Family;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const BOX_SEED: u64 = 0xDE30_5EED_0007;
@@ -88,5 +87,5 @@ pub(crate) fn perspective_box() -> Demo {
         .collect();
     compared.extend(red_rings(exact.vanishing.iter().flatten().copied()));
     compared.extend(missed);
-    script.compare(Family::Box, DemoLayout::Wide, compared)
+    script.compare(DemoLayout::Wide, compared)
 }

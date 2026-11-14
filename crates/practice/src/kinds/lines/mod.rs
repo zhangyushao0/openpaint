@@ -10,22 +10,25 @@ pub(crate) mod demo;
 pub(crate) mod line;
 pub(crate) mod marks;
 
+use std::sync::Arc;
+
 use crate::course::picker::laid;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kept, Kind, Original, SkillLevel, Tools, Turn, place};
-use crate::marks::asked::{Asked, Compare};
-use crate::marks::mark::SheetMark;
+use crate::kinds::{
+    Blank, Counted, Described, Facts, Kept, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::tile::{TileMark, curve};
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use line::{LineExercise, LineTier};
+use marks::GivenLines;
 
 pub(crate) struct Lines;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Line, "line", Tools::Drawing, 48)
+const FACTS: [Facts; 1] = [Facts::of("line", ToolSet::DRAWING, 48)
     .aligned()
-    .kept(Kept::Line)];
+    .kept(Kept::Line)
+    .counted(Counted::Line)];
 /// Each level's lines in order.
 const FIRST: [LineTier; 6] = [
     LineTier::Straight,
@@ -74,18 +77,16 @@ impl Described for Lines {
             .map(|t| Kind::Line(*t))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Line(tier) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Lines(vec![LineExercise::generate(tier, exercise.seed).points])
+        held(GivenLines(vec![
+            LineExercise::generate(tier, exercise.seed).points,
+        ]))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        original.lines().map(marks::givens).unwrap_or_default()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::line())
     }
 
@@ -98,12 +99,8 @@ impl Described for Lines {
         laid(tiers.iter().copied().map(Kind::Line))
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        marks::compare(asked)
-    }
-
     /// A line, gently waved.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let wave = |t: f32| (std::f32::consts::TAU * t).sin();
         vec![TileMark::Line(curve(|t| {
             [10.0 + 34.0 * t, 30.0 - 19.0 * t + 4.0 * wave(t)]

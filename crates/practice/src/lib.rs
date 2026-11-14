@@ -71,6 +71,7 @@ pub use kinds::ellipses::ellipse_check::{
 pub use kinds::ellipses::marks::EllipseCompared;
 pub use kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck, NEAR_ANGLE, NEAR_OFF};
 pub use kinds::estimates::marks::FlatCompared;
+pub use kinds::free_boxes::FreePage;
 pub use kinds::free_boxes::marks::FreeCompared;
 pub use kinds::free_boxes::perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
 pub use kinds::generated_combinations::AREAS_SIDE;
@@ -107,7 +108,10 @@ pub use kinds::value_masses::marks::{MassesCompared, MassesReading};
 pub use kinds::value_masses::value_masses_read::{
     BARE_LEFT, HATCH_GAP, MassesCheck, NEAR_MATCHED, VALUE_PEN,
 };
-pub use kinds::{DrawnCopy, Facts, Kept, Kind, Needs, Original, Picks, Skill, SkillLevel, Tools};
+pub use kinds::{
+    Counted, DrawnCopy, Facts, Fill, Kept, Kind, Needs, Original, Pen, Picking, Skill, SkillLevel,
+    ToolSet,
+};
 pub use marks::asked::{Asked, Compare, Copied, Painted, Read, Reading, Reads, ToFit};
 pub use marks::card::{Arg, CardItem, Say, WheelSize};
 pub use marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};
@@ -144,6 +148,6 @@ pub use records::record::{RECENT, recent, used};
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
 pub use records::sheet::{First, Judge, Laid, Lesson, Picked, Purpose, Sheet};
 pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds};
-pub use sheets::exercise::{Exercise, Family, STAGES};
+pub use sheets::exercise::Exercise;
 pub use sheets::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, ROWS, STUDY_SIDE};
 pub use sheets::sheet_picture::{MassesShown, SheetPicture};

@@ -11,21 +11,27 @@ pub(crate) mod demo;
 pub(crate) mod judgement;
 pub(crate) mod marks;
 
+use std::sync::Arc;
+
 use crate::course::picker::{in_turn, laid, rotated};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kept, Kind, Original, Picks, SkillLevel, Tools, Turn};
+use crate::kinds::{
+    Blank, Counted, Described, Facts, Kept, Kind, Original, Picking, SkillLevel, ToolSet, Turn,
+    held,
+};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, swatch};
+use crate::maths::colour::Rgb8;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use colour_match::{Lightness, Purity, Tone};
 
 pub(crate) struct Colours;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Colour, "colour", Tools::Colour, 105)
-    .picks(Picks::Swatch)
+const FACTS: [Facts; 1] = [Facts::of("colour", ToolSet::COLOUR, 105)
+    .picks(Picking::SWATCH)
+    .counted(Counted::Colour)
     .kept(Kept::Pick)];
 /// A lesson's colours.
 const COUNT: usize = 3;
@@ -67,18 +73,14 @@ impl Described for Colours {
         Tone::of_code(variant).map(Kind::Colour)
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Colour(tone) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Colour(tone.colour(exercise.seed))
+        held(Swatch(tone.colour(exercise.seed)))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        original.swatch().map(marks::givens).unwrap_or_default()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::colour())
     }
 
@@ -94,11 +96,25 @@ impl Described for Colours {
         laid(tones.into_iter().map(colour))
     }
 
+    fn glyph(&self) -> Vec<TileMark> {
+        swatch()
+    }
+}
+
+/// A colour's original: its swatch.
+#[derive(Debug)]
+pub(crate) struct Swatch(Rgb8);
+
+impl Original for Swatch {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self.0)
+    }
+
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
         marks::compare(asked)
     }
 
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
-        swatch()
+    fn swatch(&self) -> Option<Rgb8> {
+        Some(self.0)
     }
 }

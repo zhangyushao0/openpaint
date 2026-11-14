@@ -1,117 +1,120 @@
-//! What an exercise gives (`Original`, S109): the variants its kinds' generators make, and what the
-//! flow reads of any of them without asking which it is (S109b): its lines, its swatch, its
-//! picture, its value scale's cells, the colour it gives at a point.
+//! What an exercise gives (`Original`, S109, S123): the value its kind's generator makes from its
+//! seed (or its picture), a type of the kind's own folder behind one trait. It says what it prints
+//! in its frames, how its copy is compared, the picture the crate draws for it and its answer as a
+//! hand draws it; and it answers what the flow reads of any original without asking which it is:
+//! its lines, its swatch, its picture, its value scale's cells, the colour it gives at a point.
+//! See `Described` (`kind.rs`) for why a kind is two halves of one description.
+
+use std::any::Any;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::colour_areas::areas::Areas;
-use crate::colour_areas::areas_generated::GeneratedAreas;
-use crate::geometry::ellipse::EllipseGuide;
-use crate::geometry::perspective::PerspectiveBox;
-use crate::kinds::estimates::flat::Flat;
-use crate::kinds::objects::object::ObjectTask;
-use crate::kinds::points_in_space::space::SpaceTask;
 use crate::kinds::scales::scale::ValueScale;
-use crate::kinds::solids::solid::SolidTask;
+use crate::marks::asked::{Asked, Compare, Painted};
+use crate::marks::compared::{Compared, Comparison, DrawnCopy};
+use crate::marks::mark::SheetMark;
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
+use crate::sheets::sheet_picture::SheetPicture;
 
-/// What an exercise's original is.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Original {
-    /// One line or a group of them, each in frame units.
-    Lines(Vec<Vec<Point>>),
-    /// A swatch.
-    Colour(Rgb8),
-    /// A pack's picture (an empty reference: none was kept); a crop's with its areas (S101).
-    Picture(ItemRef),
-    /// A generated colour combination's picture and areas (a record of 1.18.1 and before).
-    Areas(GeneratedAreas),
-    /// A value scale's ends and cells.
-    Scale(ValueScale),
-    /// A box to complete: the exact box, its front corner's three edges given.
-    Box(PerspectiveBox),
-    /// A free-boxes page: its horizon is the example box's.
-    FreeBoxes(PerspectiveBox),
-    /// An ellipse's guide and the exact ellipse.
-    Ellipse(EllipseGuide),
-    /// An estimate's givens: its answer follows from them.
-    Flat(Flat),
-    /// A box with a face to fix a point in space on.
-    Space(Box<SpaceTask>),
-    /// A box with a solid to find in it.
-    Solid(Box<SolidTask>),
-    /// An object to simplify into its box.
-    Object(Box<ObjectTask>),
+/// An exercise's original: its kind's folder's own type, made by its kind's description
+/// (`Described::generate`). Every method has a default: a kind says only what it gives.
+pub trait Original: Any + Debug + Send + Sync {
+    /// What it gives in its exercise's frames before Compare; a pack's
+    /// picture is the sheet's to lay.
+    fn givens(&self) -> Vec<SheetMark> {
+        Vec::new()
+    }
+    /// Its copy, drawn as `copy`, checked as geometry (S84 to S98); none for a kind not checked
+    /// so.
+    fn check(&self, _copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        None
+    }
+    /// How `asked`'s copy is compared (`asked.original` is it); none while there is nothing to
+    /// compare (S109b). By default its drawn lines, once anything lies in its frame, checked as
+    /// geometry.
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        if !asked.held() {
+            return None;
+        }
+        let checked = self.check(&asked.copy.drawn())?;
+        Some(Compare::Checked(Comparison(checked)))
+    }
+    /// The picture the practice crate draws for it (`picture` its pack's, if any): a generated
+    /// combination's, an object's, value masses' answer; none for most kinds.
+    fn painted(&self, _picture: Option<&SheetPicture>) -> Option<Painted> {
+        None
+    }
+    /// Its answer as a hand would draw it, a stroke at a time in frame units (a cross on a point,
+    /// a stroke along each line, once round each ellipse): what `bench practice` draws a little
+    /// off; none for a kind without one.
+    fn answer(&self) -> Vec<Vec<Point>> {
+        Vec::new()
+    }
+    /// Its lines, each in frame units (a line's, a group's); none for another original.
+    fn lines(&self) -> Option<&[Vec<Point>]> {
+        None
+    }
+    /// Its swatch (a colour's); none for another original.
+    fn swatch(&self) -> Option<Rgb8> {
+        None
+    }
+    /// The pack's picture it copies (an empty reference: none was kept); none for an original
+    /// made from its seed.
+    fn picture(&self) -> Option<&ItemRef> {
+        None
+    }
+    /// The colour areas it was made with and the share of its frame they fill (a generated
+    /// combination's, its square frame whole); none for another original, whose areas, if any,
+    /// its pack's picture holds.
+    fn areas(&self) -> Option<(&Areas, Point)> {
+        None
+    }
+    /// A value scale's ends and cells, which Fill cell and the pen take one at a time; none for
+    /// another original.
+    fn scale(&self) -> Option<&ValueScale> {
+        None
+    }
+    /// The colour it gives at the frame point `at`: a generated combination's there, or in a value
+    /// scale's frame its given end's where `at` lies in one; none elsewhere and for another
+    /// original (a pack's picture's colour is its pixels').
+    fn colour_at(&self, _at: Point) -> Option<Rgb8> {
+        None
+    }
 }
 
-impl Original {
+impl dyn Original {
     /// A value scale's count of cells; none for another original.
     #[must_use]
     pub fn cells(&self) -> Option<usize> {
         self.scale().map(|scale| scale.cells)
     }
 
-    /// A value scale's ends and cells, which Fill cell and the pen take one at a time; none for
-    /// another original.
+    /// It as its kind's own type `T`, if it is one (the tests read a generator's exact task so).
     #[must_use]
-    pub const fn scale(&self) -> Option<&ValueScale> {
-        match self {
-            Self::Scale(scale) => Some(scale),
-            _ => None,
-        }
+    pub fn downcast<T: Original>(&self) -> Option<&T> {
+        let any: &dyn Any = self;
+        any.downcast_ref::<T>()
     }
+}
 
-    /// Its lines, each in frame units (a line's, a group's); none for another original.
-    #[must_use]
-    pub fn lines(&self) -> Option<&[Vec<Point>]> {
-        match self {
-            Self::Lines(lines) => Some(lines),
-            _ => None,
-        }
+/// An original held by the flow is equal only to itself, as it was made.
+impl PartialEq for dyn Original {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::addr_eq(self, other)
     }
+}
 
-    /// Its swatch (a colour's); none for another original.
-    #[must_use]
-    pub const fn swatch(&self) -> Option<Rgb8> {
-        match self {
-            Self::Colour(colour) => Some(*colour),
-            _ => None,
-        }
-    }
+/// What a kind's generator gives for an exercise not of its kind, which its description is never
+/// asked for: nothing.
+#[derive(Debug)]
+pub(crate) struct Blank;
 
-    /// The pack's picture it copies (an empty reference: none was kept); none for an original
-    /// made from its seed.
-    #[must_use]
-    pub const fn picture(&self) -> Option<&ItemRef> {
-        match self {
-            Self::Picture(item) => Some(item),
-            _ => None,
-        }
-    }
+impl Original for Blank {}
 
-    /// The colour areas it was made with and the share of its frame they fill (a generated
-    /// combination's, its square frame whole); none for another original, whose areas, if any,
-    /// its pack's picture holds.
-    #[must_use]
-    pub fn areas(&self) -> Option<(&Areas, Point)> {
-        match self {
-            Self::Areas(generated) => Some((&generated.areas, [1.0, 1.0])),
-            _ => None,
-        }
-    }
-
-    /// The colour it gives at the frame point `at`: a generated combination's there, or in a value
-    /// scale's frame its given end's where `at` lies in one; none elsewhere and for another
-    /// original (a pack's picture's colour is its pixels').
-    #[must_use]
-    pub fn colour_at(&self, at: Point) -> Option<Rgb8> {
-        match self {
-            Self::Areas(generated) => Some(generated.colour_at(at, 0.0)),
-            Self::Scale(scale) => {
-                let end = (scale.cell_at(at)).filter(|cell| *cell == 0 || cell + 1 == scale.cells);
-                end.map(|cell| scale.ends()[usize::from(cell > 0)])
-            }
-            _ => None,
-        }
-    }
+/// `original`, held as the flow holds it.
+pub(crate) fn held(original: impl Original) -> Arc<dyn Original> {
+    Arc::new(original)
 }

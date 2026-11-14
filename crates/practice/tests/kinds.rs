@@ -1,14 +1,16 @@
-//! Each kind's description (S109, S122): stored codes read back, every family described once with
-//! a key of its own, what each family's facts say of it, and every skill's lesson at every level:
-//! laid, a few minutes long, each exercise generating, printing and compared, the levels apart.
+//! Each kind's description (S109, S122, S123): stored codes read back, every topic described once
+//! with a key of its own, what each topic's facts say of it, and every skill's lesson at every
+//! level: laid, a few minutes long, each exercise generating, printing and compared, the levels
+//! apart.
 
 use std::sync::Arc;
 
 use openpaint_practice::{
     Areas, Arrangement, Asked, BoxView, Carve, Combination, Copied, DrawnCopy, Estimate, Exercise,
-    Family, Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Metric, Pack,
-    PackItem, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, ScaleTone, SheetPicture,
-    Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Tools, Trick, ValueMasses, schedule,
+    Facts, Fill, Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Metric,
+    Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, ScaleTone,
+    SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick, ValueMasses,
+    schedule,
 };
 
 /// A kind of every variant the stores may hold.
@@ -73,51 +75,66 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty() {
     );
 }
 
-#[test]
-fn every_family_is_described_once_with_a_key_of_its_own() {
-    let mut keys = Vec::new();
-    for family in Family::ALL {
-        let facts = family.facts();
-        assert_eq!(facts.family, family);
-        assert_eq!(Family::of_key(facts.key), Some(family));
-        let lowered = |c: char| c.is_ascii_lowercase() || c == '-';
-        assert!(facts.key.chars().all(lowered), "{}", facts.key);
-        keys.push(facts.key);
-    }
-    keys.sort_unstable();
-    keys.dedup();
-    assert_eq!(keys.len(), Family::ALL.len());
-    // The retired generated combinations go by the combinations' family.
-    assert_eq!(Kind::Areas(Arrangement::ALL[0]).family(), Family::Areas);
+/// Every topic's facts, by their keys in order: what every kind's facts are.
+fn topics() -> Vec<&'static Facts> {
+    let mut topics: Vec<&Facts> = every_kind().into_iter().map(Kind::facts).collect();
+    topics.sort_by_key(|facts| facts.key);
+    topics.dedup_by_key(|facts| facts.key);
+    topics
 }
 
 #[test]
-fn a_family_s_facts_say_what_it_is() {
-    let aligned = [Family::Line, Family::Combined, Family::Shape];
-    let composed = [Family::Division, Family::WholeCopy, Family::ValueMasses];
-    for family in Family::ALL {
-        let facts = family.facts();
-        assert_eq!(facts.aligned, aligned.contains(&family), "{family:?}");
-        assert_eq!(facts.compared, family != Family::Free, "{family:?}");
-        assert_eq!(family.composed(), composed.contains(&family), "{family:?}");
-        assert!(facts.seconds >= 30, "{family:?}: how long one takes");
-        let tools = match family {
-            Family::Division => Tools::Dividing,
-            Family::WholeCopy => Tools::Copying,
-            Family::ValueMasses => Tools::Greys,
-            Family::Colour => Tools::Colour,
-            Family::Scale => Tools::Cells,
-            Family::Areas | Family::KeyShift => Tools::Painting,
-            Family::Study => Tools::Full,
-            _ => Tools::Drawing,
-        };
-        assert_eq!(facts.tools, tools, "{family:?}");
+fn every_topic_is_described_once_with_a_key_of_its_own() {
+    for kind in every_kind() {
+        let facts = kind.facts();
+        let lowered = |c: char| c.is_ascii_lowercase() || c == '-';
+        assert!(facts.key.chars().all(lowered), "{}", facts.key);
+        let alike = every_kind()
+            .into_iter()
+            .filter(|k| k.facts().key == facts.key);
+        assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
-    let constructed: Vec<Family> = (Family::ALL.into_iter())
-        .filter(|f| f.constructed())
-        .collect();
+    assert_eq!(topics().len(), 27);
+    // The retired generated combinations go by the combinations' topic.
+    let generated = Kind::Areas(Arrangement::ALL[0]).facts();
+    assert_eq!(generated, Kind::Crop(Tier::Simple).facts());
+}
+
+#[test]
+fn a_topic_s_facts_say_what_it_is() {
+    let aligned = ["line", "combined", "shape"];
+    for facts in topics() {
+        let key = facts.key;
+        assert_eq!(facts.aligned, aligned.contains(&key), "{key}");
+        assert_eq!(facts.compared, key != "free", "{key}");
+        assert!(facts.seconds >= 30, "{key}: how long one takes");
+        let tools = &facts.tools;
+        let pens: &[Pen] = match key {
+            "division" => &Pen::DIVIDING,
+            "whole-copy" => &Pen::COPYING,
+            "value-masses" => &Pen::VALUES,
+            "colour" | "scale" | "combination" | "key-shift" | "study" => &[],
+            _ => &Pen::DRAWING,
+        };
+        assert_eq!(tools.pens, pens, "{key}");
+        let painted = ["whole-copy", "combination", "key-shift"];
+        assert_eq!(tools.paints, painted.contains(&key), "{key}");
+        let fill = match key {
+            "scale" => Some(Fill::Cell),
+            "colour" | "combination" | "key-shift" | "whole-copy" | "value-masses" => {
+                Some(Fill::Frame)
+            }
+            _ => None,
+        };
+        assert_eq!(tools.fill, fill, "{key}");
+        assert_eq!(
+            (tools.full, tools.layered),
+            (key == "study", key == "whole-copy")
+        );
+    }
+    let constructed = topics().into_iter().filter(|facts| facts.constructed);
     // The twelve built from given parts, and the free scribble's one frame (S122).
-    assert_eq!(constructed.len(), 13, "{constructed:?}");
+    assert_eq!(constructed.count(), 13);
 }
 
 /// A pack of `kind` pictures, four of each of `tiers`, with value masses that read and areas.
@@ -199,10 +216,7 @@ fn lines() -> Vec<Vec<Point>> {
 /// `exercise` generated, printed and compared with a copy held, its picture bare where it has one.
 fn prints_and_compares(exercise: &Exercise) {
     let original = exercise.original();
-    assert!(
-        !exercise.givens(&original).is_empty(),
-        "{exercise:?}: givens"
-    );
+    assert!(!original.givens().is_empty(), "{exercise:?}: givens");
     let picture = exercise.picture.clone().map(|item| SheetPicture {
         item,
         size: [400, 300],
@@ -214,11 +228,11 @@ fn prints_and_compares(exercise: &Exercise) {
     });
     let asked = Asked {
         exercise,
-        original: &original,
+        original: &*original,
         picture: picture.as_ref(),
         copy: &Held,
     };
-    assert!(exercise.compare(&asked).is_some(), "{exercise:?}: compared");
+    assert!(original.compare(&asked).is_some(), "{exercise:?}: compared");
 }
 
 #[test]
@@ -270,40 +284,26 @@ fn a_skill_of_several_topics_spreads_them_over_its_levels_in_the_course_s_order(
         pictures: &pictures,
         learner: &learner,
     };
-    let families = |key: &str, level| -> Vec<Family> {
+    let topics = |key: &str, level| -> Vec<&str> {
         let skill = Skill::of_key(key).expect("a skill");
         let planned = schedule::lesson(skill, level, 3, &standing).expect("a lesson");
-        let mut families: Vec<Family> = planned
-            .exercises
-            .iter()
-            .map(|(e, _)| e.kind.family())
+        let mut topics: Vec<&str> = (planned.exercises.iter())
+            .map(|(e, _)| e.kind.facts().key)
             .collect();
-        families.sort();
-        families.dedup();
-        families
+        topics.sort_unstable();
+        topics.dedup();
+        topics
     };
     let (first, second, third) = (SkillLevel::First, SkillLevel::Second, SkillLevel::Third);
-    assert_eq!(families("estimates", first), [Family::Point]);
-    assert_eq!(
-        families("estimates", second),
-        [Family::Point, Family::Proportion]
-    );
-    assert_eq!(
-        families("estimates", third),
-        [Family::Point, Family::Proportion, Family::Angle]
-    );
-    assert_eq!(
-        families("points-in-space", first),
-        [Family::Centre, Family::Halves]
-    );
-    assert_eq!(
-        families("points-in-space", second),
-        [Family::Thirds, Family::Step]
-    );
-    assert!(families("points-in-space", third).contains(&Family::Mirror));
-    assert_eq!(families("solids", first), [Family::Cylinder]);
-    assert_eq!(families("solids", second), [Family::Cone]);
-    assert!(families("solids", third).contains(&Family::Sphere));
+    assert_eq!(topics("estimates", first), ["point"]);
+    assert_eq!(topics("estimates", second), ["point", "proportion"]);
+    assert_eq!(topics("estimates", third), ["angle", "point", "proportion"]);
+    assert_eq!(topics("points-in-space", first), ["centre", "halves"]);
+    assert_eq!(topics("points-in-space", second), ["next-face", "thirds"]);
+    assert!(topics("points-in-space", third).contains(&"mirror"));
+    assert_eq!(topics("solids", first), ["cylinder"]);
+    assert_eq!(topics("solids", second), ["cone"]);
+    assert!(topics("solids", third).contains(&"sphere"));
 }
 
 #[test]

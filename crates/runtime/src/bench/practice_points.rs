@@ -54,12 +54,12 @@ impl Runtime {
         Ok(())
     }
 
-    /// The shown exercise's answer as its kind gives it (`Kind::answer`) drawn by the pen a little
-    /// off: a cross for a point, a stroke along each line, once round each ellipse.
+    /// The shown exercise's answer as its original gives it (`Original::answer`) drawn by the pen
+    /// a little off: a cross for a point, a stroke along each line, once round each ellipse.
     fn bench_answer(&mut self) -> Result<(), RuntimeError> {
         let shown = self.practice().and_then(|p| {
             let index = p.current?;
-            let strokes = p.sheet.kinds[index].answer(p.original.as_deref()?);
+            let strokes = p.original.as_deref()?.answer();
             (!strokes.is_empty()).then(|| (strokes, p.sheet.pairs[index].copy))
         });
         let (strokes, frame) = shown.ok_or(RuntimeError::NotNow("a point shown"))?;

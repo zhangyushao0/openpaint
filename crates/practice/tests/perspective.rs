@@ -5,7 +5,7 @@
 //! frame); free-box pages put their example on their horizon.
 
 use openpaint_practice::{
-    BoxView, Direction, EDGES, Exercise, FAR, Horizon, Kind, Original, PerspectiveBox, Point,
+    BoxView, Direction, EDGES, Exercise, FAR, FreePage, Horizon, Kind, PerspectiveBox, Point,
     distance,
 };
 
@@ -142,7 +142,7 @@ fn a_free_page_s_example_box_lies_on_its_horizon() {
 #[test]
 fn the_exercises_carry_their_boxes_and_their_codes() {
     let exercise = Exercise::generated(Kind::Box(BoxView::ThreePoint), 0x5EED_0084);
-    let Original::Box(b) = exercise.original() else {
+    let Some(b) = exercise.original().downcast::<PerspectiveBox>().copied() else {
         panic!("a box")
     };
     assert_eq!(
@@ -150,7 +150,8 @@ fn the_exercises_carry_their_boxes_and_their_codes() {
         PerspectiveBox::generate(BoxView::ThreePoint, 0x5EED_0084)
     );
     let free = Exercise::generated(Kind::FreeBoxes(Horizon::High), 7).original();
-    assert!(matches!(free, Original::FreeBoxes(b) if (b.horizon - 0.28).abs() < 1e-12));
+    let page = free.downcast::<FreePage>().expect("a page");
+    assert!((page.0.horizon - 0.28).abs() < 1e-12);
     for kind in [
         Kind::Box(BoxView::TwoPoint),
         Kind::Box(BoxView::ThreePoint),

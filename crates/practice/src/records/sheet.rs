@@ -11,6 +11,7 @@
 //! A lesson's number is never stored: it is its place among the lessons (`lessons.rs`).
 
 use crate::course::schedule::Planned;
+use crate::kinds::Kind;
 use crate::kinds::SkillLevel;
 use crate::marks::compared::Outcome;
 use crate::packs::pack::{ItemRef, Pack};
@@ -18,7 +19,7 @@ use crate::records::givens::Givens;
 use crate::records::lessons::OnSheet;
 use crate::records::metric::Metrics;
 use crate::records::time::Span;
-use crate::sheets::exercise::{Exercise, Kind};
+use crate::sheets::exercise::Exercise;
 use crate::sheets::layout::Layout;
 
 /// A practice sheet as it is stored.

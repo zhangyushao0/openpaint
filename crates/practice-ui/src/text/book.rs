@@ -120,10 +120,10 @@ pub(crate) fn seal_lines(language: Language, seal: Seal) -> [String; 2] {
         Language::Chinese => zh.map(str::to_owned),
     };
     match seal {
-        Seal::FirstSession => pair(["FIRST", "STEP"], ["初", "练"]),
-        Seal::TenSessions => pair(["TEN", "DONE"], ["十", "课"]),
-        Seal::FiftySessions => pair(["FIFTY", "DONE"], ["五", "十"]),
-        Seal::Stage(stage) => {
+        Seal::FirstLesson => pair(["FIRST", "STEP"], ["初", "练"]),
+        Seal::TenLessons => pair(["TEN", "DONE"], ["十", "课"]),
+        Seal::FiftyLessons => pair(["FIFTY", "DONE"], ["五", "十"]),
+        Seal::Unit(stage) => {
             let numeral = NUMERALS[usize::from(stage.clamp(1, 9)) - 1];
             match language {
                 Language::English => ["UNIT".to_owned(), stage.to_string()],
@@ -163,7 +163,7 @@ mod tests {
         );
         assert_eq!(day_title(Language::Chinese, date, 2), "10月28日 星期三");
         assert_eq!(
-            seal_lines(Language::Chinese, Seal::Stage(2)),
+            seal_lines(Language::Chinese, Seal::Unit(2)),
             ["二".to_owned(), "单元".to_owned()]
         );
     }

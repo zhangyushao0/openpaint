@@ -15,7 +15,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Estimate, Given, Kind, Layout, Original, PAUSE, ScaleTone, Seal, Sheet, Solid, Span, Trick,
+    Estimate, Given, Kind, Layout, PAUSE, ScaleTone, Seal, Sheet, Solid, Span, Trick,
 };
 use openpaint_practice_app::{Mark, PracticeIntent, PracticePens, PracticeProjection, SheetRead};
 use support::OnSheet;
@@ -150,7 +150,7 @@ fn a_finished_lesson_s_end_stamps_the_seal_it_earned() {
     }
     let end = PracticeProjection::of(&session).and_then(|p| p.end);
     let end = end.expect("the lesson's end");
-    assert_eq!(end.sealed, [Seal::TenSessions]);
+    assert_eq!(end.sealed, [Seal::TenLessons]);
     assert!(end.next.is_some(), "the lesson One more starts");
 }
 
@@ -202,13 +202,26 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     assert_eq!(alike, 2 * record.exercises().count() - 3);
     assert_eq!(read.lines.len(), 1);
     assert_eq!(read.lines[0].index, 0);
-    let Original::Lines(original) = record.laid(0).expect("an exercise").exercise.original() else {
+    let Some(original) = record
+        .laid(0)
+        .expect("an exercise")
+        .exercise
+        .original()
+        .lines()
+        .map(<[_]>::to_vec)
+    else {
         panic!("a line");
     };
     assert_eq!(read.lines[0].original, original);
     assert_eq!(read.lines[0].copy.len(), 1, "the correction left out");
     assert!((read.lines[0].copy[0][0][0] - 0.3).abs() < 1e-3);
-    let Original::Colour(swatch) = record.laid(10).expect("an exercise").exercise.original() else {
+    let Some(swatch) = record
+        .laid(10)
+        .expect("an exercise")
+        .exercise
+        .original()
+        .swatch()
+    else {
         panic!("a colour");
     };
     assert_eq!(read.colours, [(swatch, [204, 51, 26])], "the first pick");

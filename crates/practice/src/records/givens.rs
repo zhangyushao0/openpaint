@@ -29,8 +29,8 @@ impl Given {
         let original = exercise.original();
         let picture = (exercise.picture.as_ref()).and_then(|item| SheetPicture::of(item, packs));
         Self {
-            marks: exercise.givens(&original),
-            painted: exercise.painted(&original, picture.as_ref()),
+            marks: original.givens(),
+            painted: original.painted(picture.as_ref()),
         }
     }
 

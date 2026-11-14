@@ -28,7 +28,6 @@ use crate::kinds::solids::solid_answer::{Body, SolidAnswer, Square, View, answer
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::maths::vector::{Vector, add, sub};
-use crate::sheets::exercise::Family;
 
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps
 /// the rules well within).
@@ -62,15 +61,6 @@ pub enum Solid {
 
 impl Solid {
     pub const ALL: [Self; 3] = [Self::Cylinder, Self::Cone, Self::Sphere];
-
-    #[must_use]
-    pub const fn family(self) -> Family {
-        match self {
-            Self::Cylinder => Family::Cylinder,
-            Self::Cone => Family::Cone,
-            Self::Sphere => Family::Sphere,
-        }
-    }
 }
 
 /// How a solid's axis lies: upright, or along the left or the right vanishing direction.

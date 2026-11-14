@@ -3,26 +3,26 @@
 //! record removed (a test lesson) takes its part with it. Each seal counts what was done, never
 //! when: no days in a row, quotas or reminders (the author, 2026-10-28).
 //!
-//! On the path (S122) `FirstSession`, `TenSessions` and `FiftySessions` count lessons finished (a
-//! skill's, a full one, the first; a copy's never) and `Stage(n)` is earned when every skill of
-//! unit n has its first dot (the learner as the records tell it, `course/learner.rs`); the names
-//! stand through S122.
+//! `FirstLesson`, `TenLessons` and `FiftyLessons` count lessons finished (a skill's, a full one,
+//! the first; a copy's never) and `Unit(n)` is earned when every skill of unit n has its first
+//! dot (the learner as the records tell it, `course/learner.rs`). A compared exercise counts
+//! toward lines or colours as its kind's facts say (`Facts::counted`).
 
 use crate::course::learner::Learner;
 use crate::course::unit::UNITS;
+use crate::kinds::Counted;
 use crate::records::sheet::Sheet;
 use crate::records::time::seconds;
-use crate::sheets::exercise::Family;
 
 /// A milestone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Seal {
     /// The first lesson finished, then ten and fifty.
-    FirstSession,
-    TenSessions,
-    FiftySessions,
+    FirstLesson,
+    TenLessons,
+    FiftyLessons,
     /// Every skill of unit n with its first dot.
-    Stage(u8),
+    Unit(u8),
     /// A hundred lines compared (single and combined) and a hundred colours.
     HundredLines,
     HundredColours,
@@ -39,7 +39,7 @@ const TEN_HOURS: u64 = 10 * 3600;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Tally {
     /// Lessons finished, a long colour copy's never.
-    pub sessions: u32,
+    pub lessons: u32,
     /// Exercises compared: single and combined lines, and colours.
     pub lines: u32,
     pub colours: u32,
@@ -97,13 +97,13 @@ impl Tally {
         let Some(lesson) = record.lessons.get(index).filter(|_| !record.is_copy()) else {
             return;
         };
-        self.sessions += u32::from(lesson.finished.is_some());
+        self.lessons += u32::from(lesson.finished.is_some());
         self.learner.take(lesson);
         for laid in lesson.exercises.iter().filter(|laid| laid.first.is_some()) {
-            match laid.exercise.kind.family() {
-                Family::Line | Family::Combined => self.lines += 1,
-                Family::Colour => self.colours += 1,
-                _ => {}
+            match laid.exercise.kind.facts().counted {
+                Counted::Line => self.lines += 1,
+                Counted::Colour => self.colours += 1,
+                Counted::Nothing => {}
             }
         }
     }
@@ -117,12 +117,12 @@ impl Tally {
                 seals.push(seal);
             }
         };
-        earn(self.sessions >= 1, Seal::FirstSession);
-        earn(self.sessions >= 10, Seal::TenSessions);
-        earn(self.sessions >= 50, Seal::FiftySessions);
+        earn(self.lessons >= 1, Seal::FirstLesson);
+        earn(self.lessons >= 10, Seal::TenLessons);
+        earn(self.lessons >= 50, Seal::FiftyLessons);
         for unit in UNITS.iter().filter(|unit| unit.built()) {
             let dotted = (unit.skills.iter()).all(|skill| self.learner.dots(*skill) > 0);
-            earn(dotted, Seal::Stage(unit.number));
+            earn(dotted, Seal::Unit(unit.number));
         }
         earn(self.lines >= 100, Seal::HundredLines);
         earn(self.colours >= 100, Seal::HundredColours);

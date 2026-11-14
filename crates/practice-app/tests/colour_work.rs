@@ -15,8 +15,8 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     AreasCompared, Arrangement, Compared, Exercise, Figure, GeneratedAreas, ItemRef, Kind, Layout,
-    Metric, Original, Pack, PackItem, Pair, Picked, PictureCompared, PictureKind, ScaleCompared,
-    ScaleTone, Sheet, Tier, ValueScale, value,
+    Metric, Pack, PackItem, Pair, Picked, PictureCompared, PictureKind, ScaleCompared, ScaleTone,
+    Sheet, Tier, ValueScale, value,
 };
 use openpaint_practice_app::{
     Pen, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
@@ -134,7 +134,9 @@ fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
         "its picture drawn once"
     );
     let pair = practice.sheet.pairs[0];
-    let Some(Original::Areas(generated)) = practice.original.as_deref().cloned() else {
+    let Some(generated) =
+        (practice.original.as_deref()).and_then(|o| o.downcast::<GeneratedAreas>().cloned())
+    else {
         panic!("a colour combination")
     };
     let tone = colour(generated.areas.colours[0]);
@@ -237,7 +239,7 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
         "its first cell"
     );
     let pair = practice.sheet.pairs[1];
-    let Original::Scale(scale) = *practice.original.as_deref().expect("in hand") else {
+    let Some(&scale) = practice.original.as_deref().expect("in hand").scale() else {
         panic!("a value scale")
     };
     let middle = |cell: usize| {

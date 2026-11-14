@@ -12,8 +12,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Given, Judge, Layout, Original, Outcome, Picked, Planned, Purpose, Sheet, Skill, SkillLevel,
-    Verdict, schedule,
+    Given, Judge, Layout, Outcome, Picked, Planned, Purpose, Sheet, Skill, SkillLevel, Verdict,
+    schedule,
 };
 use openpaint_practice_app::{
     PracticeIntent, PracticeLog, PracticePens, PracticeProjection, PracticeSheet, Start, practise,
@@ -153,7 +153,7 @@ fn where_the_app_judges_its_result_stands_and_no_choice_is_taken() {
     let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
     let record = lesson_of(&log, "colour", 40);
     let mut session = opened(&record, &log);
-    let Some(Original::Colour([r, g, b])) = shown(&session).original.as_deref().cloned() else {
+    let Some([r, g, b]) = shown(&session).original.as_deref().and_then(|o| o.swatch()) else {
         panic!("a colour")
     };
     let c = |v: u8| f32::from(v) / 255.0;

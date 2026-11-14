@@ -23,7 +23,9 @@ pub(crate) mod object_rules;
 
 use crate::course::picker::{laid, turned};
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::asked::Painted;
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
@@ -31,7 +33,6 @@ use crate::marks::tile::{TileMark, arc, boxed};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use crate::sheets::sheet_picture::SheetPicture;
 use object::ObjectTask;
 use object_design::Carve;
@@ -39,7 +40,7 @@ use std::sync::Arc;
 
 pub(crate) struct Objects;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Object, "objects", Tools::Drawing, 270)];
+const FACTS: [Facts; 1] = [Facts::of("objects", ToolSet::DRAWING, 270)];
 /// The carves the first level turns through, three a lesson's place (stage 4's drills), of which
 /// it lays the first; the carves the second and the third take in turn.
 const TURNED: usize = 3;
@@ -70,28 +71,14 @@ impl Described for Objects {
             .map(|c| Kind::Object(*c))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Object(carve) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Object(Box::new(ObjectTask::generate(carve, exercise.seed)))
+        held(ObjectTask::generate(carve, exercise.seed))
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Object(task) => marks::givens(task),
-            _ => Vec::new(),
-        }
-    }
-
-    fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        match original {
-            Original::Object(task) => Some(marks::ObjectCompared::of(task, copy)),
-            _ => None,
-        }
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         demo::object()
     }
 
@@ -112,30 +99,8 @@ impl Described for Objects {
         3
     }
 
-    /// Its picture, `OBJECT_SIDE` square (S94).
-    fn painted(&self, original: &Original, _picture: Option<&SheetPicture>) -> Option<Painted> {
-        let Original::Object(task) = original else {
-            return None;
-        };
-        Some(([OBJECT_SIDE; 2], task.picture(OBJECT_SIDE)))
-    }
-
-    /// A stroke along each visible edge and seen curve.
-    fn answer(&self, original: &Original) -> Vec<Vec<Point>> {
-        let Original::Object(task) = original else {
-            return Vec::new();
-        };
-        (task.answer.sides.iter().map(|side| side.to_vec()))
-            .chain(
-                (task.answer.outlines.iter().flatten())
-                    .filter(|stretch| !stretch.hidden)
-                    .map(|stretch| stretch.points.clone()),
-            )
-            .collect()
-    }
-
     /// A low block seen from above, a post standing on its top.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let mut marks = boxed([0.0, 4.0], 0.85);
         let (centre, axes) = ([27.4, 16.6], [5.0, 2.0]);
         let top = [centre[0], 7.0];
@@ -152,5 +117,32 @@ impl Described for Objects {
             ]),
         ]);
         marks
+    }
+}
+
+/// An object to simplify into its box.
+impl Original for ObjectTask {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self)
+    }
+
+    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        Some(marks::ObjectCompared::of(self, copy))
+    }
+
+    /// Its picture, `OBJECT_SIDE` square (S94).
+    fn painted(&self, _picture: Option<&SheetPicture>) -> Option<Painted> {
+        Some(([OBJECT_SIDE; 2], ObjectTask::picture(self, OBJECT_SIDE)))
+    }
+
+    /// A stroke along each visible edge and seen curve.
+    fn answer(&self) -> Vec<Vec<Point>> {
+        (self.answer.sides.iter().map(|side| side.to_vec()))
+            .chain(
+                (self.answer.outlines.iter().flatten())
+                    .filter(|stretch| !stretch.hidden)
+                    .map(|stretch| stretch.points.clone()),
+            )
+            .collect()
     }
 }

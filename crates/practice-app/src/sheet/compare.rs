@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    Asked, Compare, Comparison, First, Fit, Frame, Judge, Original, Outcome, Reading, ToFit, Tools,
+    Asked, Compare, Comparison, First, Fit, Frame, Judge, Original, Outcome, Reading, ToFit,
     Verdict,
 };
 
@@ -82,12 +82,12 @@ impl PracticeSheet {
         }
         self.in_hand = shown.and_then(|index| {
             let original = self.record.laid(index)?.exercise.original();
-            Some((index, Arc::new(original)))
+            Some((index, original))
         });
     }
 
     /// Exercise `index`'s original, if it is the one in hand.
-    pub(super) fn original(&self, index: usize) -> Option<&Arc<Original>> {
+    pub(super) fn original(&self, index: usize) -> Option<&Arc<dyn Original>> {
         (self.in_hand.as_ref())
             .filter(|(held, _)| *held == index)
             .map(|(_, original)| original)
@@ -162,11 +162,11 @@ impl PracticeSheet {
         };
         let asked = Asked {
             exercise: &exercise,
-            original: &original,
+            original: &*original,
             picture: sheet.pictures.get(index).and_then(Option::as_deref),
             copy: &copy,
         };
-        Ok(match exercise.compare(&asked).ok_or_else(nothing)? {
+        Ok(match original.compare(&asked).ok_or_else(nothing)? {
             Compare::Made(shown) => Compared::Made(shown),
             Compare::Checked(shown) => Compared::Checked(shown),
             Compare::Fitted(shown, fit) => {
@@ -241,13 +241,12 @@ impl PracticeSheet {
         artwork: &Artwork,
         selection: Option<&RegionMask>,
     ) -> Result<RegionMask, Refused> {
-        let tools = self.shown_facts().map(|facts| facts.tools);
-        let fills = matches!(
-            tools,
-            Some(Tools::Colour | Tools::Cells | Tools::Painting | Tools::Greys)
-        );
-        let blocks = tools == Some(Tools::Copying) && self.pen.paints();
-        let Some(clip) = self.clip.clone().filter(|_| fills || blocks) else {
+        // A whole copy fills only its colour blocks, while a painting pen is chosen.
+        let fills = (self.shown_facts()).is_some_and(|facts| {
+            let tools = &facts.tools;
+            tools.fill.is_some() && (!tools.layered || self.pen.paints())
+        });
+        let Some(clip) = self.clip.clone().filter(|_| fills) else {
             return Err(unavailable(Availability::NothingLeft));
         };
         if let Some(refusal) = LayerRefusal::of(artwork) {

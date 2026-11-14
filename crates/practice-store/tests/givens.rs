@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Exercise, Given, Givens, ItemRef, Kind, Masses, Original, Pack, PackItem, PictureKind,
-    SheetPicture, Tier, ValueMasses,
+    Exercise, Given, Givens, ItemRef, Kind, Masses, Pack, PackItem, PictureKind, SheetPicture,
+    Tier, ValueMasses,
 };
 use openpaint_practice_store::{
     decode_givens, decode_marks, decode_painted, encode_givens, encode_marks, encode_painted,
@@ -51,7 +51,7 @@ fn compositions() -> Pack {
 /// What exercise `seed` of `kind` prints, its picture one of `packs`' where its kind copies one.
 fn printed(kind: Kind, seed: u64, packs: &[Pack]) -> Given {
     let mut exercise = Exercise::generated(kind, seed);
-    if matches!(exercise.original(), Original::Picture(_)) {
+    if exercise.original().picture().is_some() {
         exercise.picture = Some(ItemRef {
             pack: PACK.to_owned(),
             item: format!("land-{}", seed % SEEDS),
@@ -60,8 +60,8 @@ fn printed(kind: Kind, seed: u64, packs: &[Pack]) -> Given {
     let original = exercise.original();
     let picture = (exercise.picture.as_ref()).and_then(|item| SheetPicture::of(item, packs));
     Given {
-        marks: exercise.givens(&original),
-        painted: exercise.painted(&original, picture.as_ref()),
+        marks: original.givens(),
+        painted: original.painted(picture.as_ref()),
     }
 }
 

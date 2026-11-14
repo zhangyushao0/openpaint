@@ -10,24 +10,21 @@ pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod value_masses_read;
 
+use std::sync::Arc;
+
 use crate::course::picker::composition;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, Tools, Turn};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, SkillLevel, ToolSet, Turn, held};
 use crate::marks::asked::{Asked, Compare, Painted};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, edge, square};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use crate::sheets::sheet_picture::SheetPicture;
 
 pub(crate) struct ValueMasses;
 
-const FACTS: [Facts; 1] = [
-    Facts::of(Family::ValueMasses, "value-masses", Tools::Greys, 360)
-        .composed()
-        .needs(Needs::Masses),
-];
+const FACTS: [Facts; 1] = [Facts::of("value-masses", ToolSet::GREYS, 360).needs(Needs::Masses)];
 /// How many value masses stage 4's drills held.
 const DRILLED: usize = 3;
 /// The tile's tints: the middle and the dark, shares of the tile's colour.
@@ -54,15 +51,11 @@ impl Described for ValueMasses {
         Tier::of_code(variant).map(Kind::ValueMasses)
     }
 
-    fn givens(&self, _exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        crate::marks::drawing::pictured()
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        held(Valued(exercise.item()))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
-        exercise.picture()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::value_masses())
     }
 
@@ -74,18 +67,8 @@ impl Described for ValueMasses {
         3
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        marks::compare(asked)
-    }
-
-    /// The answer its picture holds in its greys, a pixel a cell (S96).
-    fn painted(&self, _original: &Original, picture: Option<&SheetPicture>) -> Option<Painted> {
-        let masses = picture?.masses.as_ref()?;
-        Some((masses.answer.size, masses.answer.picture()))
-    }
-
     /// A picture's edge, its ground under the ridge middle, a crown and a roof dark, a wall light.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let ground = vec![
             [9.0, 19.0],
             [22.0, 12.5],
@@ -113,5 +96,29 @@ impl Described for ValueMasses {
             TileMark::Line(closed(&roof)),
             TileMark::Line(closed(&wall)),
         ]
+    }
+}
+
+/// Value masses' original: the composition's picture whose masses are painted.
+#[derive(Debug)]
+pub(crate) struct Valued(ItemRef);
+
+impl Original for Valued {
+    fn givens(&self) -> Vec<SheetMark> {
+        crate::marks::drawing::pictured()
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        marks::compare(asked)
+    }
+
+    /// The answer its picture holds in its greys, a pixel a cell (S96).
+    fn painted(&self, picture: Option<&SheetPicture>) -> Option<Painted> {
+        let masses = picture?.masses.as_ref()?;
+        Some((masses.answer.size, masses.answer.picture()))
+    }
+
+    fn picture(&self) -> Option<&ItemRef> {
+        Some(&self.0)
     }
 }

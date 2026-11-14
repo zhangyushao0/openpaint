@@ -12,23 +12,25 @@ pub(crate) mod marks;
 use crate::course::picker::laid;
 use crate::demos::demo::Demo;
 use crate::demos::demo_points::crossed;
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
+use crate::kinds::{
+    Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, line, square};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use flat::{Estimate, Flat, FlatAnswer};
 use std::sync::Arc;
 
 pub(crate) struct Estimates;
 
+/// Its topics, in `Estimate::ALL`'s order.
 const FACTS: [Facts; 3] = [
-    Facts::of(Family::Point, "point", Tools::Drawing, 36),
-    Facts::of(Family::Proportion, "proportion", Tools::Drawing, 36),
-    Facts::of(Family::Angle, "angle", Tools::Drawing, 36),
+    Facts::of("point", ToolSet::DRAWING, 36),
+    Facts::of("proportion", ToolSet::DRAWING, 36),
+    Facts::of("angle", ToolSet::DRAWING, 36),
 ];
 /// Each level's estimates.
 const FIRST: [Estimate; 6] = [Estimate::Point; 6];
@@ -73,36 +75,25 @@ impl Described for Estimates {
         (Estimate::ALL.get(usize::from(variant))).map(|e| Kind::Flat(*e))
     }
 
-    fn family(&self, kind: Kind) -> Family {
-        match kind {
-            Kind::Flat(estimate) => estimate.family(),
-            _ => Family::Point,
-        }
-    }
-
-    fn original(&self, exercise: &Exercise) -> Original {
-        let Kind::Flat(estimate) = exercise.kind else {
-            return exercise.picture();
+    fn topic(&self, kind: Kind) -> &'static Facts {
+        let Kind::Flat(estimate) = kind else {
+            return &FACTS[0];
         };
-        Original::Flat(Flat::generate(estimate, exercise.seed))
+        &FACTS[usize::from(place(&Estimate::ALL, &estimate))]
     }
 
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Flat(flat) => marks::givens(flat),
-            _ => Vec::new(),
-        }
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        let Kind::Flat(estimate) = exercise.kind else {
+            return held(Blank);
+        };
+        held(Flat::generate(estimate, exercise.seed))
     }
 
-    fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        match original {
-            Original::Flat(flat) => Some(marks::FlatCompared::of(flat, copy)),
-            _ => None,
-        }
-    }
-
-    fn how(&self, family: Family) -> Option<Demo> {
-        demo::estimate(family)
+    fn how(&self, kind: Kind, _cells: usize) -> Option<Demo> {
+        let Kind::Flat(estimate) = kind else {
+            return None;
+        };
+        demo::estimate(estimate)
     }
 
     fn lesson(&self, level: SkillLevel, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
@@ -114,35 +105,30 @@ impl Described for Estimates {
         laid(estimates.map(Kind::Flat))
     }
 
-    /// A small cross on a point, a stroke along a line.
-    fn answer(&self, original: &Original) -> Vec<Vec<Point>> {
-        let Original::Flat(flat) = original else {
-            return Vec::new();
-        };
-        match flat.answer() {
-            FlatAnswer::Point(at) => crossed(at).to_vec(),
-            FlatAnswer::Line(line) => vec![line.to_vec()],
-        }
+    /// A dot in a frame.
+    fn glyph(&self) -> Vec<TileMark> {
+        vec![
+            line(&closed(&square([14.0, 7.0], [40.0, 33.0]))),
+            TileMark::Dot([31.0, 15.0]),
+        ]
+    }
+}
+
+/// An estimate's givens: its answer follows from them.
+impl Original for Flat {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::givens(self)
     }
 
-    /// A dot in a frame, a segment its first end ringed and its last barred with a dot along it,
-    /// a slanted line through a dot.
-    fn tile(&self, family: Family) -> Vec<TileMark> {
-        match family {
-            Family::Point => vec![
-                line(&closed(&square([14.0, 7.0], [40.0, 33.0]))),
-                TileMark::Dot([31.0, 15.0]),
-            ],
-            Family::Proportion => vec![
-                line(&[[10.0, 28.0], [45.0, 14.0]]),
-                TileMark::Ring([10.0, 28.0]),
-                line(&[[44.0, 11.5], [46.0, 16.5]]),
-                TileMark::Dot([23.3, 22.7]),
-            ],
-            _ => vec![
-                line(&[[14.0, 33.0], [40.0, 7.0]]),
-                TileMark::Dot([27.0, 20.0]),
-            ],
+    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
+        Some(marks::FlatCompared::of(self, copy))
+    }
+
+    /// A small cross on a point, a stroke along a line.
+    fn answer(&self) -> Vec<Vec<Point>> {
+        match Flat::answer(self) {
+            FlatAnswer::Point(at) => crossed(at).to_vec(),
+            FlatAnswer::Line(line) => vec![line.to_vec()],
         }
     }
 }

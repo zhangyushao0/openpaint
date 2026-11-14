@@ -10,9 +10,7 @@
 
 use openpaint_app::Hsv;
 use openpaint_core::Color;
-use openpaint_practice::{
-    CELLS, CardItem, HUELESS, Kind, Original, Rgb8, Verdict, WheelSize, oklch,
-};
+use openpaint_practice::{CELLS, CardItem, HUELESS, Kind, Rgb8, Verdict, WheelSize, oklch};
 use openpaint_practice_app::{PracticeIntent, PracticeProjection};
 
 use openpaint_ui::components::{
@@ -45,7 +43,7 @@ const HOW_LEAST: f32 = 12.0 * SPACE;
 /// nine where none is.
 pub(crate) fn how_of(practice: &PracticeProjection, kind: Kind) -> HowOf {
     let cells = (practice.original.as_deref())
-        .and_then(Original::cells)
+        .and_then(|original| original.cells())
         .unwrap_or(CELLS);
     HowOf::new(kind, cells)
 }

@@ -9,21 +9,24 @@
 pub(crate) mod combined;
 pub(crate) mod demo;
 
+use std::sync::Arc;
+
 use crate::course::picker::{laid, rotated};
 use crate::demos::demo::Demo;
-use crate::kinds::lines::marks as line_marks;
-use crate::kinds::{Described, Facts, Kind, Original, SkillLevel, Tools, Turn, place};
-use crate::marks::asked::{Asked, Compare};
-use crate::marks::mark::SheetMark;
+use crate::kinds::lines::marks::GivenLines;
+use crate::kinds::{
+    Blank, Counted, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
+};
 use crate::marks::tile::{TileMark, curve};
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 use combined::Combination;
 
 pub(crate) struct CombinedLines;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Combined, "combined", Tools::Drawing, 120).aligned()];
+const FACTS: [Facts; 1] = [Facts::of("combined", ToolSet::DRAWING, 120)
+    .aligned()
+    .counted(Counted::Line)];
 /// A lesson's groups.
 const COUNT: usize = 3;
 /// Each level's arrangements: the first's in order, the others' in turn from the lesson's place.
@@ -59,19 +62,17 @@ impl Described for CombinedLines {
         (Combination::ALL.get(usize::from(variant))).map(|c| Kind::Combined(*c))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
+    /// A group's lines, given and compared as a single line's (combined lines are lines copied
+    /// as one shape).
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Combined(combination) = exercise.kind else {
-            return exercise.picture();
+            return held(Blank);
         };
-        Original::Lines(combined::CombinedLines::generate(combination, exercise.seed).lines)
+        let group = combined::CombinedLines::generate(combination, exercise.seed);
+        held(GivenLines(group.lines))
     }
 
-    /// A group's lines, as a single line's (combined lines are lines copied as one shape).
-    fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        original.lines().map(line_marks::givens).unwrap_or_default()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::combined())
     }
 
@@ -84,12 +85,8 @@ impl Described for CombinedLines {
         laid(arrangements.into_iter().map(Kind::Combined))
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        line_marks::compare(asked)
-    }
-
     /// Two lines joined, each gently bowed.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let bow = |t: f32| (std::f32::consts::PI * t).sin();
         vec![
             TileMark::Line(curve(|t| [9.0 + 15.0 * t, 30.0 - 19.0 * t - 2.0 * bow(t)])),

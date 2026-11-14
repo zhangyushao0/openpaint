@@ -10,23 +10,24 @@ pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod reading;
 
+use std::sync::Arc;
+
 use crate::course::picker::Picker;
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, SkillLevel, Tools, Turn};
+use crate::kinds::{
+    Described, Facts, Kind, Needs, Original, Picking, SkillLevel, ToolSet, Turn, held,
+};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use crate::sheets::family::Family;
 
 pub(crate) struct Crops;
 
-const FACTS: [Facts; 1] = [
-    Facts::of(Family::Areas, "combination", Tools::Painting, 240)
-        .picks(Picks::Probed)
-        .needs(Needs::Crops),
-];
+pub(crate) const FACTS: [Facts; 1] = [Facts::of("combination", ToolSet::PAINTING, 240)
+    .picks(Picking::PROBED)
+    .needs(Needs::Crops)];
 
 impl Described for Crops {
     fn code(&self) -> u8 {
@@ -48,15 +49,11 @@ impl Described for Crops {
         Tier::of_code(variant).map(Kind::Crop)
     }
 
-    fn givens(&self, _exercise: &Exercise, _original: &Original) -> Vec<SheetMark> {
-        crate::marks::drawing::pictured()
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        held(Crop(exercise.item()))
     }
 
-    fn original(&self, exercise: &Exercise) -> Original {
-        exercise.picture()
-    }
-
-    fn how(&self, _family: Family) -> Option<Demo> {
+    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::areas())
     }
 
@@ -68,12 +65,8 @@ impl Described for Crops {
         3
     }
 
-    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
-        reading::compare(asked)
-    }
-
     /// Three bands in a frame, darker downwards.
-    fn tile(&self, _family: Family) -> Vec<TileMark> {
+    fn glyph(&self) -> Vec<TileMark> {
         let (left, right) = (9.0, 45.0);
         let edges = [(8.0, 8.0), (15.0, 19.0), (25.0, 22.0), (32.0, 32.0)];
         let mut marks: Vec<TileMark> = (edges.windows(2).enumerate())
@@ -89,5 +82,24 @@ impl Described for Crops {
             marks.push(TileMark::Line(vec![[left, *a], [right, *b]]));
         }
         marks
+    }
+}
+
+/// A colour combination's original: the pack's crop it copies (an empty reference: none was
+/// kept), its areas the pack's.
+#[derive(Debug)]
+pub(crate) struct Crop(ItemRef);
+
+impl Original for Crop {
+    fn givens(&self) -> Vec<SheetMark> {
+        crate::marks::drawing::pictured()
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        reading::compare(asked)
+    }
+
+    fn picture(&self) -> Option<&ItemRef> {
+        Some(&self.0)
     }
 }

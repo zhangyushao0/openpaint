@@ -13,7 +13,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Ellipse, Exercise, FRAME, Frame, Kind, Metric, Original, PEN_WIDTH, Point, Solid, distance,
+    Ellipse, Exercise, FRAME, Frame, Kind, Metric, PEN_WIDTH, Point, Solid, SolidTask, distance,
     resample, value,
 };
 use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, PracticeProjection};
@@ -94,7 +94,12 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     );
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
-    let Original::Solid(task) = practice.original.as_deref().expect("in hand") else {
+    let Some(task) = practice
+        .original
+        .as_deref()
+        .expect("in hand")
+        .downcast::<SolidTask>()
+    else {
         panic!("a solid")
     };
     let [near, far] = [task.answer.ellipses[0], task.answer.ellipses[1]];
