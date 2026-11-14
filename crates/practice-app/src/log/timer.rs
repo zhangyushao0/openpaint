@@ -9,7 +9,7 @@ use openpaint_app::{Availability, Session};
 use openpaint_practice::{Blocks, Sheet, TimerWrite};
 
 use super::PracticeLog;
-use crate::pomodoro::{Pomodoro, Timed, TimerIntent, TimerShown};
+use crate::pomodoro::{Pomodoro, Timed, TimerIntent, TimerShown, TimerTold};
 use crate::refused::Refused;
 use crate::sheet::{PracticeSheet, begun_on, end_block};
 
@@ -33,6 +33,11 @@ impl PracticeLog {
     /// held as the home holds them, the block's end kept for the sheet's return.
     pub fn hidden(&mut self, now: u64) {
         self.pomodoro.hidden(now);
+    }
+
+    /// The timer's transitions since the last call, oldest first, for the app's log.
+    pub fn timer_told(&mut self) -> Vec<TimerTold> {
+        self.pomodoro.told()
     }
 
     /// The timer as one UI frame shows it, at the last tick.
@@ -68,6 +73,7 @@ impl PracticeLog {
                 if !self.begun_in(session, block.started) {
                     // Nothing begun in it: End leaves it as Stop timer does.
                     self.pomodoro.stop()?;
+                    self.pomodoro.tell_end();
                     return Ok(Timed::Done);
                 }
                 let now = self.pomodoro.now();
@@ -80,6 +86,7 @@ impl PracticeLog {
                 self.pomodoro.complete();
                 // The log takes the sheet cut: its book, its seals and the block's end made again.
                 self.keep(record);
+                self.pomodoro.tell_end();
             }
             TimerIntent::Another(viewport) => {
                 if !self.pomodoro.ended() {

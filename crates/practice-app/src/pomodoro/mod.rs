@@ -46,7 +46,8 @@
 //! at the end of the block or the break (`PracticeLog::wake`), never every second. The screen
 //! stays on while the block or the break counts and at Time on the sheet until End
 //! (`PracticeLog::screen_on`). What changed goes to the store at each transition and once a
-//! minute while it counts (`PracticeLog::timer_request`).
+//! minute while it counts (`PracticeLog::timer_request`); each transition to the app's log
+//! (`TimerTold`).
 
 use std::sync::Arc;
 
@@ -56,8 +57,10 @@ use openpaint_practice::{BREAK, Block, BlockTally, Blocks, Length, Sheet, TimerW
 use crate::refused::Refused;
 
 mod shown;
+mod told;
 
 pub use shown::{BlockEnd, BlockShown, TimerShown};
+pub use told::TimerTold;
 
 /// What the user asks of the timer: on the home's row, the bar's ring, the block's end and the
 /// practice options.
@@ -126,6 +129,9 @@ pub(crate) struct Pomodoro {
     unsaved: bool,
     completed: Option<Block>,
     saved_left: u32,
+    /// Whether the block counted when last noted, and the transitions not yet told.
+    counted: bool,
+    told: Vec<TimerTold>,
 }
 
 /// A block completed, its end in front: the block, its card and the break's seconds left.
@@ -185,6 +191,7 @@ impl Pomodoro {
             }
         }
         self.rested(seconds, was, front);
+        self.note();
     }
 
     /// The app hidden at `now`: what counted until then counted, and from then on nothing counts,
@@ -192,6 +199,7 @@ impl Pomodoro {
     pub(crate) fn hidden(&mut self, now: u64) {
         self.tick(now, (self.today, self.front));
         self.front = false;
+        self.note();
     }
 
     /// `seconds` off the block under way, if it counted since the last tick (`front` then).
@@ -202,6 +210,9 @@ impl Pomodoro {
             return;
         };
         block.left = block.left.saturating_sub(seconds);
+        if block.left == 0 {
+            self.told.push(TimerTold::Up);
+        }
         if block.left == 0 || self.saved_left.saturating_sub(block.left) >= 60 {
             self.unsaved = true;
         }
@@ -216,8 +227,15 @@ impl Pomodoro {
         if was && ended.rest > 0 {
             ended.rest = ended.rest.saturating_sub(seconds);
             self.chime = ended.rest == 0 && self.kept.timing.chime;
+            if ended.rest == 0 {
+                let chime = self.kept.timing.chime;
+                self.told.push(TimerTold::BreakEnded { chime });
+            }
         }
         if !now {
+            if ended.rest > 0 {
+                self.told.push(TimerTold::BreakLeft);
+            }
             (self.ended, self.chime) = (None, false);
         }
     }
@@ -237,34 +255,33 @@ impl Pomodoro {
     /// A block of the length chosen begins at the last tick, unless one is under way; the end of
     /// the one before and its break go.
     pub(crate) fn begin(&mut self) {
-        if self.kept.under_way.is_some() {
-            return;
-        }
-        let length = self.kept.timing.length;
-        self.kept.under_way = Some(UnderWay {
-            started: self.now,
-            day: self.today,
-            length,
-            left: length.seconds(),
-            paused: false,
-        });
-        (self.ran_on, self.saved_left, self.began) =
-            (self.today, length.seconds(), length.seconds());
-        (self.ended, self.chime, self.unsaved) = (None, false, true);
+        self.start(self.kept.timing.length.seconds());
     }
 
     /// For debug builds' test chore only: a block begun as `begin` begins one, only `seconds`
     /// left of it, unless one is under way; whether it was.
     pub(crate) fn begin_test(&mut self, seconds: u32) -> bool {
+        let begins = self.kept.under_way.is_none();
+        self.start(seconds.clamp(1, self.kept.timing.length.seconds()));
+        begins
+    }
+
+    /// A block of the length chosen begun with `seconds` left, unless one is under way.
+    fn start(&mut self, seconds: u32) {
         if self.kept.under_way.is_some() {
-            return false;
+            return;
         }
-        self.begin();
-        if let Some(block) = self.kept.under_way.as_mut() {
-            block.left = block.left.min(seconds.max(1));
-            (self.saved_left, self.began) = (block.left, block.left);
-        }
-        true
+        self.kept.under_way = Some(UnderWay {
+            started: self.now,
+            day: self.today,
+            length: self.kept.timing.length,
+            left: seconds,
+            paused: false,
+        });
+        (self.ran_on, self.saved_left, self.began) = (self.today, seconds, seconds);
+        (self.ended, self.chime, self.unsaved) = (None, false, true);
+        self.told.push(TimerTold::Started(seconds));
+        self.note();
     }
 
     /// For debug builds' test chore only: the blocks begun at or after `since` gone, completed
@@ -291,6 +308,7 @@ impl Pomodoro {
         let block = block.ok_or(Refused::Unavailable(Availability::NothingLeft))?;
         block.paused = paused;
         self.unsaved = true;
+        self.note();
         Ok(())
     }
 
@@ -301,6 +319,7 @@ impl Pomodoro {
             .take()
             .ok_or(Refused::Unavailable(Availability::NothingLeft))?;
         self.unsaved = true;
+        self.note();
         Ok(())
     }
 

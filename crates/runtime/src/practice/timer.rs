@@ -1,8 +1,8 @@
 //! The Pomodoro in the runtime (S124; its flow is the practice log's, `PracticeLog::tick` and
 //! beside it): each frame the wall clock ticks the timer with the sheet in front before the UI
 //! pass (`Runtime::clocked`), the app leaving holds it (`host.rs`, `PracticeLog::hidden`), its
-//! intents apply after the sheet's and the options' (`timed`), and what it changed goes to the
-//! store. The host
+//! intents apply after the sheet's and the options' (`timed`), what it changed goes to the store
+//! and each transition to the app's log at info (`timer_saved`). The host
 //! asks after each frame when the timer wants the next (`Runtime::wake_in`: Android posts a frame
 //! then; nothing draws at rest otherwise), whether the screen stays on (`Runtime::screen_on`:
 //! Android's keep-screen-on flag; nothing elsewhere) and whether the break's chime sounds
@@ -15,6 +15,7 @@ use std::time::Duration;
 use openpaint_app::{Gallery, GalleryIntent};
 use openpaint_practice_app::{
     Options, OptionsIntent, PracticeLog, PracticeSheet, Start, Timed, TimerIntent, TimerShown,
+    TimerTold,
 };
 
 use super::jobs::PracticeJob;
@@ -64,10 +65,35 @@ impl Runtime {
     }
 }
 
-/// The timer's records to the store, once after each change.
+/// The timer's records to the store, once after each change, and its transitions to the app's
+/// log at info.
 pub(crate) fn timer_saved(log: &mut PracticeLog, storage: &mut Storage) {
     if let Some(write) = log.timer_request() {
         storage.submit(Job::Practice(PracticeJob::Timer(write)));
+    }
+    for told in log.timer_told() {
+        match told {
+            TimerTold::Started(seconds) => log::info!("pomodoro: a block of {seconds} s started"),
+            TimerTold::Counts => log::info!("pomodoro: the block counts"),
+            TimerTold::Held => log::info!("pomodoro: the block held"),
+            TimerTold::Up => log::info!("pomodoro: the time is up"),
+            TimerTold::Completed { lessons, exercises } => {
+                log::info!("pomodoro: End completed: {lessons} lessons, {exercises} exercises")
+            }
+            TimerTold::Stopped => log::info!("pomodoro: End stopped: nothing begun"),
+            TimerTold::BreakStarted(seconds) => {
+                log::info!("pomodoro: a break of {seconds} s started");
+            }
+            TimerTold::BreakEnded { chime: true } => {
+                log::info!("pomodoro: the break ended, its chime due");
+            }
+            TimerTold::BreakEnded { chime: false } => {
+                log::info!("pomodoro: the break ended, no chime: the switch is off");
+            }
+            TimerTold::BreakLeft => {
+                log::info!("pomodoro: the break ended, no chime: the sheet left")
+            }
+        }
     }
 }
 
@@ -92,6 +118,7 @@ pub(crate) fn timed_on_sheet(
             Ok(Timed::Lesson) => log::warn!("a lesson asked of the timer on a sheet"),
             Err(error) => log::warn!("timer intent refused: {error}"),
         }
+        timer_saved(log, storage);
     }
 }
 
