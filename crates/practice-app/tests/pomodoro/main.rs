@@ -2,7 +2,7 @@
 //! sheet is in front, held everywhere else, pause, continue and stop, the minutes shown and the
 //! frames the timer wants, the writes, a held block dropped on a later day, a restart
 //! (`clock.rs`); the chain of lessons, the time's end and End's cut, the break and its chime,
-//! Another pomodoro (`block.rs`).
+//! Another pomodoro (`block.rs`); the app hidden during the break (`away.rs`).
 
 use std::sync::Arc;
 
@@ -19,6 +19,7 @@ use openpaint_practice_app::{
     open_sheet, practise,
 };
 
+mod away;
 mod block;
 mod clock;
 

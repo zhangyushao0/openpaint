@@ -12,9 +12,9 @@
 //! - Under way, counting: a day's or a test's sheet is in front (`tick`'s `front`), the user has
 //!   not paused it, seconds are left. It counts down by the clock handed in, never below 0.
 //! - Under way, held: no such sheet in front (the home, the book, the path, a colour copy, a
-//!   sheet opening, the app hidden: the runtime ticks with none on `leave`) or the bar's Pause.
-//!   It counts on when the sheet is in front again (and Continue, if the user paused it). A held
-//!   block whose local day is past at a tick is dropped: nothing kept, no seal.
+//!   sheet opening), the app hidden (`PracticeLog::hidden`, the runtime's `leave`) or the bar's
+//!   Pause. It counts on when the sheet is in front again (and Continue, if the user paused it).
+//!   A held block whose local day is past at a tick is dropped: nothing kept, no seal.
 //! - Time up (no second left): the ring red and Time in the bar; nothing interrupts the stroke;
 //!   the exercise in hand may be finished and compared; Next reads End (`TimerIntent::End`). The
 //!   projection a frame's UI pass reads is that frame's tick's, so a Next tapped as the time runs
@@ -37,7 +37,8 @@
 //! - The break: its ring counts down with the minutes left; at its end one soft chime (when the
 //!   switch is on, `Timing::chime`; `PracticeLog::take_chime`, once) and the ring complete,
 //!   nothing else. Another pomodoro works at once, during the break or after; That's all for today
-//!   (or Home) leaves the block's end, which ends the break silently. The break is never stored.
+//!   (or Home) leaves the block's end, which ends the break silently; the app hidden holds the
+//!   break, the end kept for its return. The break is never stored.
 //! - Stop timer (under way or time up): the block goes, nothing kept, no seal; the lesson in hand
 //!   goes on untimed, as any lesson.
 //!
@@ -183,6 +184,13 @@ impl Pomodoro {
             }
         }
         self.rested(seconds, was, front);
+    }
+
+    /// The app hidden at `now`: what counted until then counted, and from then on nothing counts,
+    /// the block and its break held alike; the block's end stays for when the sheet is back.
+    pub(crate) fn hidden(&mut self, now: u64) {
+        self.tick(now, (self.today, self.front));
+        self.front = false;
     }
 
     /// `seconds` off the block under way, if it counted since the last tick (`front` then).

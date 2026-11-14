@@ -29,6 +29,12 @@ impl PracticeLog {
         self.pomodoro.tick(now, (self.today, shown));
     }
 
+    /// The app hidden at `now` (`set_clock` first; Android `onPause`): the block and its break
+    /// held as the home holds them, the block's end kept for the sheet's return.
+    pub fn hidden(&mut self, now: u64) {
+        self.pomodoro.hidden(now);
+    }
+
     /// The timer as one UI frame shows it, at the last tick.
     #[must_use]
     pub fn timer(&self) -> TimerShown {

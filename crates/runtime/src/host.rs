@@ -26,8 +26,9 @@ impl Runtime {
     /// not at all, also if the process is killed meanwhile). In the gallery, the calls handed over
     /// are waited for.
     pub fn leave(&mut self) {
-        // The Pomodoro's timer holds while the app is hidden (S124), stored as it stands.
-        self.practice.tick(self.frame_clock.wall_seconds(), None);
+        // The Pomodoro's timer holds while the app is hidden (S124), stored as it stands; a
+        // block's end stays for the sheet's return.
+        self.practice.hidden(self.frame_clock.wall_seconds());
         practice::timer_saved(&mut self.practice, &mut self.storage);
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);

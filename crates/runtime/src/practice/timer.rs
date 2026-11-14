@@ -1,7 +1,8 @@
 //! The Pomodoro in the runtime (S124; its flow is the practice log's, `PracticeLog::tick` and
 //! beside it): each frame the wall clock ticks the timer with the sheet in front before the UI
-//! pass (`Runtime::clocked`), the app leaving ticks it with none (`host.rs`), its intents apply
-//! after the sheet's and the options' (`timed`), and what it changed goes to the store. The host
+//! pass (`Runtime::clocked`), the app leaving holds it (`host.rs`, `PracticeLog::hidden`), its
+//! intents apply after the sheet's and the options' (`timed`), and what it changed goes to the
+//! store. The host
 //! asks after each frame when the timer wants the next (`Runtime::wake_in`: Android posts a frame
 //! then; nothing draws at rest otherwise), whether the screen stays on (`Runtime::screen_on`:
 //! Android's keep-screen-on flag; nothing elsewhere) and whether the break's chime sounds

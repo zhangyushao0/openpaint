@@ -19,14 +19,14 @@ use super::{
 
 /// A block of 25 minutes begun on the home at noon, a day's sheet of six lines opened at once
 /// and in front, its first exercise drawn in.
-fn begun() -> (PracticeLog, Session) {
+pub(super) fn begun() -> (PracticeLog, Session) {
     let (log, mut session) = untouched();
     drawn(&mut session);
     (log, session)
 }
 
 /// As `begun`, nothing drawn.
-fn untouched() -> (PracticeLog, Session) {
+pub(super) fn untouched() -> (PracticeLog, Session) {
     let empty = log_of(Vec::new(), NOON);
     let drill = six_lines(&empty, (NOON, 40), Purpose::Day);
     let mut log = log_of(vec![drill.clone()], NOON);
@@ -38,7 +38,7 @@ fn untouched() -> (PracticeLog, Session) {
 }
 
 /// A frame at `now` with `session`'s sheet in front.
-fn frame(log: &mut PracticeLog, session: &Session, now: u64) {
+pub(super) fn frame(log: &mut PracticeLog, session: &Session, now: u64) {
     tick(log, now, Some(&record_of(session)));
 }
 
@@ -84,7 +84,7 @@ fn trimmed(session: &mut Session) -> Option<Sheet> {
 }
 
 /// The block's end the frame shows: its length, its tally and the break's minutes left.
-fn ended(log: &PracticeLog) -> (u32, BlockTally, Option<u32>) {
+pub(super) fn ended(log: &PracticeLog) -> (u32, BlockTally, Option<u32>) {
     match log.timer().block {
         Some(BlockShown::Ended { end, rest }) => {
             (end.seconds, end.tally.clone(), rest.map(|r| r.0))
