@@ -1,5 +1,5 @@
-//! The display cache's worker (DECISIONS D96): writes the open canvas's pixels once the
-//! canvas shows a version the library holds complete, and deletes an artwork's cached canvas
+//! The display cache's worker (DECISIONS D96): writes the canvas's pixels when it is left or the
+//! app hidden showing a version the library holds complete, and deletes an artwork's cached canvas
 //! with the artwork, in the order they were asked for, off the screen's thread: one GPU wait for
 //! the copy of the canvas target, LZ4, a file written whole and renamed. A failure is logged and
 //! ignored (the cache is derived: the canvas is evaluated instead). Off (`None`) in the harness

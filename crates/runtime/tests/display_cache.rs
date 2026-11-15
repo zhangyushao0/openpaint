@@ -1,11 +1,11 @@
-//! The display cache through the whole frame loop (S54): an artwork opened without a cache fills
-//! in and, once complete, its canvas is written to the cache under the save id its head holds; the
-//! next start shows it complete from the frame it opens (nothing waits), equal to a cold
-//! evaluation, and an edit after it is too. A cache written for another save (one more save of
-//! the same content, or a library rolled back from a backup to an older head), another renderer,
-//! another format or another size is never taken as complete: the canvas fills as before and then
-//! writes the cache anew. A test binary of its own: it makes its device's frames' share small, so
-//! a fill takes many frames.
+//! The display cache through the whole frame loop (S54, E4): an artwork opened without a cache
+//! fills in; its canvas is written to the cache under the save id its head holds when it is left
+//! (the gallery) or the app hidden, never by a save while it stays open; the next start shows it
+//! complete from the frame it opens (nothing waits), equal to a cold evaluation, and an edit after
+//! it is too. A cache written for another save (one more save of the same content, or a library
+//! rolled back from a backup to an older head), another renderer, another format or another size
+//! is never taken as complete: the canvas fills as before and leaving writes the cache anew. A
+//! test binary of its own: it makes its device's frames' share small, so a fill takes many frames.
 
 #[path = "runtime/support/frames.rs"]
 mod frames;
@@ -109,8 +109,19 @@ fn opened(runtime: &mut Runtime, hand: &mut Hand) {
 
 /// The cache of the project as the directory holds it now.
 fn cached(dirs: &Dirs) -> CacheKey {
+    held(dirs).expect("a cached canvas")
+}
+
+/// The key of the project's cache, if the directory holds one now.
+fn held(dirs: &Dirs) -> Option<CacheKey> {
     let cache = DisplayCache::at(&dirs.cache).read(PROJECT).expect("read");
-    cache.expect("a cached canvas").key
+    cache.map(|cache| cache.key)
+}
+
+/// The app hidden (`onPause`), then shut down: the cache worker serves what leaving handed it.
+fn hidden(mut runtime: Runtime) {
+    runtime.leave();
+    drop(runtime);
 }
 
 /// The save id the project's head holds.
@@ -140,7 +151,7 @@ fn fills_and_writes_anew(dirs: &Dirs, when: &str) {
     assert!(filling, "{when}: the cache was taken as complete");
     settle(&mut runtime, &mut hand);
     assert_cold(&gpu::core(), &mut runtime, when);
-    drop(runtime);
+    hidden(runtime);
     assert_eq!(cached(dirs).saved, head(dirs), "{when}: written anew");
 }
 
@@ -157,7 +168,8 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
     assert!(filling, "no cache yet: the canvas fills");
     settle(&mut runtime, &mut hand);
     assert_cold(&gpu::core(), &mut runtime, "filled");
-    drop(runtime);
+    assert_eq!(held(&dirs), None, "complete but open: nothing written yet");
+    hidden(runtime);
     let key = cached(&dirs);
     assert_eq!((key.saved, key.size), (head(&dirs), CANVAS));
     assert_eq!(key.renderer, gpu::core().renderer_identity());
@@ -182,13 +194,11 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
         "a stroke over the cached canvas",
     );
     let drawn = runtime.artwork().expect("artwork").clone();
+    // Settled: the stroke's save is done (the head is read once the library is closed).
+    assert_eq!(cached(&dirs), key, "a save alone writes no cache");
     to_the_gallery_and_back(&mut runtime, &mut hand);
     drop(runtime);
-    assert_ne!(
-        cached(&dirs).saved,
-        key.saved,
-        "the stroke's save rewrote it"
-    );
+    assert_ne!(cached(&dirs).saved, key.saved, "leaving rewrote it");
     assert_eq!(cached(&dirs).saved, head(&dirs));
     let (mut runtime, _, filling) = open(&dirs);
     assert!(!filling, "complete again");
@@ -262,7 +272,7 @@ fn a_library_rolled_back_never_takes_a_later_saves_cache_as_complete() {
         older.to_parts()
     );
     assert_cold(&gpu::core(), &mut runtime, "rolled back");
-    drop(runtime);
+    hidden(runtime);
     assert_ne!(
         cached(&dirs).saved,
         later.saved,

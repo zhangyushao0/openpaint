@@ -134,9 +134,9 @@ impl Screen {
     }
 
     /// Applies what the storage worker finished; the stored toolbox goes to `toolbox` and the
-    /// practice sessions to `practice`. After a save the canvas's pixels may go to the display
-    /// cache (`cache`, from `core`). Returns the lesson to start now (One more, once the
-    /// sheet left was stored: what its end named).
+    /// practice sessions to `practice`. Once the canvas was left or the app hidden its pixels may
+    /// go to the display cache (`cache`, from `core`). Returns the lesson to start now (One
+    /// more, once the sheet left was stored: what its end named).
     pub(crate) fn answer(
         &mut self,
         done: Done,
@@ -164,7 +164,7 @@ impl Screen {
                     log::warn!("storing the toolbox failed: {error}");
                 }
             }
-            Done::Saved(version, result) => self.saved(&version, result, (core, cache)),
+            Done::Saved(version, result) => self.saved(&version, result),
             Done::Left {
                 version,
                 result,
@@ -201,14 +201,9 @@ impl Screen {
         }
     }
 
-    /// An autosave finished: the session learns how, and once it stored the canvas's version
-    /// its pixels may go to the display cache.
-    fn saved(
-        &mut self,
-        version: &Artwork,
-        result: Result<Option<Stored>, PortError>,
-        (core, cache): (&Arc<Core>, &mut CacheWorker),
-    ) {
+    /// An autosave finished: the session learns how, and the canvas which version the library
+    /// holds; its pixels go to the display cache only when it is left (D96).
+    fn saved(&mut self, version: &Artwork, result: Result<Option<Stored>, PortError>) {
         match &result {
             Ok(_) => log::debug!("saved"),
             Err(error) => log::error!("saving failed: {error}"),
@@ -219,16 +214,16 @@ impl Screen {
                 .save_finished(version, &result.clone().map(drop));
             if let Ok(Some(stored)) = result {
                 canvas.stored(version, stored);
-                canvas.keep_cache(core, cache);
             }
         }
     }
 
-    /// The canvas's last version and thumbnail were handed to the store: its pixels may go to
-    /// the display cache (complete, as the thumbnail evaluated it); on success the gallery
-    /// replaces the canvas (its history goes with it), or for One more the next lesson's sheet is
-    /// on its way (returns the lesson to start); on failure the canvas stays and shows that
-    /// saving failed.
+    /// The canvas's last version (and an artwork's thumbnail) were handed to the store, for the
+    /// gallery, the next lesson or the app hidden: its pixels go to the display cache when it
+    /// shows the stored version complete (this is the cache's only writer, D96); on success the
+    /// gallery replaces the canvas (its history goes with it), or for One more the next lesson's
+    /// sheet is on its way (returns the lesson to start); on failure the canvas stays and shows
+    /// that saving failed.
     fn left(
         &mut self,
         version: Option<&Artwork>,
@@ -280,7 +275,6 @@ impl Screen {
         match self {
             Self::Canvas(canvas) => {
                 canvas.evaluate(core)?;
-                canvas.keep_cache(core, cache);
                 // A sheet being left takes its time to the store with it.
                 if canvas.leaving != Leaving::Staying
                     && let Some(sheet) = crate::practice::sheet(canvas)

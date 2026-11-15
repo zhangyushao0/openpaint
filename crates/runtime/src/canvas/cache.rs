@@ -2,8 +2,10 @@
 //! canvas is put into the new target: when its key matches (the save that wrote the artwork's
 //! head, this renderer, the target's format and size) the canvas is complete in its first frame
 //! and nothing fills; otherwise it, or the gallery picture enlarged, shows under the tiles while
-//! they fill as before. Once the canvas shows a version the library holds complete, its pixels
-//! go to the cache worker, which writes them under that version's key.
+//! they fill as before. When the canvas is left (the gallery, the next lesson) or the app hidden
+//! and it shows a version the library holds complete, its pixels go to the cache worker, which
+//! writes them under that version's key; never after a save while it stays open (E4: a copy of
+//! the whole canvas a stroke). After a kill without the app hidden first, the next opening fills.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -144,12 +146,13 @@ impl Canvas {
         self.cache.stored = Some((version.clone(), stored.saved));
     }
 
-    /// Once the canvas shows the version the library holds complete (every tile evaluated, no
-    /// stroke drawn, no preview, nothing changed since) and its cache under that version's key
-    /// was not handed over yet, hands `worker` a copy of the target to write: nothing waits
-    /// here. One at a time; a later frame takes the next.
+    /// On leaving: when the canvas shows the version the library holds complete (every tile
+    /// evaluated, no stroke drawn, no preview, nothing changed since) and its cache under that
+    /// version's key was not handed over yet, hands `worker` a copy of the target to write:
+    /// nothing waits here. Queued behind a job the worker is still on, since no later frame asks
+    /// again.
     pub(crate) fn keep_cache(&mut self, core: &Arc<Core>, worker: &mut CacheWorker) {
-        if !worker.on() || worker.busy() {
+        if !worker.on() {
             return;
         }
         let (Some(project), Some((version, saved))) = (self.cache.project, &self.cache.stored)
