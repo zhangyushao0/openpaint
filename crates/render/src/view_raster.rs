@@ -137,6 +137,7 @@ pub(crate) fn stroke_raster(
         };
         let onto = Onto {
             scale: held.scale(),
+            texture: held.atlas(),
             view: held.atlas_view(),
             format: held.atlas().format(),
             place: &place,

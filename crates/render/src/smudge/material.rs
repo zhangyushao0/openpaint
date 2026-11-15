@@ -168,6 +168,7 @@ impl Material {
                 at: region.region.min,
                 only: region.tiles.clone(),
             }],
+            texture: None,
         };
         targets.draw(core, (buffers, plan), (*output, [0.0; 4]), &finish)?;
         core.tally.rastered(1);

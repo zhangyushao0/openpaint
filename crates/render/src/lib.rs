@@ -116,7 +116,7 @@ pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;
 pub use crate::image::RgbaImage;
 pub use crate::pace::{BACKGROUND_NS, Background};
-pub use crate::profile::{Spent, StrokeDrew, StrokeParts, take_spent};
+pub use crate::profile::{Attached, Spent, StrokeDrew, StrokeParts, take_spent};
 pub use crate::raster_worker::{RasterAnswer, RasterDone, RasterDrawer, RasterJob, RasterOrder};
 pub use crate::screen::{BrushCursor, CanvasPlacement, ScreenTarget};
 pub use crate::stroke::{stroke_region, tip_radius};

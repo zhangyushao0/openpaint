@@ -4,14 +4,26 @@
 //! frame of a stroke's drawing (its kept coverage laid, the snapshots it takes, its regions) is
 //! one submission; the regions share the targets, which every pass of a region sets before it
 //! reads them.
+//!
+//! A region's finish rounds the canvas target into the destination's pixels at each place the
+//! region goes to. A stroke's frame (a finish naming its destination's texture) finishes into a
+//! target of the destination's format as large as the region targets, and each place's pixels
+//! are copied from it: a render pass over the destination itself loads and stores the whole of
+//! it where the GPU draws in tiles (wgpu's render area is the whole attachment), the canvas's 19
+//! MiB or a view tier's atlas of 25 to 45 MiB every frame, for a region of a few thousand pixels
+//! (S134). The copies move the rounded texels as they are: every pixel is the one a pass into
+//! the destination writes.
 
-use super::frame::{instance_bytes, values};
-use super::{Finish, Pages, RasterTargets, SceneBuffers};
+use super::frame::{begin, clear, instance_bytes, region, values};
+use super::reads::CANVAS;
+use super::{Finish, Pages, Placed, RasterTargets, SceneBuffers, Target};
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::geom::PixelRect;
 use crate::gpu_clock::Stamps;
 use crate::output::Output;
 use crate::raster_plan::{Pass, RasterPlan};
+use crate::readback::{extent, place, target_texture, texture_bytes};
 
 /// The bytes of one region's values (raster.wgsl's `Raster`), and how far apart regions' values
 /// lie (the largest uniform offset alignment a device asks for).
@@ -87,6 +99,7 @@ impl RasterTargets {
             self.make_scratch(core, pipelines, region.plan)?;
         }
         self.make_reads(core, pipelines, regions);
+        self.make_finished(core, regions)?;
         let started = std::time::Instant::now();
         let bounds = self.upload(core, regions);
         self.uploaded_ns = crate::profile::since(started);
@@ -110,9 +123,13 @@ impl RasterTargets {
             let at = (region.plan.size, region.plan.base);
             bytes.extend(values(region.output, at, atlas, region.paper));
             bytes.resize(start + VALUES_STRIDE as usize, 0);
-            let places: Vec<[i32; 2]> = region.finish.map_or(vec![[0, 0]], |finish| {
-                finish.into.iter().map(|placed| placed.at).collect()
-            });
+            // A finish through the finishing target draws once, at its top-left.
+            let places: Vec<[i32; 2]> = match region.finish {
+                Some(finish) if finish.texture.is_none() => {
+                    finish.into.iter().map(|placed| placed.at).collect()
+                }
+                _ => vec![[0, 0]],
+            };
             instances.extend(instance_bytes(&region.plan.instances, &places));
         }
         let gpu = &core.gpu;
@@ -137,4 +154,101 @@ impl RasterTargets {
         gpu.queue.write_buffer(&self.instances, 0, &instances);
         bounds
     }
+
+    /// The target the finishes of `regions` that copy go through, made in their destination's
+    /// format when there is none in it.
+    ///
+    /// # Errors
+    /// As the GPU.
+    fn make_finished(&mut self, core: &Core, regions: &[Region<'_>]) -> Result<(), RenderError> {
+        let copied = (regions.iter().filter_map(|region| region.finish))
+            .find(|finish| finish.texture.is_some());
+        let Some(format) = copied.map(|finish| finish.format) else {
+            return Ok(());
+        };
+        if (self.finished.as_ref()).is_some_and(|made| made.texture.format() == format) {
+            return Ok(());
+        }
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
+        let texture = target_texture(&core.gpu, (self.capacity, format), usage)?;
+        self.finished = Some(Target::of(texture));
+        Ok(())
+    }
+
+    /// The canvas of a region of `size` rounded into the destination's pixels at each of
+    /// `finish`'s places (only those a place names when it names any) by `pipeline`, the
+    /// instances from `finished` on naming the places in turn; through the finishing target and
+    /// copies when the finish names its destination's texture (its one instance at the target's
+    /// top-left), else in one pass over the destination.
+    ///
+    /// # Errors
+    /// `Invalid` when the finishing target is not in the destination's format.
+    pub(super) fn finish(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        (pipeline, finish, finished): (&wgpu::RenderPipeline, &Finish<'_>, u32),
+        size: [u32; 2],
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<(), RenderError> {
+        let Some(destination) = finish.texture else {
+            self.attached.pass(0, false);
+            let mut pass = begin(encoder, finish.view, wgpu::LoadOp::Load, timestamps);
+            self.bind(&mut pass, self.reads.get(CANVAS));
+            pass.set_pipeline(pipeline);
+            for (instance, placed) in (finished..).zip(&finish.into) {
+                for part in parts(placed, size) {
+                    // The triangle covers the part alone; each pixel reads its own region pixel.
+                    region(&mut pass, part.min.map(i32::unsigned_abs), part.size());
+                    pass.draw(0..3, instance..instance + 1);
+                }
+            }
+            return Ok(());
+        };
+        let finishing = (self.finished.as_ref())
+            .filter(|made| made.texture.format() == finish.format)
+            .ok_or(RenderError::Invalid(
+                "no finishing target in the destination's format",
+            ))?;
+        let mut pass = begin(encoder, &finishing.view, clear(None), timestamps);
+        self.bind(&mut pass, self.reads.get(CANVAS));
+        pass.set_pipeline(pipeline);
+        region(&mut pass, [0, 0], size);
+        pass.draw(0..3, finished..finished + 1);
+        drop(pass);
+        let bounds = PixelRect::full([destination.width(), destination.height()]);
+        for placed in &finish.into {
+            for part in parts(placed, size) {
+                let part = part.intersect(&bounds);
+                if part.is_empty() {
+                    continue;
+                }
+                let from = [0, 1].map(|axis| (part.min[axis] - placed.at[axis]).unsigned_abs());
+                encoder.copy_texture_to_texture(
+                    place(&finishing.texture, from),
+                    place(destination, part.min.map(i32::unsigned_abs)),
+                    extent(part.size()),
+                );
+            }
+        }
+        let bytes = texture_bytes(&finishing.texture);
+        self.attached.pass(bytes, true);
+        Ok(())
+    }
+}
+
+/// The destination's pixels a region of `size` writes at `placed`: the whole region there, or
+/// the parts of it the place names.
+fn parts(placed: &Placed, size: [u32; 2]) -> Vec<PixelRect> {
+    let [x, y] = placed.at;
+    let whole = PixelRect {
+        min: [x, y],
+        max: [x + size[0] as i32, y + size[1] as i32],
+    };
+    if placed.only.is_empty() {
+        return vec![whole];
+    }
+    (placed.only.iter())
+        .map(|rect| rect.intersect(&whole))
+        .filter(|part| !part.is_empty())
+        .collect()
 }

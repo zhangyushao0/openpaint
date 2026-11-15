@@ -29,14 +29,54 @@ pub struct Spent {
 
 /// What a stroke's drawing drew onto one output: its regions (a pass chain each), the snapshot
 /// parts it took (a tile's snapshot taken, or brought up to the drawing's place), the units
-/// (the strokes committed since) its regions laid again over snapshots that lagged them, and
-/// where its time went.
+/// (the strokes committed since) its regions laid again over snapshots that lagged them, its
+/// render passes and what they loaded and stored, and where its time went.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StrokeDrew {
     pub regions: u32,
     pub snapshots: u32,
     pub laid_again: u32,
+    pub attached: Attached,
     pub parts: StrokeParts,
+}
+
+/// A batch's render passes and the bytes of their attachments they load and store. A GPU that
+/// draws in tiles (the tablet's) loads a pass's whole attachment unless the pass clears it and
+/// stores it whole, whatever its scissor: wgpu's render area is the whole attachment. So these
+/// bytes, not the pixels a pass draws, are what the passes cost it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Attached {
+    pub passes: u32,
+    pub loaded: u64,
+    pub stored: u64,
+}
+
+impl Attached {
+    /// Nothing.
+    pub const NONE: Self = Self {
+        passes: 0,
+        loaded: 0,
+        stored: 0,
+    };
+
+    /// Both added.
+    #[must_use]
+    pub const fn plus(self, other: Self) -> Self {
+        Self {
+            passes: self.passes.saturating_add(other.passes),
+            loaded: self.loaded.saturating_add(other.loaded),
+            stored: self.stored.saturating_add(other.stored),
+        }
+    }
+
+    /// One pass more, over an attachment of `bytes`, loaded unless it is `cleared`.
+    pub(crate) fn pass(&mut self, bytes: u64, cleared: bool) {
+        self.passes += 1;
+        if !cleared {
+            self.loaded += bytes;
+        }
+        self.stored += bytes;
+    }
 }
 
 /// Where a stroke's drawing onto one output went on the frame loop's thread, ns: following the
@@ -61,6 +101,7 @@ impl StrokeDrew {
         regions: 0,
         snapshots: 0,
         laid_again: 0,
+        attached: Attached::NONE,
         parts: StrokeParts::NONE,
     };
 
@@ -71,6 +112,7 @@ impl StrokeDrew {
             regions: self.regions.saturating_add(other.regions),
             snapshots: self.snapshots.saturating_add(other.snapshots),
             laid_again: self.laid_again.saturating_add(other.laid_again),
+            attached: self.attached.plus(other.attached),
             parts: self.parts.plus(other.parts),
         }
     }
@@ -225,6 +267,7 @@ mod tests {
             regions,
             snapshots,
             laid_again,
+            attached: Attached::NONE,
             parts: StrokeParts {
                 plan_ns: u64::from(regions),
                 ..StrokeParts::NONE

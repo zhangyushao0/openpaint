@@ -14,6 +14,7 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
 use crate::output::Output;
+use crate::profile::Attached;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Pass, RasterPlan, SCRATCH, Scratch};
 use crate::readback::{target_texture, texture_bytes};
@@ -93,13 +94,18 @@ pub(crate) struct RasterTargets {
     scratch: [Option<Target>; SCRATCH],
     /// Bound where a draw reads nothing.
     unread: Target,
+    /// What a stroke's frame finishes into, in its destination's format, to copy from
+    /// (`raster_batch.rs`); made on first use.
+    finished: Option<Target>,
     /// Each region's values, `VALUES_STRIDE` bytes apart, and its instances, one after another
     /// (a batch's regions in one command buffer); where the region being encoded starts.
     values: wgpu::Buffer,
     instances: wgpu::Buffer,
     bound: Bound,
-    /// How long the last batch's values and instances took to write, ns (the pen latency log's).
+    /// How long the last batch's values and instances took to write, ns, and what its render
+    /// passes loaded and stored (the pen latency log's).
     pub(crate) uploaded_ns: u64,
+    pub(crate) attached: Attached,
     /// Group 0 for the scene's buffers and residuals it was made with.
     scene: Option<([wgpu::Buffer; 5], wgpu::BindGroup)>,
     /// Group 1 by what it reads, made again when a scratch target is made.
@@ -124,11 +130,13 @@ impl Target {
 }
 
 /// Where a region's pixels go: a destination's view, its format, and each place they go to
-/// there (a view tier's tiles each to a slot of its own).
+/// there (a view tier's tiles each to a slot of its own); the destination's texture when it is
+/// weighed (a stroke's frame: `Attached`).
 pub(crate) struct Finish<'a> {
     pub(crate) view: &'a wgpu::TextureView,
     pub(crate) format: wgpu::TextureFormat,
     pub(crate) into: Vec<Placed>,
+    pub(crate) texture: Option<&'a wgpu::Texture>,
 }
 
 /// One place a region's pixels go to: the destination pixel holding the region's top-left (it
@@ -154,6 +162,7 @@ impl<'a> Finish<'a> {
                 at: at.map(|at| i32::try_from(at).unwrap_or(i32::MAX)),
                 only: Vec::new(),
             }],
+            texture: None,
         }
     }
 }
@@ -179,6 +188,7 @@ impl RasterTargets {
             atlas: Target::of(target_texture(gpu, ([atlas; 2], pipelines.atlas), DRAWN)?),
             scratch: Default::default(),
             unread: Target::of(target_texture(gpu, ([1, 1], pipelines.layer), DRAWN)?),
+            finished: None,
             values: buffer(
                 "raster values",
                 4 * VALUES_STRIDE,
@@ -187,6 +197,7 @@ impl RasterTargets {
             instances: buffer("raster instances", 1 << 16, wgpu::BufferUsages::VERTEX),
             bound: Bound::default(),
             uploaded_ns: 0,
+            attached: Attached::NONE,
             scene: None,
             reads: Reads::default(),
         };
@@ -228,7 +239,7 @@ impl RasterTargets {
 
     /// Bytes of its textures and buffers.
     pub(crate) fn bytes(&self) -> u64 {
-        let scratch: u64 = (self.scratch.iter().flatten())
+        let scratch: u64 = (self.scratch.iter().flatten().chain(&self.finished))
             .map(|at| texture_bytes(&at.texture))
             .sum();
         texture_bytes(&self.atlas.texture) + scratch + self.instances.size() + self.values.size()

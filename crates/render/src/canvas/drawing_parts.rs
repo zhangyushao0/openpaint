@@ -190,6 +190,7 @@ fn finish<'a>(
         view: onto.view,
         format: onto.format,
         into,
+        texture: Some(onto.texture),
     })
 }
 

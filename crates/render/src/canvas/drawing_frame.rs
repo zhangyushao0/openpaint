@@ -24,7 +24,7 @@ use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
-use crate::profile::{StrokeDrew, StrokeParts, canvas_drew, since};
+use crate::profile::{Attached, StrokeDrew, StrokeParts, canvas_drew, since};
 use crate::protocol::Op;
 use crate::raster::{Finish, Region, SceneBuffers};
 use crate::raster_lay::coverage;
@@ -35,11 +35,12 @@ use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::stroke::stroke_region;
 use crate::view_tiles::TIER_TILE;
 
-/// Where a drawing's regions go: the output's scale, the texture holding it (its view and
+/// Where a drawing's regions go: the output's scale, the texture holding it (with its view and
 /// format), and where an output tile's pixels lie in it (`None`: the tile is not drawn now): side
 /// by side at their own pixels (the canvas), or each in a slot of its own (a view tier's atlas).
 pub(crate) struct Onto<'a> {
     pub(crate) scale: u32,
+    pub(crate) texture: &'a wgpu::Texture,
     pub(crate) view: &'a wgpu::TextureView,
     pub(crate) format: wgpu::TextureFormat,
     pub(crate) place: &'a dyn Fn([u32; 2]) -> Option<[u32; 2]>,
@@ -47,7 +48,8 @@ pub(crate) struct Onto<'a> {
 
 /// What one frame of a drawing drew: its regions (output pixels) and the output tiles it drew and
 /// passed over; the snapshot parts it took, the units its regions laid again over snapshots that
-/// lagged them and where its time went (for the pen latency log, `profile.rs`).
+/// lagged them, what its render passes loaded and stored and where its time went (for the pen
+/// latency log, `profile.rs`).
 #[derive(Debug, Default)]
 pub(crate) struct StrokeWork {
     pub(crate) parts: Vec<PixelRect>,
@@ -55,6 +57,7 @@ pub(crate) struct StrokeWork {
     pub(crate) skipped: Vec<[u32; 2]>,
     pub(crate) snapshots: usize,
     pub(crate) laid_again: usize,
+    pub(crate) attached: Attached,
     pub(crate) spent: StrokeParts,
 }
 
@@ -66,6 +69,7 @@ impl StrokeWork {
             regions: count(self.parts.len()),
             snapshots: count(self.snapshots),
             laid_again: count(self.laid_again),
+            attached: self.attached,
             parts: self.spent,
         }
     }
@@ -157,13 +161,15 @@ impl CanvasTarget {
         self.behind = false;
         let mut drawing = std::mem::take(&mut self.drawing);
         let moved = std::mem::take(&mut self.moved);
-        let (view, format, size) = (self.raster.view.clone(), self.texture.format(), self.size());
+        let (texture, view, size) = (self.texture.clone(), self.raster.view.clone(), self.size());
+        let format = texture.format();
         let place = move |tile: [u32; 2]| {
             let at = tile.map(|at| at * TIER_TILE);
             (at[0] < size[0] && at[1] < size[1]).then_some(at)
         };
         let onto = Onto {
             scale: 1,
+            texture: &texture,
             view: &view,
             format,
             place: &place,
@@ -230,10 +236,7 @@ impl CanvasTarget {
             let (planning, changes) = (Instant::now(), (&changed[..], None));
             let work = self.draw_parts(core, request, drawing, (onto, &scene), changes, &mut batch);
             spent.plan_ns = since(planning);
-            let drawn = work.and_then(|work| {
-                let spent = self.draw_batch(core, drawing, &batch, spent)?;
-                Ok(StrokeWork { spent, ..work })
-            });
+            let drawn = work.and_then(|work| self.draw_batch(core, drawing, &batch, (work, spent)));
             drawing.end_stroke();
             return drawn;
         };
@@ -252,8 +255,7 @@ impl CanvasTarget {
         let changes = (&changed[..], Some(&pen));
         let work = self.draw_parts(core, request, drawing, reach, changes, &mut batch)?;
         spent.plan_ns = since(planning);
-        let spent = self.draw_batch(core, drawing, &batch, spent)?;
-        Ok(StrokeWork { spent, ..work })
+        self.draw_batch(core, drawing, &batch, (work, spent))
     }
 
     /// The stroke's ops this frame written behind the scene's (its paint op, the spans settled
@@ -304,16 +306,17 @@ impl CanvasTarget {
     }
 
     /// The frame's `batch` encoded with the frame loop's targets into one command buffer and
-    /// submitted; `spent` with its encoding, its buffer writes and its submission.
+    /// submitted; `work` with what its passes loaded and stored, and `spent` with its encoding,
+    /// its buffer writes and its submission.
     fn draw_batch(
         &mut self,
         core: &Core,
         drawing: &Drawing,
         batch: &[Part<'_>],
-        mut spent: StrokeParts,
-    ) -> Result<StrokeParts, RenderError> {
+        (work, mut spent): (StrokeWork, StrokeParts),
+    ) -> Result<StrokeWork, RenderError> {
         if batch.is_empty() {
-            return Ok(spent);
+            return Ok(StrokeWork { spent, ..work });
         }
         let held = self.held().ok_or(NO_SCENE)?;
         let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
@@ -332,13 +335,18 @@ impl CanvasTarget {
         let (prepared, uploaded) = (since(started), targets.uploaded_ns);
         spent.encode_ns = prepared.saturating_sub(uploaded);
         spent.writes_ns += uploaded;
+        let attached = targets.attached;
         let started = Instant::now();
         core.gpu.submit([buffer]);
         spent.submit_ns = since(started);
         let drawn = batch.iter().filter(|part| part.finish.is_some()).count();
         core.tally.rastered(drawn);
         self.raster.drew = true;
-        Ok(spent)
+        Ok(StrokeWork {
+            attached,
+            spent,
+            ..work
+        })
     }
 }
 

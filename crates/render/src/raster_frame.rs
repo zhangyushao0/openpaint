@@ -3,18 +3,18 @@
 //! smudge, an adjustment or a filter), then the finish rounding the canvas into the destination; a
 //! batch's regions one after another (`raster_batch.rs`), all in one command buffer.
 
-use super::reads::{ATLAS, CANVAS, COPIED, ending};
-use super::{Bound, Finish, Pages, RasterTargets, Region, timed};
+use super::reads::{ATLAS, COPIED, ending};
+use super::{Bound, Pages, RasterTargets, Region, timed};
 use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::geom::PixelRect;
 use crate::gpu_clock::Stamps;
 use crate::output::Output;
+use crate::profile::Attached;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{CoverageDraw, Draw, Instance, Pass, Scratch};
 use crate::raster_states::INSTANCE_BYTES;
-use crate::readback::{extent, place};
+use crate::readback::{extent, place, texture_bytes};
 
 impl RasterTargets {
     /// Each region's passes on its paper (its slot passes on `pages`), then its finish when it
@@ -39,6 +39,7 @@ impl RasterTargets {
         let writes = |ends| stamps.and_then(|stamps| stamps.render_writes(ends));
         let (first, last) = timed(regions);
         let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
+        self.attached = Attached::NONE;
         let regions = regions.iter().zip(bounds).zip(finishing).enumerate();
         for (at, ((region, bound), finishing)) in regions {
             self.bound = *bound;
@@ -47,6 +48,9 @@ impl RasterTargets {
                 let timestamps = writes((first == (at, index), last == (at, index)));
                 let place = (plan.size, region.paper);
                 self.pass(&mut encoder, (pipelines, pages), (pass, place), timestamps);
+                if let Some((bytes, cleared)) = self.weigh(pass) {
+                    self.attached.pass(bytes, cleared);
+                }
             }
             if let (Some(finishing), Some(finish)) = (finishing, region.finish) {
                 let finished = plan.instances.len() as u32;
@@ -57,7 +61,7 @@ impl RasterTargets {
                     (finishing, finish, finished),
                     size,
                     writes(ends),
-                );
+                )?;
             }
         }
         Ok(encoder.finish())
@@ -121,6 +125,25 @@ impl RasterTargets {
         }
     }
 
+    /// The attachment `pass` draws into, its bytes, and whether the pass clears it first; `None`
+    /// for a copy.
+    fn weigh(&self, pass: &Pass) -> Option<(u64, bool)> {
+        let scratch = |target: Scratch| {
+            (self.scratch[target.index()].as_ref()).map_or(0, |at| texture_bytes(&at.texture))
+        };
+        match pass {
+            Pass::Kept { .. } | Pass::Coverage(_) => {
+                Some((texture_bytes(&self.atlas.texture), true))
+            }
+            Pass::Clear(target) => Some((scratch(*target), true)),
+            Pass::Draw { target, clear, .. } => Some((scratch(*target), *clear)),
+            Pass::Rewrite { target, .. } | Pass::End { target, .. } => {
+                Some((scratch(*target), false))
+            }
+            Pass::Restore(_) | Pass::Keep(_) | Pass::Zero(_) | Pass::Copy { .. } => None,
+        }
+    }
+
     /// `draws` onto `target` (loaded by `load`), reading `group`.
     fn draws(
         &self,
@@ -174,39 +197,6 @@ impl RasterTargets {
             extent([width, height]),
         );
     }
-
-    /// The canvas rounded into the destination's pixels at each of `finish`'s places (only those
-    /// a place names when it names any), in one pass, by `pipeline`; the instances from `finished`
-    /// on naming those places in turn.
-    fn finish(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        (pipeline, finish, finished): (&wgpu::RenderPipeline, &Finish<'_>, u32),
-        size: [u32; 2],
-        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
-    ) {
-        let mut pass = begin(encoder, finish.view, wgpu::LoadOp::Load, timestamps);
-        self.bind(&mut pass, self.reads.get(CANVAS));
-        pass.set_pipeline(pipeline);
-        for (instance, placed) in (finished..).zip(&finish.into) {
-            let [x, y] = placed.at;
-            let whole = PixelRect {
-                min: [x, y],
-                max: [x + size[0] as i32, y + size[1] as i32],
-            };
-            let parts = (placed.only.iter()).map(|rect| rect.intersect(&whole));
-            let parts: Vec<PixelRect> = if placed.only.is_empty() {
-                vec![whole]
-            } else {
-                parts.filter(|part| !part.is_empty()).collect()
-            };
-            for part in parts {
-                // The triangle covers the part alone; each pixel reads its own region pixel.
-                region(&mut pass, part.min.map(i32::unsigned_abs), part.size());
-                pass.draw(0..3, instance..instance + 1);
-            }
-        }
-    }
 }
 
 /// Strokes' pieces and stamps `draws` laid into the attachment, each into its region (its
@@ -229,7 +219,7 @@ pub(super) fn coverage(
 }
 
 /// The pass draws only into the `size` pixels from `at`.
-fn region(pass: &mut wgpu::RenderPass<'_>, [x, y]: [u32; 2], [width, height]: [u32; 2]) {
+pub(super) fn region(pass: &mut wgpu::RenderPass<'_>, [x, y]: [u32; 2], [width, height]: [u32; 2]) {
     pass.set_viewport(x as f32, y as f32, width as f32, height as f32, 0.0, 1.0);
     pass.set_scissor_rect(x, y, width, height);
 }
