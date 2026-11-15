@@ -77,7 +77,18 @@ class GestureInstrumentation : Instrumentation() {
                 arguments.putString("from", "${at[0]},${at[1]}")
                 result.putString("dragged", "$name from ${at[0]},${at[1]}")
             }
-            inject()
+            try {
+                inject()
+            } catch (refused: IllegalStateException) {
+                // On some days the dispatcher drops every injected finger while it takes the
+                // pen's (2026-11-15: "all windows would just receive ACTION_OUTSIDE" with the
+                // app's window in front and touchable). A tap on a control is then the pen's,
+                // which the app takes on a control as it takes a finger; the result says so.
+                if (arguments.getString("tap") == null || pen) throw refused
+                arguments.putString("tool", "stylus")
+                inject()
+                result.putString("by", "the pen, the dispatcher having refused the finger")
+            }
             result.putString("gesture", "injected")
             finish(Activity.RESULT_OK, result)
         } catch (error: Throwable) {
@@ -313,14 +324,37 @@ class GestureInstrumentation : Instrumentation() {
                 if (stylus) setAxisValue(MotionEvent.AXIS_TILT, tilt)
             }
         }.toTypedArray()
-        val event = MotionEvent.obtain(
-            downTime, SystemClock.uptimeMillis(), action, points.size, properties, coords,
-            0, if (stylus) buttons else 0, 1f, 1f, device, 0, source, 0,
-        )
-        try {
-            check(uiAutomation.injectInputEvent(event, true)) { "the input dispatcher refused the event" }
-        } finally {
-            event.recycle()
+        val event = { act: Int ->
+            MotionEvent.obtain(
+                downTime, SystemClock.uptimeMillis(), act, points.size, properties, coords,
+                0, if (stylus) buttons else 0, 1f, 1f, device, 0, source, 0,
+            )
         }
+        // A refused event is followed by a cancel: the dispatcher counts every injected stream
+        // as one device, and a down it refused (no window could take it yet) still stands as
+        // "down" there, so every later down would be refused with it. A first contact is then
+        // tried again, which also clears a pointer an earlier run left behind.
+        val tries = if (action == MotionEvent.ACTION_DOWN) DOWN_TRIES else 1
+        repeat(tries) { attempt ->
+            if (injected(event(action))) return
+            injected(event(MotionEvent.ACTION_CANCEL))
+            if (attempt + 1 < tries) SystemClock.sleep(DOWN_RETRY_MS)
+        }
+        error("the input dispatcher refused the event")
+    }
+
+    /** Whether the dispatcher took [event], which is recycled. */
+    private fun injected(event: MotionEvent): Boolean = try {
+        uiAutomation.injectInputEvent(event, true)
+    } finally {
+        event.recycle()
+    }
+
+    private companion object {
+        /** How often a first contact is tried before the gesture fails. */
+        const val DOWN_TRIES = 3
+
+        /** The wait between two tries of a first contact, in milliseconds. */
+        const val DOWN_RETRY_MS = 300L
     }
 }
