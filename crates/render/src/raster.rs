@@ -98,6 +98,8 @@ pub(crate) struct RasterTargets {
     values: wgpu::Buffer,
     instances: wgpu::Buffer,
     bound: Bound,
+    /// How long the last batch's values and instances took to write, ns (the pen latency log's).
+    pub(crate) uploaded_ns: u64,
     /// Group 0 for the scene's buffers and residuals it was made with.
     scene: Option<([wgpu::Buffer; 5], wgpu::BindGroup)>,
     /// Group 1 by what it reads, made again when a scratch target is made.
@@ -184,6 +186,7 @@ impl RasterTargets {
             ),
             instances: buffer("raster instances", 1 << 16, wgpu::BufferUsages::VERTEX),
             bound: Bound::default(),
+            uploaded_ns: 0,
             scene: None,
             reads: Reads::default(),
         };

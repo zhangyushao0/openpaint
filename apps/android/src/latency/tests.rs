@@ -37,6 +37,7 @@ fn drew(regions: u32, snapshots: u32, laid_again: u32) -> StrokeDrew {
         regions,
         snapshots,
         laid_again,
+        ..StrokeDrew::NONE
     }
 }
 
@@ -160,13 +161,65 @@ fn a_painting_stroke_says_where_its_frames_went() {
             "GPU waits p50 0.0 p95 0.0 max 0.0 ms; evaluation p50 1.0 p95 5.0, tier p50 2.0 p95 \
              6.0 ms (one chain p50 1.0 p95 3.0 in 2 frames, more p50 2.0 p95 6.0 in 2); chains \
              a frame canvas p50 0 max 2 (drawn in 2 frames), tier p50 1 max 4; snapshots taken \
-             canvas 1, tier 3; strokes laid again canvas 5, tier 6; slowest #0"
+             canvas 1, tier 3; strokes laid again canvas 5, tier 6; a one-chain frame's drawing \
+             p50 track 0.00, ops 0.00, plan 0.00, encode 0.00, writes 0.00, submit 0.00 ms in 0 \
+             frames; beside the drawing and its waits p50 UI pass 0.0, the rest 0.0 ms; slowest #0"
         ),
         "{line}"
     );
     assert!(
         line.contains("#0 0.0 (evaluation 1.0, tier 6.0, chains canvas 0 tier 2, scene 0.0"),
         "each slowest frame names its chains: {line}"
+    );
+}
+
+/// A frame whose drawing was one pass chain says where that drawing went, part by part; every
+/// frame what it spent beside the drawing and its waits: its UI pass and the rest (the drawing's
+/// own submissions, among its waits too, counted once).
+#[test]
+fn a_one_chain_frame_says_where_its_drawing_went_and_every_frame_the_rest() {
+    let mut latency = PenLatency::default();
+    let stylus = |phase| batch(phase, ToolKind::Stylus);
+    let tenth = MS as u64 / 10;
+    let frame = |k: u64, chains: u32, (ui_ms, waited_ms): (i64, i64)| FrameCost {
+        ui_ns: ui_ms * MS,
+        tier_ns: 3 * MS,
+        waited_ns: waited_ms * MS,
+        tier: StrokeDrew {
+            regions: chains,
+            parts: StrokeParts {
+                track_ns: k * tenth,
+                ops_ns: 2 * k * tenth,
+                plan_ns: 3 * k * tenth,
+                encode_ns: 10 * k * tenth,
+                writes_ns: 4 * k * tenth,
+                submit_ns: 5 * k * tenth,
+            },
+            ..StrokeDrew::NONE
+        },
+        ..FrameCost::default()
+    };
+    latency.input(&stylus(MotionPhase::Down), 0);
+    // Work 8 ms: UI 2, tier 3, waits 1 less its submission 0.5: the rest 2.5.
+    latency.frame((0, 8 * MS), frame(1, 1, (2, 1)));
+    latency.input(&stylus(MotionPhase::Move), 9 * MS);
+    // Work 9: UI 3, tier 3, waits 2 less 1: the rest 2.
+    latency.frame((10 * MS, 19 * MS), frame(2, 1, (3, 2)));
+    latency.input(&stylus(MotionPhase::Up), 19 * MS);
+    // Two chains, so not among the parts; work 10: UI 2, tier 3, waits 3 less 1.5: the rest 3.5.
+    let summary = (latency.frame((20 * MS, 30 * MS), frame(3, 2, (2, 3)))).expect("summary");
+    let painted = summary.painted.expect("it painted");
+    let tenths = [1, 2, 3, 10, 4, 5].map(|k| k * MS / 10);
+    assert_eq!(painted.one_chain, (tenths, 2), "the first frame's at p50");
+    assert_eq!((painted.ui.p50, painted.rest.p50), (2 * MS, 5 * MS / 2));
+    let line = summary.to_string();
+    assert!(
+        line.contains(
+            "; a one-chain frame's drawing p50 track 0.10, ops 0.20, plan 0.30, encode 1.00, \
+             writes 0.40, submit 0.50 ms in 2 frames; beside the drawing and its waits p50 UI \
+             pass 2.0, the rest 2.5 ms; slowest"
+        ),
+        "{line}"
     );
 }
 

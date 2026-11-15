@@ -11,7 +11,11 @@
 //! that painted, where its frames went (`Painted`): the canvas's drawing and the view tier's
 //! (CPU; the tier's apart at one chain and at more), the pass chains each drew (each slowest frame
 //! names its own), the snapshot parts each took and the strokes each laid again over snapshots
-//! that lagged. The GPU's time for a frame is not here: frames are timed on the GPU
+//! that lagged; a one-chain frame's drawing by its parts (the stroke's track, its ops, the plan,
+//! the passes encoded, the buffer writes, the submission), and what a frame spent beside its
+//! drawing and waits (its UI pass, and the rest: the view's other work, the screen's pass). Not
+//! split: the driver's own share of a submission or of encoding. The GPU's time for a frame is
+//! not here: frames are timed on the GPU
 //! only while a benchmark turns it on (`Core::time_frames`), an extra submission and readback a
 //! frame.
 
@@ -19,7 +23,9 @@ mod line;
 #[cfg(test)]
 mod tests;
 
-use openpaint_runtime::{MotionBatch, MotionPhase, Paced, Spent, StrokeDrew, ToolKind};
+use openpaint_runtime::{
+    MotionBatch, MotionPhase, Paced, Spent, StrokeDrew, StrokeParts, ToolKind,
+};
 
 /// Collects one stroke's latencies.
 #[derive(Debug, Default)]
@@ -44,12 +50,13 @@ struct StrokeTimes {
     tier: StrokeDrew,
 }
 
-/// What a drawn frame spent of its work: drawing the canvas (and of that building scenes) and the
-/// stroke into the view tier shown, its waits for the GPU (acquiring, submitting, presenting,
-/// readbacks) and the longest one's place, the frames in flight as it began, and what the
-/// stroke's drawing drew onto the canvas and onto the tier.
+/// What a drawn frame spent of its work: its UI pass, drawing the canvas (and of that building
+/// scenes) and the stroke into the view tier shown, its waits for the GPU (acquiring, submitting,
+/// presenting, readbacks) and the longest one's place, the frames in flight as it began, and
+/// what the stroke's drawing drew onto the canvas and onto the tier and where its time went.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FrameCost {
+    pub ui_ns: i64,
     pub drawn_ns: i64,
     pub tier_ns: i64,
     pub scene_ns: i64,
@@ -61,11 +68,11 @@ pub struct FrameCost {
 }
 
 impl FrameCost {
-    /// What the frame `paced` describes spent, as the frame loop counted it.
+    /// What the frame `paced` describes spent, as the frame loop counted it, its UI pass `ui_ns`.
     #[must_use]
-    pub fn of(spent: &Spent, paced: Paced) -> Self {
-        let ns = |ns: u64| i64::try_from(ns).unwrap_or(i64::MAX);
+    pub fn of(spent: &Spent, paced: Paced, ui_ns: u64) -> Self {
         Self {
+            ui_ns: ns(ui_ns),
             drawn_ns: ns(spent.drawn_ns),
             tier_ns: ns(spent.tier_ns),
             scene_ns: ns(spent.scene_ns),
@@ -76,6 +83,24 @@ impl FrameCost {
             tier: spent.tier,
         }
     }
+
+    /// Of a frame whose work took `work` ns, what lay outside its UI pass, the canvas's and the
+    /// tier's drawing and its waits (the view's other work, the screen's pass, the rest of the
+    /// update): the drawings' own submissions are among both, counted once.
+    fn rest(&self, work: i64) -> i64 {
+        let submits = ns(self
+            .canvas
+            .parts
+            .submit_ns
+            .saturating_add(self.tier.parts.submit_ns));
+        let waits = self.waited_ns.saturating_sub(submits).max(0);
+        let inside = self.ui_ns + self.drawn_ns + self.tier_ns + waits;
+        work.saturating_sub(inside).max(0)
+    }
+}
+
+fn ns(ns: u64) -> i64 {
+    i64::try_from(ns).unwrap_or(i64::MAX)
 }
 
 impl PenLatency {
@@ -210,7 +235,10 @@ impl Summary {
 /// (the log's "evaluation") and the stroke into the view tier shown (CPU, their waits included),
 /// the tier's apart for the frames it drew in one chain and in more (with how many of each), the
 /// pass chains (regions) each drew and the frames the canvas drew any in; over the stroke, what
-/// each drew of snapshots and strokes laid again (`StrokeDrew`'s, its regions unused).
+/// each drew of snapshots and strokes laid again (`StrokeDrew`'s, its regions unused). Then
+/// where a frame drawn in one chain spent its drawing (`one_chain`: track, ops, plan, encode,
+/// writes, submit, p50 each, and how many such frames), and what each frame spent beside the
+/// drawing and its waits: the UI pass and the rest (`FrameCost::rest`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Painted {
     pub evaluation: Spread,
@@ -222,6 +250,9 @@ pub struct Painted {
     pub canvas_frames: usize,
     pub canvas: StrokeDrew,
     pub tier: StrokeDrew,
+    pub one_chain: ([i64; 6], usize),
+    pub ui: Spread,
+    pub rest: Spread,
 }
 
 impl Painted {
@@ -252,8 +283,36 @@ impl Painted {
                 .count(),
             canvas: stroke.canvas,
             tier: stroke.tier,
+            one_chain: one_chain(&stroke.costs),
+            ui: each(|c| c.ui_ns),
+            rest: Spread::of(
+                (stroke.costs.iter().zip(&stroke.frame_work))
+                    .map(|(cost, work)| cost.rest(*work))
+                    .collect(),
+            ),
         })
     }
+}
+
+/// Over the frames of `costs` whose drawing was one pass chain (the canvas's or the tier's), the
+/// p50 of each part of it (track, ops, plan, encode, writes, submit), and how many they are.
+fn one_chain(costs: &[FrameCost]) -> ([i64; 6], usize) {
+    let parts: Vec<StrokeParts> = (costs.iter())
+        .filter(|c| c.canvas.regions + c.tier.regions == 1)
+        .map(|c| c.canvas.parts.plus(c.tier.parts))
+        .collect();
+    let p50 = |part: fn(&StrokeParts) -> u64| {
+        Spread::of(parts.iter().map(|parts| ns(part(parts))).collect()).p50
+    };
+    let each = [
+        p50(|p| p.track_ns),
+        p50(|p| p.ops_ns),
+        p50(|p| p.plan_ns),
+        p50(|p| p.encode_ns),
+        p50(|p| p.writes_ns),
+        p50(|p| p.submit_ns),
+    ];
+    (each, parts.len())
 }
 
 /// Median, 95th percentile (nearest rank) and maximum, in nanoseconds (or a count).

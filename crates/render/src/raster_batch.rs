@@ -87,7 +87,9 @@ impl RasterTargets {
             self.make_scratch(core, pipelines, region.plan)?;
         }
         self.make_reads(core, pipelines, regions);
+        let started = std::time::Instant::now();
         let bounds = self.upload(core, regions);
+        self.uploaded_ns = crate::profile::since(started);
         self.bind_scene(core, pipelines, scene);
         self.encode(core, (pipelines, pages), (regions, &bounds), stamps)
     }

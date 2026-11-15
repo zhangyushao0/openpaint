@@ -239,6 +239,12 @@ impl Runtime {
         self.pacing.last()
     }
 
+    /// The last frame drawn's UI pass (its layout and shapes), ns.
+    #[must_use]
+    pub const fn ui_ns(&self) -> u64 {
+        self.ui_ns
+    }
+
     fn frame_once(&mut self) -> Result<bool, RuntimeError> {
         let Some(size) = self.surface.as_ref().map(Surface::size) else {
             return Ok(false);

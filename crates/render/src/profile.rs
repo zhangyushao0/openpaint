@@ -2,7 +2,8 @@
 //! presenting the window's frame, submitting, waiting for submitted work), its longest wait and
 //! where, and the time it built scenes. The Android host asks once a frame on the main thread,
 //! whose waits block input: a frame that waits seconds lets Android's input timeout kill the app.
-//! Beside them, what the stroke being drawn drew onto the canvas and onto the view tier shown.
+//! Beside them, what the stroke being drawn drew onto the canvas and onto the view tier shown, and
+//! where each one's drawing went.
 
 use std::time::{Duration, Instant};
 
@@ -27,13 +28,31 @@ pub struct Spent {
 }
 
 /// What a stroke's drawing drew onto one output: its regions (a pass chain each), the snapshot
-/// parts it took (a tile's snapshot taken, or brought up to the drawing's place), and the units
-/// (the strokes committed since) its regions laid again over snapshots that lagged them.
+/// parts it took (a tile's snapshot taken, or brought up to the drawing's place), the units
+/// (the strokes committed since) its regions laid again over snapshots that lagged them, and
+/// where its time went.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StrokeDrew {
     pub regions: u32,
     pub snapshots: u32,
     pub laid_again: u32,
+    pub parts: StrokeParts,
+}
+
+/// Where a stroke's drawing onto one output went on the frame loop's thread, ns: following the
+/// stroke (`track`: its path over every sample so far), the frame's ops (`ops`: the path again,
+/// the spans' ops), the plan (`plan`: the kept coverage's slots, the regions, the snapshots
+/// settled and their parts, the residuals reached, each region's passes), the passes encoded
+/// (`encode`), the buffers written (`writes`: the stroke's ops, the regions' values and
+/// instances), the submission (`submit`, also among the waits).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StrokeParts {
+    pub track_ns: u64,
+    pub ops_ns: u64,
+    pub plan_ns: u64,
+    pub encode_ns: u64,
+    pub writes_ns: u64,
+    pub submit_ns: u64,
 }
 
 impl StrokeDrew {
@@ -42,6 +61,7 @@ impl StrokeDrew {
         regions: 0,
         snapshots: 0,
         laid_again: 0,
+        parts: StrokeParts::NONE,
     };
 
     /// Both added.
@@ -51,8 +71,39 @@ impl StrokeDrew {
             regions: self.regions.saturating_add(other.regions),
             snapshots: self.snapshots.saturating_add(other.snapshots),
             laid_again: self.laid_again.saturating_add(other.laid_again),
+            parts: self.parts.plus(other.parts),
         }
     }
+}
+
+impl StrokeParts {
+    /// No time.
+    pub const NONE: Self = Self {
+        track_ns: 0,
+        ops_ns: 0,
+        plan_ns: 0,
+        encode_ns: 0,
+        writes_ns: 0,
+        submit_ns: 0,
+    };
+
+    /// Both added.
+    #[must_use]
+    pub const fn plus(self, other: Self) -> Self {
+        Self {
+            track_ns: self.track_ns.saturating_add(other.track_ns),
+            ops_ns: self.ops_ns.saturating_add(other.ops_ns),
+            plan_ns: self.plan_ns.saturating_add(other.plan_ns),
+            encode_ns: self.encode_ns.saturating_add(other.encode_ns),
+            writes_ns: self.writes_ns.saturating_add(other.writes_ns),
+            submit_ns: self.submit_ns.saturating_add(other.submit_ns),
+        }
+    }
+}
+
+/// The nanoseconds since `started`.
+pub(crate) fn since(started: Instant) -> u64 {
+    nanos(started.elapsed())
 }
 
 #[cfg_attr(
@@ -174,6 +225,10 @@ mod tests {
             regions,
             snapshots,
             laid_again,
+            parts: StrokeParts {
+                plan_ns: u64::from(regions),
+                ..StrokeParts::NONE
+            },
         };
         canvas_drew(drew(1, 0, 0));
         tier_drew(drew(2, 1, 3), ms(6));

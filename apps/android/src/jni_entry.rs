@@ -320,7 +320,7 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
             return Ok(again);
         }
         let end_ns = start_ns.saturating_add(work);
-        let cost = FrameCost::of(&spent, paced);
+        let cost = FrameCost::of(&spent, paced, host.runtime.ui_ns());
         if let Some(summary) = host.latency.frame((start_ns, end_ns), cost) {
             log::info!("{summary}");
         }

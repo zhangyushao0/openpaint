@@ -89,6 +89,21 @@ impl fmt::Display for Painted {
             self.tier.snapshots,
             self.canvas.laid_again,
             self.tier.laid_again
+        )?;
+        let ([track, ops, plan, encode, writes, submit], frames) = self.one_chain;
+        write!(
+            f,
+            "; a one-chain frame's drawing p50 track {:.2}, ops {:.2}, plan {:.2}, encode {:.2}, \
+             writes {:.2}, submit {:.2} ms in {frames} frames; beside the drawing and its waits \
+             p50 UI pass {:.1}, the rest {:.1} ms",
+            ms(track),
+            ms(ops),
+            ms(plan),
+            ms(encode),
+            ms(writes),
+            ms(submit),
+            ms(self.ui.p50),
+            ms(self.rest.p50)
         )
     }
 }

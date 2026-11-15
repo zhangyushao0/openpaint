@@ -12,6 +12,7 @@
 
 use std::ops::Range;
 use std::sync::Arc;
+use std::time::Instant;
 
 use openpaint_core::{ActiveStroke, StrokeTool};
 
@@ -23,7 +24,7 @@ use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
-use crate::profile::{StrokeDrew, canvas_drew};
+use crate::profile::{StrokeDrew, StrokeParts, canvas_drew, since};
 use crate::protocol::Op;
 use crate::raster::{Finish, Region, SceneBuffers};
 use crate::raster_lay::coverage;
@@ -45,8 +46,8 @@ pub(crate) struct Onto<'a> {
 }
 
 /// What one frame of a drawing drew: its regions (output pixels) and the output tiles it drew and
-/// passed over; the snapshot parts it took and the units its regions laid again over snapshots
-/// that lagged them (counted for the pen latency log, `profile.rs`).
+/// passed over; the snapshot parts it took, the units its regions laid again over snapshots that
+/// lagged them and where its time went (for the pen latency log, `profile.rs`).
 #[derive(Debug, Default)]
 pub(crate) struct StrokeWork {
     pub(crate) parts: Vec<PixelRect>,
@@ -54,6 +55,7 @@ pub(crate) struct StrokeWork {
     pub(crate) skipped: Vec<[u32; 2]>,
     pub(crate) snapshots: usize,
     pub(crate) laid_again: usize,
+    pub(crate) spent: StrokeParts,
 }
 
 impl StrokeWork {
@@ -64,6 +66,7 @@ impl StrokeWork {
             regions: count(self.parts.len()),
             snapshots: count(self.snapshots),
             laid_again: count(self.laid_again),
+            parts: self.spent,
         }
     }
 }
@@ -213,28 +216,32 @@ impl CanvasTarget {
         let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
         let scene = Arc::clone(&cache.scene);
         let drawn = scene.has_active();
+        let started = Instant::now();
         let step = drawing
             .track
             .advance(request.artwork, request.active, drawn);
+        let mut spent = StrokeParts {
+            track_ns: since(started),
+            ..StrokeParts::NONE
+        };
         let mut batch = Vec::new();
         let Some(active) = request.active.filter(|_| drawn) else {
             let changed: Vec<PixelRect> = step.redraw.into_iter().chain(moved.to_vec()).collect();
-            let work = self.draw_parts(
-                core,
-                request,
-                drawing,
-                (onto, &scene),
-                (&changed, None),
-                &mut batch,
-            );
-            let drawn = work.and_then(|work| self.draw_batch(core, drawing, &batch).map(|()| work));
+            let (planning, changes) = (Instant::now(), (&changed[..], None));
+            let work = self.draw_parts(core, request, drawing, (onto, &scene), changes, &mut batch);
+            spent.plan_ns = since(planning);
+            let drawn = work.and_then(|work| {
+                let spent = self.draw_batch(core, drawing, &batch, spent)?;
+                Ok(StrokeWork { spent, ..work })
+            });
             drawing.end_stroke();
             return drawn;
         };
         if step.reset {
             drawing.end_stroke();
         }
-        let pen = self.pen(core, (active, step.kept.clone()), &scene)?;
+        let pen = self.pen(core, (active, step.kept.clone()), &scene, &mut spent)?;
+        let planning = Instant::now();
         self.note_kept(core, drawing, (&pen, onto))?;
         batch.extend(zeroed(drawing.take_taken()));
         let changed: Vec<PixelRect> = (step.fresh_region.into_iter())
@@ -244,21 +251,28 @@ impl CanvasTarget {
         let reach = (onto, &*scene);
         let changes = (&changed[..], Some(&pen));
         let work = self.draw_parts(core, request, drawing, reach, changes, &mut batch)?;
-        self.draw_batch(core, drawing, &batch)?;
-        Ok(work)
+        spent.plan_ns = since(planning);
+        let spent = self.draw_batch(core, drawing, &batch, spent)?;
+        Ok(StrokeWork { spent, ..work })
     }
 
     /// The stroke's ops this frame written behind the scene's (its paint op, the spans settled
-    /// since `kept.start`, its tail), and how they lay.
+    /// since `kept.start`, its tail), and how they lay; their making and writing timed into
+    /// `spent`.
     fn pen(
         &self,
         core: &Core,
         (active, kept): (&ActiveStroke, Range<usize>),
         scene: &Scene,
+        spent: &mut StrokeParts,
     ) -> Result<Pen, RenderError> {
         let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
+        let started = Instant::now();
         let fresh = Fresh::new(active, kept.start, scene.active_clip);
+        spent.ops_ns = since(started);
+        let started = Instant::now();
         cache.ops.with_fresh(&core.gpu, &fresh.ops);
+        spent.writes_ns = since(started);
         let first = cache.ops.count();
         let paint = (first, fresh.ops[0]);
         let mut pen = Pen {
@@ -290,15 +304,16 @@ impl CanvasTarget {
     }
 
     /// The frame's `batch` encoded with the frame loop's targets into one command buffer and
-    /// submitted.
+    /// submitted; `spent` with its encoding, its buffer writes and its submission.
     fn draw_batch(
         &mut self,
         core: &Core,
         drawing: &Drawing,
         batch: &[Part<'_>],
-    ) -> Result<(), RenderError> {
+        mut spent: StrokeParts,
+    ) -> Result<StrokeParts, RenderError> {
         if batch.is_empty() {
-            return Ok(());
+            return Ok(spent);
         }
         let held = self.held().ok_or(NO_SCENE)?;
         let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
@@ -312,12 +327,18 @@ impl CanvasTarget {
                 finish: part.finish.as_ref(),
             })
             .collect();
+        let started = Instant::now();
         let buffer = targets.prepare_all(core, &buffers, (&regions, drawing.pages()), None)?;
+        let (prepared, uploaded) = (since(started), targets.uploaded_ns);
+        spent.encode_ns = prepared.saturating_sub(uploaded);
+        spent.writes_ns += uploaded;
+        let started = Instant::now();
         core.gpu.submit([buffer]);
+        spent.submit_ns = since(started);
         let drawn = batch.iter().filter(|part| part.finish.is_some()).count();
         core.tally.rastered(drawn);
         self.raster.drew = true;
-        Ok(())
+        Ok(spent)
     }
 }
 
