@@ -93,8 +93,9 @@ fn a_stroke_is_summarised_when_the_frame_takes_its_lift() {
         ]
     );
     let line = summary.to_string();
+    let paced = "(1 skipped for the GPU, at most 1 in flight; the frame before still in flight";
     assert!(
-        line.contains("(1 skipped for the GPU, at most 1 in flight)"),
+        line.contains(&format!("{paced} at 3 of 4 calls)")),
         "{line}"
     );
     assert!(
@@ -161,7 +162,9 @@ fn a_painting_stroke_says_where_its_frames_went() {
             "GPU waits p50 0.0 p95 0.0 max 0.0 ms; evaluation p50 1.0 p95 5.0, tier p50 2.0 p95 \
              6.0 ms (one chain p50 1.0 p95 3.0 in 2 frames, more p50 2.0 p95 6.0 in 2); chains \
              a frame canvas p50 0 max 2 (drawn in 2 frames), tier p50 1 max 4; snapshots taken \
-             canvas 1, tier 3; strokes laid again canvas 5, tier 6; a one-chain frame's drawing \
+             canvas 1, tier 3; strokes laid again canvas 5, tier 6; render passes a frame p50 0 \
+             max 0, their attachments loaded p50 0.0 max 0.0 MiB, stored p50 0.0 max 0.0 MiB; \
+             a one-chain frame's drawing \
              p50 track 0.00, ops 0.00, plan 0.00, encode 0.00, writes 0.00, submit 0.00 ms in 0 \
              frames; beside the drawing and its waits p50 UI pass 0.0, the rest 0.0 ms; slowest #0"
         ),
@@ -195,6 +198,12 @@ fn a_one_chain_frame_says_where_its_drawing_went_and_every_frame_the_rest() {
                 writes_ns: 4 * k * tenth,
                 submit_ns: 5 * k * tenth,
             },
+            // Its passes and what they loaded and stored: k MiB and twice that.
+            attached: Attached {
+                passes: 3 + chains,
+                loaded: k << 20,
+                stored: (2 * k) << 20,
+            },
             ..StrokeDrew::NONE
         },
         ..FrameCost::default()
@@ -213,6 +222,13 @@ fn a_one_chain_frame_says_where_its_drawing_went_and_every_frame_the_rest() {
     assert_eq!(painted.one_chain, (tenths, 2), "the first frame's at p50");
     assert_eq!((painted.ui.p50, painted.rest.p50), (2 * MS, 5 * MS / 2));
     let line = summary.to_string();
+    assert!(
+        line.contains(
+            "; render passes a frame p50 4 max 5, their attachments loaded p50 2.0 max 3.0 MiB, \
+             stored p50 4.0 max 6.0 MiB; a one-chain"
+        ),
+        "{line}"
+    );
     assert!(
         line.contains(
             "; a one-chain frame's drawing p50 track 0.10, ops 0.20, plan 0.30, encode 1.00, \

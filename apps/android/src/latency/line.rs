@@ -25,12 +25,14 @@ impl fmt::Display for Summary {
         write!(
             f,
             "pen latency, {} events in {} frames ({} skipped for the GPU, at most {} in \
-             flight): event to frame start {}; event to present call {}; frame work {}; GPU \
-             waits {}",
+             flight; the frame before still in flight at {} of {} calls): event to frame start \
+             {}; event to present call {}; frame work {}; GPU waits {}",
             self.events,
             self.frames,
             self.skipped,
             self.in_flight,
+            self.skipped + self.behind,
+            self.skipped + self.frames,
             self.to_frame,
             self.to_present,
             self.frame_work,
@@ -89,6 +91,18 @@ impl fmt::Display for Painted {
             self.tier.snapshots,
             self.canvas.laid_again,
             self.tier.laid_again
+        )?;
+        let mib = |bytes: i64| bytes as f64 / f64::from(1 << 20);
+        write!(
+            f,
+            "; render passes a frame p50 {} max {}, their attachments loaded p50 {:.1} max {:.1} \
+             MiB, stored p50 {:.1} max {:.1} MiB",
+            self.passes.p50,
+            self.passes.max,
+            mib(self.loaded.p50),
+            mib(self.loaded.max),
+            mib(self.stored.p50),
+            mib(self.stored.max)
         )?;
         let ([track, ops, plan, encode, writes, submit], frames) = self.one_chain;
         write!(

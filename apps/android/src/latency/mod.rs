@@ -13,8 +13,11 @@
 //! names its own), the snapshot parts each took and the strokes each laid again over snapshots
 //! that lagged; a one-chain frame's drawing by its parts (the stroke's track, its ops, the plan,
 //! the passes encoded, the buffer writes, the submission), and what a frame spent beside its
-//! drawing and waits (its UI pass, and the rest: the view's other work, the screen's pass). Not
-//! split: the driver's own share of a submission or of encoding. The GPU's time for a frame is
+//! drawing and waits (its UI pass, and the rest: the view's other work, the screen's pass); the
+//! drawing's render passes a frame and the attachment bytes they loaded and stored (what a GPU
+//! drawing in tiles pays for them, S134); at how many calls the frame before was still in flight
+//! (a stroke's call then waits for it). Not split: the driver's own share of a submission or of
+//! encoding. The GPU's time for a frame is
 //! not here: frames are timed on the GPU
 //! only while a benchmark turns it on (`Core::time_frames`), an extra submission and readback a
 //! frame.
@@ -24,7 +27,7 @@ mod line;
 mod tests;
 
 use openpaint_runtime::{
-    MotionBatch, MotionPhase, Paced, Spent, StrokeDrew, StrokeParts, ToolKind,
+    Attached, MotionBatch, MotionPhase, Paced, Spent, StrokeDrew, StrokeParts, ToolKind,
 };
 
 /// Collects one stroke's latencies.
@@ -82,6 +85,12 @@ impl FrameCost {
             canvas: spent.canvas,
             tier: spent.tier,
         }
+    }
+
+    /// The render passes of its drawings, the canvas's and the tier's, and what they loaded and
+    /// stored.
+    fn attached(&self) -> Attached {
+        self.canvas.attached.plus(self.tier.attached)
     }
 
     /// Of a frame whose work took `work` ns, what lay outside its UI pass, the canvas's and the
@@ -190,9 +199,11 @@ pub struct Summary {
     pub events: usize,
     pub frames: usize,
     /// Frame calls skipped while the GPU was behind, and the most frames in flight at a drawn
-    /// frame's start.
+    /// frame's start; the frames drawn whose call found the frame before still in flight (a
+    /// stroke's call skipped finds it so too).
     pub skipped: usize,
     pub in_flight: u64,
+    pub behind: usize,
     /// Event time to the start of the frame consuming it.
     pub to_frame: Spread,
     /// Event time to the return of that frame's present call.
@@ -221,6 +232,7 @@ impl Summary {
                 .map(|c| c.in_flight)
                 .max()
                 .unwrap_or(0),
+            behind: (stroke.costs.iter()).filter(|c| c.in_flight > 0).count(),
             to_frame: Spread::of(stroke.to_frame),
             to_present: Spread::of(stroke.to_present),
             frame_work: Spread::of(stroke.frame_work),
@@ -253,6 +265,11 @@ pub struct Painted {
     pub one_chain: ([i64; 6], usize),
     pub ui: Spread,
     pub rest: Spread,
+    /// A frame's render passes (the canvas's and the tier's), and the bytes of their attachments
+    /// they loaded and stored (`Attached`): what a GPU drawing in tiles pays for them.
+    pub passes: Spread,
+    pub loaded: Spread,
+    pub stored: Spread,
 }
 
 impl Painted {
@@ -290,6 +307,9 @@ impl Painted {
                     .map(|(cost, work)| cost.rest(*work))
                     .collect(),
             ),
+            passes: each(|c| i64::from(c.attached().passes)),
+            loaded: each(|c| ns(c.attached().loaded)),
+            stored: each(|c| ns(c.attached().stored)),
         })
     }
 }

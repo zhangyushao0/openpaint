@@ -66,7 +66,7 @@ pub use openpaint_app::{
 };
 pub use openpaint_practice_app::Start;
 pub use openpaint_render::{
-    Background, Counts, Spent, StrokeDrew, StrokeParts, SurfaceWindow, take_spent,
+    Attached, Background, Counts, Spent, StrokeDrew, StrokeParts, SurfaceWindow, take_spent,
 };
 pub use openpaint_store::DisplayCache;
 pub use openpaint_ui::design::{FontFile, TextFonts};
