@@ -49,6 +49,10 @@ pub use geometry::heading::{Checked, ON_ANGLE, PAST};
 pub use geometry::marks::{MARK, last_edges, last_mark};
 pub use geometry::off::{Heads, Off, PEN_WIDTH, ReadCurve, Straight, ringed};
 pub use geometry::perspective::{BoxView, Direction, EDGES, FAR, Horizon, Look, PerspectiveBox};
+pub use kinds::abstract_analysis::contrast::{
+    CHROMA_CONTRAST, CONTRAST_REACH, ContrastView, Contrasts, HARD_EDGE, HUE_CONTRAST,
+    LIGHTNESS_CONTRAST, SQUINTED, Threshold, VEILED,
+};
 pub use kinds::boxes::ThroughBox;
 pub use kinds::boxes::marks::BoxCompared;
 pub use kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, NEAR_MISSED, THROUGH_TO_ADD};

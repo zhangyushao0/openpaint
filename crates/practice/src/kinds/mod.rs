@@ -13,6 +13,7 @@
 //! V大's boxes simplified (their answer and check the solids', `solids/`), solids stand in a box
 //! whose points are found by the tricks' projection (`geometry/space_projection.rs`).
 
+pub(crate) mod abstract_analysis;
 pub(crate) mod boxes;
 pub(crate) mod colours;
 pub(crate) mod combinations;

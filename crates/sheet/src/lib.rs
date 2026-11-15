@@ -1,8 +1,8 @@
 //! Contact sheets for the development tools (S111): what the practice-pack builder
 //! (`tools/packs`) and the harness's `key-shifts` both draw their sheets with, so neither
 //! depends on the other. A sheet is a grid of `CELL`-pixel cells on grey; a picture fitted into a
-//! cell, filled rectangles, lines `width` pixels wide and a number in a 3 x 5 pixel font at a
-//! cell's corner; written as an 8-bit RGBA PNG. Never a dependency of a product crate.
+//! cell, filled rectangles, lines `width` pixels wide and a number or a label in a 3 x 5 pixel
+//! font at a cell's corner; written as an 8-bit RGBA PNG. Never a dependency of a product crate.
 #![forbid(unsafe_code)]
 
 use std::fs::File;
@@ -29,6 +29,36 @@ const DIGITS: [[u8; 5]; 10] = [
     [7, 1, 1, 1, 1],
     [7, 5, 7, 5, 7],
     [7, 5, 7, 1, 7],
+];
+
+/// The capital letters A to Z, as the digits.
+const LETTERS: [[u8; 5]; 26] = [
+    [2, 5, 7, 5, 5],
+    [6, 5, 6, 5, 6],
+    [3, 4, 4, 4, 3],
+    [6, 5, 5, 5, 6],
+    [7, 4, 6, 4, 7],
+    [7, 4, 6, 4, 4],
+    [3, 4, 5, 5, 3],
+    [5, 5, 7, 5, 5],
+    [7, 2, 2, 2, 7],
+    [1, 1, 1, 5, 2],
+    [5, 5, 6, 5, 5],
+    [4, 4, 4, 4, 7],
+    [5, 7, 7, 5, 5],
+    [6, 5, 5, 5, 5],
+    [2, 5, 5, 5, 2],
+    [6, 5, 6, 4, 4],
+    [2, 5, 5, 6, 3],
+    [6, 5, 6, 5, 5],
+    [3, 4, 2, 1, 6],
+    [7, 2, 2, 2, 2],
+    [5, 5, 5, 5, 7],
+    [5, 5, 5, 5, 2],
+    [5, 5, 7, 7, 5],
+    [5, 5, 2, 5, 5],
+    [5, 5, 2, 2, 2],
+    [7, 1, 2, 4, 7],
 ];
 
 /// A picture of `size` as large as a cell shows it.
@@ -80,15 +110,24 @@ pub fn fill(sheet: &mut RgbaImage, [x, y]: [u32; 2], [width, height]: [u32; 2], 
 
 /// `value` in black on a white tab at the cell's top left corner `[x, y]`.
 pub fn number(sheet: &mut RgbaImage, [x, y]: [u32; 2], value: usize) {
-    let digits: Vec<usize> = value
-        .to_string()
+    label(sheet, [x, y], &value.to_string());
+}
+
+/// `text` (digits, capital letters and spaces; anything else a space) in black on a white tab at
+/// `[x, y]`, as `number` writes a number.
+pub fn label(sheet: &mut RgbaImage, [x, y]: [u32; 2], text: &str) {
+    let glyphs: Vec<[u8; 5]> = text
         .bytes()
-        .map(|b| usize::from(b - b'0'))
+        .map(|b| match b {
+            b'0'..=b'9' => DIGITS[usize::from(b - b'0')],
+            b'A'..=b'Z' => LETTERS[usize::from(b - b'A')],
+            _ => [0; 5],
+        })
         .collect();
-    let width = digits.len() as u32 * 4 * DOT + DOT;
+    let width = glyphs.len() as u32 * 4 * DOT + DOT;
     fill(sheet, [x, y], [width, 7 * DOT], Rgba([255, 255, 255, 255]));
-    for (place, digit) in digits.into_iter().enumerate() {
-        for (row, bits) in DIGITS[digit].iter().enumerate() {
+    for (place, glyph) in glyphs.into_iter().enumerate() {
+        for (row, bits) in glyph.iter().enumerate() {
             for column in 0..3 {
                 if bits & (4 >> column) != 0 {
                     let left = x + DOT + (place as u32 * 4 + column) * DOT;

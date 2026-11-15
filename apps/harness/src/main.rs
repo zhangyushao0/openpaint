@@ -7,6 +7,7 @@
 mod baseline;
 mod brush_sheet;
 mod compare;
+mod contrasts;
 mod error;
 mod export_timing;
 mod heap;
@@ -51,6 +52,7 @@ fn main() -> ExitCode {
         ["stroke-stats", dir] => stroke_stats::run(dir),
         ["test-art", ref rest @ ..] => test_art::run(rest),
         ["key-shifts", ref rest @ ..] => key_shifts::run(rest),
+        ["contrasts", ref rest @ ..] => contrasts::run(rest),
         ["scenario", "--all", ref rest @ ..] => match scenarios::options(rest) {
             Some((jobs, then)) => scenarios::run_all(jobs, &then),
             None => Err(error::HarnessError::Missing(

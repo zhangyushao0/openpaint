@@ -228,7 +228,7 @@ pub(crate) fn reduced([width, height]: [u32; 2], rgba: &[u8], cells: [u32; 2]) -
 
 /// `cells` with each of the outermost `rim` cells round the picture taking the value of the cell
 /// just inside them: a scan's rim (a frame's edge, an unpainted margin) is no mass.
-fn rimless(cells: &[f64], [width, height]: [u32; 2], rim: usize) -> Vec<f64> {
+pub(crate) fn rimless(cells: &[f64], [width, height]: [u32; 2], rim: usize) -> Vec<f64> {
     let (w, h) = (width as usize, height as usize);
     let inside = |at: usize, length: usize| {
         if length > 2 * rim {
