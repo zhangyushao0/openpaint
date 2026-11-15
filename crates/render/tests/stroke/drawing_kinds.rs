@@ -1,4 +1,4 @@
-//! The stroke being drawn on the raster core (`canvas/drawing.rs`), of other kinds: a
+//! The stroke being drawn on the raster core (`canvas/drawing/`), of other kinds: a
 //! smudge, whose contacts trail the pen until it lifts, equals the same frame drawn on a canvas
 //! showing the artwork until then (at a tier, its tiles), and its lift the commit cold; a stroke
 //! snapped to a shape

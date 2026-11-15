@@ -1,6 +1,6 @@
 //! The screen canvas on the raster core: what of it waits to be drawn, the
 //! frame loop's raster targets (shared with the view tiers' changes drawn in place), and the tiles
-//! handed to the raster worker (`raster_fill.rs` draws). A change (an undo, a layer edit, a
+//! handed to the raster worker (`raster_fill/` draws). A change (an undo, a layer edit, a
 //! fill, an opening) is drawn at once on the frame loop when it is small and fits the frame's
 //! budget, else the canvas's 256-px tiles it reaches wait and the worker draws them, the screen's
 //! middle first, at the GPU's pace, each into a slot of a staging texture the frame loop

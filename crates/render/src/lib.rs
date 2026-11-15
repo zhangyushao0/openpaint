@@ -5,29 +5,31 @@
 //! Depends on `openpaint-core` only. The UI framework may appear only under `src/adapter/`
 //! (`cargo repo-check`).
 //!
-//! The crate lies flat (a structural slice ahead, ROADMAP); its modules by what they serve, each
-//! file's `//!` saying what it holds:
-//! - The scene: `scene.rs` (`Scene::build_knowing`: visible layers, records, smudges, adjustments,
+//! Most modules lie at the root, a family told apart by its prefix (a structural slice ahead,
+//! ROADMAP); a module with parts is a folder, its `mod.rs` and the parts it owns. The modules by
+//! what they serve, each file's `//!` saying what it holds:
+//! - The scene: `scene/` (`Scene::build_knowing`: visible layers, records, smudges, adjustments,
 //!   filters, frames, moves and nested records as `Item`s and `Op`s in drawing order, with
-//!   conservative canvas bounds) and `scene_*.rs` (a layer, adjustments, nested and cleared
-//!   content, appended strokes taken in place, spans reused from the scene before, `SceneOps` on
-//!   the GPU), `edits.rs`, `stroke*.rs`, `curve.rs`, `fill_edge.rs` (D56), `shapes.rs`, `paper.rs`,
-//!   `active.rs` (the tracked stroke), `change.rs` (`changed_regions`), `preview.rs`; `protocol*.rs`
-//!   own `Op`: its operands, named slots and the WGSL prelude generated from them.
-//! - The raster core (D93): `raster_scene.rs` (units per item), `raster_plan*.rs` (a region's
-//!   passes), `raster_lay.rs`, `raster_kinds.rs`, `raster_slots.rs`, `raster_reads.rs`,
-//!   `raster_frame.rs`, `raster_batch.rs` (a frame's regions one command buffer), `raster.rs`,
-//!   `raster_gpu.rs` (the shaders and pipelines), `raster_states.rs`, `raster_worker.rs` (what the
-//!   runtime's raster worker draws), `geom.rs`, `output.rs` (a target's scale, D55), `affine.rs`.
-//! - The canvas: `canvas.rs` (`CanvasTarget`) and `canvas/` (tiles handed to the raster worker,
-//!   the kept scene and its retunes, residuals, the budget's rooms, the display cache's copies, the
-//!   stroke being drawn from snapshots per output tile, D91).
-//! - View tiers (D85, D93): `view_*.rs` (`ViewCache`, its tiles, atlases, kept tiers, fills, the
-//!   blit's bindings).
+//!   conservative canvas bounds) and `scene_*` (a layer, adjustments, `scene_content/` with nested
+//!   content, cleared content, `scene_append/` strokes taken in place, spans reused from the scene
+//!   before, `SceneOps` on the GPU), `edits.rs`, `stroke/` with `stroke_*.rs`, `curve/`,
+//!   `fill_edge/` (D56), `shapes.rs`, `paper.rs`, `active/` (the tracked stroke), `change.rs`
+//!   (`changed_regions`), `preview/`; `protocol/` owns `Op`: its operands, named slots and the WGSL
+//!   prelude generated from them.
+//! - The raster core (D93): `raster_scene/` (units per item), `raster_plan/` (a region's passes),
+//!   `raster_lay.rs`, `raster_kinds.rs`, `raster/` (its frame, reads, slots and `batch.rs`, a
+//!   frame's regions one command buffer), `raster_gpu.rs` (the shaders and pipelines),
+//!   `raster_states.rs`, `raster_worker.rs` (what the runtime's raster worker draws), `geom.rs`,
+//!   `output.rs` (a target's scale, D55), `affine.rs`.
+//! - The canvas: `canvas/` (`CanvasTarget`; tiles handed to the raster worker, the kept scene and
+//!   its retunes, residuals, the budget's rooms, the display cache's copies, the stroke being drawn
+//!   from snapshots per output tile, D91).
+//! - View tiers (D85, D93): `view_tier/` and `view_*.rs` (`ViewCache`, its tiles, atlases, kept
+//!   tiers, fills, the blit's bindings).
 //! - Readers: `export.rs`, `export_raster.rs`, `sample.rs`, `thumbnail.rs`, `readback.rs` (D64),
 //!   `underlay.rs`, `difference.rs` (`image_difference` for tests and devtools), `image.rs`.
-//! - Smudges and filters: `smudge.rs` with `smudge/` (D46), `filter.rs` with `filter/` (D59).
-//! - Pacing and memory: `pace.rs`, `gpu_clock.rs`, `frame_clock.rs`, `timestamps.rs`,
+//! - Smudges and filters: `smudge/` (D46), `filter/` (D59).
+//! - Pacing and memory: `pace/`, `gpu_clock.rs`, `frame_clock.rs`, `timestamps.rs`,
 //!   `gpu_frames.rs`, `waiting.rs`, `tally.rs` (`Counts`), `profile.rs`, `budget.rs`.
 //! - The screen: `screen.rs`, `surface.rs`, `gradient.rs`, `gpu.rs`, `core.rs`, `frame.rs`,
 //!   `adapter/` (the UI framework's painter and the chrome pass).

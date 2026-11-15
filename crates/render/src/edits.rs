@@ -1,8 +1,8 @@
 //! A layer's region edits as scene ops. A fill paints its colour inside its mask's smoothed
-//! edge (`fill_edge.rs`). A transform with pixels clears what it lifted (an erasing fill over
+//! edge (`fill_edge/`). A transform with pixels clears what it lifted (an erasing fill over
 //! its selection, a hard edge; for the whole layer nothing before it is drawn at all,
 //! `restart`) and draws its patch through its placement (`Patch`); a transform record shows
-//! the layer's earlier content where it moved it (`scene_content.rs`). An adjustment changes
+//! the layer's earlier content where it moved it (`scene_content/`). An adjustment changes
 //! the layer's colours so far, inside its clip (`scene_adjust.rs`).
 
 use std::sync::Arc;

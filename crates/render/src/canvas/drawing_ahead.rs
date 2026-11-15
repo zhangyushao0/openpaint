@@ -1,4 +1,4 @@
-//! Snapshots taken ahead (`drawing.rs`) where the pen can land: the 1x canvas's tiles the screen
+//! Snapshots taken ahead (`drawing/`) where the pen can land: the 1x canvas's tiles the screen
 //! shows and a ring of one tile round them (every tile without a view), and the view tier's shown
 //! tiles once they are ready; the others' go. While no stroke is drawn and nothing of the canvas
 //! waits, the raster worker takes the snapshots they lack, or lays the strokes committed since

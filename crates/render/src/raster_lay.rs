@@ -1,4 +1,4 @@
-//! Where a stroke lies in a raster region (`raster_plan.rs`): its spans reaching the region, the
+//! Where a stroke lies in a raster region (`raster_plan/`): its spans reaching the region, the
 //! composite tiles they meet and their box in whole tiles, which becomes its region of the atlas,
 //! placed shelf by shelf, and each span's instances there. A unit inside a transform record's
 //! content lies in its frame's pixels (`Placing`).

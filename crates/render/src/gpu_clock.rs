@@ -1,7 +1,7 @@
 //! Background work's GPU time, measured: each raster region drawn as background work writes GPU
 //! timestamps, its first pass's at its start and its last pass's at its end, so the end less the
 //! start is the time the GPU took for it. They are read back frames later without waiting
-//! (`timestamps.rs`); the frame budget (`pace.rs`) learns from them how far its estimates are off
+//! (`timestamps.rs`); the frame budget (`pace/`) learns from them how far its estimates are off
 //! on this device. A device without timestamp queries measures nothing and the estimates stand.
 
 use crate::gpu::Gpu;
@@ -12,7 +12,7 @@ const SLOTS: u32 = 16;
 
 pub(crate) struct GpuClock {
     stamps: Timestamps,
-    /// Per slot, the estimate of the region it measures, ns (`pace.rs`).
+    /// Per slot, the estimate of the region it measures, ns (`pace/`).
     costs: Vec<f64>,
 }
 

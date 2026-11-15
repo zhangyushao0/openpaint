@@ -164,7 +164,7 @@ fn paper_texel(level: u32, c: vec2<i32>) -> vec2<f32> {
 }
 
 // Words of a mip chain's levels before `level` when its finest holds 2^`bits` texels and each
-// level a quarter of the one before (`protocol_wgsl.rs` checks both chains are so): their sum
+// level a quarter of the one before (`protocol/wgsl.rs` checks both chains are so): their sum
 // in closed form, `4/3 (2^bits - 2^(bits - 2 level))`, exactly (a loop costs registers on the
 // Adreno).
 fn mip_offset(bits: u32, level: u32) -> u32 {

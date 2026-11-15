@@ -45,7 +45,7 @@ pub(crate) fn span_stamps(style: &StrokeStyle, path: &Path, j: usize) -> Option<
     })
 }
 
-/// The paint op's stamp operands for a stroke of `style` (`protocol_stamp.rs`).
+/// The paint op's stamp operands for a stroke of `style` (`protocol/stamp.rs`).
 pub(crate) fn paint_stamp(style: &StrokeStyle) -> [f32; STAMP_OPERANDS] {
     let Some(step) = step(style) else {
         return [0.0; STAMP_OPERANDS];

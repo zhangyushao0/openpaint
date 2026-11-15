@@ -81,7 +81,7 @@ impl Runner<'_> {
     /// Frames at the held clock until the canvas's background work is done (its tiles filled
     /// in, the view tier's shown, residuals), for at most `HANG`: what a moment shows of
     /// the canvas never depends on how much of that work the frames before had room for, which
-    /// the GPU's measured times decide (`render/src/pace.rs`): under load or not, s122-path's
+    /// the GPU's measured times decide (`render/src/pace/`): under load or not, s122-path's
     /// dot-inking showed a stroke's tile before or after it was drawn again (S129). Motion holds
     /// still meanwhile: the clock does not move.
     pub(super) fn fill_held(&mut self, runtime: &mut Runtime) -> Result<(), ScenarioError> {

@@ -1,4 +1,4 @@
-//! The raster core's pipelines (`raster.rs`): its shader (raster.wgsl, raster_stamp.wgsl,
+//! The raster core's pipelines (`raster/`): its shader (raster.wgsl, raster_stamp.wgsl,
 //! raster_composite.wgsl, raster_paint.wgsl, then spans, stamps, textures, deposits and fill
 //! edges, the smudge engine's residual reading, adjust.wgsl and filter_composite.wgsl), one
 //! pipeline per way a stroke lays into the atlas (the blend unit keeping the largest or summing),

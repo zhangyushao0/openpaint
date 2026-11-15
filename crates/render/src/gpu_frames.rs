@@ -10,7 +10,7 @@
 //! Background work is marked the same way with its estimated GPU time
 //! (`Core::background_submitted`): what is submitted and not finished is what a frame drawn now
 //! would wait for (`Core::background_queued`), which the frame budget keeps within one idle
-//! frame's share while nothing touches the screen (`pace.rs`).
+//! frame's share while nothing touches the screen (`pace/`).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};

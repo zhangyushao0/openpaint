@@ -3,7 +3,7 @@
 //! and an adjustment leaves it so), widened by the kernel's longest reach for a filter; on a mask
 //! (white where nothing is painted) or under transform records it is unbounded. The curves'
 //! tables go into the mask words. A filter is such an op too, whose result the
-//! target's arena holds (`filter.rs`). A preview's next value changes only these ops' values
+//! target's arena holds (`filter/`). A preview's next value changes only these ops' values
 //! (`retune`), so the scene, its plan and its other words stay.
 
 use std::ops::Range;

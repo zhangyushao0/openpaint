@@ -1,5 +1,5 @@
 //! One layer's ops in a scene: its paint (strokes, region edits, smudges, the in-progress
-//! stroke's place; `scene_content.rs`), then with an enabled mask `BeginMask` and the mask's own
+//! stroke's place; `scene_content/`), then with an enabled mask `BeginMask` and the mask's own
 //! ops, then its end, which applies the mask.
 
 use openpaint_core::{LayerId, LayerMask, RegionEdit, StrokeList};

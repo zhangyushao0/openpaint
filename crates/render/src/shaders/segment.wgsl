@@ -1,5 +1,5 @@
 // A stroke's curve spans: each `Segment` op is one cubic Bézier span between two knots,
-// drawn as tapered capsules of equal parameter, as many as `curve.rs` flattens it into at the
+// drawn as tapered capsules of equal parameter, as many as `curve/` flattens it into at the
 // output pixel's footprint (`raster.wgsl`'s `piece_of`). Radius, flow and contact change evenly
 // from one knot to the next. A covering stroke keeps the largest coverage of the pieces, an
 // accumulating one sums their densities (deposit.wgsl's `piece_density`).

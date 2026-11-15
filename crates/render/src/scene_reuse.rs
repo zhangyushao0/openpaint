@@ -100,7 +100,7 @@ impl Spans {
     }
 
     /// Every span range from item `at` on moved `by` items later (strokes appended before
-    /// them, `scene_append.rs`).
+    /// them, `scene_append/`).
     pub(crate) fn moved(&mut self, at: usize, by: usize) {
         for (_, range) in self.at.values_mut() {
             if range.start >= at {

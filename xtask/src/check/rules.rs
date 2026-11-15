@@ -8,16 +8,9 @@ pub const MAX_RUST_LINES: usize = 400;
 /// prefix, and goes into folders by responsibility (S108, S110b).
 pub const MAX_FOLDER_FILES: usize = 64;
 
-/// Folders over `MAX_FOLDER_FILES` when the rule came, each held at its count: it may only go
-/// down, the number lowered as it does, the line gone once it is within the rule.
-pub const HELD_FOLDERS: &[(&str, usize)] = &[
-    // The renderer's 98 modules, a structural slice ahead (ROADMAP Candidates).
-    ("crates/render/src", 98),
-];
-
 /// The workspace's `#[path]` siblings when the rule came (S118b), held at their count: it may only
 /// go down, the number lowered as it does (`paths.rs`).
-pub const HELD_PATH_SIBLINGS: usize = 114;
+pub const HELD_PATH_SIBLINGS: usize = 72;
 
 /// A markdown file allowed outside `docs/archive/` and its limits.
 pub struct Doc {

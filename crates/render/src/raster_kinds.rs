@@ -1,4 +1,4 @@
-//! What a raster plan is made of (`raster_plan.rs`): instances, the draws and passes over
+//! What a raster plan is made of (`raster_plan/`): instances, the draws and passes over
 //! the atlas and the region's float targets, and its counts with what they cost the tablet's GPU.
 
 use std::ops::Range;
@@ -80,7 +80,7 @@ pub(crate) struct Draw {
     pub(crate) instances: Range<u32>,
 }
 
-/// The raster core's scratch targets (`raster.rs`), float pixels of the region.
+/// The raster core's scratch targets (`raster/`), float pixels of the region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Scratch {
     Canvas,
@@ -146,7 +146,7 @@ pub(crate) enum Pass {
         reads: Scratch,
         draw: Draw,
     },
-    /// For the stroke being drawn (`canvas/drawing.rs`): targets set from snapshots' slots, as the
+    /// For the stroke being drawn (`canvas/drawing/`): targets set from snapshots' slots, as the
     /// units before the stroke left them; targets kept into slots.
     Restore(Vec<SlotCopy>),
     Keep(Vec<SlotCopy>),
@@ -217,7 +217,7 @@ impl RasterCounts {
     /// What drawing a plan of these counts over a region of `size` pixels costs the tablet's GPU,
     /// estimated in ns (measured on its Adreno 735: about 40 µs a pass, a dense place's composites
     /// about 1 ns an output pixel; a smudge's copy and residual read about 4 ns an output pixel);
-    /// the frame budget corrects it by the raster core's measured times (`pace.rs`).
+    /// the frame budget corrects it by the raster core's measured times (`pace/`).
     pub(crate) fn estimate(&self, [width, height]: [u32; 2]) -> f64 {
         const PASS: f64 = 40_000.0;
         const COMPOSITE: f64 = 1.0;

@@ -1,5 +1,5 @@
-// The raster core (`raster.rs`): a scene's region drawn by the GPU's rasterizer.
-// A continuous span is flattened at the output's scale as `curve.rs` flattens it and each piece
+// The raster core (`raster/`): a scene's region drawn by the GPU's rasterizer.
+// A continuous span is flattened at the output's scale as `curve/` flattens it and each piece
 // is one quad around its capsule; a stamped span is one quad per stamp, placed, turned, sized and
 // scattered by the stroke's hashes. Each piece's and stamp's coverage or density
 // (segment.wgsl, stamp.wgsl, stamp_texture.wgsl, deposit.wgsl, appended after these files) is

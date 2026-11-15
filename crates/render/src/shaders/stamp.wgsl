@@ -8,7 +8,7 @@
 // them (raster_stamp.wgsl draws one quad a stamp). A covering stroke keeps the largest coverage
 // of its stamps, an accumulating one sums their densities.
 
-// A stroke's stamps, from its paint op (`protocol_stamp.rs`).
+// A stroke's stamps, from its paint op (`protocol/stamp.rs`).
 struct Stamping {
     step: f32,
     shape: u32,

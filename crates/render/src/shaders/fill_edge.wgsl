@@ -1,5 +1,5 @@
 // Fill edges: a fill's coverage of an output pixel at every scale, from its mask's
-// bits and the edge values the scene derived from them (`fill_edge.rs`).
+// bits and the edge values the scene derived from them (`fill_edge/`).
 //
 // The mask's signed distance field (at each pixel centre the distance to the nearest centre of
 // the other side less half a pixel, positive inside) is 1/2 or sqrt(2) - 1/2 at the centres

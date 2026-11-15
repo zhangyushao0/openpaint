@@ -112,7 +112,7 @@ pub(crate) fn in_place_raster(
     Ok(())
 }
 
-/// The stroke being drawn (or just lifted or dropped) at `tier` (`canvas/drawing_frame.rs`): drawn
+/// The stroke being drawn (or just lifted or dropped) at `tier` (`canvas/drawing_frame/`): drawn
 /// by the tier's drawing into the tiles the view shows that are ready, at once; the tiles it
 /// reaches that are not, or that the view does not show (its ring), are not ready any more (drawn
 /// whole once no stroke is).

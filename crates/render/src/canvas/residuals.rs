@@ -1,6 +1,6 @@
 //! The screen canvas's changes and the smudge residuals they read: a change that reads a
 //! residual the arena lacks waits while that residual is evaluated over frames as background work
-//! (`engine_derive.rs`), first in scene order; once nothing it reads is lacking, it is drawn. So
+//! (`smudge/engine/derive.rs`), first in scene order; once nothing it reads is lacking, it is drawn. So
 //! an artwork opening shows its paint everywhere but near its smudges while their residuals are
 //! evaluated, instead of the paper until all are.
 

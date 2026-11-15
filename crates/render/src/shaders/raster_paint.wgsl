@@ -1,4 +1,4 @@
-// What the raster core's fragments read of an op and the scene's words (`raster.rs`): an op's
+// What the raster core's fragments read of an op and the scene's words (`raster/`): an op's
 // operands, a stroke's paint at its coverage (grain, clip, density to coverage through the
 // paper), a fill's colour, a selection's mask bits, a transform's patch and a moved content's
 // share. Appended after raster_composite.wgsl.
