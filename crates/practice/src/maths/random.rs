@@ -36,7 +36,7 @@ impl Random {
     }
 }
 
-/// The seed of item `index` of something seeded `seed` (an exercise of a session).
+/// The seed of item `index` of something seeded `seed` (an exercise of a lesson).
 #[must_use]
 pub const fn derived(seed: u64, index: u64) -> u64 {
     Random::new(seed ^ index.wrapping_mul(0xA24B_AED4_963E_E407)).next_u64()

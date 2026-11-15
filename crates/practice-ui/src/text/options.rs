@@ -143,12 +143,12 @@ pub(crate) fn remove_named(language: Language, name: &str) -> String {
 }
 
 /// What removing a picture of one's own leaves, by how many lessons and colour copies used it.
-pub(crate) fn picture_goes(language: Language, (sessions, copies): (u32, u32)) -> String {
+pub(crate) fn picture_goes(language: Language, (lessons, copies): (u32, u32)) -> String {
     let gone = match language {
         Language::English => "It goes from this tablet for good.",
         Language::Chinese => "它会从这台平板上永久删除。",
     };
-    if sessions == 0 && copies == 0 {
+    if lessons == 0 && copies == 0 {
         return match language {
             Language::English => format!("{gone} No lesson or copy used it."),
             Language::Chinese => format!("{gone}没有课或临摹用过它。"),
@@ -160,7 +160,7 @@ pub(crate) fn picture_goes(language: Language, (sessions, copies): (u32, u32)) -
                 (n > 0).then(|| format!("{n} {}", if n == 1 { one } else { many }))
             };
             let parts: Vec<String> = [
-                plural(sessions, "lesson", "lessons"),
+                plural(lessons, "lesson", "lessons"),
                 plural(copies, "colour copy", "colour copies"),
             ]
             .into_iter()
@@ -170,7 +170,7 @@ pub(crate) fn picture_goes(language: Language, (sessions, copies): (u32, u32)) -
         }
         Language::Chinese => {
             let parts: Vec<String> = [
-                (sessions > 0).then(|| format!("{sessions} 课")),
+                (lessons > 0).then(|| format!("{lessons} 课")),
                 (copies > 0).then(|| format!("{copies} 幅色彩临摹")),
             ]
             .into_iter()

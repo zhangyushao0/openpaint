@@ -27,12 +27,12 @@ pub(super) fn begun() -> (PracticeLog, SheetSession) {
 /// As `begun`, nothing drawn.
 pub(super) fn untouched() -> (PracticeLog, SheetSession) {
     let empty = log_of(Vec::new(), NOON);
-    let drill = six_lines(&empty, (NOON, 40), Purpose::Day);
-    let mut log = log_of(vec![drill.clone()], NOON);
+    let day = six_lines(&empty, (NOON, 40), Purpose::Day);
+    let mut log = log_of(vec![day.clone()], NOON);
     tick(&mut log, NOON, None);
     assert_eq!(log.time(TimerIntent::Start, None), Ok(Timed::Lesson));
-    let session = practising(&drill, Layout::laid_ahead(&drill), &log);
-    tick(&mut log, NOON, Some(&drill));
+    let session = practising(&day, Layout::laid_ahead(&day), &log);
+    tick(&mut log, NOON, Some(&day));
     (log, session)
 }
 
@@ -121,7 +121,7 @@ fn the_chain_lays_lesson_after_lesson_with_no_end_between() {
 #[test]
 fn a_chain_that_does_not_fit_goes_on_a_new_sheet_the_block_held_while_it_opens() {
     let (mut log, _) = begun();
-    let mut full = log.session(1).expect("the drill").clone();
+    let mut full = log.sheet(1).expect("the day's sheet").clone();
     for _ in 1..6 {
         if let Some(last) = full.lessons.last_mut() {
             last.finished = Some(NOON);
@@ -183,7 +183,7 @@ fn time_up_mid_exercise_then_end_cuts_the_lesson_and_keeps_the_block() {
     assert_eq!(practice.end.map(|end| end.results.len()), Some(3));
     let used = Layout::used(&record);
     assert_eq!(session.session().view().fits().map(|f| f.size), Some(used));
-    assert_eq!(log.session(1), Some(&record), "the log took the cut");
+    assert_eq!(log.sheet(1), Some(&record), "the log took the cut");
     // The block completed in one write, its end over the rows drawn in it.
     let block = Block {
         started: NOON,

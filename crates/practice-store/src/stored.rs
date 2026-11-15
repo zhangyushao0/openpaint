@@ -163,7 +163,7 @@ pub fn save(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<(), PortError
 
 /// `sheet`'s record (by its id), its lessons' givens and its project, everything stored for it,
 /// removed for good in one write; every other record stays as it is. A colour copy removed from
-/// the practice options, and the test-session chore's (debug builds) undoing of a sheet it
+/// the practice options, and the test-lesson chore's (debug builds) undoing of a sheet it
 /// started.
 ///
 /// # Errors

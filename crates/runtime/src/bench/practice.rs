@@ -3,19 +3,19 @@
 //! back; at a line, a line drawn with the pen, then Compare (the overlay and its card), the switch
 //! to Aligned and back to In place, Compare taken away, and Compare again with Aligned chosen: the
 //! time from the tap to the frame showing the aligned fit (S88); Next three times, the view gliding
-//! to the next pair; in a session holding combined lines (stage 1), on to the first group, its
-//! lines drawn along the original and compared aligned likewise; in stage 3, its first point,
-//! angle and point in space marked and compared (`practice_points.rs`); in stage 4 its division
-//! and whole copy drawn and compared (`practice_division.rs`, S95); then, in a session holding
+//! to the next pair; on a sheet holding combined lines (unit 1), on to the first group, its
+//! lines drawn along the original and compared aligned likewise; in unit 3, its first point,
+//! angle and point in space marked and compared (`practice_points.rs`); in unit 4 its division
+//! and whole copy drawn and compared (`practice_division.rs`, S95); then, on a sheet holding
 //! single shapes, on to its first shape: an outline drawn, Compare, Aligned (its fit found off
 //! the frame loop), In place, Compare taken away and compared aligned likewise; on to its colour
 //! combination: Fill frame, a stroke, Compare (its copy read back), another area, the original
 //! shown dragged, Compare taken away; on to its perspective: a box's edges or
 //! free boxes' drawn, Compare (the edges found and extended, at once on the frame loop) and taken
-//! away, an ellipse's loop, Compare and taken away; then, the session taken on to its next colour
+//! away, an ellipse's loop, Compare and taken away; then, the sheet taken on to its next colour
 //! (if one is left), the inline wheel's square dragged round, Fill frame and Compare (the colours
-//! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on. A
-//! "session" here is the lessons on the sheet: where none ahead holds a kind, the unit's later
+//! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on. The
+//! sheet holds more lessons than the one in hand: where none ahead holds a kind, the unit's later
 //! skills are laid after the lesson in hand (`practice_chain.rs`).
 
 use openpaint_practice::Kind;
@@ -40,7 +40,7 @@ const GROUP: &str = "combined";
 const SHAPE: &str = "shape";
 const COMBINATION: &str = "combination";
 const COLOUR: &str = "colour";
-/// Stage 2's perspective: its key, its name in the lines, and whether it is drawn round (an
+/// Unit 2's perspective: its key, its name in the lines, and whether it is drawn round (an
 /// ellipse) or by its straight edges.
 const PERSPECTIVE: [(&str, &str, bool); 3] = [
     ("box", "box", false),
@@ -94,9 +94,9 @@ impl Runtime {
         }
         self.bench_group(lines)?;
         self.bench_points(lines)?;
-        // Stage 4's division and whole copy after its objects (S95).
+        // Unit 4's division and whole copy after its objects (S95).
         self.bench_division(lines)?;
-        // Stage 2's shapes come before its colour work, its perspective after it.
+        // Unit 2's shapes come before its colour work, its perspective after it.
         self.bench_shape(lines)?;
         self.bench_combination(lines)?;
         self.bench_perspective(lines)?;
@@ -104,7 +104,7 @@ impl Runtime {
         self.bench_rest()
     }
 
-    /// In a stage-2 session: on to its perspective, a box to complete or a page of free boxes and
+    /// On a unit-2 sheet: on to its perspective, a box to complete or a page of free boxes and
     /// an ellipse, each drawn (edges or a loop) and compared, the comparison then taken away: a
     /// line each.
     fn bench_perspective(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
@@ -170,7 +170,7 @@ impl Runtime {
         Ok(())
     }
 
-    /// In a stage-2 session: on to its colour combination, Fill frame, a stroke of Big across the
+    /// On a unit-2 sheet: on to its colour combination, Fill frame, a stroke of Big across the
     /// copy, Compare (the copy's frame read back, the picture over it), another area chosen, the
     /// original shown dragged to full and Compare taken away: a line each.
     fn bench_combination(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
@@ -195,7 +195,7 @@ impl Runtime {
         Ok(())
     }
 
-    /// In a session holding single shapes: on to the first, an outline drawn round its copy's
+    /// On a sheet holding single shapes: on to the first, an outline drawn round its copy's
     /// frame, then Compare (the picture and its outline in place), Aligned (fitted off the frame
     /// loop) and In place, Compare taken away: a line each.
     fn bench_shape(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
@@ -216,7 +216,7 @@ impl Runtime {
         self.bench_fit_shown("shape", lines)
     }
 
-    /// In a session holding combined lines: on to the first group, each of its lines drawn by the
+    /// On a sheet holding combined lines: on to the first group, each of its lines drawn by the
     /// pen along its original a little moved and smaller (a stroke of `GROUP_LINE_MS`, the pen's
     /// samples 8 ms apart), then compared aligned (`bench_fit_shown`).
     fn bench_group(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
@@ -309,7 +309,7 @@ impl Runtime {
         Ok(())
     }
 
-    /// The session taken on to its first colour (its instructions closed), the inline wheel's
+    /// The sheet taken on to its first colour (its instructions closed), the inline wheel's
     /// square dragged round, Fill frame and Compare: a line each.
     fn bench_colour(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         if !self.bench_on_to(COLOUR)? {

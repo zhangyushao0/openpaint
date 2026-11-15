@@ -187,7 +187,7 @@ impl PracticeSheet {
         practice
     }
 
-    /// The next picture of the session to read for the screen, once each.
+    /// The next picture of the sheet to read for the screen, once each.
     pub fn picture_request(&mut self) -> Option<ItemRef> {
         let item = (self.sheet.pictures.iter().flatten())
             .map(|picture| &picture.item)
@@ -227,7 +227,7 @@ impl PracticeSheet {
         &self.seen
     }
 
-    /// The exercise shown, unless the session is done.
+    /// The exercise shown, unless the lesson is done.
     fn current(&self) -> Option<usize> {
         let index = self.record.at();
         (self.record.finished().is_none() && index < self.sheet.pairs.len()).then_some(index)
@@ -318,7 +318,7 @@ impl PracticeSheet {
         self.clip.as_ref()
     }
 
-    /// Pairs shown: up to the one shown, or all once the session is done.
+    /// Pairs shown: up to the one shown, or all once the lesson is done.
     fn revealed(&self) -> usize {
         match self.current() {
             Some(index) => index + 1,

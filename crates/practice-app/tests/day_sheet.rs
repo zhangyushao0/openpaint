@@ -117,28 +117,28 @@ fn close(a: [f32; 2], b: [f32; 2]) -> bool {
 #[test]
 fn today_s_sheet_takes_a_lesson_from_the_gallery_once_its_last_is_finished() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let mut drill = six_lines(&empty, NOON, 40);
-    let unfinished = log_of(vec![drill.clone()], NOON + 600);
+    let mut day = six_lines(&empty, NOON, 40);
+    let unfinished = log_of(vec![day.clone()], NOON + 600);
     assert!(unfinished.day_sheet().is_none(), "its lesson unfinished");
-    drill.lessons[0].finished = Some(NOON + 300);
+    day.lessons[0].finished = Some(NOON + 300);
     let mut test = Sheet {
         id: 2,
         canvas: 41,
         purpose: Purpose::Test,
-        ..drill.clone()
+        ..day.clone()
     };
-    let log = log_of(vec![drill.clone(), test.clone()], NOON + 600);
-    assert!(log.is_today(&drill));
+    let log = log_of(vec![day.clone(), test.clone()], NOON + 600);
+    assert!(log.is_today(&day));
     assert_eq!(log.day_sheet().map(|s| s.id), Some(1), "a test's never");
     test.purpose = Purpose::Copy;
     let log = log_of(vec![test], NOON + 600);
     assert!(log.day_sheet().is_none(), "a colour copy's never");
     // After midnight the morning's sheet is yesterday's.
-    let tomorrow = log_of(vec![drill.clone()], NOON + DAY / 2 + 60);
-    assert!(!tomorrow.is_today(&drill));
+    let tomorrow = log_of(vec![day.clone()], NOON + DAY / 2 + 60);
+    assert!(!tomorrow.is_today(&day));
     assert!(tomorrow.day_sheet().is_none());
     // A day is local: at 14:00 UTC, 11 hours east, the sheet begun at 23:00 is yesterday's.
-    let mut east = log_of(vec![drill], NOON + 2 * 3600);
+    let mut east = log_of(vec![day], NOON + 2 * 3600);
     assert!(east.day_sheet().is_some(), "the same day in UTC");
     east.set_clock(NOON + 2 * 3600, 11 * 60);
     assert!(east.day_sheet().is_none());
@@ -147,9 +147,9 @@ fn today_s_sheet_takes_a_lesson_from_the_gallery_once_its_last_is_finished() {
 #[test]
 fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = six_lines(&empty, NOON, 40);
-    let mut log = log_of(vec![drill.clone()], NOON + 600);
-    let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
+    let day = six_lines(&empty, NOON, 40);
+    let mut log = log_of(vec![day.clone()], NOON + 600);
+    let mut session = practising(&day, Layout::laid_ahead(&day), &log);
     assert_eq!(
         session.session().artwork().canvas().height(),
         6280,
@@ -211,9 +211,9 @@ fn one_more_appends_in_place_from_a_new_row_at_the_zoom_before_finish() {
 #[test]
 fn a_failed_write_rolls_the_lesson_back_with_the_failed_save_s_notice() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = six_lines(&empty, NOON, 40);
-    let mut log = log_of(vec![drill.clone()], NOON + 600);
-    let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
+    let day = six_lines(&empty, NOON, 40);
+    let mut log = log_of(vec![day.clone()], NOON + 600);
+    let mut session = practising(&day, Layout::laid_ahead(&day), &log);
     finish(&mut session);
     log.keep(record_of(&session));
     let finished_view = session.session().view();
@@ -241,25 +241,25 @@ fn a_failed_write_rolls_the_lesson_back_with_the_failed_save_s_notice() {
 #[test]
 fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yesterday_s() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = six_lines(&empty, NOON, 40);
-    let log = log_of(vec![drill.clone()], NOON + 600);
+    let day = six_lines(&empty, NOON, 40);
+    let log = log_of(vec![day.clone()], NOON + 600);
     // A sheet from before: its canvas holds only the rows it uses.
-    let mut old = practising(&drill, Layout::used(&drill), &log);
+    let mut old = practising(&day, Layout::used(&day), &log);
     finish(&mut old);
     assert!(
         old.append_lesson(next_lesson(&log), &log, &VIEWPORT)
             .is_none()
     );
     // Yesterday's: One more after midnight starts a new sheet.
-    let tomorrow = log_of(vec![drill.clone()], NOON + DAY);
-    let mut late = practising(&drill, Layout::laid_ahead(&drill), &tomorrow);
+    let tomorrow = log_of(vec![day.clone()], NOON + DAY);
+    let mut late = practising(&day, Layout::laid_ahead(&day), &tomorrow);
     finish(&mut late);
     assert!(
         late.append_lesson(next_lesson(&tomorrow), &tomorrow, &VIEWPORT)
             .is_none()
     );
-    // Six drills of two rows fill the twelve: a seventh does not fit.
-    let mut full = drill.clone();
+    // Six lessons of two rows fill the twelve: a seventh does not fit.
+    let mut full = day.clone();
     for _ in 1..6 {
         if let Some(last) = full.lessons.last_mut() {
             last.finished = Some(NOON + 60);
@@ -267,7 +267,7 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
         full.append(next_lesson(&log).0, Givens::default());
     }
     assert_eq!(Layout::next_slot(&full), 36);
-    let mut filled = practising(&full, Layout::laid_ahead(&drill), &log);
+    let mut filled = practising(&full, Layout::laid_ahead(&day), &log);
     finish(&mut filled);
     assert!(
         filled
@@ -277,7 +277,7 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
     // A test's sheet appends a test lesson in place.
     let test = Sheet {
         purpose: Purpose::Test,
-        ..drill
+        ..day
     };
     let mut tested = practising(&test, Layout::laid_ahead(&test), &log);
     finish(&mut tested);
@@ -289,9 +289,9 @@ fn a_lesson_goes_on_a_new_sheet_when_it_does_not_fit_or_the_sheet_is_old_or_yest
 #[test]
 fn a_kind_s_how_told_on_a_sheet_is_not_told_again_when_the_sheet_opens_again() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = six_lines(&empty, NOON, 40);
-    let log = log_of(vec![drill.clone()], NOON + 600);
-    let mut session = practising(&drill, Layout::laid_ahead(&drill), &log);
+    let day = six_lines(&empty, NOON, 40);
+    let log = log_of(vec![day.clone()], NOON + 600);
+    let mut session = practising(&day, Layout::laid_ahead(&day), &log);
     assert!(shown(&session).how.is_some(), "the lines' How by itself");
     // Read and closed (a use of the sheet), then Home: nothing compared yet.
     session.sheet_mut().practised(NOON + 20);
@@ -304,8 +304,8 @@ fn a_kind_s_how_told_on_a_sheet_is_not_told_again_when_the_sheet_opens_again() {
     let again = practising(&record, Layout::laid_ahead(&record), &log);
     assert_eq!(shown(&again).how, None, "told once");
     // A lesson laid and never shown still tells its How.
-    let fresh = log_of(vec![drill.clone()], NOON + 600);
-    let laid = practising(&drill, Layout::laid_ahead(&drill), &fresh);
+    let fresh = log_of(vec![day.clone()], NOON + 600);
+    let laid = practising(&day, Layout::laid_ahead(&day), &fresh);
     assert!(shown(&laid).how.is_some());
 }
 
@@ -321,11 +321,11 @@ fn row(slot: usize) -> Fitted {
 #[test]
 fn every_view_of_a_pair_fits_its_row_as_a_one_row_sheet_did() {
     let empty = log_of(Vec::new(), NOON + 600);
-    let drill = six_lines(&empty, NOON, 40);
-    let log = log_of(vec![drill.clone()], NOON + 600);
-    let mut tall = practising(&drill, Layout::laid_ahead(&drill), &log);
+    let day = six_lines(&empty, NOON, 40);
+    let log = log_of(vec![day.clone()], NOON + 600);
+    let mut tall = practising(&day, Layout::laid_ahead(&day), &log);
     // A sheet from before of one row: the first row exactly.
-    let mut one = practising(&drill, Layout::of(&[None]).size, &log);
+    let mut one = practising(&day, Layout::of(&[None]).size, &log);
     let pairs = shown(&tall).sheet.pairs.clone();
     let same = |a: &SheetSession, b: &SheetSession, point: [f64; 2]| {
         close(on_screen(a, point), on_screen(b, point))

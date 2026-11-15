@@ -205,7 +205,7 @@ fn head(ui: &egui::Ui, screen: Rect, book: &BookProjection, language: Language) 
         heading,
         INK,
     );
-    let totals = t::book_totals(language, book.book.sessions, book.book.seconds);
+    let totals = t::book_totals(language, book.book.lessons, book.book.seconds);
     let body = TextStyle::Body.resolve(ui.style());
     let right = Pos2::new(screen.right() - 3.0 * SPACE, y);
     painter.text(right, Align2::RIGHT_CENTER, totals, body, INK_SECONDARY);

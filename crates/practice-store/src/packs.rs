@@ -72,7 +72,7 @@ impl Packs {
 
     /// Adds `picture` (as `pack_picture` made it) with its `outline` at `tier` to the personal
     /// pack, made with it when there is none. Its id comes from its bytes (`mine-` and their
-    /// CRC-32), so a removed picture's id names no other picture later: a session or copy that
+    /// CRC-32), so a removed picture's id names no other picture later: a lesson or copy that
     /// used it finds it only if the very picture comes back. Returns the personal pack as it is
     /// now, the picture its last item.
     ///

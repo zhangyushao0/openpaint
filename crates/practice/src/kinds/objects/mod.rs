@@ -41,8 +41,8 @@ use std::sync::Arc;
 pub(crate) struct Objects;
 
 const FACTS: [Facts; 1] = [Facts::of("objects", ToolSet::DRAWING, 270)];
-/// The carves the first level turns through, three a lesson's place (stage 4's drills), of which
-/// it lays the first; the carves the second and the third take in turn.
+/// The carves the first level turns through, three a lesson's place (unit 4's drills before
+/// S122), of which it lays the first; the carves the second and the third take in turn.
 const TURNED: usize = 3;
 const SECOND: [Carve; 2] = [Carve::Cut, Carve::Taper];
 const THIRD: [Carve; 2] = [Carve::Round, Carve::Taper];

@@ -194,7 +194,7 @@ fn the_path_follows_the_log_as_lessons_and_packs_are_kept() {
     assert_eq!((next.level, next.redo), (SkillLevel::First, false));
     assert!(path.review.is_none(), "no redo waits");
     // Finished: nothing left open; the book names its row.
-    let mut done = log.session(1).expect("kept").clone();
+    let mut done = log.sheet(1).expect("kept").clone();
     done.lessons[0].finished = Some(NOON + 300);
     log.keep(done);
     let path = log.path();

@@ -11,7 +11,7 @@ use openpaint_practice_app::{PracticeLog, Practising};
 pub fn laid(exercises: Vec<Exercise>, started: u64) -> Sheet {
     let planned = Planned {
         picked: Picked::Full {
-            stage: 1,
+            unit: 1,
             warm_up: 0,
         },
         exercises: (exercises.into_iter())

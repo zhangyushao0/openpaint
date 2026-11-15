@@ -1,5 +1,5 @@
 //! The generated colour combinations (`Kind::Areas`, S82, painted 1.5.0 to 1.18.1): a kind kept for
-//! its records alone, never planned or drilled since S101 (the author, 2026-11-07); its picture
+//! its records alone, never planned or laid since S101 (the author, 2026-11-07); its picture
 //! made again from its seed (`colour_areas/areas_generated.rs`). It goes by the colour
 //! combinations' topic (`combinations/`): a record of one shows and compares as a combination
 //! does.

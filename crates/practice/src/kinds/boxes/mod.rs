@@ -25,8 +25,8 @@ use std::sync::Arc;
 pub(crate) struct Boxes;
 
 const FACTS: [Facts; 1] = [Facts::of("box", ToolSet::DRAWING, 150).constructed()];
-/// The views the first level turns through, three a lesson's place (stage 2's drills), of which
-/// it lays the first `COUNT`.
+/// The views the first level turns through, three a lesson's place (unit 2's drills before
+/// S122), of which it lays the first `COUNT`.
 const TURNED: usize = 3;
 const COUNT: usize = 2;
 

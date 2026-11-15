@@ -30,7 +30,7 @@ use openpaint_app::Viewport;
 /// shows over the copy at first, in place.
 pub const SHOWN: f32 = 0.5;
 
-/// What the user can ask of a practice session.
+/// What the user can ask of a practice sheet.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PracticeIntent {
     /// The shown exercise's kind's How, shown (true) or closed.
@@ -87,7 +87,7 @@ pub enum PracticeNotice {
     OriginalLocked,
     /// The frame could not be filled: the layer is hidden or locked.
     CannotFill(LayerRefusal),
-    /// The session is done.
+    /// The lesson is done.
     Done,
     /// The lesson One more appended could not be stored: it was rolled back.
     NotSaved,
@@ -105,7 +105,7 @@ pub struct Probe {
 /// The open practice sheet for one UI frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PracticeProjection {
-    /// The session's frames and what they print; the first `revealed` pairs show.
+    /// The sheet's frames and what they print; the first `revealed` pairs show.
     pub sheet: Arc<SheetView>,
     pub revealed: usize,
     /// The shown exercise's original, made by its generator (the only one made; none once done).
@@ -140,7 +140,7 @@ pub struct PracticeProjection {
     pub aligned_offered: bool,
     /// Aligned is chosen and its fit is still being found (off the frame loop).
     pub fitting: bool,
-    /// The session's pictures read so far (none: one that could not be read).
+    /// The sheet's pictures read so far (none: one that could not be read).
     pub images: Vec<(openpaint_practice::ItemRef, Option<Arc<PictureImage>>)>,
     /// Each single shape's picture read with its ground faded, as its original's frame shows it
     /// (S99); Compare lays the picture itself.

@@ -4,7 +4,7 @@ Updated 2026-11-15 (1.24.0). Current facts only; rewritten at the end of every s
 
 ## Stage
 
-OpenPaint 1.x (format 1) is the author's daily painting app: G0 to G7 and 1.0 are done. G9 Practice is a path (D115) timed by the Pomodoro (D117): V大's course as 8 units (5 built, 17 skills); the author has practised stage 1 since 2026-10-24 ("good overall"). The author's last build is 1.23.2 (2026-11-14), in Chinese; its library holds the shapes, compositions and combinations packs. 1.23.3 goes to the author next. Next (ROADMAP Reshape): the engine, then content.
+OpenPaint 1.x (format 1) is the author's daily painting app: G0 to G7 and 1.0 are done. G9 Practice is a path (D115) timed by the Pomodoro (D117): V大's course as 8 units (5 built, 17 skills); the author has practised unit 1 since 2026-10-24 ("good overall"). The author's last build is 1.23.2 (2026-11-14), in Chinese; its library holds the shapes, compositions and combinations packs. 1.23.3 goes to the author next. Next (ROADMAP Reshape): the engine, then content.
 
 ## Working features
 

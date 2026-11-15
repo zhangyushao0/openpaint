@@ -47,7 +47,7 @@ const GENERATED: [[f64; 2]; 2] = [
 
 #[test]
 fn a_generator_keeps_giving_the_same_line() {
-    // A kind code names one generator for good (D98): a stored session's lines come back to
+    // A kind code names one generator for good (D98): a stored lesson's lines come back to
     // the last bit; a changed generator is a new code.
     let line = LineExercise::generate(LineTier::Wave, 0x5EED_0045);
     let ends = [line.points[0], line.points[480]];

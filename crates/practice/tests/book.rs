@@ -1,6 +1,6 @@
-//! The practice book on known records (S89): practice time from the uses only (a session left
+//! The practice book on known records (S89): practice time from the uses only (a sheet left
 //! untouched two hours counts its minutes, time hidden counts nothing, a copy painted over two
-//! days shows on both), seals earned from what was done, the colour's first pick per session and
+//! days shows on both), seals earned from what was done, the colour's first pick per lesson and
 //! the lines shown.
 
 use openpaint_practice::{
@@ -17,7 +17,7 @@ const BEIJING: i32 = 8 * 60;
 
 /// Unit 1's full lesson as an old record holds it (none is laid since S124) for a learner who has
 /// practised nothing: a warm-up of a line, a group and a colour, then a lesson of each skill.
-fn session(id: u64, started: u64) -> Sheet {
+fn full_lesson(id: u64, started: u64) -> Sheet {
     let (pictures, learner) = (Pictures::default(), Learner::default());
     let standing = Standing {
         pictures: &pictures,
@@ -34,7 +34,7 @@ fn session(id: u64, started: u64) -> Sheet {
     let parts = lessons.iter().flat_map(|lesson| lesson.exercises.iter());
     let planned = Planned {
         picked: Picked::Full {
-            stage: 1,
+            unit: 1,
             warm_up: 3,
         },
         exercises: warm_up.chain(parts).cloned().collect(),
@@ -42,18 +42,18 @@ fn session(id: u64, started: u64) -> Sheet {
     Sheet::begun(id, (Purpose::Day, started), planned)
 }
 
-/// The index of `session`'s `nth` exercise of the topic keyed `key`.
-fn of(session: &Sheet, key: &str, nth: usize) -> usize {
-    (session.exercises().enumerate())
+/// The index of `sheet`'s `nth` exercise of the topic keyed `key`.
+fn of(sheet: &Sheet, key: &str, nth: usize) -> usize {
+    (sheet.exercises().enumerate())
         .filter(|(_, laid)| laid.exercise.kind.facts().key == key)
         .nth(nth)
         .map(|(index, _)| index)
         .expect("an exercise of the topic")
 }
 
-/// `session`'s exercise `index` compared first at `at` with `metrics`.
-fn compared(session: &mut Sheet, index: usize, at: u64, metrics: Vec<(Metric, f64)>) {
-    let laid = session.laid_mut(index).expect("an exercise");
+/// `sheet`'s exercise `index` compared first at `at` with `metrics`.
+fn compared(sheet: &mut Sheet, index: usize, at: u64, metrics: Vec<(Metric, f64)>) {
+    let laid = sheet.laid_mut(index).expect("an exercise");
     laid.compared(First::of(at, 1, metrics));
 }
 
@@ -72,8 +72,8 @@ fn uses(spans: &mut Vec<Span>, from: u64, minutes: u64, step: u64) {
 }
 
 #[test]
-fn a_session_left_untouched_two_hours_counts_only_its_minutes() {
-    let mut record = session(1, NOON);
+fn a_sheet_left_untouched_two_hours_counts_only_its_minutes() {
+    let mut record = full_lesson(1, NOON);
     uses(&mut record.spans, NOON, 12, 20);
     // Put down for two hours with the app in front, then eight more minutes.
     let back = NOON + 12 * 60 + 2 * 3600;
@@ -124,7 +124,7 @@ fn a_copy_painted_over_two_days_shows_on_both() {
         [(20_731, 2400, vec![2]), (20_732, 1800, vec![2])],
         "the evening of 5 October and of the 6th"
     );
-    assert_eq!(book.sessions, 0, "a copy is no session");
+    assert_eq!(book.lessons, 0, "a copy is no lesson");
     // Past midnight in Beijing: one sitting from 23:50 to 00:10 counts on both days.
     let picture = (copy.laid(0)).and_then(|laid| laid.exercise.picture.clone());
     let mut late = Sheet::copy(3, (9, NOON), picture.expect("picture"));
@@ -153,7 +153,7 @@ fn a_copy_painted_over_two_days_shows_on_both() {
 /// each colour's first pick `first` off, practised `minutes`.
 fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> Sheet {
     let at = NOON + id * DAY;
-    let mut record = session(id, at);
+    let mut record = full_lesson(id, at);
     for nth in 0..lines {
         let index = of(&record, "line", nth);
         compared(&mut record, index, at + 60, Vec::new());
@@ -239,17 +239,17 @@ fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
         done(2, (0, 4), 0.06, 30),
         done(3, (1, 0), 0.0, 30),
     ];
-    // An open session with a line compared: the latest.
-    let mut open = session(4, NOON + 4 * DAY);
+    // An open lesson with a line compared: the latest.
+    let mut open = full_lesson(4, NOON + 4 * DAY);
     let line = of(&open, "line", 1);
     compared(&mut open, line, NOON + 4 * DAY + 60, Vec::new());
     records.push(open);
     let book = Book::of(&records, &[], 0);
-    assert_eq!(book.sessions, 3);
+    assert_eq!(book.lessons, 3);
     assert_eq!(
         book.colour,
         [0.08, 0.06],
-        "sessions without colours left out"
+        "lessons without colours left out"
     );
     let first_line = of(&records[0], "line", 0);
     assert_eq!(
@@ -267,7 +267,7 @@ fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
             }
         ]
     );
-    assert_eq!(book.days.len(), 3, "the open session has no time yet");
+    assert_eq!(book.days.len(), 3, "the open lesson has no time yet");
     assert_eq!(book.seconds, 90 * 60);
     assert_eq!(book.day(20_732).map(|day| day.seconds), Some(1800));
 }

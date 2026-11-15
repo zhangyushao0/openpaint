@@ -25,8 +25,9 @@ use crate::sheets::sheet_picture::SheetPicture;
 pub(crate) struct ValueMasses;
 
 const FACTS: [Facts; 1] = [Facts::of("value-masses", ToolSet::GREYS, 360).needs(Needs::Masses)];
-/// How many value masses stage 4's drills held.
-const DRILLED: usize = 3;
+/// How many value masses a lesson's place turns through at the first level (as unit 4's drills
+/// held them before S122).
+const TURNED: usize = 3;
 /// The tile's tints: the middle and the dark, shares of the tile's colour.
 const MIDDLE: f32 = 0.3;
 const DARK: f32 = 0.75;
@@ -60,7 +61,7 @@ impl Described for ValueMasses {
     }
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        composition((level, DRILLED), turn, Kind::ValueMasses)
+        composition((level, TURNED), turn, Kind::ValueMasses)
     }
 
     fn window(&self) -> usize {

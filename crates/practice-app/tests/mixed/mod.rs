@@ -1,5 +1,5 @@
-//! The mix the sheet's tests lay: six lines, four combined lines and six colours, as stage 1's
-//! sessions laid them before S122.
+//! The mix the sheet's tests lay: six lines, four combined lines and six colours, as unit 1's
+//! sessions (the earlier product's word) laid them before S122.
 
 use openpaint_practice::{Combination, Exercise, Kind, Lightness, LineTier, Purity, Tone, derived};
 

@@ -1,4 +1,4 @@
-//! Stage 3 on a practice sheet (S90): an estimate marked with the pens and compared against its
+//! Unit 3 on a practice sheet (S90): an estimate marked with the pens and compared against its
 //! exact answer (the last mark read, its error kept at the first Compare, a correction read in its
 //! place), an angle's line, a point in space marked on its box's face; never aligned; and a
 //! lesson of estimates as the path starts it.

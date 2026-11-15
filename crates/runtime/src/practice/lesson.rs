@@ -17,24 +17,20 @@ use crate::frame::Runtime;
 use crate::seeds::Seeds;
 use crate::storage::Job;
 
-/// The job that stores `session`'s new sheet, titled `title`, of the size its layout asks (a
+/// The job that stores the new sheet of `record`, titled `title`, of the size its layout asks (a
 /// day's laid ahead, S121c).
-pub(super) fn started(
-    log: &PracticeLog,
-    session: Sheet,
-    title: Title,
-) -> Result<Job, RuntimeError> {
-    let [width, height] = Layout::laid_ahead(&session);
+pub(super) fn started(log: &PracticeLog, record: Sheet, title: Title) -> Result<Job, RuntimeError> {
+    let [width, height] = Layout::laid_ahead(&record);
     let sheet = Artwork::new(CanvasSize::new(width, height)?);
-    let givens = (session.lesson()).map_or_else(Givens::default, |lesson| {
+    let givens = (record.lesson()).map_or_else(Givens::default, |lesson| {
         Givens::of_lesson(lesson, log.packs())
     });
-    let printed = Givens::laid(std::slice::from_ref(&givens), &session)
+    let printed = Givens::laid(std::slice::from_ref(&givens), &record)
         .ok_or(RuntimeError::NotNow("a lesson's givens"))?;
     Ok(Job::Practice(PracticeJob::Start {
         sheet,
         title,
-        session,
+        record,
         givens,
         printed,
     }))

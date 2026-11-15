@@ -19,7 +19,7 @@ use crate::records::time::{by_day, seconds};
 pub struct Book {
     /// Lessons finished (a long colour copy's never), and the time practised in lessons and
     /// copies, in seconds.
-    pub sessions: u32,
+    pub lessons: u32,
     pub seconds: u64,
     /// Each local day practised, oldest first.
     pub days: Vec<Day>,
@@ -71,7 +71,7 @@ impl Book {
             .filter(|lesson| lesson.finished().is_some())
             .count();
         Self {
-            sessions: u32::try_from(finished).unwrap_or(u32::MAX),
+            lessons: u32::try_from(finished).unwrap_or(u32::MAX),
             seconds: ordered.iter().map(|record| seconds(&record.spans)).sum(),
             days: sealed(days(&ordered, offset), blocks),
             colour: taken.iter().filter_map(first_pick).collect(),

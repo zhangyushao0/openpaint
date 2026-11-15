@@ -28,7 +28,8 @@ const FACTS: [Facts; 1] = [Facts::of("shape", ToolSet::DRAWING, 240)
     .aligned()
     .needs(Needs::Pictures)
     .grounded()];
-/// The tiers the first level's shape is the easiest of, three in turn (stage 2's drills).
+/// The tiers the first level's shape is the easiest of, three in turn (unit 2's drills before
+/// S122).
 const TURNED: usize = 3;
 /// A jug's outline, the shape's tile.
 const JUG: [[f32; 2]; 10] = [

@@ -32,7 +32,7 @@ use openpaint_store::Library;
 /// The dump's records, as `tests/sample/mod.rs` names them.
 type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
-/// 2026-10-27 08:00 UTC, when the session began.
+/// 2026-10-27 08:00 UTC, when the full lesson began.
 const BEGUN: u64 = 1_793_088_000;
 
 fn sample_path() -> PathBuf {
@@ -78,7 +78,7 @@ fn planned(picked: Picked, exercises: Vec<Exercise>) -> Planned {
 /// A full lesson of unit 2: a line as its warm-up, then combined lines, two generated
 /// combinations and a value scale, finished; both combinations compared (near, clean), one
 /// corrected and compared again.
-fn session() -> Sheet {
+fn full_lesson() -> Sheet {
     let exercises = vec![
         Exercise::generated(Kind::Line(LineTier::ALL[1]), 0x5EED_0108_0001),
         Exercise::generated(Kind::Combined(Combination::ALL[0]), 0x5EED_0108_0002),
@@ -87,7 +87,7 @@ fn session() -> Sheet {
         Exercise::generated(Kind::Scale(ScaleTone::ALL[1], 9), 0x5EED_0108_0005),
     ];
     let picked = Picked::Full {
-        stage: 2,
+        unit: 2,
         warm_up: 1,
     };
     let mut sheet = Sheet::begun(1, (Purpose::Day, BEGUN), planned(picked, exercises));
@@ -126,27 +126,27 @@ fn session() -> Sheet {
 
 /// A lesson of colour combinations, two generated ones, the first compared (redo: two weak
 /// contrasts made strong).
-fn drill() -> Sheet {
+fn chosen_lesson() -> Sheet {
     let exercises = vec![
         Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0108_0011),
         Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0108_0012),
     ];
     let started = BEGUN + 86_400;
     let picked = planned(Picked::Chosen, exercises);
-    let mut drill = Sheet::begun(2, (Purpose::Day, started), picked);
+    let mut sheet = Sheet::begun(2, (Purpose::Day, started), picked);
     let metrics = vec![(Metric::AreasDelta, 0.08), (Metric::AreasMadeStrong, 2.0)];
     compared(
-        &mut drill,
+        &mut sheet,
         (0, started + 300, 6),
         metrics,
         Some(Outcome::Redo),
     );
-    drill.lesson_mut().expect("its lesson").at = 1;
-    drill.spans = vec![Span {
+    sheet.lesson_mut().expect("its lesson").at = 1;
+    sheet.spans = vec![Span {
         from: started,
         to: started + 420,
     }];
-    drill
+    sheet
 }
 
 /// What `sheet`'s lesson printed.
@@ -160,7 +160,7 @@ fn written() -> Records {
     let mut library = Library::at(&dir);
     let painting = Artwork::new(CanvasSize::new(64, 48).expect("size"));
     library.create(&painting, &untitled()).expect("a painting");
-    for (sheet, title) in [(session(), "Practice 3"), (drill(), "Drill 1")] {
+    for (sheet, title) in [(full_lesson(), "Practice 3"), (chosen_lesson(), "Drill 1")] {
         let title = Title::new(title).expect("title");
         let pairs = sheet.exercises().count();
         let printed = givens(&sheet);
@@ -196,7 +196,7 @@ fn the_areas_sample_is_what_this_build_writes() {
     );
 }
 
-/// The book, the time, the seals and the session's summary as the records give them, and each
+/// The book, the time, the seals and the full lesson's summary as the records give them, and each
 /// combination's original its generated picture again, as its givens printed it.
 #[test]
 fn generated_combinations_count_and_show_as_they_did() {
@@ -206,7 +206,7 @@ fn generated_combinations_count_and_show_as_they_did() {
     let read = sheets(&mut library).expect("practice");
     assert_eq!(
         read,
-        [session(), drill()].map(|sheet| Sheet {
+        [full_lesson(), chosen_lesson()].map(|sheet| Sheet {
             canvas: sheet.id + 1,
             ..sheet
         })
@@ -224,7 +224,7 @@ fn generated_combinations_count_and_show_as_they_did() {
     }
 
     let book = Book::of(&read, &[], 480);
-    assert_eq!((book.sessions, book.seconds), (1, 1600 + 420));
+    assert_eq!((book.lessons, book.seconds), (1, 1600 + 420));
     assert_eq!(book.days.len(), 2);
     let tally = Tally::of(&read);
     assert_eq!((tally.lessons, tally.lines, tally.colours), (1, 2, 0));

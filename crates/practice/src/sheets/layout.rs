@@ -173,7 +173,7 @@ impl Pair {
     }
 }
 
-/// How a session's exercises lie on its sheet: the sheet's size and each exercise's frames.
+/// How a sheet's exercises lie on it: the sheet's size and each exercise's frames.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layout {
     /// Width and height in canvas pixels.

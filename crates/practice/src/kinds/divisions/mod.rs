@@ -25,8 +25,9 @@ pub(crate) struct Divisions;
 
 const FACTS: [Facts; 1] =
     [Facts::of("division", ToolSet::DIVIDING, 300).needs(Needs::Compositions)];
-/// How many divisions stage 4's drills held.
-const DRILLED: usize = 3;
+/// How many divisions a lesson's place turns through at the first level (as unit 4's drills
+/// held them before S122).
+const TURNED: usize = 3;
 
 impl Described for Divisions {
     fn code(&self) -> u8 {
@@ -57,7 +58,7 @@ impl Described for Divisions {
     }
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        composition((level, DRILLED), turn, Kind::Division)
+        composition((level, TURNED), turn, Kind::Division)
     }
 
     fn window(&self) -> usize {

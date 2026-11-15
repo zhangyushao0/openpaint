@@ -90,7 +90,7 @@ pub struct Runtime {
     system_language: Language,
     /// What was copied last: the app's, kept across artworks, never stored.
     pub(crate) clipboard: Clipboard,
-    /// Every practice session: the app's, kept across artworks, as the store holds them.
+    /// Every practice sheet: the app's, kept across artworks, as the store holds them.
     pub(crate) practice: PracticeLog,
     /// The device's offset from UTC in minutes (the host's), for the practice book's days.
     pub(crate) utc_offset: i32,

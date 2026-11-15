@@ -38,7 +38,7 @@ pub struct BookProjection {
 }
 
 impl BookProjection {
-    /// Session or copy `id`.
+    /// Sheet or copy `id`.
     #[must_use]
     pub fn record(&self, id: u64) -> Option<&BookRecord> {
         self.records.iter().find(|record| record.id == id)

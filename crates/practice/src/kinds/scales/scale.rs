@@ -4,7 +4,7 @@
 //! halves' middles, then the rest, `halving`), five at a lesson's first level, seven at its second
 //! (`FIRST_CELLS`, `scales/mod.rs`); generated the same for the same seed: the ends far apart (HSV
 //! value 0.12 to 0.3 and 0.78 to 0.95 as the wheel sets them), grey or of a hue (in turn by
-//! session). Compare lays the even scale as a row under the copy's (`EVEN_ROW`), cell under cell.
+//! lesson). Compare lays the even scale as a row under the copy's (`EVEN_ROW`), cell under cell.
 //!
 //! Checked on perceptual lightness, Oklab's `L`, as the eye sees it (the main session, S83: the
 //! wheel's value steps unevenly to the eye, the more so on a hue): each cell's lightness read

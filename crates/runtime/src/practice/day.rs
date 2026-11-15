@@ -37,10 +37,8 @@ pub(super) fn continued(
     kept: &mut Kept,
     (day, start): (Sheet, PracticeJob),
 ) -> Done {
-    if let PracticeJob::Start {
-        session, givens, ..
-    } = &start
-        && let Some(lesson) = session.lessons.last()
+    if let PracticeJob::Start { record, givens, .. } = &start
+        && let Some(lesson) = record.lessons.last()
         && let Some(done) = onto(store, cache, kept, day, (lesson.clone(), givens.clone()))
     {
         return done;
@@ -82,7 +80,7 @@ fn onto(
     kept.changed = false;
     Some(Done::Practice(match loaded((store, cache), project) {
         Ok(loaded) => PracticeDone::Continued {
-            session: day,
+            record: day,
             loaded,
         },
         Err(error) => {
@@ -134,10 +132,7 @@ pub(crate) fn appended(
 ) {
     if let Err(error) = result {
         log::error!("the lesson appended to practice sheet {id} was not stored: {error}");
-        if let Some(kept) = log
-            .session(id)
-            .filter(|sheet| sheet.lessons.len() == lessons)
-        {
+        if let Some(kept) = log.sheet(id).filter(|sheet| sheet.lessons.len() == lessons) {
             let mut kept = kept.clone();
             kept.lessons.pop();
             log.keep(kept);

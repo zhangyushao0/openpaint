@@ -10,8 +10,9 @@
 //! - The spans it was practised in: a count (u32) and each one's start and end (u64 seconds since
 //!   1970 UTC, the end not before the start).
 //! - Its lessons, a count (u32, one at least), each: started and finished (u64, finished 0 while
-//!   open), how it was picked (u8: 2 a kind chosen; 3 a stage's session or a unit's full lesson,
-//!   then its stage or unit and how many exercises its warm-up holds, u8 each; 4 the first
+//!   open), how it was picked (u8: 2 a kind chosen; 3 a unit's full lesson (before S122 the
+//!   earlier product's session of a stage), then its unit and how many exercises its warm-up
+//!   holds, u8 each; 4 the first
 //!   lesson, S122), the exercise in hand (u16), and its exercises, a
 //!   count (u32), each: its kind and variant (u8 each, `Kind::code`) and seed (u64), its level
 //!   (u8), its picture (u8: 0 none, 1 one, then its pack's id and its item's id, strings), its
@@ -80,9 +81,9 @@ pub(crate) fn encode_sheet(sheet: &Sheet) -> Vec<u8> {
         writer.u64(lesson.finished.unwrap_or(0));
         match lesson.picked {
             Picked::Chosen => writer.u8(2),
-            Picked::Full { stage, warm_up } => {
+            Picked::Full { unit, warm_up } => {
                 writer.u8(3);
-                writer.u8(stage);
+                writer.u8(unit);
                 writer.u8(warm_up);
             }
             Picked::First => writer.u8(4),
@@ -200,7 +201,7 @@ fn read_lesson(reader: &mut Reader<'_>) -> Result<Lesson, PortError> {
     let picked = match reader.u8()? {
         2 => Picked::Chosen,
         3 => Picked::Full {
-            stage: reader.u8()?,
+            unit: reader.u8()?,
             warm_up: reader.u8()?,
         },
         4 => Picked::First,

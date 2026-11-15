@@ -162,7 +162,7 @@ impl PracticeLog {
 
     /// Sheet `id`, if the log holds it.
     #[must_use]
-    pub fn session(&self, id: u64) -> Option<&Sheet> {
+    pub fn sheet(&self, id: u64) -> Option<&Sheet> {
         self.sheets.iter().find(|s| s.id == id)
     }
 
@@ -207,7 +207,7 @@ impl PracticeLog {
 
     /// Forgets sheet `id`, which the store removed, with its title.
     pub fn forget(&mut self, id: u64) {
-        if let Some(canvas) = self.session(id).map(|sheet| sheet.canvas) {
+        if let Some(canvas) = self.sheet(id).map(|sheet| sheet.canvas) {
             self.titles.remove(&canvas);
         }
         self.sheets.retain(|s| s.id != id);

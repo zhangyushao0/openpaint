@@ -64,13 +64,13 @@ pub struct Lesson {
 /// How a lesson was picked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Picked {
-    /// One skill's lesson, tapped on the path or offered (S122), a review's; a drill before it; a
-    /// copy's picture. Stored as 2.
+    /// One skill's lesson, tapped on the path or offered (S122), a review's (before S122 the
+    /// earlier product's drill); a copy's picture. Stored as 2.
     Chosen,
-    /// A full lesson of unit `stage` (S122; a stage's session before it), its first `warm_up`
-    /// exercises the warm-up. Stored as 3; none is laid since S124 (the Pomodoro took its
-    /// place), an old record's still reads and is named as before.
-    Full { stage: u8, warm_up: u8 },
+    /// A full lesson of `unit` (S122; before it the earlier product's session of a stage), its
+    /// first `warm_up` exercises the warm-up. Stored as 3; none is laid since S124 (the Pomodoro
+    /// took its place), an old record's still reads and is named as before.
+    Full { unit: u8, warm_up: u8 },
     /// The first lesson (S122): a free scribble, a straight line, an arc. Stored as 4.
     First,
 }

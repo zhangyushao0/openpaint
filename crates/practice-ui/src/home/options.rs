@@ -45,7 +45,7 @@ pub(super) enum Page {
 pub(super) enum Removal {
     /// A colour copy (its sheet) and its name as shown.
     Copy(ProjectId, String),
-    /// A picture of one's own, its title as shown, and how many sessions and copies used it.
+    /// A picture of one's own, its title as shown, and how many lessons and copies used it.
     Picture(ItemRef, String, (u32, u32)),
 }
 

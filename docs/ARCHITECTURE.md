@@ -99,7 +99,7 @@ impl ValueMasses { fn of(size, rgba); fn edges(); fn read((size, rgba), place) -
 impl SpaceTask { fn at(face [u, v]) -> Point; fn on_face(Point) -> [u, v]; fn construction() }
 pub struct Frame { origin: Point, size: Point }          // frame units isotropic, one to its width
 pub struct Sheet { id, canvas, started, purpose: Purpose /* Day | Copy | Test */, spans: Vec<Span>, lessons: Vec<Lesson> }  // Sheet::begun(id, .., Planned)
-pub struct Lesson { started, finished, picked: Picked /* Chosen | Full { stage, warm_up } | First */, at: u16, exercises: Vec<Laid> }
+pub struct Lesson { started, finished, picked: Picked /* Chosen | Full { unit, warm_up } | First */, at: u16, exercises: Vec<Laid> }
 pub struct Laid { exercise: Exercise, level, slot, frame: [u16; 2], first: Option<First>, compares, result: Option<(Outcome, Judge)>, seconds }
 pub fn practised(spans: &mut Vec<Span>, now: u64, hidden: bool) -> bool;  // PAUSE 300 s
 impl Book { fn of(records, offset) }  impl Tally { fn of(records); fn seals() -> Vec<Seal> }

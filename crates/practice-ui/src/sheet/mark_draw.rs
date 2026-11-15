@@ -47,7 +47,7 @@ const LEAST_GIVEN: f32 = 2.0;
 /// How strongly a face is shaded, printed.
 const SHADE: f32 = 0.22;
 /// The tendency's disc beside the copy's frame: its radius and its gap from the frame, its name's
-/// size and gap under it, canvas pixels of a session's frame.
+/// size and gap under it, canvas pixels of a lesson's frame.
 const DISC: f32 = 22.0;
 const DISC_GAP: f32 = 18.0;
 const NAME_SIZE: f32 = 11.0;

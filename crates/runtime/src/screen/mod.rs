@@ -1,6 +1,6 @@
 //! What the screen shows and how it changes with the library's answers: opening an artwork
 //! (or a practice sheet) onto the canvas, leaving the canvas for the gallery (or for the next
-//! practice session) once the artwork is stored, and the gallery's calls on the storage worker.
+//! practice lesson) once the artwork is stored, and the gallery's calls on the storage worker.
 
 use std::sync::Arc;
 
@@ -111,15 +111,15 @@ impl Screen {
         if let (Self::Opening(Some(content)), Some(area)) = (&*self, area) {
             let sheet = match content {
                 Content::Stored(artwork, title, held) => {
-                    let session = practice.of_canvas(held.project);
-                    if session.is_some() && held.printed.is_none() {
+                    let record = practice.of_canvas(held.project);
+                    if record.is_some() && held.printed.is_none() {
                         let project = held.project.get();
                         log::error!("practice sheet on {project} opened without its givens");
                     }
                     let canvas = artwork.canvas();
                     let sized = ([canvas.width(), canvas.height()], title);
-                    (session.zip(held.printed.as_deref()))
-                        .map(|(session, printed)| practice.practising(session, printed, sized))
+                    (record.zip(held.printed.as_deref()))
+                        .map(|(record, printed)| practice.practising(record, printed, sized))
                 }
                 Content::Blank | Content::BlankAfterFailedOpen => None,
             };
@@ -133,7 +133,7 @@ impl Screen {
     }
 
     /// Applies what the storage worker finished; the stored toolbox goes to `toolbox` and the
-    /// practice sessions to `practice`. Once the canvas was left or the app hidden its pixels may
+    /// practice sheets to `practice`. Once the canvas was left or the app hidden its pixels may
     /// go to the display cache (`cache`, from `core`). Returns the lesson to start now (One
     /// more, once the sheet left was stored: what its end named).
     pub(crate) fn answer(
@@ -142,7 +142,7 @@ impl Screen {
         (toolbox, core, cache, practice): Answered<'_>,
     ) -> Option<(Start, Purpose)> {
         match done {
-            Done::Started(opened, editor, (sessions, titles, packs, blocks)) => {
+            Done::Started(opened, editor, (sheets, titles, packs, blocks)) => {
                 if let Some(state) = editor
                     && !toolbox.restore(&state)
                 {
@@ -154,7 +154,7 @@ impl Screen {
                 for key in toolbox.dropped() {
                     log::warn!("the stored brush sets list {key} for no brush or again; dropped");
                 }
-                *practice = PracticeLog::new(sessions, titles, packs);
+                *practice = PracticeLog::new(sheets, titles, packs);
                 practice.set_blocks(blocks);
                 *self = started(opened);
             }
@@ -180,13 +180,13 @@ impl Screen {
         None
     }
 
-    /// One more's next session or drill could not be asked for: the gallery shows, saying a new
+    /// One more's next lesson could not be asked for: the gallery shows, saying a new
     /// one could not be made.
     pub(crate) fn not_started(&mut self) {
         self.gallery_answer(LibraryAnswer::CreateFailed(PortError::Stopped));
     }
 
-    /// A gallery call's answer; a new artwork or session that failed while no gallery shows
+    /// A gallery call's answer; a new artwork or sheet that failed while no gallery shows
     /// (One more) shows it with the failure.
     fn gallery_answer(&mut self, answer: LibraryAnswer) {
         match self {
@@ -263,7 +263,7 @@ impl Screen {
     /// Everything after the frame's intents: the canvas is evaluated and its unsaved version,
     /// its practice record or its leaving handed to the store; the gallery's calls go to the
     /// store in order. `now` is the wall clock's seconds since 1970 UTC, for a version kept on
-    /// leaving and a new practice session (seeded from `seeds`, the next of `practice`).
+    /// leaving and a new practice sheet (seeded from `seeds`, the next of `practice`).
     pub(crate) fn progress(
         &mut self,
         core: &Arc<Core>,

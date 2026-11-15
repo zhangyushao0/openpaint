@@ -39,7 +39,7 @@ fn full_lesson(seed: u64) -> Lesson {
         .collect();
     let planned = Planned {
         picked: Picked::Full {
-            stage: 1,
+            unit: 1,
             warm_up: 3,
         },
         exercises,
@@ -165,7 +165,7 @@ fn every_count_sees_each_lesson_in_the_order_of_sheet_and_lesson() {
     assert_eq!(sealed(&Tally::default(), &alone), [Seal::FirstLesson]);
     // The book: lessons finished, and the first and the latest lesson's first line compared.
     let book = Book::of(&sheets, &[], 0);
-    assert_eq!(book.sessions, 2);
+    assert_eq!(book.lessons, 2);
     let shown = |number, index| LineShown {
         record: 1,
         number,

@@ -58,7 +58,7 @@ pub(crate) enum Job {
     Library(LibraryCall),
     /// An OpenPaint file to write or to read, once the system gave it.
     File(FileJob),
-    /// A practice session started or its record changed; a colour copy renamed or removed; a
+    /// A practice sheet started or its record changed; a colour copy renamed or removed; a
     /// pack imported; one of the user's own pictures added, removed or moved to a tier; a pack's
     /// picture read for the screen.
     Practice(PracticeJob),
@@ -76,7 +76,7 @@ pub(crate) enum LibraryCall {
 
 pub(crate) enum Done {
     /// What opening found, the stored toolbox (`None` when there is none or it could not be
-    /// read, logged here: the brushes keep their defaults), the practice sessions, their sheets'
+    /// read, logged here: the brushes keep their defaults), the practice records, their sheets'
     /// titles and the packs kept (none when they could not be read, logged).
     Started(Opened, Option<Box<EditorState>>, Practised),
     EditorSaved(Result<(), PortError>),

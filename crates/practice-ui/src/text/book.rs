@@ -123,10 +123,10 @@ pub(crate) fn seal_lines(language: Language, seal: Seal) -> [String; 2] {
         Seal::FirstLesson => pair(["FIRST", "STEP"], ["初", "练"]),
         Seal::TenLessons => pair(["TEN", "DONE"], ["十", "课"]),
         Seal::FiftyLessons => pair(["FIFTY", "DONE"], ["五", "十"]),
-        Seal::Unit(stage) => {
-            let numeral = NUMERALS[usize::from(stage.clamp(1, 9)) - 1];
+        Seal::Unit(unit) => {
+            let numeral = NUMERALS[usize::from(unit.clamp(1, 9)) - 1];
             match language {
-                Language::English => ["UNIT".to_owned(), stage.to_string()],
+                Language::English => ["UNIT".to_owned(), unit.to_string()],
                 Language::Chinese => [numeral.to_owned(), "单元".to_owned()],
             }
         }

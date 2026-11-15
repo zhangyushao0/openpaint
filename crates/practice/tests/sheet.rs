@@ -26,7 +26,7 @@ fn the_sheet_lays_pairs_three_a_row_apart_and_inside() {
     assert_eq!(
         Layout::of(&[None; 16]).size,
         [2920, 3160],
-        "a first session's sheet as S75's"
+        "a first full lesson's sheet as S75's"
     );
     assert_eq!(sheet.pairs.len(), 18);
     apart_and_inside(&sheet);

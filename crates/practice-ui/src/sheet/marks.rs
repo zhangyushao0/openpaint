@@ -32,7 +32,7 @@ const LEAST_LINE: f32 = 1.25;
 /// pixels).
 const LEAST_OVERLAY: f32 = 1.0;
 /// A picture's credit under its frame: its type size and its distance below, in canvas pixels of
-/// a session's frame.
+/// a lesson's frame.
 const CREDIT_SIZE: f32 = 9.0;
 const CREDIT_GAP: f32 = 6.0;
 /// The eyedropper's point's ring: its line, the paper's halo under it, its radius, in points.
@@ -40,7 +40,7 @@ const PROBE_LINE: f32 = 2.0;
 const PROBE_HALO: f32 = 4.0;
 const PROBE: f32 = 10.0;
 
-/// The session's pictures as textures, uploaded as the store reads them (none: one that could not
+/// The sheet's pictures as textures, uploaded as the store reads them (none: one that could not
 /// be read), its single shapes' with their ground faded (S99), the pictures the practice crate
 /// draws, and a compared key shift's frames in grey.
 #[derive(Default)]
@@ -274,7 +274,7 @@ pub(crate) fn pictured(
     let picture = practice.sheet.pictures.get(index).and_then(Option::as_ref);
     let grounded = picture.and_then(|p| pictures.grounded(&p.item));
     let texture = picture.and_then(|p| pictures.texture(&p.item));
-    // In step with the frame: a colour copy's frame is four times a session's.
+    // In step with the frame: a colour copy's frame is four times a lesson's.
     let grown = (frame.unit() / FRAME) as f32;
     let font = FontId::proportional((14.0 * scale * grown).max(6.0));
     match (picture, texture) {

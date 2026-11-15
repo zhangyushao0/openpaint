@@ -6,7 +6,7 @@
 use openpaint_practice::{Fit, Pack, Point, SheetPicture, ToFit, align, align_shape, faded_ground};
 
 /// The longest side a picture is read at for the screen, in pixels: a frame shows it at most
-/// about 900 pixels on the tablet, and the reduced picture keeps every session's few pictures
+/// about 900 pixels on the tablet, and the reduced picture keeps every sheet's few pictures
 /// within some 30 MB.
 pub const SHOWN_SIDE: u32 = 1024;
 /// How strongly a single shape's ground shows in its original's frame (S99, a trial put to the

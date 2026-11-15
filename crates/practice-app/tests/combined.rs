@@ -43,7 +43,7 @@ fn full_lesson() -> Sheet {
         .map(|exercise: Exercise| (exercise, SkillLevel::First))
         .collect();
     let picked = Picked::Full {
-        stage: 1,
+        unit: 1,
         warm_up: 4,
     };
     let planned = Planned { picked, exercises };

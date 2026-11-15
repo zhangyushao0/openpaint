@@ -27,17 +27,17 @@ use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Kept, Loaded};
 
 pub(crate) enum PracticeJob {
-    /// A new session: its `sheet`, titled `title`, as a new project that becomes the open one,
-    /// and its record.
+    /// A new sheet: its artwork `sheet`, titled `title`, as a new project that becomes the open
+    /// one, and its `record`.
     Start {
         sheet: Artwork,
         title: Title,
-        session: Sheet,
+        record: Sheet,
         /// What its lesson prints, kept beside it once (S120), and each exercise's of it in order.
         givens: Givens,
         printed: Vec<Given>,
     },
-    /// A new session or drill (`start`, a `Start`) onto today's sheet `day` from a new row, where
+    /// A new lesson (`start`, a `Start`) onto today's sheet `day` from a new row, where
     /// its canvas holds it, else as `start` (`day.rs`).
     Continue {
         day: Sheet,
@@ -48,7 +48,7 @@ pub(crate) enum PracticeJob {
         sheet: Sheet,
         givens: Givens,
     },
-    /// A session's record changed.
+    /// A sheet's record changed.
     Save(Sheet),
     /// A sheet's record cut by the Pomodoro's End, with its last lesson's givens (S124).
     Trim(Sheet),
@@ -58,7 +58,7 @@ pub(crate) enum PracticeJob {
     ForgetBlocks(u64),
     /// A colour copy's sheet titled anew.
     Rename(ProjectId, Title),
-    /// A colour copy (or a test session) to remove, its record and sheet.
+    /// A colour copy (or a test lesson) to remove, its record and sheet.
     Remove(Sheet),
     /// One of the user's own pictures (its item id) removed, or moved to a tier.
     RemovePicture(String),
@@ -74,17 +74,17 @@ pub(crate) enum PracticeJob {
 }
 
 pub(crate) enum PracticeDone {
-    /// The session started on project `id`; its record names it; what its exercises print.
+    /// The sheet `record` started on project `id`; the record names it; what its exercises print.
     Started {
         sheet: Artwork,
         title: Title,
         id: ProjectId,
-        session: Sheet,
+        record: Sheet,
         printed: Vec<Given>,
     },
-    /// A lesson went onto today's sheet `session`, opened as `loaded`.
+    /// A lesson went onto today's sheet, its `record`, opened as `loaded`.
     Continued {
-        session: Sheet,
+        record: Sheet,
         loaded: Box<Loaded>,
     },
     /// The lesson appended to sheet `id` (its lessons with it) stored, or why not (nothing was).
@@ -94,7 +94,7 @@ pub(crate) enum PracticeDone {
         result: Result<(), PortError>,
     },
     Saved(Result<(), PortError>),
-    /// The session could not start; nothing was written.
+    /// The sheet could not start; nothing was written.
     Failed(PortError),
     /// The sheet of project `id` titled `title`, or why not (nothing changed).
     Renamed(ProjectId, Title, Result<(), PortError>),
@@ -129,8 +129,8 @@ pub(crate) fn run(
             result: append(store, &sheet, &givens),
         },
         job @ PracticeJob::Start { .. } => begun(store, kept, job),
-        PracticeJob::Save(session) => PracticeDone::Saved(save(store, &session)),
-        PracticeJob::Trim(session) => PracticeDone::Saved(trim(store, &session)),
+        PracticeJob::Save(record) => PracticeDone::Saved(save(store, &record)),
+        PracticeJob::Trim(record) => PracticeDone::Saved(trim(store, &record)),
         PracticeJob::Timer(write) => PracticeDone::Saved(save_timer(store, &write)),
         PracticeJob::ForgetBlocks(since) => PracticeDone::Saved(
             forget_blocks(store, since).map(|gone| log::info!("{gone} test blocks gone")),
@@ -139,11 +139,11 @@ pub(crate) fn run(
             let result = store.rename(sheet, &title);
             PracticeDone::Renamed(sheet, title, result)
         }
-        PracticeJob::Remove(session) => {
-            if kept.open.is_some_and(|open| open.get() == session.canvas) {
+        PracticeJob::Remove(record) => {
+            if kept.open.is_some_and(|open| open.get() == record.canvas) {
                 *kept = Kept::default();
             }
-            PracticeDone::Removed(session.id, remove(store, &session))
+            PracticeDone::Removed(record.id, remove(store, &record))
         }
         PracticeJob::RemovePicture(item) => {
             let removed = packs.map(|packs| packs.remove_picture(&item));
@@ -170,26 +170,26 @@ fn begun(store: &mut dyn ProjectStore, kept: &mut Kept, job: PracticeJob) -> Pra
     let PracticeJob::Start {
         sheet,
         title,
-        session,
+        record,
         givens,
         printed,
     } = job
     else {
         return PracticeDone::Failed(PortError::Stopped);
     };
-    match start(store, (&sheet, &title), &session, &givens) {
+    match start(store, (&sheet, &title), &record, &givens) {
         Ok(id) => {
             kept.open = Some(id);
             kept.changed = false;
-            let session = Sheet {
+            let record = Sheet {
                 canvas: id.get(),
-                ..session
+                ..record
             };
             PracticeDone::Started {
                 sheet,
                 title,
                 id,
-                session,
+                record,
                 printed,
             }
         }
@@ -264,7 +264,7 @@ pub(crate) struct Listed {
 /// record that cannot be read names none.
 pub(crate) fn gallery_list(store: &mut dyn ProjectStore) -> Result<Listed, PortError> {
     let sheets: HashSet<u64> = (sheets(store)?.iter())
-        .map(|session| session.canvas)
+        .map(|record| record.canvas)
         .filter(|canvas| *canvas != 0)
         .collect();
     let (sheets, artworks): (Vec<ProjectSummary>, Vec<ProjectSummary>) = (store.list()?)
@@ -294,7 +294,7 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
         PracticeJob::Rename(sheet, title) => {
             PracticeDone::Renamed(*sheet, title.clone(), Err(error))
         }
-        PracticeJob::Remove(session) => PracticeDone::Removed(session.id, Err(error)),
+        PracticeJob::Remove(record) => PracticeDone::Removed(record.id, Err(error)),
         PracticeJob::RemovePicture(_) | PracticeJob::PictureTier(..) => {
             PracticeDone::Pictures(Err(error))
         }

@@ -1,4 +1,4 @@
-//! `bench practice` on stages 3 and 4 (S90, S93, S94): in a session holding them, on to its first
+//! `bench practice` on units 3 and 4 (S90, S93, S94): on a sheet holding them, on to its first
 //! point and its first angle estimated on the flat, its first point in space, its first object and
 //! its first solid, a mark, lines, the object's visible edges or the solid drawn by the pen (a cross
 //! on the point, a line along the angle, the answer of the point in space a little off, each edge

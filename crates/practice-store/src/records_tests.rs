@@ -19,7 +19,7 @@ fn planned(picked: Picked, exercises: Vec<Exercise>) -> Planned {
 
 /// A unit's full lesson part done: its warm-up, two exercises compared (one judged by the app,
 /// one by the eye), a picture laid in a frame of its shape, time on it.
-fn session() -> Sheet {
+fn full_lesson() -> Sheet {
     let mut exercises: Vec<Exercise> = (0..16)
         .map(|seed| Exercise::generated(Kind::Line(LineTier::Arc), seed))
         .collect();
@@ -33,7 +33,7 @@ fn session() -> Sheet {
     let tone = Tone::of_code(1).expect("a tone");
     exercises[14] = Exercise::generated(Kind::Colour(tone), 14);
     let picked = Picked::Full {
-        stage: 1,
+        unit: 1,
         warm_up: 4,
     };
     let mut sheet = Sheet::begun(7, (Purpose::Day, NOON), planned(picked, exercises));
@@ -75,7 +75,7 @@ fn round_trip(sheet: &Sheet) -> Result<Sheet, PortError> {
 
 #[test]
 fn a_sheet_round_trips_and_damage_is_refused() {
-    let sheet = session();
+    let sheet = full_lesson();
     assert_eq!(round_trip(&sheet).as_ref(), Ok(&sheet));
     let key = sheet_key(7);
     let bytes = encode_sheet(&sheet);
@@ -89,9 +89,10 @@ fn a_sheet_round_trips_and_damage_is_refused() {
         "a byte after its last exercise"
     );
     assert!(decode_sheet(b"p", &bytes).is_err(), "a key without its id");
-    let mut stage = bytes.clone();
-    stage[0] = 1;
-    assert!(decode_sheet(&key, &stage).is_err(), "a record of 1.21.6");
+    // 1.21.6's records began with a stage (the earlier product's unit), not the tag.
+    let mut older = bytes.clone();
+    older[0] = 1;
+    assert!(decode_sheet(&key, &older).is_err(), "a record of 1.21.6");
     let mut purpose = bytes.clone();
     purpose[1 + 8 + 8] = 4;
     assert!(decode_sheet(&key, &purpose).is_err(), "a purpose unknown");
@@ -155,7 +156,7 @@ fn the_first_lesson_round_trips_with_its_free_scribble_and_a_result_by_eye() {
 fn a_first_compare_s_metric_and_a_result_of_codes_unknown_are_refused() {
     let colour = Exercise::generated(Kind::Colour(Tone::of_code(1).expect("a tone")), 4);
     let picked = Picked::Full {
-        stage: 2,
+        unit: 2,
         warm_up: 0,
     };
     let mut sheet = Sheet::begun(3, (Purpose::Day, NOON), planned(picked, vec![colour]));
@@ -235,7 +236,7 @@ fn every_kind_s_exercises_round_trip_with_their_pictures_and_numbers() {
     let exercises = many_kinds();
     let count = exercises.len();
     let picked = Picked::Full {
-        stage: 4,
+        unit: 4,
         warm_up: 0,
     };
     let mut sheet = Sheet::begun(15, (Purpose::Day, NOON), planned(picked, exercises));

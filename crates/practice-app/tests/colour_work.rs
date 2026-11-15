@@ -2,7 +2,7 @@
 //! painted with the practice brushes and filled, compared in place with its copy read from the
 //! canvas's pixels (the first Compare's numbers kept), one area at a time, the eyedropper
 //! comparing a point; a value scale painted a cell at a time; and a long colour copy beside the
-//! sessions, opened with every tool, compared in place as asked and never ended by Next.
+//! lessons, opened with every tool, compared in place as asked and never ended by Next.
 
 mod support;
 
@@ -391,7 +391,7 @@ fn a_long_colour_copy_is_kept_beside_the_lessons_and_counts_in_none() {
     assert_eq!((copy.len(), copy[0].name.as_str()), (1, "Colour copy 1"));
     assert_eq!(copy[0].picture, Some(teapot()));
     let shown = path.picture(&teapot()).expect("the picture offered");
-    assert_eq!((shown.copies, shown.sessions), (1, 0));
+    assert_eq!((shown.copies, shown.lessons), (1, 0));
     let (next, _) = log.start(Start::Next, 9, 3).expect("the first lesson");
     assert_eq!(next.lessons[0].picked, Picked::First);
     let (_, title) = log.begin_copy(&teapot(), 4, 5).expect("a picture again");

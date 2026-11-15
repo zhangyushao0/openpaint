@@ -264,7 +264,7 @@ fn the_log_keeps_a_copy_s_name_and_the_user_s_own_pictures_as_their_pack_holds_t
     let own: Vec<&ItemRef> = path.pictures_of(None).map(|p| &p.item).collect();
     assert_eq!(own, [&mine]);
     assert_eq!(
-        path.picture(&mine).map(|p| (p.copies, p.sessions)),
+        path.picture(&mine).map(|p| (p.copies, p.lessons)),
         Some((1, 0))
     );
     log.name(ProjectId::new(12), Title::new("Lamp study").expect("title"));

@@ -75,7 +75,7 @@ pub(crate) fn options_job(
         OptionsRequest::PictureTier(item, tier) => PracticeJob::PictureTier(item, tier),
         OptionsRequest::ReadSheets(ids) => {
             let records = (ids.iter())
-                .filter_map(|id| log.session(*id))
+                .filter_map(|id| log.sheet(*id))
                 .filter(|record| record.canvas != 0)
                 .cloned()
                 .collect();

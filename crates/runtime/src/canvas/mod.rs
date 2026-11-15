@@ -65,7 +65,7 @@ pub(crate) enum Then {
     Practice(openpaint_practice_app::Start, openpaint_practice::Purpose),
 }
 
-/// A practice sheet: its session record, the finished sessions of its stage before it and the
+/// A practice sheet: its record, what its lesson in hand is set beside and the
 /// sheet as drawn.
 pub(crate) type SheetOf = Option<openpaint_practice_app::Practising>;
 
@@ -103,7 +103,7 @@ pub(crate) struct Canvas {
 }
 
 impl Canvas {
-    /// `content` shown at fit (a practice sheet, given its session in `sheet`, on its shown
+    /// `content` shown at fit (a practice sheet, given its opening in `sheet`, on its shown
     /// pair in `viewport`); a blank artwork is the size of the area it fits in; strokes start
     /// with the toolbox's brush and StreamLine, a long colour copy's with Hard Paint at a size for
     /// its frame (S104). `None` while the area is empty. Later area changes (rotation) refit the

@@ -2,7 +2,7 @@
 //! pictures drawn here for the tests (no third-party picture), built as the harness builds the
 //! official pack: each made as a pack holds it and its outline derived. The test pack: two entry
 //! figures on transparency (one CC BY with its credit, so the credit shows under it), the one
-//! simple picture on a busy ground, which gets no outline (so a first stage-2 session meets it),
+//! simple picture on a busy ground, which gets no outline (so a first unit-2 lesson meets it),
 //! and objects on a studio sweep and on flat white in the harder tiers, all square. The frames
 //! pack (S99): an upright vase and a long fish on studio sweeps, pictures that are not square.
 //! The same bytes every run.

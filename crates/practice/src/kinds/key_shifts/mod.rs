@@ -33,8 +33,9 @@ pub(crate) struct KeyShifts;
 const FACTS: [Facts; 1] = [Facts::of("key-shift", ToolSet::PAINTING, 360)
     .picks(Picking::LOCKED)
     .needs(Needs::Crops)];
-/// How many key shifts stage 5's drills held, the leans in turn across them.
-const DRILLED: usize = 2;
+/// How many key shifts a lesson's place turns through at the first level (as unit 5's drills
+/// held them before S122), the leans in turn across them.
+const TURNED: usize = 2;
 /// The second level's leans and the third's, in turn.
 const COOL: [Lean; 2] = [Lean::CoolPure, Lean::CoolGrey];
 const GREY: [Lean; 2] = [Lean::CoolGrey, Lean::WarmGrey];
@@ -75,7 +76,7 @@ impl Described for KeyShifts {
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         let lean = match level {
-            SkillLevel::First => in_turn(&Lean::ALL, turn.turn, DRILLED)[0],
+            SkillLevel::First => in_turn(&Lean::ALL, turn.turn, TURNED)[0],
             SkillLevel::Second => COOL[turn.turn % COOL.len()],
             SkillLevel::Third => GREY[turn.turn % GREY.len()],
         };

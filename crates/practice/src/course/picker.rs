@@ -43,21 +43,21 @@ pub(crate) fn laid(kinds: impl IntoIterator<Item = Kind>) -> Vec<(Kind, Option<I
     kinds.into_iter().map(|kind| (kind, None)).collect()
 }
 
-/// The tiers stage 4's drills of compositions took in turn.
+/// The tiers unit 4's drills of compositions took in turn before S122.
 const COMPOSITION_TIERS: [Tier; 2] = [Tier::Simple, Tier::Medium];
 
 /// A lesson of one composition for the kind `kind` makes (a division, a whole copy, value
 /// masses), picked by `turn`'s seed (value masses' among those whose masses read), at `level`: the
-/// first the simple and medium tiers in turn as the kind's drills of `drilled` took them (its
-/// first), the second a medium picture, the third a hard one (the nearest tier the packs hold
-/// where they hold none of it); none without such a composition.
+/// first the simple and medium tiers in turn, `turned` a lesson's place, as the kind's drills
+/// took them before S122 (its first), the second a medium picture, the third a hard one (the
+/// nearest tier the packs hold where they hold none of it); none without such a composition.
 pub(crate) fn composition(
-    (level, drilled): (SkillLevel, usize),
+    (level, turned): (SkillLevel, usize),
     turn: &Turn<'_>,
     kind: fn(Tier) -> Kind,
 ) -> Vec<(Kind, Option<ItemRef>)> {
     let tier = match level {
-        SkillLevel::First => in_turn(&COMPOSITION_TIERS, turn.turn, drilled)[0],
+        SkillLevel::First => in_turn(&COMPOSITION_TIERS, turn.turn, turned)[0],
         SkillLevel::Second => Tier::Medium,
         SkillLevel::Third => Tier::Hard,
     };

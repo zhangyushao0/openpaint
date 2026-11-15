@@ -1,4 +1,4 @@
-//! `bench practice` on stage 4's value masses (S96), in a session holding them after its
+//! `bench practice` on unit 4's value masses (S96), on a sheet holding them after its
 //! division: Middle chosen and Fill frame tapped (the picture's place filled), two dark masses and
 //! a light one painted by the pen, then Compare opened (the copy drawn and read on the compare
 //! worker, the answer's greys, edges and hatching shown when it arrives), the slider dragged and

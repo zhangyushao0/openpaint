@@ -35,7 +35,7 @@ const FACTS: [Facts; 1] = [Facts::of("colour", ToolSet::COLOUR, 105)
     .kept(Kept::Pick)];
 /// A lesson's colours.
 const COUNT: usize = 3;
-/// The first level's: stage 1's first three.
+/// The first level's: unit 1's first three before S122.
 const FIRST: [(Purity, Lightness); 3] = [
     (Purity::Muted, Lightness::Middle),
     (Purity::Grey, Lightness::Light),

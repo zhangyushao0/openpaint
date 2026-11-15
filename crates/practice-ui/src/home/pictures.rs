@@ -208,9 +208,9 @@ pub(super) fn mine(
     })
 }
 
-/// Removing `picture` asks first, saying what the sessions and copies that used it keep.
+/// Removing `picture` asks first, saying what the lessons and copies that used it keep.
 fn removal(ctx: &egui::Context, picture: &PictureShown) -> Tapped {
-    let uses = (picture.sessions, picture.copies);
+    let uses = (picture.lessons, picture.copies);
     Tapped::Remove(Removal::Picture(
         picture.item.clone(),
         title(ctx, picture),

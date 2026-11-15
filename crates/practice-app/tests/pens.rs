@@ -142,7 +142,7 @@ fn session_of(kinds: &[Kind], toolbox: &Toolbox) -> SheetSession {
         .map(|kind| (Exercise::generated(*kind, 0x5EED_0100), SkillLevel::First))
         .collect();
     let picked = Picked::Full {
-        stage: 1,
+        unit: 1,
         warm_up: 0,
     };
     let planned = Planned { picked, exercises };

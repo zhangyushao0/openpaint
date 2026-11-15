@@ -1,5 +1,5 @@
-//! The schedule (S122): the First-prefix rule against the drills before S122, the next lesson's
-//! order, a lesson chosen with its redo.
+//! The schedule (S122): the First-prefix rule against the earlier product's drills (a kind's run
+//! of exercises before S122), the next lesson's order, a lesson chosen with its redo.
 
 use openpaint_practice::{
     BoxView, Carve, Combination, Exercise, Guide, Kind, Learner, Lightness, LineTier, Outcome,
@@ -8,8 +8,8 @@ use openpaint_practice::{
 
 use crate::{CLEAN, after, ended, skill};
 
-/// Each kind's first drill before S122, its kinds in order.
-fn drills() -> Vec<(&'static str, Vec<Kind>)> {
+/// Each kind's first drill before S122 (the earlier product's word), its kinds in order.
+fn before_s122() -> Vec<(&'static str, Vec<Kind>)> {
     use Combination::{Branched, Crossing, Joined, Near};
     use LineTier::{Arc, Hook, Straight, Wave};
     let tone = |purity, lightness| Kind::Colour(Tone { purity, lightness });
@@ -53,22 +53,23 @@ fn first_kinds(learner: &Learner, key: &str) -> Vec<Kind> {
 }
 
 #[test]
-fn at_the_first_level_a_lesson_of_one_topic_starts_as_its_drill_did() {
+fn at_the_first_level_a_lesson_of_one_topic_starts_as_before_s122() {
     let (pictures, learner) = (Pictures::default(), Learner::default());
     let standing = Standing {
         pictures: &pictures,
         learner: &learner,
     };
-    for (key, drilled) in drills() {
+    for (key, earlier) in before_s122() {
         let lesson = schedule::lesson(skill(key), SkillLevel::First, 11, &standing);
         let lesson = lesson.expect("a lesson").exercises;
-        assert!(!lesson.is_empty() && lesson.len() <= drilled.len(), "{key}");
-        for (index, ((exercise, _), kind)) in lesson.iter().zip(&drilled).enumerate() {
+        assert!(!lesson.is_empty() && lesson.len() <= earlier.len(), "{key}");
+        for (index, ((exercise, _), kind)) in lesson.iter().zip(&earlier).enumerate() {
             let old = Exercise::generated(*kind, derived(11, index as u64));
             assert_eq!(*exercise, old, "{key}");
         }
     }
-    // A second lesson turns as a second drill did: a box three-point first, an object round.
+    // A second lesson turns as a second drill did before S122: a box three-point first, an
+    // object round.
     let boxed = after(&learner, "box", SkillLevel::First, &[]);
     let objects = after(&learner, "objects", SkillLevel::First, &[]);
     let views = [BoxView::ThreePoint, BoxView::TwoPoint].map(Kind::Box);

@@ -12,7 +12,7 @@ impl Lesson {
     #[must_use]
     pub fn unit(&self) -> Option<u8> {
         match self.picked {
-            Picked::Full { stage, .. } => Some(stage),
+            Picked::Full { unit, .. } => Some(unit),
             Picked::Chosen | Picked::First => None,
         }
     }

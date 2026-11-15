@@ -36,7 +36,7 @@ const SHEET_WIDEST: f32 = 224.0;
 const SQUARE: f32 = 36.0;
 /// A day's card's widest, in points.
 const CARD: f32 = 720.0;
-/// A sheet's shape before it is read: a session's (2,920 by 3,160 pixels).
+/// A sheet's shape before it is read: a full lesson's (2,920 by 3,160 pixels).
 const SHEET_SHAPE: f32 = 2920.0 / 3160.0;
 
 /// The month `shown` (its first day) in `rect`: its name and chevrons, the weekdays and the days;

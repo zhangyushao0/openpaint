@@ -16,7 +16,7 @@ use crate::colour_areas::main_hue::main_hue;
 use crate::maths::random::Random;
 use crate::packs::pack::{ItemRef, Pack, PictureKind, Tier};
 
-/// Every picture a session can pick from.
+/// Every picture a lesson can pick from.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Pictures {
     /// The official packs' shape items with their tiers, by pack and the pack's order.
@@ -128,7 +128,7 @@ impl Pictures {
     }
 
     /// A composition of `tier` or of the nearest tier with any (one whose value masses read when
-    /// `massed`), picked by `random` among those neither `shown` in the session nor `recent`, then
+    /// `massed`), picked by `random` among those neither `shown` in the lesson nor `recent`, then
     /// among those not `shown`, then any.
     pub(crate) fn pick_composition(
         &self,

@@ -29,7 +29,7 @@ fn artwork() -> Artwork {
 /// Unit 1's full lesson as an old record holds it (stored as 3; none is laid since S124), the
 /// `id`th sheet, seeded `seed`, after the lessons of `before`: a warm-up of a line, a group and a
 /// colour, then a lesson of each.
-fn session(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
+fn full_lesson(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
     let standing = Standing {
         pictures: &Pictures::default(),
         learner: &Learner::of(before),
@@ -44,7 +44,7 @@ fn session(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
     let parts = lessons.iter().flat_map(|lesson| lesson.exercises.iter());
     let planned = Planned {
         picked: Picked::Full {
-            stage: 1,
+            unit: 1,
             warm_up: 3,
         },
         exercises: warm_up.chain(parts).cloned().collect(),
@@ -90,7 +90,7 @@ fn a_sheet_round_trips_with_its_project_and_its_givens() {
     drop(library);
     let before = records(&dir);
     let mut library = Library::at(&dir);
-    let sheet = session(1, 0x5EED_0045, 1_791_201_600, &[]);
+    let sheet = full_lesson(1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     assert_ne!(id, artwork_id);
@@ -150,7 +150,7 @@ fn a_sheet_round_trips_with_its_project_and_its_givens() {
 fn a_sheet_s_title_is_its_project_s_and_renamed() {
     let dir = TestDir::new("practice-titles");
     let mut library = Library::at(&dir);
-    let sheet = session(1, 5, 1_791_201_600, &[]);
+    let sheet = full_lesson(1, 5, 1_791_201_600, &[]);
     let title = Title::new("Colour copy 1").expect("title");
     let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     let titled = |library: &mut Library| {
@@ -177,7 +177,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
         )
         .expect("an artwork");
     // The author's lesson, part done, then the home.
-    let mut theirs = session(1, 0x5EED_0045, 1_791_201_600, &[]);
+    let mut theirs = full_lesson(1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let printed = givens(&theirs);
     let sheet_id = start(&mut library, (&artwork(), &title), &theirs, &printed).expect("started");
@@ -196,7 +196,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
     // A test lesson beside it, worked on, then removed.
     let mut library = Library::at(&dir);
     let read = sheets(&mut library).expect("practice");
-    let mut test = session(2, 77, 1_791_202_000, &read);
+    let mut test = full_lesson(2, 77, 1_791_202_000, &read);
     assert_eq!(
         test.lesson().map(Lesson::warm_up),
         Some(3),
@@ -238,7 +238,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
 fn a_sheet_s_givens_read_back_as_printed_and_refuse_it_when_not_whole() {
     let dir = TestDir::new("practice-printed");
     let mut library = Library::at(&dir);
-    let sheet = session(1, 0x5EED_0120, 1_791_201_600, &[]);
+    let sheet = full_lesson(1, 0x5EED_0120, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     let stored = sheets(&mut library).expect("practice").remove(0);
@@ -274,13 +274,13 @@ fn a_sheet_s_givens_read_back_as_printed_and_refuse_it_when_not_whole() {
 fn a_practice_record_that_cannot_be_read_is_left_out() {
     let dir = TestDir::new("practice-damaged");
     let mut library = Library::at(&dir);
-    let sheet = session(1, 3, 0, &[]);
+    let sheet = full_lesson(1, 3, 0, &[]);
     let title = Title::new("Practice 1").expect("title");
     start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     drop(library);
     let key = |id: u64| [b"p".as_slice(), &id.to_be_bytes()].concat();
-    // A sheet's tag with too few bytes after it, and a record beginning with a stage as 1.21.6's
-    // session records did: neither is read.
+    // A sheet's tag with too few bytes after it, and a record beginning with a stage (the earlier
+    // product's unit) as 1.21.6's records did: neither is read.
     write_records(
         &dir,
         &[

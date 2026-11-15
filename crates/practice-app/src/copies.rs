@@ -37,7 +37,7 @@ pub struct PictureShown {
     pub outline: bool,
     /// The colour copies begun of it, and the lessons that showed it.
     pub copies: u32,
-    pub sessions: u32,
+    pub lessons: u32,
 }
 
 /// The pictures of `packs` as the options show them, with how many lessons of `records` used
@@ -71,7 +71,7 @@ pub(crate) fn pictures_shown(packs: &[Pack], records: &[Sheet]) -> Arc<[PictureS
                 personal: pack.personal(),
                 outline: found.outline.is_some(),
                 copies: uses(&item, true),
-                sessions: uses(&item, false),
+                lessons: uses(&item, false),
                 item,
             });
         }

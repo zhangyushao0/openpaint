@@ -14,7 +14,7 @@ use crate::practice::{PracticeDone, sheet};
 use crate::storage::{Job, LibraryCall};
 
 impl Screen {
-    /// A practice session started (its sheet opens), failed to, or its record was written; a
+    /// A practice sheet started (it opens), failed to, or its record was written; a
     /// colour copy renamed or removed; a pack imported; the user's own pictures changed; a pack's
     /// picture read for the open sheet. A change that failed leaves everything as it was and the
     /// gallery says so.
@@ -27,11 +27,11 @@ impl Screen {
                 sheet,
                 title,
                 id,
-                session,
+                record,
                 printed,
             } => {
-                log::info!("practice session {} on project {}", session.id, id.get());
-                practice.keep(session);
+                log::info!("practice session {} on project {}", record.id, id.get());
+                practice.keep(record);
                 practice.name(id, title.clone());
                 let held = new_project(id, Some(printed));
                 *self = Self::Opening(Some(Content::Stored(sheet, title, held)));
@@ -83,9 +83,9 @@ impl Screen {
     /// more's lesson appended in place was stored or not (rolled back); anything else returned.
     fn day(&mut self, done: PracticeDone, practice: &mut PracticeLog) -> Option<PracticeDone> {
         match done {
-            PracticeDone::Continued { session, loaded } => {
-                log::info!("practice sheet {} took a lesson and opens", session.id);
-                practice.keep(session);
+            PracticeDone::Continued { record, loaded } => {
+                log::info!("practice sheet {} took a lesson and opens", record.id);
+                practice.keep(record);
                 *self = super::opening(*loaded);
             }
             PracticeDone::Appended {

@@ -61,16 +61,16 @@ pub struct PracticeTest {
 }
 
 impl PracticeTest {
-    fn of(session: &Sheet) -> Self {
+    fn of(record: &Sheet) -> Self {
         Self {
-            id: session.id,
-            sheet: session.canvas,
-            started: session.started,
+            id: record.id,
+            sheet: record.canvas,
+            started: record.started,
         }
     }
 
-    fn names(&self, session: &Sheet) -> bool {
-        *self == Self::of(session) && session.canvas != 0
+    fn names(&self, record: &Sheet) -> bool {
+        *self == Self::of(record) && record.canvas != 0
     }
 }
 
@@ -163,9 +163,9 @@ impl Runtime {
     /// Test lesson (or colour copy) `id`'s name, once its sheet is stored and shows.
     #[must_use]
     pub fn test_practice(&self, id: u64) -> Option<PracticeTest> {
-        let session = self.practice.session(id).filter(|s| s.canvas != 0)?;
+        let record = self.practice.sheet(id).filter(|s| s.canvas != 0)?;
         let shows = self.practice().is_some() && !self.storing();
-        shows.then(|| PracticeTest::of(session))
+        shows.then(|| PracticeTest::of(record))
     }
 
     /// For debug builds only: the test lesson `test` removed from the home, its record and its
@@ -179,16 +179,16 @@ impl Runtime {
         if self.screen.gallery_mut().is_none() {
             return Err(RuntimeError::NotNow("the home"));
         }
-        let session = (self.practice.session(test.id))
-            .filter(|session| test.names(session))
+        let record = (self.practice.sheet(test.id))
+            .filter(|record| test.names(record))
             .cloned()
             .ok_or(RuntimeError::NotNow(
                 "a lesson of that name (`names_practice`)",
             ))?;
-        let id = session.id;
+        let id = record.id;
         let later = (self.practice.tests_since(test.started).into_iter())
             .filter(|later| later.id != id && later.canvas != 0);
-        for sheet in std::iter::once(session).chain(later) {
+        for sheet in std::iter::once(record).chain(later) {
             self.cache
                 .submit(CacheJob::Delete(ProjectId::new(sheet.canvas)));
             self.storage
@@ -203,15 +203,13 @@ impl Runtime {
     /// Whether the practice log holds sheet `id`.
     #[must_use]
     pub fn holds_practice(&self, id: u64) -> bool {
-        self.practice.session(id).is_some()
+        self.practice.sheet(id).is_some()
     }
 
     /// Whether the practice log holds a sheet of the name `test`.
     #[must_use]
     pub fn names_practice(&self, test: &PracticeTest) -> bool {
-        self.practice
-            .session(test.id)
-            .is_some_and(|s| test.names(s))
+        self.practice.sheet(test.id).is_some_and(|s| test.names(s))
     }
 }
 

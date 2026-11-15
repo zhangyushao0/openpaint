@@ -1,11 +1,11 @@
-//! `bench practice` on stage 4's compositions (S95): in a session holding them (the composition
+//! `bench practice` on unit 4's compositions (S95): on a sheet holding them (the composition
 //! pack kept), on to its division: three main lines across the picture, a part's frame with
 //! Second and two short lines with Third drawn by the pen, then Compare opened (its lines read,
 //! joined and counted at once on the frame loop, the picture laid faint under them) and closed; on
 //! to its whole copy: two main lines, then Draw (the division dims: its layer amended), two lines
 //! drawn over it, Big (the wheel shows, the colour blocks' layer made), Fill frame and a block
 //! painted (S96), Compare opened (the division hidden, the picture over the copy), the slider
-//! dragged, Compare closed: a line each; in a session holding value masses instead, those
+//! dragged, Compare closed: a line each; on a sheet holding value masses instead, those
 //! (`practice_masses.rs`).
 
 use openpaint_practice_app::{Pen, PracticeIntent};
@@ -48,7 +48,7 @@ impl Runtime {
             }
         }
         if !self.bench_on_to("whole-copy")? {
-            // Value masses in the sessions without a whole copy (S96).
+            // Value masses on the sheets without a whole copy (S96).
             return self.bench_masses(lines);
         }
         for (pen, line) in DIVISION.into_iter().take(2) {
