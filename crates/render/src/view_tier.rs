@@ -234,8 +234,9 @@ impl ViewCache {
         // What changed shows at once when it fits; missing tiles are background work. The
         // stroke being drawn, and its lift, at once where the view shows them.
         let mut covered = false;
+        // The tiles the view needs, once a frame (their grid and the view do not change in it).
+        let needed = Needed::of(&current.map, frame);
         if request.active.is_some() || current.drawing.tracking() {
-            let needed = Needed::of(&current.map, frame);
             let place = (&mut *canvas, request);
             stroke_raster(core, (current, &needed), place, (work, now))?;
             covered = work.dropped.is_empty();
@@ -246,7 +247,6 @@ impl ViewCache {
             return Ok(covered);
         }
         // Tiles the view left stay ready until a needed tile wants their slot.
-        let needed = Needed::of(&current.map, frame);
         // The canvas fills in first: no missing tile is filled meanwhile.
         if !canvas.pending() {
             fill_raster(core, (current, &needed), (canvas, request), raster, now)?;
