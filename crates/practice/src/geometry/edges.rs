@@ -9,7 +9,7 @@
 //! degree or two off its own aim besides (the author's redrawn edges read as two while the
 //! shorter's ends had to lie within 4 pixels of the longer's line): two lines are one edge when
 //! within `DOUBLE_ANGLE` of each other and the shorter's middle near the longer's line, a tenth of
-//! its length (at most two pen widths), under a face's least width (`perspective.rs`'s `FACE`, a
+//! its length (at most two pen widths), under a face's least width (`perspective/`'s `FACE`, a
 //! small free box's faces a fifth of its edges). An edge's ends are where its first and last
 //! points fall on its line, so an overshoot past a corner stays part of the edge it continues.
 //! Edges shorter than `SHORTEST` are left out, and nothing is guessed: a run that is no straight

@@ -1,11 +1,12 @@
 //! A box's result (S119): completed on its answer it is clean, one edge turned past `ON_ANGLE`
 //! near, more redo; with fewer than `EDGES_TO_ADD` edges beside the three given, incomplete, and
 //! the given edges drawn over count for nothing. A steady hand's bow and tremor turn an edge past
-//! `ON_ANGLE` now and then (`checks.rs`: some 5 % of edges): its boxes come out clean or near.
+//! `ON_ANGLE` now and then (`checks.rs`: some 5 % of edges): its boxes come out clean or near. A
+//! box drawn through (S142) is complete only with its hidden edges too.
 
 use openpaint_practice::{
-    BoxCompared, BoxView, Direction, DrawnCopy, EDGES_TO_ADD, Outcome, PerspectiveBox, Point,
-    Verdict,
+    BoxCompared, BoxView, Direction, DrawnCopy, EDGES, EDGES_TO_ADD, Exercise, Kind, Outcome,
+    PerspectiveBox, Point, THROUGH_TO_ADD, Verdict,
 };
 
 use crate::hand::{Hand, Manner, to_complete};
@@ -100,6 +101,50 @@ fn a_box_completed_is_clean_one_edge_off_near_more_redo_and_half_done_incomplete
                 "{label}"
             );
         }
+    }
+}
+
+/// S142: a box drawn through is complete only with its hidden edges too, each checked as a
+/// visible one is; the same edges left out complete a box to complete.
+#[test]
+fn a_box_drawn_through_is_complete_only_with_its_three_hidden_edges() {
+    for seed in 0..50 {
+        let label = format!("Through {seed}");
+        let exact = PerspectiveBox::generate(BoxView::Through, seed);
+        let original = Exercise::generated(Kind::Box(BoxView::Through), seed).original();
+        let drawn = |edges: &[(Point, Point, Direction)]| {
+            let copy = DrawnCopy {
+                all: clean(edges),
+                corrected: None,
+            };
+            let through = original.check(&copy).expect("compared").verdict();
+            assert_eq!(through, BoxCompared::through(&exact, &copy).verdict());
+            (through, BoxCompared::of(&exact, &copy).verdict())
+        };
+        let edges = to_complete(&exact);
+        assert_eq!(edges.len(), THROUGH_TO_ADD);
+        // Its far corner, which no visible edge touches.
+        let far = (0..8).find(|c| {
+            (EDGES.iter().zip(exact.hidden())).all(|((p, q, _), h)| h || (p != c && q != c))
+        });
+        let far = exact.corners[far.expect("its far corner")];
+        let shows = |(a, b, _): &&(Point, Point, Direction)| *a != far && *b != far;
+        let visible: Vec<_> = edges.iter().filter(shows).copied().collect();
+        assert_eq!(visible.len(), EDGES_TO_ADD, "{label}");
+        let clean_box = Verdict::App(Outcome::Clean);
+        assert_eq!(drawn(&edges), (clean_box, clean_box), "{label}");
+        // Without its hidden edges, or one of them: incomplete drawn through, complete else.
+        assert_eq!(drawn(&visible), (Verdict::Incomplete, clean_box), "{label}");
+        let mut most = visible.clone();
+        most.extend(edges.iter().filter(|e| !shows(e)).take(2).copied());
+        assert_eq!(drawn(&most).0, Verdict::Incomplete, "{label}");
+        // A hidden edge turned off its point counts as a visible one does.
+        let mut off = edges.clone();
+        let at = (off.iter())
+            .position(|e| !shows(&e) && e.2 != Direction::Vertical)
+            .expect("a hidden receding edge");
+        off[at] = turned(off[at], 6.0);
+        assert_eq!(drawn(&off).0, Verdict::App(Outcome::Near), "{label}");
     }
 }
 

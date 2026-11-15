@@ -6,11 +6,13 @@
 //! nearest, its vanishing point, and its edges either head there or miss it (S97: only one that
 //! misses drawn on, past the point). A front corner (where an edge of each direction leaves
 //! towards its meeting point) under 90 degrees is marked: V大 calls it distortion, the vanishing
-//! points too close.
+//! points too close. On a three-point page (S142) the uprights head for the page's third point
+//! instead (`third.rs`).
 
 use crate::geometry::edges::Edge;
 use crate::geometry::heading::{Checked, ON_ANGLE, checked, line_angle, sub};
 use crate::geometry::perspective::{Direction, FAR, angle_between};
+use crate::kinds::free_boxes::third::{Uprights, checked_upright, upright};
 use crate::maths::path::{Point, apart, distance};
 
 /// On a free page an edge within this angle of the vertical is a vertical (degrees).
@@ -23,10 +25,12 @@ const DIRECTIONS_APART: f64 = 0.44;
 /// A front corner narrower than this (degrees) is distortion.
 pub const RIGHT_ANGLE: f64 = 90.0;
 
-/// Free boxes on a page, as checked against its horizon.
+/// Free boxes on a page, as checked against its horizon, and on a three-point page its third
+/// point (given, or found from the uprights drawn).
 #[derive(Debug, Clone, PartialEq)]
 pub struct FreeCheck {
     pub boxes: Vec<FreeBox>,
+    pub third: Option<Point>,
 }
 
 /// One box drawn freely: its edges checked, where each of its directions meets the horizon, the
@@ -51,12 +55,20 @@ impl FreeCheck {
     /// The edges `found` on a page whose horizon lies at `horizon`, gathered into boxes.
     #[must_use]
     pub fn of(horizon: f64, found: &[Edge]) -> Self {
+        Self::on_page(horizon, Uprights::Plumb, found)
+    }
+
+    /// The edges `found` on a page whose horizon lies at `horizon` and whose uprights head as
+    /// `uprights` says, gathered into boxes.
+    #[must_use]
+    pub fn on_page(horizon: f64, uprights: Uprights, found: &[Edge]) -> Self {
+        let third = uprights.third(horizon, found);
         let boxes = touching(found)
             .into_iter()
-            .map(|edges| free_box(horizon, &edges))
+            .map(|edges| free_box((horizon, third), &edges))
             .filter(|checked| !checked.edges.is_empty())
             .collect();
-        Self { boxes }
+        Self { boxes, third }
     }
 
     /// How many edges miss where their direction meets (or lean, a vertical).
@@ -107,17 +119,18 @@ fn touching(found: &[Edge]) -> Vec<Vec<Edge>> {
     boxes.into_iter().map(|(_, edges)| edges).collect()
 }
 
-/// One box's `edges` checked against the `horizon`.
-fn free_box(horizon: f64, edges: &[Edge]) -> FreeBox {
+/// One box's `edges` checked against the `horizon` and the page's `third` point, if any.
+fn free_box((horizon, third): (f64, Option<Point>), edges: &[Edge]) -> FreeBox {
     let centre = mean(&edges.iter().map(Edge::middle).collect::<Vec<_>>());
     let mut read: Vec<Checked> = Vec::new();
     let mut receding: Vec<(Edge, f64)> = Vec::new();
     for edge in edges {
-        let lean = line_angle(edge.direction(), [0.0, 1.0]);
-        if lean <= VERTICAL {
-            read.push(checked(edge, Direction::Vertical, None, FAR));
-        } else if let Some(x) = crossing(edge, horizon) {
-            receding.push((*edge, x));
+        match third {
+            Some(point) if upright(edge, point) => read.push(checked_upright(edge, point)),
+            None if line_angle(edge.direction(), [0.0, 1.0]) <= VERTICAL => {
+                read.push(checked(edge, Direction::Vertical, None, FAR));
+            }
+            _ => receding.extend(crossing(edge, horizon).map(|x| (*edge, x))),
         }
     }
     let groups = directions(&receding, centre, horizon);

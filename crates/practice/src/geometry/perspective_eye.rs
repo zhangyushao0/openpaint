@@ -1,4 +1,4 @@
-//! The eye boxes and squares in perspective are seen by (`perspective.rs`, `ellipse.rs`): a
+//! The eye boxes and squares in perspective are seen by (`perspective/`, `ellipse.rs`): a
 //! pinhole at the world's origin (y up, z away), its focal length 1, looking level or turned up
 //! or down; a box's corners in the world; and a box's image made the size it shows in the frame
 //! and moved there, its horizon and vanishing points with it (a picture made larger and moved

@@ -196,6 +196,41 @@ pub fn from_points(
     }
 }
 
+/// A three-point box built on paper from its vanishing points `left` and `right` (on one horizon)
+/// and `third`: its front edge `[top, bottom]` (heading for `third`), its sides reaching `reach` of
+/// the way to each point, its uprights on the lines to `third`.
+pub fn from_three_points(
+    [left, right, third]: [Point; 3],
+    front: [Point; 2],
+    reach: [f64; 2],
+) -> PerspectiveBox {
+    let toward = |p: Point, to: Point, share: f64| {
+        [p[0] + (to[0] - p[0]) * share, p[1] + (to[1] - p[1]) * share]
+    };
+    let [top, bottom] = front;
+    let l_bottom = toward(bottom, left, reach[0]);
+    let r_bottom = toward(bottom, right, reach[1]);
+    let l_top = crossing(l_bottom, third, top, left);
+    let r_top = crossing(r_bottom, third, top, right);
+    let back_bottom = crossing(r_bottom, left, l_bottom, right);
+    let back_top = crossing(r_top, left, l_top, right);
+    PerspectiveBox {
+        corners: [
+            bottom,
+            r_bottom,
+            top,
+            r_top,
+            l_bottom,
+            back_bottom,
+            l_top,
+            back_top,
+        ],
+        horizon: left[1],
+        vanishing: [Some(left), Some(right), Some(third)],
+        front: 2,
+    }
+}
+
 /// Where the line from `a` to `p` crosses the line from `b` to `q`.
 fn crossing(a: Point, p: Point, b: Point, q: Point) -> Point {
     let r = [p[0] - a[0], p[1] - a[1]];

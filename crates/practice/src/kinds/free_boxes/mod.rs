@@ -1,18 +1,22 @@
 //! Free boxes (`Kind::FreeBoxes`, S84): boxes drawn freely on a horizon, checked by the rules
-//! alone and judged by eye (S114). Their page is `geometry/perspective.rs`; its How `demo.rs`.
+//! alone and judged by eye (S114). Their page is `geometry/perspective/page.rs`; its How
+//! `demo.rs`.
 //!
-//! A lesson (a page of three or four boxes, about 3 minutes): the first level one page, its
-//! horizon in the middle, high, then low by the lesson, the second one page
-//! high or low in turn, the boxes all seen from above or below, the third two pages, one of
-//! each. A page has no harder variant than its horizon.
+//! A lesson (a page of three or four boxes, about 3 minutes, at every level): the first level its
+//! horizon in the middle, high, then low by the lesson, the boxes two-point; the second (S142) a
+//! three-point page, the eye looking down from a high horizon or up from a low one in turn, two
+//! faint guides leading to its third point; the third the same pages with the horizon alone, the
+//! third point the learner's own, found from their uprights (`third.rs`). Each look has its own
+//! How (a topic of its own).
 
 pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod perspective_free;
+pub(crate) mod third;
 
-use crate::course::picker::{laid, rotated, turned};
+use crate::course::picker::turned;
 use crate::demos::demo::Demo;
-use crate::geometry::perspective::{Horizon, PerspectiveBox};
+use crate::geometry::perspective::{Direction, Horizon, Look, PerspectiveBox};
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
@@ -22,13 +26,21 @@ use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
 use std::sync::Arc;
+use third::Uprights;
 
 pub(crate) struct FreeBoxes;
 
-const FACTS: [Facts; 1] = [Facts::of("free-boxes", ToolSet::DRAWING, 180).constructed()];
-/// The first level's horizons in turn: in the middle first; the others' far from it.
+/// Its topics, by the way the page's eye looks (`Look`'s order): each has its own How.
+const FACTS: [Facts; 3] = [
+    Facts::of("free-boxes", ToolSet::DRAWING, 180).constructed(),
+    Facts::of("free-boxes-down", ToolSet::DRAWING, 180).constructed(),
+    Facts::of("free-boxes-up", ToolSet::DRAWING, 180).constructed(),
+];
+/// The first level's horizons in turn: in the middle first; the second's and the third's pages
+/// looking down or up in turn.
 const HORIZONS: [Horizon; 3] = [Horizon::Middle, Horizon::High, Horizon::Low];
-const FAR: [Horizon; 2] = [Horizon::High, Horizon::Low];
+const GUIDED: [Horizon; 2] = [Horizon::HighDown, Horizon::LowUp];
+const BARE: [Horizon; 2] = [Horizon::HighDownBare, Horizon::LowUpBare];
 
 impl Described for FreeBoxes {
     fn code(&self) -> u8 {
@@ -50,27 +62,39 @@ impl Described for FreeBoxes {
         (Horizon::ALL.get(usize::from(variant))).map(|h| Kind::FreeBoxes(*h))
     }
 
+    fn topic(&self, kind: Kind) -> &'static Facts {
+        let Kind::FreeBoxes(horizon) = kind else {
+            return &FACTS[0];
+        };
+        match horizon.look() {
+            Look::Level => &FACTS[0],
+            Look::Down => &FACTS[1],
+            Look::Up => &FACTS[2],
+        }
+    }
+
     fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::FreeBoxes(horizon) = exercise.kind else {
             return held(Blank);
         };
-        held(FreePage(PerspectiveBox::on_horizon(horizon, exercise.seed)))
+        let example = PerspectiveBox::on_horizon(horizon, exercise.seed);
+        held(FreePage(example, horizon))
     }
 
-    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
-        Some(demo::free_boxes())
+    fn how(&self, kind: Kind, _cells: usize) -> Option<Demo> {
+        let Kind::FreeBoxes(horizon) = kind else {
+            return None;
+        };
+        Some(demo::free_boxes(horizon.look()))
     }
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        match level {
-            SkillLevel::First => turned((&HORIZONS, 1), turn, Kind::FreeBoxes),
-            SkillLevel::Second => turned((&FAR, 1), turn, Kind::FreeBoxes),
-            SkillLevel::Third => laid(
-                rotated(&FAR, turn.turn, FAR.len())
-                    .into_iter()
-                    .map(Kind::FreeBoxes),
-            ),
-        }
+        let horizons: &[Horizon] = match level {
+            SkillLevel::First => &HORIZONS,
+            SkillLevel::Second => &GUIDED,
+            SkillLevel::Third => &BARE,
+        };
+        turned((horizons, 1), turn, Kind::FreeBoxes)
     }
 
     fn window(&self) -> usize {
@@ -86,16 +110,37 @@ impl Described for FreeBoxes {
     }
 }
 
-/// A free-boxes page: its horizon is the example box's.
+/// A free-boxes page of `Horizon`: its horizon is its example box's, and on a three-point page
+/// its third point too.
 #[derive(Debug)]
-pub struct FreePage(pub PerspectiveBox);
+pub struct FreePage(pub PerspectiveBox, pub Horizon);
+
+impl FreePage {
+    /// Where the page's uprights head: vertical where its eye looks level; for its third point,
+    /// given or the learner's own.
+    #[must_use]
+    pub fn uprights(&self) -> Uprights {
+        let Self(example, horizon) = self;
+        let Some(third) = example.vanishing[Direction::Vertical.index()] else {
+            return Uprights::Plumb;
+        };
+        match horizon.look() {
+            Look::Level => Uprights::Plumb,
+            _ if horizon.guided() => Uprights::Given(third),
+            look => Uprights::Found {
+                below: look == Look::Down,
+                page: third,
+            },
+        }
+    }
+}
 
 impl Original for FreePage {
     fn givens(&self) -> Vec<SheetMark> {
-        marks::givens(&self.0)
+        marks::givens(self)
     }
 
     fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::FreeCompared::of(&self.0, copy))
+        Some(marks::FreeCompared::of(self, copy))
     }
 }

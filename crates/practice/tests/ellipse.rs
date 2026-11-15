@@ -92,6 +92,49 @@ fn a_plain_frame_s_ellipse_is_its_cell_s_and_a_plane_s_is_seen_in_perspective() 
     assert_eq!(Kind::of_code(10, 1), Some(Kind::Ellipse(Guide::Plane)));
 }
 
+/// S142: a turned frame is a plain frame turned 15 to 75 degrees either way, its ellipse its
+/// cell's, its axes along its sides; turned both ways.
+#[test]
+fn a_turned_frame_is_a_plain_frame_turned_well_off_upright() {
+    let (mut clockwise, mut anticlockwise) = (0, 0);
+    for seed in 0..500 {
+        let label = format!("Turned {seed}");
+        let g = EllipseGuide::generate(Guide::Turned, seed);
+        let side = |i: usize| {
+            let (a, b) = (g.corners[i], g.corners[(i + 1) % 4]);
+            [b[0] - a[0], b[1] - a[1]]
+        };
+        // A rectangle: each corner square.
+        for i in 0..4 {
+            let [u, v] = [side(i), side((i + 1) % 4)];
+            let cos = (u[0] * v[0] + u[1] * v[1]) / (u[0].hypot(u[1]) * v[0].hypot(v[1]));
+            assert!(cos.abs() < 1e-9, "{label}: corner {i}");
+        }
+        let [x, y] = side(0);
+        let turn = y.atan2(x).to_degrees();
+        let off_upright = turn.rem_euclid(90.0);
+        assert!((15.0..=75.0).contains(&off_upright), "{label}: {turn}");
+        if turn.rem_euclid(180.0) < 90.0 {
+            clockwise += 1;
+        } else {
+            anticlockwise += 1;
+        }
+        let [a, _, c, _] = g.corners;
+        let middle = [(a[0] + c[0]) / 2.0, (a[1] + c[1]) / 2.0];
+        assert!(distance(g.exact.centre, middle) < 1e-9, "{label}");
+        let axis = g.exact.angle.to_degrees().rem_euclid(90.0);
+        assert!(
+            (axis - off_upright).abs() < 1e-6 || g.exact.roundness() > 0.97,
+            "{label}"
+        );
+    }
+    assert!(
+        clockwise > 150 && anticlockwise > 150,
+        "{clockwise} {anticlockwise}"
+    );
+    assert_eq!(Kind::of_code(10, 2), Some(Kind::Ellipse(Guide::Turned)));
+}
+
 /// `e` drawn as a hand draws it: `loops` times round from `start` (radians), each point off by
 /// up to `tremor`, `extra` of a turn more.
 fn drawn(

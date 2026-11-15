@@ -48,9 +48,10 @@ pub use geometry::ellipse_sides::{Missed, REACH, Reach, Side};
 pub use geometry::heading::{Checked, ON_ANGLE, PAST};
 pub use geometry::marks::{MARK, last_edges, last_mark};
 pub use geometry::off::{Heads, Off, PEN_WIDTH, ReadCurve, Straight, ringed};
-pub use geometry::perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
+pub use geometry::perspective::{BoxView, Direction, EDGES, FAR, Horizon, Look, PerspectiveBox};
+pub use kinds::boxes::ThroughBox;
 pub use kinds::boxes::marks::BoxCompared;
-pub use kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, NEAR_MISSED};
+pub use kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, NEAR_MISSED, THROUGH_TO_ADD};
 pub use kinds::colours::colour_match::{
     ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour,
 };
@@ -74,6 +75,7 @@ pub use kinds::estimates::marks::FlatCompared;
 pub use kinds::free_boxes::FreePage;
 pub use kinds::free_boxes::marks::FreeCompared;
 pub use kinds::free_boxes::perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
+pub use kinds::free_boxes::third::{Uprights, guides};
 pub use kinds::generated_combinations::AREAS_SIDE;
 pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{

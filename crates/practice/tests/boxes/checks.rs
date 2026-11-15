@@ -2,17 +2,19 @@
 //! exact edge heads for its point and gets no mark, a turned one alone is drawn on past its point,
 //! missing it by what it is off), free boxes read box by box
 //! (their directions found, a direction drawn apart said, a front corner under 90 degrees marked),
-//! and how reliable that is on boxes drawn by hand. Run with `--nocapture` to read the figures.
+//! and how reliable that is on boxes drawn by hand (three-point pages: `three_point.rs`). Run with
+//! `--nocapture` to read the figures.
 
 use openpaint_practice::{
-    BoxCheck, BoxView, Direction, Edge, FreeCheck, Horizon, Off, PerspectiveBox, Point, distance,
+    BoxCheck, BoxView, Direction, Edge, FreeCheck, Horizon, Look, Off, PerspectiveBox, Point,
+    distance,
 };
 
 use crate::edges::{found, matches};
 use crate::hand::{Hand, Manner, all_edges, from_points, placed, to_complete};
 
 /// `edges` drawn as clean straight strokes.
-fn clean(edges: &[(Point, Point, Direction)]) -> Vec<Vec<Point>> {
+pub fn clean(edges: &[(Point, Point, Direction)]) -> Vec<Vec<Point>> {
     edges.iter().map(|(a, b, _)| vec![*a, *b]).collect()
 }
 
@@ -31,7 +33,7 @@ fn turned((a, b, d): (Point, Point, Direction), degrees: f64) -> (Point, Point, 
 }
 
 /// The drawn edge `edge` was found as, with its direction.
-fn truth(edge: &Edge, drawn: &[(Point, Point, Direction)]) -> Option<Direction> {
+pub fn truth(edge: &Edge, drawn: &[(Point, Point, Direction)]) -> Option<Direction> {
     (drawn.iter())
         .find(|(a, b, _)| matches(edge, (*a, *b)))
         .map(|(_, _, d)| *d)
@@ -168,7 +170,7 @@ fn page(horizon: Horizon, seed: u64) -> Option<Vec<PerspectiveBox>> {
 /// and those taken for their own direction, directions and those said apart, corners said narrow.
 fn free_pages(manner: Manner) -> [usize; 7] {
     let mut counts = [0; 7];
-    for horizon in Horizon::ALL {
+    for horizon in Horizon::ALL.into_iter().filter(|h| h.look() == Look::Level) {
         for seed in 0..100 {
             let Some(boxes) = page(horizon, seed) else {
                 continue;

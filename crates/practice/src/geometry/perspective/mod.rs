@@ -11,12 +11,18 @@
 //! enough that the verticals visibly lean (`THIRD`); every proportion and angle varied. A box to
 //! complete is given by its front corner and the three edges from it (Drawabox's "Y"), the corner
 //! where three faces show (of a box across the horizon, the one whose edges are steeper); no face
-//! is a sliver; a free-boxes page shows one box on its horizon as an example.
+//! is a sliver; a free-boxes page holds one box on its horizon as an example, three-point on a
+//! page that looks down or up (S142), where its third point is the page's (`page.rs`).
 //!
 //! Frame units throughout (the frame's side is 1, y down).
 
+mod page;
+
+pub use page::{Horizon, Look};
+pub(crate) use page::{Place, level, place};
+
 use crate::geometry::perspective_eye::{Eye, box_corners, directions, fitted};
-use crate::maths::path::{Point, distance};
+use crate::maths::path::{Point, distance, nearest_on_segment};
 use crate::maths::random::Random;
 
 /// How far a vanishing point may lie from the frame's middle (frame units).
@@ -24,7 +30,22 @@ pub const FAR: f64 = 3.0;
 /// How near the box's front corner a left or right vanishing point may come.
 const NEAR: f64 = 0.55;
 /// A three-point box's third vanishing point, from the frame's middle: at least and at most.
-const THIRD: [f64; 2] = [1.3, 4.0];
+pub(crate) const THIRD: [f64; 2] = [1.3, 4.0];
+/// A long box's longest side over its shortest, and its longest in the world (S142).
+const LONG: [f64; 2] = [2.5, 4.0];
+const LONGEST: [f64; 2] = [1.4, 2.0];
+/// The orders a long box's shortest, middle and longest side take as its width, height and depth.
+const ORDERS: [[usize; 3]; 6] = [
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
+];
+/// How far a box drawn through keeps its hidden corner and its hidden edges' middles from every
+/// visible edge (three pen widths), so no hidden edge runs along a visible one.
+const CLEAR: f64 = 0.04;
 /// The front angle's range, degrees: wider than 90, about 120 (V大).
 const FRONT: [f64; 2] = [100.0, 150.0];
 /// The given edges' least length, and any edge's; a face's least width (its area over its longest
@@ -44,40 +65,27 @@ const FACES: [[usize; 4]; 6] = [
 /// How far inside the frame the box keeps, and the horizon.
 const INSIDE: f64 = 0.06;
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps the
-/// rules well within).
+/// rules well within); for a box drawn through, more.
 const TRIES: usize = 400;
+const THROUGH_TRIES: usize = 2000;
 
-/// Whether a box's verticals stay parallel (two-point) or meet at a third point (three-point).
+/// Whether a box's verticals stay parallel (two-point) or meet at a third point (three-point);
+/// a long two-point box, one side 2.5 to 4 times its shortest (V大's long, flat or tall, S142);
+/// a three-point box of proportions up to 3.5 to 1 drawn through, its hidden edges asked too
+/// (Drawabox's drawing through, S142).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BoxView {
     TwoPoint,
     ThreePoint,
+    Long,
+    Through,
 }
 
 impl BoxView {
-    pub const ALL: [Self; 2] = [Self::TwoPoint, Self::ThreePoint];
-}
+    pub const ALL: [Self; 4] = [Self::TwoPoint, Self::ThreePoint, Self::Long, Self::Through];
 
-/// Where a free-boxes page's horizon lies (V大: a low horizon sees the boxes from below, a high
-/// one from above).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Horizon {
-    Low,
-    Middle,
-    High,
-}
-
-impl Horizon {
-    pub const ALL: [Self; 3] = [Self::Low, Self::Middle, Self::High];
-
-    /// Its height in the frame, down from the top.
-    #[must_use]
-    pub const fn height(self) -> f64 {
-        match self {
-            Self::Low => 0.72,
-            Self::Middle => 0.5,
-            Self::High => 0.28,
-        }
+    const fn three_point(self) -> bool {
+        matches!(self, Self::ThreePoint | Self::Through)
     }
 }
 
@@ -137,41 +145,50 @@ pub const EDGES: [(usize, usize, Direction); 12] = [
     (3, 7, Direction::Left),
 ];
 
-/// Where a box lies against the eye's level: below it (its top seen), across it, above it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Place {
-    Below,
-    Across,
-    Above,
-}
-
 impl PerspectiveBox {
     /// The box `view` and `seed` make: laid from the seed's sequence until it keeps every rule.
     #[must_use]
     pub fn generate(view: BoxView, seed: u64) -> Self {
-        Self::kept(view, seed, None)
+        Self::kept(view, seed, None).0
     }
 
-    /// A two-point box on a page whose horizon lies at `horizon`, smaller (one of a few), seen
-    /// from below under a low horizon and from above under a high one: a free-boxes page's
-    /// example.
+    /// The width, height and depth in the world of the box `view` and `seed` make.
+    #[must_use]
+    pub fn proportions(view: BoxView, seed: u64) -> [f64; 3] {
+        Self::kept(view, seed, None).1
+    }
+
+    /// A box on a page whose horizon lies at `horizon`, smaller (one of a few): a free-boxes
+    /// page's example. Two-point, seen from below under a low horizon and from above under a high
+    /// one; three-point where the page's eye looks down or up, its third point the page's.
     #[must_use]
     pub fn on_horizon(horizon: Horizon, seed: u64) -> Self {
-        Self::kept(BoxView::TwoPoint, seed, Some(horizon))
+        let view = match horizon.look() {
+            Look::Level => BoxView::TwoPoint,
+            Look::Down | Look::Up => BoxView::ThreePoint,
+        };
+        Self::kept(view, seed, Some(horizon)).0
     }
 
-    fn kept(view: BoxView, seed: u64, page: Option<Horizon>) -> Self {
+    fn kept(view: BoxView, seed: u64, page: Option<Horizon>) -> (Self, [f64; 3]) {
         let mut random = Random::new(seed);
         let mut last = None;
-        for _ in 0..TRIES {
-            if let Some(laid) = Self::laid(view, &mut random, page) {
-                if laid.keeps(page.is_none()) {
-                    return laid;
+        // A box drawn through keeps its hidden corner clear too: one laid in a hundred or so.
+        let tries = if view == BoxView::Through {
+            THROUGH_TRIES
+        } else {
+            TRIES
+        };
+        for _ in 0..tries {
+            if let Some((laid, sides)) = Self::laid(view, &mut random, page) {
+                let through = view != BoxView::Through || laid.drawn_through();
+                if laid.keeps(page.is_none()) && through {
+                    return (laid, sides);
                 }
-                last = Some(laid);
+                last = Some((laid, sides));
             }
         }
-        last.unwrap_or_else(Self::plain)
+        last.unwrap_or_else(|| (Self::plain(), [1.0; 3]))
     }
 
     /// A plain two-point box, the generator's last resort (never met by a seed tested).
@@ -194,39 +211,69 @@ impl PerspectiveBox {
         }
     }
 
-    /// One box laid from `random`, fitted in the frame (none when the eye cannot see it whole).
-    fn laid(view: BoxView, random: &mut Random, page: Option<Horizon>) -> Option<Self> {
-        let pitch = match view {
-            BoxView::TwoPoint => 0.0,
-            BoxView::ThreePoint => random.sign() * random.range(12.0, 26.0).to_radians(),
+    /// One box laid from `random`, fitted in the frame (none when the eye cannot see it whole),
+    /// with its sides in the world. A three-point page's eye looks as the page says.
+    fn laid(view: BoxView, random: &mut Random, page: Option<Horizon>) -> Option<(Self, [f64; 3])> {
+        let pitch = if view.three_point() {
+            let sign = random.sign();
+            let sign = match page.map(Horizon::look) {
+                Some(Look::Down) => -1.0,
+                Some(Look::Up) => 1.0,
+                _ => sign,
+            };
+            sign * random.range(12.0, 26.0).to_radians()
+        } else {
+            0.0
         };
         let yaw = random.range(25.0, 65.0).to_radians();
-        let size = [0; 3].map(|_| random.range(0.6, 1.5));
+        let size = sides(view, random);
         let depth = random.range(2.6, 5.5);
         let across = random.range(-0.2, 0.2) * depth;
-        let up = match view {
-            BoxView::TwoPoint => level(place(random.unit(), page), size[1], random),
-            BoxView::ThreePoint => random.range(-0.15, 0.15) * depth,
+        let up = if view.three_point() {
+            random.range(-0.15, 0.15) * depth
+        } else {
+            level(place(random.unit(), page), size[1], random)
         };
         let eye = Eye { pitch };
         let world = eye.to_world([across, up, depth]);
         let corners = box_corners(world, yaw, size);
         let below = corners.iter().all(|c| c[1] < 0.0);
         let above = corners.iter().all(|c| c[1] > 0.0);
-        let seen = match view {
-            BoxView::TwoPoint => true,
-            BoxView::ThreePoint => (pitch < 0.0 && below) || (pitch > 0.0 && above),
-        };
+        let seen = !view.three_point() || (pitch < 0.0 && below) || (pitch > 0.0 && above);
         let image: Vec<Point> = corners.iter().filter_map(|c| eye.image(*c)).collect();
         let image: [Point; 8] = image.try_into().ok().filter(|_| seen)?;
         let directions = directions(yaw);
         let vanishing = directions.map(|d| eye.vanishing(d));
-        let side = match page {
-            Some(_) => random.range(0.3, 0.4),
-            None => random.range(0.48, 0.6),
+        let side = match (page, view) {
+            (Some(_), _) => random.range(0.3, 0.4),
+            (None, BoxView::Long) => random.range(0.55, 0.68),
+            (None, _) => random.range(0.48, 0.6),
         };
         let shift = [random.range(-0.04, 0.04), random.range(-0.04, 0.04)];
-        Some(fitted(image, (pitch.tan(), vanishing), (side, shift), page))
+        let laid = fitted(image, (pitch.tan(), vanishing), (side, shift), page);
+        Some((laid, size))
+    }
+
+    /// Whether, drawn through, its hidden corner lies clear inside it: the corner and each hidden
+    /// edge's middle at least `CLEAR` from every visible edge.
+    fn drawn_through(&self) -> bool {
+        let edges = self.edges();
+        let hidden = self.hidden();
+        let seen: Vec<[Point; 2]> = (edges.iter().zip(hidden))
+            .filter(|(_, hidden)| !hidden)
+            .map(|((a, b, _), _)| [*a, *b])
+            .collect();
+        let clear = |p: Point| {
+            (seen.iter()).all(|[a, b]| distance(p, nearest_on_segment(*a, *b, p)) >= CLEAR)
+        };
+        let far = (0..8).find(|corner| {
+            (EDGES.iter().zip(hidden))
+                .all(|((a, b, _), hidden)| hidden || (a != corner && b != corner))
+        });
+        let middles = (edges.iter().zip(hidden))
+            .filter(|(_, hidden)| *hidden)
+            .all(|((a, b, _), _)| clear([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]));
+        far.is_some_and(|corner| clear(self.corners[corner])) && middles
     }
 
     /// Whether it keeps every rule: inside the frame, its vanishing points at sane distances,
@@ -321,29 +368,20 @@ impl PerspectiveBox {
     }
 }
 
-/// Where a box goes against the eye's level, from `roll` (0 to 1) and the page's horizon.
-pub(crate) fn place(roll: f64, page: Option<Horizon>) -> Place {
-    let [below, across] = match page {
-        None => [0.45, 0.75],
-        Some(Horizon::High) => [0.7, 1.0],
-        Some(Horizon::Low) => [0.0, 0.3],
-        Some(Horizon::Middle) => [0.4, 0.6],
-    };
-    if roll < below {
-        Place::Below
-    } else if roll < across {
-        Place::Across
-    } else {
-        Place::Above
-    }
-}
-
-/// A box's middle's height against the eye, for a box `height` high placed so.
-pub(crate) fn level(place: Place, height: f64, random: &mut Random) -> f64 {
-    match place {
-        Place::Below => -(height / 2.0 + random.range(0.1, 1.0)),
-        Place::Across => random.range(-0.3, 0.3) * height,
-        Place::Above => height / 2.0 + random.range(0.1, 0.8),
+/// A box's width, height and depth in the world: each 0.6 to 1.5 (two- and three-point); a long
+/// box's longest `LONGEST`, `LONG` times its shortest, the third between them, in any of `ORDERS`
+/// (a plank lying, a slab, a tower); a box drawn through each 0.45 to 1.6 (up to 3.5 to 1).
+fn sides(view: BoxView, random: &mut Random) -> [f64; 3] {
+    match view {
+        BoxView::TwoPoint | BoxView::ThreePoint => [0; 3].map(|_| random.range(0.6, 1.5)),
+        BoxView::Through => [0; 3].map(|_| random.range(0.45, 1.6)),
+        BoxView::Long => {
+            let longest = random.range(LONGEST[0], LONGEST[1]);
+            let shortest = longest / random.range(LONG[0], LONG[1]);
+            let middle = random.range(shortest, longest);
+            let order = ORDERS[(random.next_u64() % 6) as usize];
+            order.map(|k| [shortest, middle, longest][k])
+        }
     }
 }
 

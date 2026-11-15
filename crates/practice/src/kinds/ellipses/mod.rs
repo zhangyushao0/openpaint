@@ -2,8 +2,9 @@
 //! exact ellipse are `geometry/ellipse.rs`; its How `demo.rs`.
 //!
 //! A lesson (an ellipse about a minute): the first level four, in a plain frame and in a square
-//! in perspective by turns, the second five, three of them in perspective,
-//! the third five in perspective, whose tilt and roundness the plane sets.
+//! in perspective by turns, the second five, three of them in perspective, the third five, three
+//! in perspective, whose tilt and roundness the plane sets, and two in a plain frame turned
+//! (S142), so the ellipse's axes are not the hand's habit.
 
 pub(crate) mod demo;
 pub(crate) mod ellipse_check;
@@ -25,7 +26,9 @@ use std::sync::Arc;
 pub(crate) struct Ellipses;
 
 const FACTS: [Facts; 1] = [Facts::of("ellipse", ToolSet::DRAWING, 60).constructed()];
-/// The first level's ellipses; the others'.
+/// The guides the first level turns through (`Guide::ALL` before S142), and how many it lays; the
+/// others' ellipses.
+const FIRST_GUIDES: [Guide; 2] = [Guide::Frame, Guide::Plane];
 const FIRST: usize = 4;
 const SECOND: [Guide; 5] = [
     Guide::Plane,
@@ -34,7 +37,13 @@ const SECOND: [Guide; 5] = [
     Guide::Frame,
     Guide::Plane,
 ];
-const THIRD: [Guide; 5] = [Guide::Plane; 5];
+const THIRD: [Guide; 5] = [
+    Guide::Plane,
+    Guide::Turned,
+    Guide::Plane,
+    Guide::Turned,
+    Guide::Plane,
+];
 
 impl Described for Ellipses {
     fn code(&self) -> u8 {
@@ -71,7 +80,7 @@ impl Described for Ellipses {
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         match level {
-            SkillLevel::First => turned((&Guide::ALL, FIRST), turn, Kind::Ellipse),
+            SkillLevel::First => turned((&FIRST_GUIDES, FIRST), turn, Kind::Ellipse),
             SkillLevel::Second => laid(SECOND.map(Kind::Ellipse)),
             SkillLevel::Third => laid(THIRD.map(Kind::Ellipse)),
         }

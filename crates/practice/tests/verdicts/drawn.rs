@@ -46,6 +46,42 @@ fn an_ellipse_is_clean_near_with_one_finding_redo_with_more_incomplete_unfitted(
     assert_eq!(checked(&exercise, vec![quarter]), Verdict::Incomplete);
 }
 
+/// S142: an ellipse in a turned frame is judged as in an upright one; drawn upright, as the hand
+/// is used to, it misses the frame's middles.
+#[test]
+fn a_turned_frame_s_ellipse_is_clean_on_its_answer_and_off_drawn_upright() {
+    let mut judged = 0;
+    for seed in 0..40 {
+        let exercise = Exercise::generated(Kind::Ellipse(Guide::Turned), seed);
+        let guide = *exercise
+            .original()
+            .downcast::<EllipseGuide>()
+            .expect("a frame");
+        let exact = guide.exact;
+        if exact.roundness() > 0.8 {
+            continue;
+        }
+        judged += 1;
+        let round = |e: Ellipse| steady(vec![e.outline(200)], 1);
+        assert_eq!(
+            checked(&exercise, round(exact)),
+            Verdict::App(Clean),
+            "{seed}"
+        );
+        let upright = checked(
+            &exercise,
+            round(Ellipse {
+                angle: 0.0,
+                ..exact
+            }),
+        );
+        assert!(matches!(upright, Verdict::App(Near | Redo)), "{seed}");
+        let quarter: Vec<Point> = exact.outline(200).into_iter().take(50).collect();
+        assert_eq!(checked(&exercise, vec![quarter]), Verdict::Incomplete);
+    }
+    assert!(judged >= 15, "{judged}");
+}
+
 /// `exercise`'s answer as a hand draws it, moved by `by`.
 fn answer_moved(exercise: &Exercise, by: Point) -> Vec<Vec<Point>> {
     let answer = exercise.original().answer();

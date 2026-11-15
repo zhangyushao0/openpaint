@@ -13,12 +13,14 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 24] = [
+const STEPS: [(Kind, usize); 26] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
     (Kind::Box(BoxView::ThreePoint), 4),
     (Kind::FreeBoxes(Horizon::Middle), 5),
+    (Kind::FreeBoxes(Horizon::HighDown), 5),
+    (Kind::FreeBoxes(Horizon::LowUpBare), 5),
     (Kind::Ellipse(Guide::Plane), 5),
     (Kind::Flat(Estimate::Point), 4),
     (Kind::Flat(Estimate::Proportion), 4),
@@ -145,7 +147,7 @@ fn the_steps_draw_with_the_pencil_and_the_ink_before_compare_shows_red() {
         let drawn_in = |pen: Marker| demo.marks.iter().any(|m| m.pen == pen && m.to > 0.0);
         // Free boxes have no exact answer; a combination's original lies faint over the copy.
         let red = drawn_in(Marker::Answer) || drawn_in(Marker::Faint);
-        assert!(red || kind == Kind::FreeBoxes(Horizon::Middle), "{kind:?}");
+        assert!(red || matches!(kind, Kind::FreeBoxes(_)), "{kind:?}");
         // A division's lines are its levels' pens' (S95).
         let levels = (demo.marks.iter()).any(|m| matches!(m.pen, Marker::Level(_)) && m.to > 0.0);
         let inked = drawn_in(Marker::Ink) || (kind == Kind::Division(Tier::Simple) && levels);

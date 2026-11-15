@@ -22,12 +22,18 @@ fn passing([from, to]: [Point; 2], p: Point) -> (f64, f64) {
     (long - along, off)
 }
 
+/// The box and free pages whose demonstrations show a box in perspective: two-point, and (S142)
+/// three-point looking down and up.
+const BOXES: [Kind; 4] = [
+    Kind::Box(BoxView::ThreePoint),
+    Kind::FreeBoxes(Horizon::Middle),
+    Kind::FreeBoxes(Horizon::HighDown),
+    Kind::FreeBoxes(Horizon::LowUp),
+];
+
 #[test]
 fn a_box_s_compare_rings_its_points_and_runs_on_only_the_edge_drawn_off() {
-    for kind in [
-        Kind::Box(BoxView::ThreePoint),
-        Kind::FreeBoxes(Horizon::Middle),
-    ] {
+    for kind in BOXES {
         let demo = demo(kind);
         let red_rings: Vec<Point> = (demo.marks.iter())
             .filter_map(|m| match m.drawn {
@@ -188,10 +194,7 @@ fn a_scale_of_nine_is_numbered_and_painted_a_round_at_a_time() {
 
 #[test]
 fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
-    for kind in [
-        Kind::Box(BoxView::ThreePoint),
-        Kind::FreeBoxes(Horizon::Middle),
-    ] {
+    for kind in BOXES {
         let demo = demo(kind);
         assert_eq!(demo.layout, DemoLayout::Wide);
         let rings: Vec<Point> = (demo.marks.iter())
@@ -208,6 +211,26 @@ fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
                 "{kind:?}: {x}"
             );
             assert!((0.0..=1.0).contains(&y), "{kind:?}: {y}");
+        }
+        // A three-point page's example gives its guides beside its horizon (S142), meeting
+        // below the horizon looking down, above looking up.
+        let given: Vec<[Point; 2]> = (demo.marks.iter())
+            .filter(|m| m.to == 0.0 && m.pen == Marker::Guide)
+            .filter_map(|m| match &m.drawn {
+                Drawn::Line(points) => Some([points[0], points[points.len() - 1]]),
+                _ => None,
+            })
+            .collect();
+        let horizon = given[0][0][1];
+        match kind {
+            Kind::FreeBoxes(Horizon::HighDown | Horizon::LowUp) => {
+                assert_eq!(given.len(), 3, "{kind:?}");
+                let meet = openpaint_practice::meet(given[1], given[2]).expect("they meet");
+                let below = kind == Kind::FreeBoxes(Horizon::HighDown);
+                assert_eq!(meet[1] > horizon + 1.0, below, "{kind:?}: {meet:?}");
+                assert_eq!(meet[1] < horizon - 1.0, !below, "{kind:?}: {meet:?}");
+            }
+            _ => assert_eq!(given.len(), 1, "{kind:?}: the horizon alone"),
         }
     }
 }

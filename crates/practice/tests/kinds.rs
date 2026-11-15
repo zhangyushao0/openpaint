@@ -94,7 +94,8 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
             .filter(|k| k.facts().key == facts.key);
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
-    assert_eq!(topics().len(), 27);
+    // Free boxes looking down and up are topics of their own (S142).
+    assert_eq!(topics().len(), 29);
     // The retired generated combinations go by the combinations' topic.
     let generated = Kind::Areas(Arrangement::ALL[0]).facts();
     assert_eq!(generated, Kind::Crop(Tier::Simple).facts());
@@ -133,8 +134,8 @@ fn a_topic_s_facts_say_what_it_is() {
         );
     }
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
-    // The twelve built from given parts, and the free scribble's one frame (S122).
-    assert_eq!(constructed.count(), 13);
+    // The fourteen built from given parts, and the free scribble's one frame (S122).
+    assert_eq!(constructed.count(), 15);
 }
 
 /// A pack of `kind` pictures, four of each of `tiers`, with value masses that read and areas.
@@ -273,7 +274,7 @@ fn every_skill_at_every_level_lays_a_few_minutes_that_generate_print_and_compare
         if key != "key-shift" {
             assert_ne!(levels[0], levels[1], "{key}: the second level");
         }
-        if !["box", "key-shift"].contains(&key) {
+        if key != "key-shift" {
             assert_ne!(levels[1], levels[2], "{key}: the third level");
         }
     }

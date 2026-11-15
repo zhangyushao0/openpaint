@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::geometry::perspective::PerspectiveBox;
 use crate::kinds::DrawnCopy;
-use crate::kinds::boxes::perspective_check::BoxCheck;
+use crate::kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, THROUGH_TO_ADD};
 use crate::marks::card::{CardItem, Say};
 use crate::marks::compared::{Compared, Seen, Verdict};
 use crate::marks::drawing::{counted, edges_of, off_marks, run_on, segment};
@@ -23,19 +23,31 @@ pub(crate) fn givens(exact: &PerspectiveBox) -> Vec<SheetMark> {
     std::iter::once(horizon).chain(given).collect()
 }
 
-/// A completed box compared.
+/// A completed box compared: the edges it is complete with beside the three given (nine for a
+/// box drawn through).
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoxCompared {
     pub exact: PerspectiveBox,
     pub check: BoxCheck,
+    pub to_add: usize,
 }
 
 impl BoxCompared {
     pub fn of(exact: &PerspectiveBox, copy: &DrawnCopy) -> Arc<dyn Compared> {
+        Self::adding(exact, EDGES_TO_ADD, copy)
+    }
+
+    /// A box drawn through, its hidden edges too.
+    pub fn through(exact: &PerspectiveBox, copy: &DrawnCopy) -> Arc<dyn Compared> {
+        Self::adding(exact, THROUGH_TO_ADD, copy)
+    }
+
+    fn adding(exact: &PerspectiveBox, to_add: usize, copy: &DrawnCopy) -> Arc<dyn Compared> {
         let check = BoxCheck::of(exact, &edges_of(copy));
         Arc::new(Self {
             exact: *exact,
             check,
+            to_add,
         })
     }
 }
@@ -80,6 +92,6 @@ impl Compared for BoxCompared {
     }
 
     fn verdict(&self) -> Verdict {
-        self.check.verdict(&self.exact)
+        self.check.verdict(&self.exact, self.to_add)
     }
 }

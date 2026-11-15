@@ -1,5 +1,6 @@
 //! Ellipses (S84): Drawabox's tables of ellipses and V大's cylinder in a box. A guide is a plain
-//! frame (a table's cell, upright) or a square in perspective (a box's face, a cylinder's top);
+//! frame (a table's cell, upright or turned, S142) or a square in perspective (a box's face, a
+//! cylinder's top);
 //! the ellipse that fits it touches the middle of each side, in perspective the middles as the
 //! eye sees them (found through the diagonals' crossing, V大), so the exact ellipse is the image of
 //! the circle inscribed in the square: its conic carried through the homography from the square
@@ -16,6 +17,9 @@ const INSIDE: f64 = 0.06;
 const SIDE: f64 = 0.15;
 /// The exact ellipse's roundness (minor over major) at least and at most: about 15 to 76 degrees.
 const ROUNDNESS: [f64; 2] = [0.26, 0.97];
+/// A turned frame's turn either way (degrees), its long side's least and most (S142).
+const TURN: [f64; 2] = [15.0, 75.0];
+const TURNED_SIDE: [f64; 2] = [0.36, 0.58];
 /// A point's distance from an ellipse: its parameter searched at this many even steps, then
 /// refined by this many of Newton's.
 const SEARCH: usize = 16;
@@ -151,10 +155,13 @@ pub enum Guide {
     Frame,
     /// A square in perspective: a box's face or a cylinder's top.
     Plane,
+    /// A plain frame turned 15 to 75 degrees either way, so the ellipse's axes are not the
+    /// hand's habit (S142).
+    Turned,
 }
 
 impl Guide {
-    pub const ALL: [Self; 2] = [Self::Frame, Self::Plane];
+    pub const ALL: [Self; 3] = [Self::Frame, Self::Plane, Self::Turned];
 }
 
 /// A guide and the ellipse that fits it: its four corners round it, the exact ellipse and where
@@ -176,6 +183,7 @@ impl EllipseGuide {
             let laid = match guide {
                 Guide::Frame => Some(frame(&mut random)),
                 Guide::Plane => plane(&mut random),
+                Guide::Turned => Some(turned(&mut random)),
             };
             if let Some(laid) = laid {
                 if laid.keeps() {
@@ -240,6 +248,19 @@ fn frame(random: &mut Random) -> EllipseGuide {
     let [x0, y0] = [middle[0] - width / 2.0, middle[1] - height / 2.0];
     let [x1, y1] = [x0 + width, y0 + height];
     square_on([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+}
+
+/// A plain frame turned `TURN` either way about its middle, small enough to keep inside.
+fn turned(random: &mut Random) -> EllipseGuide {
+    let long = random.range(TURNED_SIDE[0], TURNED_SIDE[1]);
+    let short = long * random.range(ROUNDNESS[0], 1.0);
+    let (sin, cos) = (random.sign() * random.range(TURN[0], TURN[1]).to_radians()).sin_cos();
+    let middle = [0, 1].map(|_| 0.5 + random.range(-0.04, 0.04));
+    let corners = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[s, t]| {
+        let [x, y] = [s * long / 2.0, t * short / 2.0];
+        [middle[0] + x * cos - y * sin, middle[1] + x * sin + y * cos]
+    });
+    square_on(corners)
 }
 
 /// A square seen by the eye: a horizontal one above or below it (a cylinder's top), or an

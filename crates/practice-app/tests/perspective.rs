@@ -201,7 +201,7 @@ fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
     let practice = session.projection();
     assert_eq!(practice.kind, Some(Kind::FreeBoxes(Horizon::Middle)));
     let frame = practice.sheet.pairs[1].copy;
-    let Some(FreePage(example)) = practice
+    let Some(FreePage(example, _)) = practice
         .original
         .as_deref()
         .expect("in hand")

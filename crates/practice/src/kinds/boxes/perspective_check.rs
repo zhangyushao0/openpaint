@@ -7,7 +7,9 @@
 //! A box to complete (here): each edge found is taken for the direction whose vanishing point its
 //! line passes nearest (in angle); one that misses it is extended from its end nearer the point to
 //! `PAST` beyond where its line passes nearest it (a three-point box's verticals: the third
-//! point). A two-point vertical has no point: a leaning one gets the true vertical through it.
+//! point). A two-point vertical has no point: a leaning one gets the true vertical through it. A
+//! box drawn through (S142) is read complete only with its three hidden edges too, each checked
+//! as a visible one is.
 //! Free boxes, with no answer but the rules: `free_boxes/perspective_free.rs`.
 
 use crate::geometry::edges::Edge;
@@ -19,8 +21,9 @@ use crate::maths::path::{Point, distance, nearest_on_segment};
 /// An edge is taken for a box's direction only within this angle of it (degrees).
 const TAKEN: f64 = 20.0;
 /// A box to complete from its front corner adds the nine edges it shows less the three given:
-/// fewer read, it is not yet complete.
+/// fewer read, it is not yet complete. A box drawn through adds all twelve less the three given.
 pub const EDGES_TO_ADD: usize = 6;
+pub const THROUGH_TO_ADD: usize = 9;
 /// A near box has at most this many edges missing their vanishing point.
 pub const NEAR_MISSED: usize = 1;
 /// An edge whose middle lies this near a given edge (frame units, two pen widths) redraws it.
@@ -51,16 +54,17 @@ impl BoxCheck {
         self.edges.iter().filter(|edge| !edge.on).count()
     }
 
-    /// Incomplete while fewer than `EDGES_TO_ADD` edges are read beside the three given (an edge
-    /// drawn over a given one is no edge added); clean when no edge misses its vanishing point
-    /// (within `ON_ANGLE`) or leans; near when `NEAR_MISSED` does; else redo.
+    /// Incomplete while fewer than `to_add` edges (`EDGES_TO_ADD`, `THROUGH_TO_ADD`) are read
+    /// beside the three given (an edge drawn over a given one is no edge added); clean when no
+    /// edge misses its vanishing point (within `ON_ANGLE`) or leans; near when `NEAR_MISSED`
+    /// does; else redo.
     #[must_use]
-    pub fn verdict(&self, exact: &PerspectiveBox) -> Verdict {
+    pub fn verdict(&self, exact: &PerspectiveBox, to_add: usize) -> Verdict {
         let given = exact.given();
         let added = (self.edges.iter())
             .filter(|checked| !given.iter().any(|(a, b, _)| along(&checked.edge, [*a, *b])))
             .count();
-        if added < EDGES_TO_ADD {
+        if added < to_add {
             return Verdict::Incomplete;
         }
         Verdict::App(Outcome::counting(self.missed(), NEAR_MISSED))

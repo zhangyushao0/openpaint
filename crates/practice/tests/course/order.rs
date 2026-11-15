@@ -1,9 +1,11 @@
 //! The schedule (S122): the First-prefix rule against the earlier product's drills (a kind's run
-//! of exercises before S122), the next lesson's order, a lesson chosen with its redo.
+//! of exercises before S122), what the first level and the earlier variants lay kept through the
+//! harder variants appended (S142), the next lesson's order, a lesson chosen with its redo.
 
 use openpaint_practice::{
-    BoxView, Carve, Combination, Exercise, Guide, Kind, Learner, Lightness, LineTier, Outcome,
-    Pictures, Purity, ScaleTone, SkillLevel, Standing, Tone, derived, schedule,
+    BoxView, Carve, Combination, EllipseGuide, Exercise, Guide, Horizon, Kind, Learner, Lightness,
+    LineTier, Outcome, PerspectiveBox, Pictures, Purity, ScaleTone, SkillLevel, Standing, Tone,
+    derived, schedule,
 };
 
 use crate::{CLEAN, after, ended, skill};
@@ -78,6 +80,150 @@ fn at_the_first_level_a_lesson_of_one_topic_starts_as_before_s122() {
         first_kinds(&objects, "objects"),
         [Kind::Object(Carve::Round)]
     );
+}
+
+/// `value` folded into the FNV-1a hash `hash`, byte by byte.
+fn fnv(hash: &mut u64, value: u64) {
+    for byte in value.to_le_bytes() {
+        *hash ^= u64::from(byte);
+        *hash = hash.wrapping_mul(0x100_0000_01B3);
+    }
+}
+
+/// `b` folded into `hash`: its corners, horizon, vanishing points (1 for one it lacks), front.
+fn boxed(hash: &mut u64, b: &PerspectiveBox) {
+    for c in b.corners {
+        fnv(hash, c[0].to_bits());
+        fnv(hash, c[1].to_bits());
+    }
+    fnv(hash, b.horizon.to_bits());
+    for v in b.vanishing {
+        match v {
+            Some(p) => {
+                fnv(hash, p[0].to_bits());
+                fnv(hash, p[1].to_bits());
+            }
+            None => fnv(hash, 1),
+        }
+    }
+    fnv(hash, b.front as u64);
+}
+
+/// S142 appended harder variants to the boxes', free pages' and ellipses' lists: every variant
+/// there before lays what it laid at f100347, seed for seed, and so does every first-level lesson
+/// over eight lessons (the hashes taken there, of these same walks).
+#[test]
+fn the_earlier_variants_and_the_first_level_lay_what_they_laid_before_s142() {
+    const START: u64 = 0xCBF2_9CE4_8422_2325;
+    let mut boxes = START;
+    for view in [BoxView::TwoPoint, BoxView::ThreePoint] {
+        (0..300).for_each(|seed| boxed(&mut boxes, &PerspectiveBox::generate(view, seed)));
+    }
+    let mut pages = START;
+    for horizon in [Horizon::Low, Horizon::Middle, Horizon::High] {
+        (0..300).for_each(|seed| boxed(&mut pages, &PerspectiveBox::on_horizon(horizon, seed)));
+    }
+    let mut ellipses = START;
+    for guide in [Guide::Frame, Guide::Plane] {
+        for seed in 0..300 {
+            let g = EllipseGuide::generate(guide, seed);
+            let e = g.exact;
+            let points = g.corners.iter().chain(&g.touches).flatten();
+            let exact = [e.centre[0], e.centre[1], e.axes[0], e.axes[1], e.angle];
+            points
+                .chain(&exact)
+                .for_each(|v| fnv(&mut ellipses, v.to_bits()));
+        }
+    }
+    let hashes = [boxes, pages, ellipses];
+    assert_eq!(
+        hashes,
+        [
+            0xe0a1_c663_dd23_bfd9,
+            0xa8eb_3c6c_664d_7558,
+            0x64b3_bb7a_2c45_7296
+        ],
+        "{hashes:x?}"
+    );
+    let pictures = Pictures::default();
+    let lessons = ["box", "ellipse", "free-boxes"].map(|key| {
+        let (mut learner, mut hash) = (Learner::default(), START);
+        for turn in 0..8 {
+            let standing = Standing {
+                pictures: &pictures,
+                learner: &learner,
+            };
+            let planned = schedule::lesson(skill(key), SkillLevel::First, 11 + turn, &standing);
+            let planned = planned.expect("a lesson");
+            for (exercise, _) in &planned.exercises {
+                let (code, variant) = exercise.kind.code();
+                for value in [u64::from(code), u64::from(variant), exercise.seed] {
+                    fnv(&mut hash, value);
+                }
+            }
+            learner = learner.with(&ended(planned, &[Outcome::Near; 6]));
+        }
+        hash
+    });
+    assert_eq!(
+        lessons,
+        [
+            0x5383_e461_ccc5_e330,
+            0x9ea6_2b3e_b3f1_faeb,
+            0xbd6a_5c7c_dfa7_847f
+        ],
+        "{lessons:x?}"
+    );
+}
+
+/// S142's levels: boxes at 熟练 a three-point box and a long one, at 稳 one drawn through beside a
+/// long or a three-point one; free boxes at 熟练 a page looking down or up with its guides, at 稳
+/// the same bare, one page a lesson; ellipses at 稳 two in turned frames. Lesson by lesson.
+#[test]
+fn boxes_pages_and_ellipses_lay_their_harder_variants_at_the_upper_levels() {
+    use BoxView::{Long, ThreePoint, Through};
+    let pictures = Pictures::default();
+    let kinds = |key: &str, level, lessons: usize| -> Vec<Vec<Kind>> {
+        let mut learner = Learner::default();
+        (0..lessons)
+            .map(|_| {
+                let standing = Standing {
+                    pictures: &pictures,
+                    learner: &learner,
+                };
+                let planned = schedule::lesson(skill(key), level, 11, &standing);
+                let kinds = (planned.iter().flat_map(|p| &p.exercises))
+                    .map(|(e, _)| e.kind)
+                    .collect();
+                learner = after(&learner, key, level, &[]);
+                kinds
+            })
+            .collect()
+    };
+    let boxes = |views: &[[BoxView; 2]]| -> Vec<Vec<Kind>> {
+        views.iter().map(|v| v.map(Kind::Box).to_vec()).collect()
+    };
+    let second = boxes(&[[ThreePoint, Long], [Long, ThreePoint], [ThreePoint, Long]]);
+    assert_eq!(kinds("box", SkillLevel::Second, 3), second);
+    let third = boxes(&[[Through, Long], [ThreePoint, Through], [Through, Long]]);
+    assert_eq!(kinds("box", SkillLevel::Third, 3), third);
+    let pages = |horizons: [Horizon; 2]| -> Vec<Vec<Kind>> {
+        (0..3)
+            .map(|k| vec![Kind::FreeBoxes(horizons[k % 2])])
+            .collect()
+    };
+    let guided = pages([Horizon::HighDown, Horizon::LowUp]);
+    assert_eq!(kinds("free-boxes", SkillLevel::Second, 3), guided);
+    let bare = pages([Horizon::HighDownBare, Horizon::LowUpBare]);
+    assert_eq!(kinds("free-boxes", SkillLevel::Third, 3), bare);
+    let (plane, turned) = (Kind::Ellipse(Guide::Plane), Kind::Ellipse(Guide::Turned));
+    let third = vec![plane, turned, plane, turned, plane];
+    assert_eq!(
+        kinds("ellipse", SkillLevel::Third, 2),
+        [third.clone(), third]
+    );
+    let second = kinds("ellipse", SkillLevel::Second, 1).concat();
+    assert!(!second.contains(&turned), "熟练 unchanged: {second:?}");
 }
 
 #[test]

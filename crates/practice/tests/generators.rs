@@ -4,8 +4,9 @@
 //! low in saturation (the sheet: `sheet.rs`).
 
 use openpaint_practice::{
-    Combination, CombinedLines, Exercise, ItemRef, Kind, Learner, LineExercise, LineTier, Pictures,
-    Purpose, Sheet, SkillLevel, Standing, Tier, Tone, hsv, length, schedule,
+    BoxView, Combination, CombinedLines, Exercise, Guide, Horizon, ItemRef, Kind, Learner,
+    LineExercise, LineTier, Pictures, Purpose, Sheet, SkillLevel, Standing, Tier, Tone, hsv,
+    length, schedule,
 };
 
 #[test]
@@ -254,8 +255,8 @@ fn a_code_past_a_kind_s_variants_reads_as_none() {
     assert_eq!(Kind::of_code(5, 3), None);
     assert_eq!(Kind::of_code(6, 2), None);
     assert_eq!(Kind::of_code(7, 1), None);
-    assert_eq!(Kind::of_code(9, 3), None);
-    assert_eq!(Kind::of_code(10, 2), None);
+    assert_eq!(Kind::of_code(9, 7), None);
+    assert_eq!(Kind::of_code(10, 3), None);
     assert_eq!(Kind::of_code(11, 3), None);
     assert_eq!(Kind::of_code(12, 5), None);
     assert_eq!(Kind::of_code(13, 3), None);
@@ -266,6 +267,10 @@ fn a_code_past_a_kind_s_variants_reads_as_none() {
     // S141's variants appended: their codes come after those stored before.
     assert_eq!(Kind::Line(LineTier::Layered).code(), (1, 5));
     assert_eq!(Kind::Combined(Combination::Cluster).code(), (3, 5));
+    // S142's: a box drawn through, a bare page looking up, a turned frame.
+    assert_eq!(Kind::Box(BoxView::Through).code(), (8, 3));
+    assert_eq!(Kind::FreeBoxes(Horizon::LowUpBare).code(), (9, 6));
+    assert_eq!(Kind::Ellipse(Guide::Turned).code(), (10, 2));
 }
 
 /// The kinds of the `turn`th lesson of the skill keyed `key` at `level` (each lesson before it
