@@ -68,20 +68,23 @@ impl CanvasTarget {
         usize::from(pace.hovering() && pace.promise(self.raster.expected()))
     }
 
-    /// A coverage page of `drawing`'s and every scratch target made now, when they are not.
+    /// A coverage page of `drawing`'s and every scratch target made now (a tile's too), when
+    /// they are not.
     pub(crate) fn made_ahead(
         &mut self,
         core: &Core,
         drawing: &mut Drawing,
     ) -> Result<(), RenderError> {
         let atlas = self.raster_atlas(core)?;
+        self.stroke_atlas(core, true)?;
         let format = core.raster_pipelines()?.atlas;
         drawing.coverage_ahead(core, (format, atlas))?;
         let group = (drawing.base.as_ref()).is_some_and(|base| base.restored.group);
-        match self.raster.targets.as_mut() {
-            Some(targets) => targets.make_every(core, group),
-            None => Ok(()),
+        let raster = &mut self.raster;
+        for targets in raster.targets.iter_mut().chain(raster.small.iter_mut()) {
+            targets.make_every(core, group)?;
         }
+        Ok(())
     }
 
     /// Hands the worker snapshots of `drawing`'s output tiles `tiles` (an output at `scale`), in

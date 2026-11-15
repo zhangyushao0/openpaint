@@ -194,6 +194,24 @@ impl CanvasTarget {
         Ok((self.raster.targets.as_ref()).map_or([0; 2], RasterTargets::atlas))
     }
 
+    /// The atlas of the targets a stroke's frame draws with: a tile's (regions of up to a view
+    /// tile a side, an atlas holding four of them), made on first use, when `small`, else the
+    /// frame loop's.
+    pub(crate) fn stroke_atlas(
+        &mut self,
+        core: &Core,
+        small: bool,
+    ) -> Result<[u32; 2], RenderError> {
+        if !small {
+            return self.raster_atlas(core);
+        }
+        if self.raster.small.is_none() {
+            let targets = RasterTargets::new(core, [TIER_TILE; 2], 2 * TIER_TILE)?;
+            self.raster.small = Some(targets);
+        }
+        Ok((self.raster.small.as_ref()).map_or([0; 2], RasterTargets::atlas))
+    }
+
     /// Draws `plans` of the scene the last draw drew (the canvas's own regions, or its view
     /// tiers' changes), its residuals as `held` holds them, with the frame loop's
     /// raster targets, into `into` (its format) on `paper`; each waited for when the target's

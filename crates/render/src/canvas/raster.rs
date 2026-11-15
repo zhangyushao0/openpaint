@@ -49,8 +49,11 @@ pub(crate) struct CanvasRaster {
     staging: Option<(wgpu::Texture, wgpu::TextureView)>,
     /// The canvas texture as the raster core draws into it.
     pub(crate) view: wgpu::TextureView,
-    /// The frame loop's targets, for the canvas and its view tiers.
+    /// The frame loop's targets, for the canvas and its view tiers; and a tile's, which a
+    /// stroke's frame draws with when its regions fit them: a GPU that draws in tiles loads and
+    /// stores a render pass's whole attachment, 16 MiB a pass of the large ones (S134).
     pub(crate) targets: Option<RasterTargets>,
+    pub(crate) small: Option<RasterTargets>,
     /// When the targets last drew (the frame clock's seconds), and whether they drew since the
     /// view tiers last looked (`ViewCache::update` stamps it).
     pub(crate) used_at: f64,
@@ -76,6 +79,7 @@ impl CanvasRaster {
             staging: None,
             view: texture.create_view(&Default::default()),
             targets: None,
+            small: None,
             used_at: 0.0,
             drew: false,
             orders: Vec::new(),
@@ -174,7 +178,10 @@ impl CanvasRaster {
     /// Bytes of the targets, the staging texture and the worker's targets.
     pub(crate) fn bytes(&self) -> u64 {
         let staging = self.staging().map_or(0, texture_bytes);
-        self.targets.as_ref().map_or(0, RasterTargets::bytes) + staging + self.drawer
+        let targets: u64 = (self.targets.iter().chain(&self.small))
+            .map(RasterTargets::bytes)
+            .sum();
+        targets + staging + self.drawer
     }
 
     /// Lets the targets go, the staging texture once nothing is drawn into it, and the worker's
@@ -182,6 +189,7 @@ impl CanvasRaster {
     pub(crate) fn let_go(&mut self) -> u64 {
         let bytes = self.bytes();
         self.targets = None;
+        self.small = None;
         if self.handed.is_empty() && self.done.is_empty() {
             self.staging = None;
         }

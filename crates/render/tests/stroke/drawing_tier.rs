@@ -12,7 +12,7 @@ use std::sync::Arc;
 use openpaint_core::{Artwork, BrushRecipe, Color, StrokeSample, StrokeStyle, StrokeTool, Taper};
 use openpaint_render::{changed_regions, take_spent, thumbnail_reference, thumbnail_size};
 
-use crate::drawing::{begun, committed, path, screen, shows};
+use crate::drawing::{begun, committed, draws, path, screen, shows};
 use crate::fixture::{SIZE, cold, core, graphite, pixel, plain, sample};
 use crate::raster::{color, every_raster_source};
 use crate::scale::whole;
@@ -138,6 +138,44 @@ fn a_frame_crossing_tier_tiles_is_one_chain_and_each_tile_its_export() {
     let lifted = session.finish().artwork;
     screen.frame(&core, (&lifted, None), &[], &view);
     shows(&screen, &lifted, Some(2), "lifted");
+}
+
+/// A stroke's frames draw with a tile's targets and finish through one: no render pass of theirs
+/// loads or stores more than a tile's float target (a GPU drawing in tiles pays a pass's whole
+/// attachment, S134), at fit and at a tier; every frame the canvas drawn cold, or every ready
+/// tile of the tier its export.
+#[test]
+fn a_strokes_frames_pass_over_a_tiles_targets_alone() {
+    let core = core();
+    let base = every_raster_source();
+    let style = plain(9.0, 0.8, color(0.3, 0.6, 0.2));
+    let samples = path(CENTRE, 40.0, 16);
+    // A tile's float target, at most 16 bytes a texel.
+    let tile = 256 * 256 * 16;
+    for (zoom, scale) in [(1.0, None), (ZOOM, Some(2))] {
+        let (mut screen, view) = screen(&base, (zoom, CENTRE));
+        let mut session = begun(&base, (&style, &samples[..1]), None);
+        let _ = take_spent();
+        for end in 2..=samples.len() {
+            session.extend(&samples[end - 1..end]).expect("extend");
+            screen.frame(&core, (&base, Some(session.active())), &[], &view);
+            let spent = take_spent();
+            let attached = spent.canvas.attached.plus(spent.tier.attached);
+            let most = 2 * tile * u64::from(attached.passes);
+            assert!(attached.passes > 0, "at {zoom}x the frame drew");
+            assert!(
+                attached.loaded + attached.stored <= most,
+                "at {zoom}x after {end} samples: {attached:?}"
+            );
+            let so_far = committed(&base, (&style, &samples[..end]), None);
+            draws(
+                &screen,
+                &so_far,
+                scale,
+                &format!("at {zoom}x after {end} samples"),
+            );
+        }
+    }
 }
 
 /// A stroke from the shown tiles into the ring and back: a frame reaching a tile the tier cannot

@@ -42,13 +42,18 @@ impl CanvasTarget {
         self.raster_atlas(core)?;
         let capacity = (self.raster.targets.as_ref()).map_or([TIER_TILE; 2], |t| t.capacity());
         let (regions, skipped) = regions(changed, (onto, size), capacity)?;
+        // A tile's targets when every region fits them (a snapshot part is a tile).
+        let small =
+            (regions.iter()).all(|region| region.size().iter().all(|side| *side <= TIER_TILE));
         let mut work = StrokeWork {
             skipped,
+            small,
             ..StrokeWork::default()
         };
         if regions.is_empty() {
             return Ok(work);
         }
+        let atlas = self.stroke_atlas(core, small)?;
         let (needed, resumes) = settle(drawing, &regions, size);
         let base = drawing.base.as_ref().map_or(0, |base| base.at);
         work.snapshots = needed.len();
@@ -64,12 +69,14 @@ impl CanvasTarget {
         self.reach(core, request.artwork, &near)?;
         let paper = paper(request);
         for tile in needed {
-            let part = self.snapshot(core, drawing, (tile, size), (scene, scale, paper))?;
+            let at = (tile, size, atlas);
+            let part = self.snapshot(core, drawing, at, (scene, scale, paper))?;
             batch.push(part);
         }
         for (region, resume) in regions.into_iter().zip(resumes) {
             let place = (onto, scene, paper);
-            let part = self.region(core, drawing, (region, size), place, (resume, pen))?;
+            let at = (region, size, atlas);
+            let part = self.region(drawing, at, place, (resume, pen))?;
             batch.push(part);
             work.parts.push(region);
             work.drawn
@@ -80,19 +87,17 @@ impl CanvasTarget {
         Ok(work)
     }
 
-    /// Output pixels `region` of an output of `size` pixels drawn onto `onto` from `resume`: its
-    /// targets set from the snapshots of the tiles it meets when restored, the stroke (`pen`)
-    /// from its kept coverage there.
+    /// Output pixels `region` of an output of `size` pixels drawn onto `onto` from `resume`, with
+    /// an atlas of `atlas` pixels: its targets set from the snapshots of the tiles it meets when
+    /// restored, the stroke (`pen`) from its kept coverage there.
     fn region<'a>(
-        &mut self,
-        core: &Core,
+        &self,
         drawing: &Drawing,
-        (region, size): (PixelRect, [u32; 2]),
+        (region, size, atlas): (PixelRect, [u32; 2], [u32; 2]),
         (onto, scene, paper): (&Onto<'a>, &Scene, [f32; 4]),
         (resume, pen): (Resume, Option<&Pen>),
     ) -> Result<Part<'a>, RenderError> {
         let held = self.held().ok_or(NO_SCENE)?;
-        let atlas = self.raster_atlas(core)?;
         let min = region.min.map(i32::unsigned_abs);
         let output = Output::at(onto.scale, min)?;
         let side = region.size();
@@ -113,13 +118,14 @@ impl CanvasTarget {
         })
     }
 
-    /// Tile `tile`'s snapshot brought up to the drawing's place: taken from the paper when it has
-    /// none, else the strokes committed since it was taken laid onto it, in place.
+    /// Tile `tile`'s snapshot brought up to the drawing's place, with an atlas of `atlas` pixels:
+    /// taken from the paper when it has none, else the strokes committed since it was taken laid
+    /// onto it, in place.
     fn snapshot<'a>(
         &mut self,
         core: &Core,
         drawing: &mut Drawing,
-        (tile, size): ([u32; 2], [u32; 2]),
+        (tile, size, atlas): ([u32; 2], [u32; 2], [u32; 2]),
         (scene, scale, paper): (&Scene, u32, [f32; 4]),
     ) -> Result<Part<'a>, RenderError> {
         let base = drawing.base.clone().ok_or(NO_SCENE)?;
@@ -127,7 +133,6 @@ impl CanvasTarget {
         let output = Output::at(scale, rect.min.map(i32::unsigned_abs))?;
         let side = rect.size();
         let held = self.held().ok_or(NO_SCENE)?;
-        let atlas = self.raster_atlas(core)?;
         let units = (scene, &held.bases);
         let under = drawing.under.get(&tile).cloned();
         let from = under.as_ref().map(|under| *under.stands.end());

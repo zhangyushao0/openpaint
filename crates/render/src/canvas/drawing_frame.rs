@@ -57,6 +57,8 @@ pub(crate) struct StrokeWork {
     pub(crate) skipped: Vec<[u32; 2]>,
     pub(crate) snapshots: usize,
     pub(crate) laid_again: usize,
+    /// Its regions fit a tile's targets, which it draws with (`CanvasRaster::small`).
+    pub(crate) small: bool,
     pub(crate) attached: Attached,
     pub(crate) spent: StrokeParts,
 }
@@ -321,7 +323,12 @@ impl CanvasTarget {
         let held = self.held().ok_or(NO_SCENE)?;
         let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
         let buffers = SceneBuffers::of(&cache.ops, held);
-        let targets = self.raster.targets.as_mut().ok_or(NO_SCENE)?;
+        let targets = if work.small {
+            &mut self.raster.small
+        } else {
+            &mut self.raster.targets
+        };
+        let targets = targets.as_mut().ok_or(NO_SCENE)?;
         let regions: Vec<Region<'_>> = (batch.iter())
             .map(|part| Region {
                 plan: &part.plan,
