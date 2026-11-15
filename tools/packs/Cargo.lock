@@ -747,7 +747,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "openpaint-app"
-version = "1.23.3"
+version = "1.24.0"
 dependencies = [
  "openpaint-core",
  "toml",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-core"
-version = "1.23.3"
+version = "1.24.0"
 
 [[package]]
 name = "openpaint-packs"
@@ -777,11 +777,11 @@ dependencies = [
 
 [[package]]
 name = "openpaint-practice"
-version = "1.23.3"
+version = "1.24.0"
 
 [[package]]
 name = "openpaint-practice-app"
-version = "1.23.3"
+version = "1.24.0"
 dependencies = [
  "openpaint-app",
  "openpaint-core",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-practice-store"
-version = "1.23.3"
+version = "1.24.0"
 dependencies = [
  "crc32fast",
  "image",
@@ -804,7 +804,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-sheet"
-version = "1.23.3"
+version = "1.24.0"
 dependencies = [
  "image",
  "png",
@@ -812,7 +812,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-store"
-version = "1.23.3"
+version = "1.24.0"
 dependencies = [
  "crc32fast",
  "fjall",
