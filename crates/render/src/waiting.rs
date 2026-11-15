@@ -5,22 +5,39 @@
 
 use crate::geom::PixelRect;
 
-/// Where the screen looks on the canvas, in canvas pixels: its middle and what it shows.
+/// Where the screen looks on the canvas, in canvas pixels: its middle and what it shows; and
+/// where the pen hovers over it, when it does (the snapshots under the next stroke nearest it
+/// are taken first).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Focus {
     pub middle: [f32; 2],
     pub shown: PixelRect,
+    pub pen: Option<[f32; 2]>,
 }
 
 impl Focus {
     /// Where the tile `rect` comes in the order the screen needs tiles: those it shows first,
     /// then by the distance of the tile's middle from its middle.
     pub(crate) fn order(&self, rect: &PixelRect) -> (bool, u64) {
-        let middle = [0, 1].map(|axis| (rect.min[axis] + rect.max[axis]) as f32 / 2.0);
-        let [dx, dy] = [0, 1].map(|axis| middle[axis] - self.middle[axis]);
         let hidden = rect.intersect(&self.shown).is_empty();
-        (hidden, (dx * dx + dy * dy) as u64)
+        (hidden, far(rect, self.middle))
     }
+
+    /// Where the tile `rect` comes in the order the snapshots under the next stroke are taken:
+    /// nearest the hovering pen, else as `order` gives it.
+    pub(crate) fn under_pen(&self, rect: &PixelRect) -> (bool, u64) {
+        match self.pen {
+            Some(pen) => (false, far(rect, pen)),
+            None => self.order(rect),
+        }
+    }
+}
+
+/// The square of the distance from `rect`'s middle to `point`, whole.
+pub(crate) fn far(rect: &PixelRect, point: [f32; 2]) -> u64 {
+    let middle = [0, 1].map(|axis| (rect.min[axis] + rect.max[axis]) as f32 / 2.0);
+    let [dx, dy] = [0, 1].map(|axis| middle[axis] - point[axis]);
+    (dx * dx + dy * dy) as u64
 }
 
 /// The middle moves this many canvas pixels before the order is made again.
@@ -207,6 +224,7 @@ mod tests {
         let focus = Focus {
             middle: [90.0, 40.0],
             shown: rect([64, 32], [100, 50]),
+            pen: None,
         };
         let near = rect([80, 32], [96, 48]);
         assert_eq!(

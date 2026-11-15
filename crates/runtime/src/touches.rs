@@ -3,6 +3,8 @@
 //! over it (a stroke is coming), and for `IDLE_AFTER` after the last of these; once nothing has for
 //! that long, background work runs at the GPU's pace between the frames drawn, the GPU's queue of
 //! it kept within `IDLE_BACKGROUND_NS`, so the first frame of a touch waits for at most that much.
+//! While the pen hovers and no stroke is drawn (`hovering`, where it is), the snapshots under the
+//! next stroke take a job a frame from that `BACKGROUND_NS`: a real pen hovers between strokes.
 //! A hand arriving is seen as its input comes (`Runtime::motion`), not at the next frame: the
 //! raster worker drops the tiles it was handed while nothing touched at once. Times are the
 //! frame clock's (`clock.rs`): real time on a device, the held time in the harness and tests.
@@ -19,6 +21,8 @@ pub(crate) struct Touches {
     last: Option<f64>,
     /// The contacts on the glass or hovering over it now, by device and id.
     on: Vec<(Device, i32)>,
+    /// Where the pen hovers (screen pixels), from its last sample while it does.
+    hover: Option<[f32; 2]>,
 }
 
 impl Touches {
@@ -28,6 +32,10 @@ impl Touches {
         let mut hand = false;
         for contact in batches.iter().flat_map(|batch| &batch.contacts) {
             hand = true;
+            if matches!(contact.device, Device::Pen | Device::Eraser) {
+                let at = contact.samples.last().map(|sample| sample.position);
+                self.hover = at.filter(|_| contact.phase == ContactPhase::Hover);
+            }
             let key = (contact.device, contact.id);
             let here = self.on.iter().position(|on| *on == key);
             match (contact.phase, here) {
@@ -50,6 +58,12 @@ impl Touches {
     /// frame has no input to take, so it may wait for the one before (`pacing.rs`).
     pub(crate) fn resting(&self, drawing: bool) -> bool {
         self.on.is_empty() && !drawing
+    }
+
+    /// Where the pen hovers over the screen (screen pixels) while no stroke is drawn (`drawing`):
+    /// a stroke is coming, near there.
+    pub(crate) fn hovering(&self, drawing: bool) -> Option<[f32; 2]> {
+        self.hover.filter(|_| !drawing)
     }
 
     /// Whether the screen is idle at `now`; `drawing` while a stroke is drawn (a pen held still
@@ -98,13 +112,18 @@ mod tests {
         );
         assert!(!touches.idle(false, 1.4), "a stroke is coming");
         assert!(!touches.resting(false), "the pen is over the glass");
+        assert_eq!(touches.hovering(false), Some([10.0, 10.0]), "there");
+        assert_eq!(touches.hovering(true), None, "but for a stroke drawn");
         touches.saw(&[pen(ContactPhase::Down), pen(ContactPhase::Up)], 1.4);
         assert!(touches.resting(false), "lifted");
+        assert_eq!(touches.hovering(false), None, "on the glass, then lifted");
         assert!(touches.idle(false, 1.9), "half a second after the lift");
         touches.saw(&[pen(ContactPhase::Hover)], 2.0);
         assert!(!touches.resting(false), "hovering again");
+        assert!(touches.hovering(false).is_some());
         touches.saw(&[pen(ContactPhase::Leave)], 2.0);
         assert!(touches.resting(false), "out of range");
+        assert_eq!(touches.hovering(false), None);
         assert!(!touches.resting(true), "but for a stroke drawn");
         let mut drawing = Touches::default();
         assert!(!drawing.idle(true, 1.0), "a pen held still on the glass");

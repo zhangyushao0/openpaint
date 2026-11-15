@@ -1,7 +1,9 @@
 //! The frame budget for background work: what the screen shows waits for no work it can show
 //! without. While the screen is touched, each frame drawn takes, of everything that waits (the
 //! canvas's tiles filling in, a view tier's tiles, a smudge residual being evaluated), only what
-//! its estimates say fits `BACKGROUND_NS` of GPU time; the rest waits for the next frames.
+//! its estimates say fits `BACKGROUND_NS` of GPU time; the rest waits for the next frames. While
+//! the pen hovers and no stroke is drawn (`hover`), the snapshots under the next stroke take one
+//! job a drawing from that share too.
 //!
 //! While nothing touches the screen, a step (a frame drawn, or a frame call skipped while the GPU
 //! is behind) gives background work what keeps the GPU's queue of it within `IDLE_BACKGROUND_NS`
@@ -38,8 +40,10 @@ pub(crate) struct Pace {
     /// The budget a frame gives while the screen is touched, and the queue's most while it is
     /// not.
     budgets: [f64; 2],
-    /// This step is one while nothing touches the screen.
+    /// This step is one while nothing touches the screen; a touched one while the pen hovers
+    /// over it and no stroke is drawn.
     idle: bool,
+    hovering: bool,
     /// What this frame may still give, in measured ns (below 0: owed by the next frames), whether
     /// it had any at its start, and whether it gave anything yet.
     left: f64,
@@ -91,6 +95,7 @@ impl Pace {
         Self {
             budgets: [BACKGROUND_NS, IDLE_BACKGROUND_NS],
             idle: false,
+            hovering: false,
             left: BACKGROUND_NS,
             opened: true,
             untouched: true,
@@ -148,6 +153,7 @@ impl Pace {
             }
         }
         self.idle = queued.is_some();
+        self.hovering = false;
         self.untouched = true;
         (self.spent, self.marked, self.pieces, self.first) = (0.0, 0.0, 0, 0.0);
     }
@@ -155,6 +161,17 @@ impl Pace {
     /// Whether this step is one while nothing touches the screen.
     pub(crate) const fn idle(&self) -> bool {
         self.idle
+    }
+
+    /// This touched step is one while the pen hovers and no stroke is drawn (`hover`).
+    pub(crate) const fn hovering(&self) -> bool {
+        self.hovering
+    }
+
+    /// The pen hovers over the screen this step and no stroke is drawn: a stroke is coming, and
+    /// the snapshots under it are taken from the step's share (an idle step is left as it is).
+    pub(crate) const fn hover(&mut self) {
+        self.hovering = !self.idle;
     }
 
     /// The GPU time of the background work this step gave since the last call, by its corrected

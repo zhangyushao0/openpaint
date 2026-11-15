@@ -1,11 +1,13 @@
 //! Snapshots taken ahead (`drawing.rs`) where the pen can land: the 1x canvas's tiles the screen
 //! shows and a ring of one tile round them (every tile without a view), and the view tier's shown
-//! tiles once they are ready; the others' go. While nothing touches the screen and nothing of the
-//! canvas waits, the raster worker takes the snapshots they lack, or lays the strokes committed
-//! since onto those lacking them, the tiles the screen shows nearest its middle first, a few at a
-//! time, each into slots the drawing holds for it until it is answered (dropped unsubmitted once
-//! a hand arrives, as the worker's other background work), within the snapshots' room in the GPU
-//! memory budget. An answer is kept unless a change reached the tile, or the frame loop brought
+//! tiles once they are ready; the others' go. While no stroke is drawn and nothing of the canvas
+//! waits, the raster worker takes the snapshots they lack, or lays the strokes committed since
+//! onto those lacking them: while nothing touches the screen a few at a time, the tiles the
+//! screen shows nearest its middle first (dropped unsubmitted once a hand arrives, as the
+//! worker's other background work); while the pen hovers between strokes one a frame a drawing
+//! from the frame's share, nearest the pen first (a real pen hovers until it lands, so nothing
+//! would be idle). Each goes into slots the drawing holds for it until it is answered, within
+//! the snapshots' room in the GPU memory budget. An answer is kept unless a change reached the tile, or the frame loop brought
 //! its snapshot up first; so the first frames of a stroke find what lies under it and take no
 //! snapshot. What a stroke's frames draw with (a coverage page, the scratch targets) is made
 //! ahead too.
@@ -27,8 +29,9 @@ use crate::waiting::Focus;
 pub(crate) const TAKING: usize = 4;
 
 impl CanvasTarget {
-    /// Hands the worker the next snapshots the canvas's tiles want, while nothing touches the
-    /// screen and no stroke is drawn.
+    /// Hands the worker the next snapshots the canvas's tiles want while no stroke is drawn: as
+    /// many as may be taken at once while nothing touches the screen, one a frame from its share
+    /// while the pen hovers (`ahead_now`).
     pub(super) fn snapshots_ahead(
         &mut self,
         core: &Core,
@@ -36,17 +39,33 @@ impl CanvasTarget {
     ) -> Result<(), RenderError> {
         let (focus, size) = (self.focus, self.size());
         self.drawing.keep_only(|tile| lands(focus, size, tile));
-        if !core.pace().idle() || self.drawing.tracking() || self.drawing.base.is_none() {
+        let quiet = {
+            let pace = core.pace();
+            pace.idle() || pace.hovering()
+        };
+        if !quiet || self.drawing.tracking() || self.drawing.base.is_none() {
             return Ok(());
         }
         let mut drawing = std::mem::take(&mut self.drawing);
         let made = self.made_ahead(core, &mut drawing);
-        let wanted = self.wanted_snapshots(&drawing);
+        let mut wanted = self.wanted_snapshots(&drawing);
+        wanted.truncate(self.ahead_now(core, wanted.len()));
         let others = self.bytes().snapshots;
         let handed = made
             .and_then(|()| self.hand_snapshots(core, request, &mut drawing, (1, &wanted, others)));
         self.drawing = drawing;
         handed
+    }
+
+    /// Of `wanted` snapshots a drawing wants taken, how many it hands the worker this step: all
+    /// while nothing touches the screen; while the pen hovers (a stroke is coming), one when the
+    /// frame's share takes it, estimated at what the last tile cost (`Pace::promise`); else none.
+    pub(crate) fn ahead_now(&self, core: &Core, wanted: usize) -> usize {
+        let mut pace = core.pace();
+        if pace.idle() || wanted == 0 {
+            return wanted;
+        }
+        usize::from(pace.hovering() && pace.promise(self.raster.expected()))
     }
 
     /// A coverage page of `drawing`'s and every scratch target made now, when they are not.
@@ -115,15 +134,15 @@ impl CanvasTarget {
     }
 
     /// The tiles whose snapshot `drawing` (the canvas's) wants taken next, as many as may be
-    /// taken at once: where the pen can land (`lands`), those the screen shows first, nearest its
-    /// middle (rows from the top without a view).
+    /// taken at once: where the pen can land (`lands`), nearest the hovering pen first, else
+    /// those the screen shows first, nearest its middle (rows from the top without a view).
     fn wanted_snapshots(&self, drawing: &Drawing) -> Vec<[u32; 2]> {
         let (focus, size) = (self.focus, self.size());
         let [columns, rows] = size.map(|side| side.div_ceil(TIER_TILE));
         let all = (0..rows).flat_map(|row| (0..columns).map(move |column| [column, row]));
         let mut wanted = drawing.wanted(all.filter(|tile| lands(focus, size, *tile)), usize::MAX);
-        if let Some(focus) = self.focus {
-            wanted.sort_by_cached_key(|tile| focus.order(&tile_rect(*tile, self.size())));
+        if let Some(focus) = focus {
+            wanted.sort_by_cached_key(|tile| focus.under_pen(&tile_rect(*tile, size)));
         }
         wanted.truncate(TAKING.saturating_sub(drawing.taking.len()));
         wanted
@@ -139,6 +158,11 @@ impl CanvasTarget {
         drawing.base.is_some()
             && (!drawing.taking.is_empty()
                 || (self.room_for(drawing, others) && !self.wanted_snapshots(drawing).is_empty()))
+    }
+
+    /// Where the pen hovers over the canvas (canvas pixels), when it does.
+    pub(crate) fn hovered(&self) -> Option<[f32; 2]> {
+        self.focus.and_then(|focus| focus.pen)
     }
 
     /// One more snapshot of `drawing`'s keeps the snapshots within the room the GPU memory budget

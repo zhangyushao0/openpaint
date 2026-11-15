@@ -210,6 +210,13 @@ impl Core {
         self.pace().begin(&self.gpu, queued);
     }
 
+    /// This touched frame (after `begin_frame_idle(false)`) is one while the pen hovers over the
+    /// screen and no stroke is drawn: the snapshots under the next stroke where it can land are
+    /// taken ahead from the frame's share, one job a drawing (`canvas/drawing_ahead.rs`).
+    pub fn pen_hovers(&self) {
+        self.pace().hover();
+    }
+
     /// The step's background work is all submitted: its estimated GPU time not marked yet
     /// counts as queued until the GPU has finished it.
     pub fn end_background(&self) {

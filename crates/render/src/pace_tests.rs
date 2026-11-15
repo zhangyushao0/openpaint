@@ -64,3 +64,17 @@ fn a_touched_frame_gives_its_share_and_promises_the_workers_tiles_from_it() {
         "a touched frame's overrun is owed by the next"
     );
 }
+
+#[test]
+fn a_hovering_pen_marks_one_touched_frame_at_a_time() {
+    let core = test_core();
+    let mut pace = Pace::new(&core.gpu);
+    pace.begin(&core.gpu, None);
+    pace.hover();
+    assert!(pace.hovering() && !pace.idle());
+    pace.begin(&core.gpu, None);
+    assert!(!pace.hovering(), "each frame says so anew");
+    pace.begin(&core.gpu, Some(0.0));
+    pace.hover();
+    assert!(pace.idle() && !pace.hovering(), "an idle step stays idle");
+}

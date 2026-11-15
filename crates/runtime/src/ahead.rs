@@ -21,6 +21,24 @@ impl Runtime {
         self.touches.idle(drawing, self.frame_clock.seconds())
     }
 
+    /// Where the pen hovers (screen pixels) while no stroke is drawn.
+    pub(crate) fn hovering(&self) -> Option<[f32; 2]> {
+        let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
+        self.touches.hovering(drawing)
+    }
+
+    /// The frame's budget for background work begun (D96): what the GPU's queue has room for
+    /// while nothing touches the screen, else the frame's share, from which the snapshots under
+    /// the next stroke take a job while the pen hovers (`Core::pen_hovers`). Whether it is idle.
+    pub(crate) fn begin_background(&mut self) -> bool {
+        let idle = self.idle();
+        self.core.begin_frame_idle(idle);
+        if !idle && self.hovering().is_some() {
+            self.core.pen_hovers();
+        }
+        idle
+    }
+
     /// What the frame call now is wanted for (`pacing.rs`): its pacing, and what the recorder
     /// and the bench count.
     pub(crate) fn wanted(&self) -> Wanted {

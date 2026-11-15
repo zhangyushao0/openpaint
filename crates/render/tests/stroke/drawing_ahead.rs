@@ -1,16 +1,17 @@
 //! Snapshots under the next stroke as the frame loop keeps them: taken ahead
-//! by the raster worker while nothing touches the screen, they outlive a stroke (its successor
-//! over the same place lays it from the snapshots taken before it), an undo lets go only those it
-//! reaches, a layer switch every one; after each, the strokes drawn take no snapshot on the frame
-//! loop and every frame and lift is the canvas drawn cold. At a view tier the same for its shown
-//! tiles, every ready tile its export every frame, the canvas from the lift on. Without the worker (the tests' screen) strokes one after
-//! another over a dense place are cold too, their snapshots taken and brought up by the frames.
+//! by the raster worker while nothing touches the screen, or one a frame while the pen hovers,
+//! they outlive a stroke (its successor over the same place lays it from the snapshots taken
+//! before it), an undo lets go only those it reaches, a layer switch every one; after each, the
+//! strokes drawn take no snapshot on the frame loop and every frame and lift is the canvas drawn
+//! cold. At a view tier the same for its shown tiles, every ready tile its export every frame,
+//! the canvas from the lift on. Without the worker (the tests' screen) strokes one after another
+//! over a dense place are cold too, their snapshots taken and brought up by the frames.
 
 use std::time::Instant;
 
 use openpaint_core::{ActiveStroke, Artwork, Color, LayerCommand};
 use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, ViewCache, ViewFrame,
+    CanvasTarget, Core, Focus, FrameRequest, PixelRect, RasterDrawer, ViewCache, ViewFrame,
     changed_regions,
 };
 
@@ -27,8 +28,10 @@ pub struct Loop {
     pub view: ViewCache,
     drawer: RasterDrawer,
     shown: Option<(ViewFrame, u32)>,
-    /// A hand is near the screen: frames without a stroke are not idle (a lift, between strokes).
+    /// A hand is near the screen: frames without a stroke are not idle (a lift, between strokes);
+    /// and it is the pen hovering.
     pub touched: bool,
+    pub hovering: bool,
     /// The frame clock, 60 frames a second, and whether the last frame's tier waited.
     now: f64,
     pending: bool,
@@ -51,6 +54,7 @@ impl Loop {
             now: 0.0,
             pending: false,
             touched: false,
+            hovering: false,
         }
     }
 
@@ -63,6 +67,9 @@ impl Loop {
         regions: &[PixelRect],
     ) {
         core.begin_frame_idle(active.is_none() && !self.touched);
+        if self.touched && self.hovering && active.is_none() {
+            core.pen_hovers();
+        }
         let request = request(artwork, active);
         self.target
             .draw_frame(core, &request, regions)
@@ -79,16 +86,21 @@ impl Loop {
 
     /// Idle frames of `artwork` (the hand gone) until nothing waits and every snapshot is taken.
     pub fn settle(&mut self, core: &Core, artwork: &Artwork) {
-        self.touched = false;
+        (self.touched, self.hovering) = (false, false);
         let start = Instant::now();
         loop {
             self.frame(core, (artwork, None), &[]);
-            let taking = self.target.taking_ahead() || self.view.taking_ahead();
-            if !self.target.pending() && !self.pending && !taking {
+            if !self.waits() {
                 return;
             }
             assert!(start.elapsed() < HANG, "the snapshots were never taken");
         }
+    }
+
+    /// Tiles wait to be drawn, or snapshots to be taken.
+    fn waits(&self) -> bool {
+        let taking = self.target.taking_ahead() || self.view.taking_ahead();
+        self.target.pending() || self.pending || taking
     }
 
     /// The canvas is `artwork` drawn cold, and every ready tile of the tier its export.
@@ -273,4 +285,51 @@ fn a_tiers_snapshots_taken_ahead_carry_strokes_and_its_tiles_are_its_export() {
     screen.frame(&core, (&first, None), &changed_regions(&second, &first));
     screen.settle(&core, &first);
     stroke(&core, &mut screen, &first, [165.0, 105.0]);
+}
+
+/// The pen hovering between strokes (the screen never idle): a frame only touched takes nothing
+/// ahead; one under the hovering pen hands the worker one snapshot a drawing (the canvas's, the
+/// tier's) from its share, nearest the pen first, until what the last stroke reached is laid
+/// again; the next stroke takes none in its frames.
+#[test]
+fn a_hovering_pen_takes_snapshots_ahead_one_a_frame_and_the_next_stroke_takes_none() {
+    let core = own_core();
+    let base = dense();
+    for shown in [None, Some((frame(3.7, [160.0, 100.0]), 4))] {
+        let mut screen = Loop::new(&core, &base, shown);
+        let pen = Some([150.0, 90.0]);
+        let shown_rect = PixelRect {
+            min: [106, 59],
+            max: [214, 141],
+        };
+        let middle = [160.0, 100.0];
+        (screen.target).look_at(shown.map(|_| Focus {
+            middle,
+            shown: shown_rect,
+            pen,
+        }));
+        screen.settle(&core, &base);
+        screen.touched = true;
+        let first = stroke(&core, &mut screen, &base, [150.0, 90.0]);
+        let before = core.counts().rastered;
+        screen.frame(&core, (&first, None), &[]);
+        assert_eq!(
+            core.counts().rastered,
+            before,
+            "a touch takes nothing ahead"
+        );
+        screen.hovering = true;
+        let drawings = 1 + u64::from(shown.is_some());
+        let (start, mut taken) = (Instant::now(), 0);
+        while screen.waits() {
+            let before = core.counts().rastered;
+            screen.frame(&core, (&first, None), &[]);
+            let jobs = core.counts().rastered - before;
+            assert!(jobs <= drawings, "{jobs} jobs in a frame");
+            taken += jobs;
+            assert!(start.elapsed() < HANG, "the snapshots were never taken");
+        }
+        assert!(taken > 0, "the tiles the stroke reached laid again");
+        stroke(&core, &mut screen, &first, [160.0, 100.0]);
+    }
 }

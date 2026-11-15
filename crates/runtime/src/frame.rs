@@ -302,8 +302,7 @@ impl Runtime {
     pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
         // This frame's budget for background work, corrected by the GPU's measured times;
         // while nothing touches the screen, what the GPU's queue has room for.
-        let idle = self.idle();
-        self.core.begin_frame_idle(idle);
+        let idle = self.begin_background();
         // A benchmark times the frame's GPU work from its first submission on.
         self.core.frame_begun();
         self.receive()?;
@@ -371,13 +370,13 @@ impl Runtime {
     /// go first), what changed and storage's steps, then the view tiers through the view.
     fn evaluate_screen(&mut self, area: Option<CanvasArea>) -> Result<(), RuntimeError> {
         let now = self.frame_clock.wall_seconds();
-        let shell = &self.shell;
+        let (shell, pen) = (&self.shell, self.hovering());
         let frame = match (self.screen.canvas_mut(), area) {
             (Some(canvas), Some(area)) => {
                 let frame = canvas.view_frame((&area, self.pixels_per_point), |mapping| {
                     shell.displayed(mapping)
                 });
-                canvas.look_at(&frame);
+                canvas.look_at(&frame, pen);
                 Some(frame)
             }
             _ => None,

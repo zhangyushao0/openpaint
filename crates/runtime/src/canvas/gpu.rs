@@ -209,8 +209,9 @@ impl Canvas {
     }
 
     /// Where the screen shows the canvas through `frame`: its waiting tiles there go first, the
-    /// screen's middle first.
-    pub(crate) fn look_at(&mut self, frame: &ViewFrame) {
+    /// screen's middle first; and where the pen hovers (`pen`, screen pixels), when it does: the
+    /// snapshots under the next stroke nearest it go first.
+    pub(crate) fn look_at(&mut self, frame: &ViewFrame, pen: Option<[f32; 2]>) {
         let [a, b, c, d, e, f] = frame.to_canvas;
         let map = |[x, y]: [f32; 2]| [a * x + b * y + c, d * x + e * y + f];
         let [x0, y0] = frame.origin.map(|at| at as f32);
@@ -228,7 +229,8 @@ impl Canvas {
             max: high.map(|at| at.ceil() as i32),
         };
         let middle = map([(x0 + x1) / 2.0, (y0 + y1) / 2.0]);
-        self.target.look_at(Some(Focus { middle, shown }));
+        let pen = pen.map(map);
+        self.target.look_at(Some(Focus { middle, shown, pen }));
     }
 
     /// The view tiers still change what shows: tiles missing, or a tier about to start.

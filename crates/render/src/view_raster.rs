@@ -26,6 +26,8 @@ use crate::view_atlas::Tier;
 use crate::view_fill::touched;
 use crate::view_needed::Needed;
 use crate::view_tier::{ViewCache, ViewWork};
+use crate::view_tiles::TileMap;
+use crate::waiting::far;
 
 /// The view tiers' side of the raster worker: the tiles handed to it.
 #[derive(Default)]
@@ -157,8 +159,9 @@ pub(crate) fn stroke_raster(
 
 /// Once its shown tiles are ready (`ready`) and the canvas waits for nothing, the snapshots
 /// under the next stroke of `tier`'s shown tiles (`needed`) handed to the raster worker while
-/// nothing touches the screen (`canvas/drawing_ahead.rs`); whether any is being taken or waits to be
-/// (within the snapshots' room).
+/// nothing touches the screen, or one a frame while the pen hovers, nearest it first
+/// (`canvas/drawing_ahead.rs`); whether any is being taken or waits to be (within the
+/// snapshots' room).
 ///
 /// # Errors
 /// As the raster core.
@@ -176,18 +179,35 @@ pub(crate) fn snapshots_ahead(
     }
     let others = canvas.bytes().snapshots;
     let room = TAKING.saturating_sub(drawing.taking.len());
-    let wanted = drawing.wanted(needed.shown(), room);
+    let scale = tier.scale();
+    let mut wanted = drawing.wanted(nearest(needed, canvas.hovered(), &tier.map), room);
     let pending =
         !drawing.taking.is_empty() || (!wanted.is_empty() && canvas.room_for(drawing, others));
-    if !core.pace().idle() {
+    let quiet = {
+        let pace = core.pace();
+        pace.idle() || pace.hovering()
+    };
+    if !quiet {
         return Ok(pending);
     }
+    wanted.truncate(canvas.ahead_now(core, wanted.len()));
     let mut drawing = std::mem::take(&mut tier.drawing);
     let handed = canvas.made_ahead(core, &mut drawing).and_then(|()| {
-        canvas.hand_snapshots(core, request, &mut drawing, (tier.scale(), &wanted, others))
+        canvas.hand_snapshots(core, request, &mut drawing, (scale, &wanted, others))
     });
     tier.drawing = drawing;
     handed.map(|()| pending)
+}
+
+/// The shown tiles of `map`'s tier, nearest the pen first while it hovers over canvas point
+/// `pen`, else as `needed` orders them (nearest the screen's middle).
+fn nearest(needed: &Needed, pen: Option<[f32; 2]>, map: &TileMap) -> Vec<[u32; 2]> {
+    let mut shown: Vec<[u32; 2]> = needed.shown().collect();
+    if let Some(pen) = pen {
+        let at = pen.map(|value| value * map.scale() as f32);
+        shown.sort_by_cached_key(|tile| far(&map.tile_rect(*tile), at));
+    }
+    shown
 }
 
 impl ViewCache {

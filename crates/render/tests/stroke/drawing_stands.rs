@@ -118,7 +118,11 @@ fn with_a_view_only_the_shown_tiles_and_their_ring_hold_snapshots() {
     let look = |screen: &mut Loop, min: [i32; 2], max: [i32; 2]| {
         let shown = PixelRect { min, max };
         let middle = [0, 1].map(|axis| (min[axis] + max[axis]) as f32 / 2.0);
-        screen.target.look_at(Some(Focus { middle, shown }));
+        screen.target.look_at(Some(Focus {
+            middle,
+            shown,
+            pen: None,
+        }));
         let ring = PixelRect {
             min: min.map(|at| at - 256),
             max: max.map(|at| at + 256),
