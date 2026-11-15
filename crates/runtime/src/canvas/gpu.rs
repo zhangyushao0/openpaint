@@ -163,11 +163,18 @@ impl Canvas {
     /// The gallery picture of what the canvas shows now, every waiting tile evaluated first.
     pub(crate) fn thumbnail(&mut self, core: &Core) -> Result<Thumbnail, RuntimeError> {
         self.settle(core)?;
-        let image = core.thumbnail(&self.target, THUMBNAIL_MAX)?;
-        let size = image.size();
-        Thumbnail::new(size, image.into_pixels()).ok_or(RuntimeError::Render(RenderError::Invalid(
-            "a thumbnail of the wrong length",
-        )))
+        thumbnail(core.thumbnail(&self.target, THUMBNAIL_MAX)?)
+    }
+
+    /// As `thumbnail`, of the part `[left, top, width, height]` (canvas pixels) the view showed:
+    /// the picture a practice sheet takes back to the home, never kept (S144, D98).
+    pub(crate) fn shown_picture(
+        &mut self,
+        core: &Core,
+        part: [u32; 4],
+    ) -> Result<Thumbnail, RuntimeError> {
+        self.settle(core)?;
+        thumbnail(core.thumbnail_part(&self.target, part, THUMBNAIL_MAX)?)
     }
 
     /// Brings the view tiers up to date with the target, just evaluated, for showing it
@@ -350,6 +357,14 @@ impl Opening {
             rastered: core.counts().rastered,
         }
     }
+}
+
+/// `image` read back as a gallery picture.
+fn thumbnail(image: openpaint_render::RgbaImage) -> Result<Thumbnail, RuntimeError> {
+    let size = image.size();
+    Thumbnail::new(size, image.into_pixels()).ok_or(RuntimeError::Render(RenderError::Invalid(
+        "a thumbnail of the wrong length",
+    )))
 }
 
 /// What the canvas evaluates: what `session` shows, the stroke being drawn, on the paper.

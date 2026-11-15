@@ -1,9 +1,9 @@
 //! The gallery thumbnail matches the artwork: the GPU reduction of an evaluated canvas equals,
 //! byte for byte, the mean of the canvas pixels in each box computed on the CPU, for an even and
-//! an uneven scale.
+//! an uneven scale; a part's thumbnail the same of that part.
 
 use openpaint_core::{ArtworkCommand, MaskCommand};
-use openpaint_render::{CanvasTarget, PixelRect, thumbnail_reference, thumbnail_size};
+use openpaint_render::{CanvasTarget, PixelRect, RgbaImage, thumbnail_reference, thumbnail_size};
 
 use crate::fixture::{SIZE, blank, core, diagonal, pixel, request, wave, with_layer, with_stroke};
 
@@ -36,6 +36,36 @@ fn the_thumbnail_is_the_box_mean_of_the_canvas() {
         vec![255; 80 * 50 * 4],
         "the strokes show"
     );
+}
+
+/// The picture of a part of the canvas (what a view showed of a mode's sheet, S144) is the box
+/// mean of that part alone, at an edge too.
+#[test]
+fn a_part_s_thumbnail_is_the_box_mean_of_that_part() {
+    let core = core();
+    let artwork = with_stroke(&blank(), diagonal());
+    let mut target = CanvasTarget::new(&core, SIZE).expect("target");
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
+        .expect("evaluate");
+    let canvas = target.read(&core).expect("readback");
+    for part in [[10, 7, 61, 33], [SIZE[0] - 40, SIZE[1] - 30, 40, 30]] {
+        let [left, top, width, height] = part.map(|v| v as usize);
+        let row = |y: usize| {
+            let at = ((top + y) * SIZE[0] as usize + left) * 4;
+            canvas.pixels()[at..at + width * 4].to_vec()
+        };
+        let pixels = (0..height).flat_map(row).collect();
+        let alone = RgbaImage::from_rgba([part[2], part[3]], pixels).expect("the part");
+        let max = [24, 24];
+        let thumbnail = core.thumbnail_part(&target, part, max).expect("thumbnail");
+        let size = thumbnail_size([part[2], part[3]], max);
+        assert_eq!(thumbnail.size(), size);
+        assert!(
+            thumbnail.pixels() == thumbnail_reference(&alone, size).as_slice(),
+            "the part {part:?} differs from its pixels' box means"
+        );
+    }
 }
 
 /// A layer row's picture is the layer alone, or its mask's grey, reduced by box means:

@@ -44,6 +44,11 @@ struct Spacing {
     size: f32,
 }
 
+/// The layer the rows' labels and results are drawn in, over the canvas.
+pub(super) fn layer() -> egui::LayerId {
+    egui::LayerId::new(Order::Background, egui::Id::new("practice sheet rows"))
+}
+
 /// The rows' labels and the results marked under their pairs, through `mapping` on a screen of
 /// `pixels_per_point`.
 pub(crate) fn show_rows(
@@ -51,8 +56,7 @@ pub(crate) fn show_rows(
     practice: &PracticeProjection,
     (mapping, pixels_per_point): (&ViewMapping, f32),
 ) {
-    let layer = egui::LayerId::new(Order::Background, egui::Id::new("practice sheet rows"));
-    let painter = ctx.layer_painter(layer);
+    let painter = ctx.layer_painter(layer());
     let at = |point: [f64; 2]| -> Pos2 {
         canvas_point(mapping, pixels_per_point, point.map(|v| v as f32))
     };

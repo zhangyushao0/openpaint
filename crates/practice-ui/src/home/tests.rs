@@ -1,5 +1,6 @@
 //! One headless pass of the home's column and the path page on a fixture path: their controls
-//! registered by name and on the screen, and the column's Start asking a lesson.
+//! registered by name and on the screen, the column's Start asking a lesson, and a sheet left
+//! going into Practice book (S144).
 
 use egui::Rect;
 use openpaint_practice::{Offer, Skill, SkillLevel};
@@ -7,7 +8,7 @@ use openpaint_practice_app::{OptionsIntent, PathProjection, PracticeLog, Start, 
 use openpaint_ui::HomeHook;
 
 use super::{HomePart, PathHook};
-use crate::passes::{assert_on_screen, context, pass, settled, tap};
+use crate::passes::{assert_on_screen, context, drawn, pass, settled, tap};
 use crate::text::{self as t, Language};
 
 /// Where the home lays the column, in points.
@@ -81,6 +82,50 @@ fn the_column_offers_start_all_units_and_the_book_and_start_asks_the_next_lesson
     assert_eq!(asked, [OptionsIntent::Lesson(Start::Next)]);
 }
 
+/// A sheet left goes back into Practice book (S144): the column gives the book's place, and what
+/// the sheet laid over the canvas shrinks with its picture from where it lay to where it is now.
+#[test]
+fn a_sheet_left_goes_into_practice_book_its_marks_with_it() {
+    let (fresh, _) = paths();
+    let ctx = context();
+    let mut part = HomePart::default();
+    let timer = TimerShown::default();
+    let (from, at) = (
+        Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(800.0, 500.0)),
+        Rect::from_min_size(egui::pos2(40.0, 800.0), egui::vec2(80.0, 50.0)),
+    );
+    let ink = egui::Stroke::new(2.0, egui::Color32::BLACK);
+    let laid = [egui::Shape::line_segment([from.min, from.max], ink)];
+    let mut place = Rect::NOTHING;
+    let (map, shapes) = drawn(&ctx, (1.0, Language::English, Vec::new()), |ui| {
+        let (mut taps, mut asked, mut timed) = (Vec::new(), Vec::new(), Vec::new());
+        let mut hook = PathHook {
+            part: &mut part,
+            path: &fresh,
+            notice: None,
+            taps: &mut asked,
+            timer: &timer,
+            timer_taps: &mut timed,
+            laid: &laid,
+        };
+        place = hook.column(ui, COLUMN, true, &mut taps);
+        let painter = ui.ctx().layer_painter(egui::LayerId::debug());
+        hook.carried(&painter, (from, at));
+    });
+    let [left, top, right, bottom] = map.find(t::PRACTICE_BOOK.id()).expect("the book").rect;
+    let book = Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom));
+    assert!((place.min - book.min).length() < 0.5 && (place.max - book.max).length() < 0.5);
+    let moved = shapes.iter().find_map(|shape| match shape {
+        egui::Shape::LineSegment { points, stroke } if stroke.color == ink.color => {
+            Some((*points, stroke.width))
+        }
+        _ => None,
+    });
+    let (points, width) = moved.expect("the sheet's marks carried");
+    assert!((points[0] - at.min).length() < 0.01 && (points[1] - at.max).length() < 0.01);
+    assert!((width - 0.2).abs() < 1e-4, "scaled with the sheet: {width}");
+}
+
 #[test]
 fn the_path_page_shows_the_units_the_skills_and_the_offers() {
     let (_, going) = paths();
@@ -101,6 +146,7 @@ fn the_path_page_shows_the_units_the_skills_and_the_offers() {
                 taps: &mut asked,
                 timer: &timer,
                 timer_taps: &mut timed,
+                laid: &[],
             };
             hook.page(ui.ctx(), &mut taps);
         });

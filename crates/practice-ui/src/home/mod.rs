@@ -20,7 +20,8 @@ mod pomodoro_tests;
 #[cfg(test)]
 mod tests;
 
-use egui::{Context, Rect, Ui};
+use egui::emath::TSTransform;
+use egui::{Context, Rect, Shape, Ui};
 use openpaint_app::{GalleryIntent, Intent};
 use openpaint_practice::ItemRef;
 use openpaint_practice_app::{
@@ -82,7 +83,8 @@ impl HomePart {
 }
 
 /// Practice's home hook for one frame: its state, the path, the options' notice, the Pomodoro's
-/// timer and their taps.
+/// timer and their taps, and what the sheet left last laid over the canvas (screen points as it
+/// lay there).
 pub(crate) struct PathHook<'a> {
     pub(crate) part: &'a mut HomePart,
     pub(crate) path: &'a PathProjection,
@@ -90,6 +92,7 @@ pub(crate) struct PathHook<'a> {
     pub(crate) taps: &'a mut Vec<OptionsIntent>,
     pub(crate) timer: &'a TimerShown,
     pub(crate) timer_taps: &'a mut Vec<TimerIntent>,
+    pub(crate) laid: &'a [Shape],
 }
 
 impl HomeHook for PathHook<'_> {
@@ -114,6 +117,18 @@ impl HomeHook for PathHook<'_> {
         let shown = (self.path, self.timer, enabled);
         let taps = ((taps, &mut *self.taps), &mut *self.timer_taps);
         self.part.column(ui, rect, shown, taps)
+    }
+
+    fn carried(&mut self, painter: &egui::Painter, (from, at): (Rect, Rect)) {
+        // The sheet's exercises and labels shrink with its picture, from where they lay.
+        let scale = at.width() / from.width().max(1.0);
+        let moved = TSTransform::new(at.min.to_vec2() - from.min.to_vec2() * scale, scale);
+        let painter = painter.with_clip_rect(at.intersect(painter.clip_rect()));
+        painter.extend(self.laid.iter().map(|shape| {
+            let mut shape = shape.clone();
+            shape.transform(moved);
+            shape
+        }));
     }
 
     fn dialogs(&mut self, ctx: &Context, taps: &mut Vec<Intent>) {

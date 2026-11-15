@@ -32,7 +32,7 @@ mod timer;
 mod timer_tests;
 mod tools;
 
-use egui::{Context, Ui};
+use egui::{Context, Shape, Ui};
 use openpaint_app::{Intent, Language, ViewMapping};
 use openpaint_practice::{Kind, Skill};
 use openpaint_practice_app::{
@@ -59,11 +59,32 @@ pub(crate) fn lesson_name(lesson: Option<LessonShown>, kind: Option<Kind>) -> Te
     }
 }
 
-/// A practice sheet's screen state between frames: its pictures as textures, its bar and card.
+/// A practice sheet's screen state between frames: its pictures as textures, its bar and card,
+/// and what it laid over the canvas in the last pass, which goes back into the home with the
+/// sheet's picture when the canvas is left (S144).
 #[derive(Debug, Default)]
 pub(crate) struct SheetPart {
     pictures: marks::SheetPictures,
     bar: bar::PracticeBar,
+    laid: Vec<Shape>,
+}
+
+impl SheetPart {
+    /// What the sheet laid over the canvas in the last pass that showed it, as it lay there.
+    pub(crate) fn laid(&self) -> &[Shape] {
+        &self.laid
+    }
+}
+
+/// What the marks and the rows' labels drew in this pass, as they lie on the screen.
+fn laid(ctx: &Context) -> Vec<Shape> {
+    ctx.graphics(|layers| {
+        [marks::layer(), rows::layer()]
+            .into_iter()
+            .filter_map(|layer| layers.get(layer))
+            .flat_map(|list| list.all_entries().map(|clipped| clipped.shape.clone()))
+            .collect()
+    })
 }
 
 /// A tap on a practice sheet's chrome asks the painting (a tool, a colour, undo, through what
@@ -89,6 +110,7 @@ impl CanvasHook for SheetHook<'_> {
         let pictures = &mut self.part.pictures;
         marks::show_marks(ctx, self.sheet, (at, pixels_per_point), pictures);
         rows::show_rows(ctx, self.sheet, (at, pixels_per_point));
+        self.part.laid = laid(ctx);
     }
 
     fn left(&mut self, ui: &mut Ui, taps: &mut Vec<Intent>) {

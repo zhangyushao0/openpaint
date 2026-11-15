@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox,
-    Transfers,
+    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Thumbnail,
+    Toolbox, Transfers,
 };
 use openpaint_core::Artwork;
 use openpaint_practice::{Given, Purpose};
@@ -22,7 +22,7 @@ use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
 
 mod jobs;
-use jobs::gallery_job;
+use jobs::{carried_picture, gallery_job};
 pub(crate) use jobs::{dispatch_gallery, leave_job};
 
 /// The workers a frame hands calls to: the store and the display cache.
@@ -263,14 +263,17 @@ impl Screen {
     /// Everything after the frame's intents: the canvas is evaluated and its unsaved version,
     /// its practice record or its leaving handed to the store; the gallery's calls go to the
     /// store in order. `now` is the wall clock's seconds since 1970 UTC, for a version kept on
-    /// leaving and a new practice sheet (seeded from `seeds`, the next of `practice`).
+    /// leaving and a new practice sheet (seeded from `seeds`, the next of `practice`). Returns
+    /// the picture of `shown` (the part of the canvas the view showed) a practice sheet takes
+    /// back to the home as it leaves for it (S144).
     pub(crate) fn progress(
         &mut self,
         core: &Arc<Core>,
         (storage, cache): Workers<'_>,
-        (area, now): (Option<CanvasArea>, u64),
+        (area, now, shown): (Option<CanvasArea>, u64, Option<[u32; 4]>),
         (practice, seeds): (&mut PracticeLog, &mut Seeds),
-    ) -> Result<(), RuntimeError> {
+    ) -> Result<Option<Thumbnail>, RuntimeError> {
+        let mut carried = None;
         match self {
             Self::Canvas(canvas) => {
                 canvas.evaluate(core)?;
@@ -290,6 +293,7 @@ impl Screen {
                     Leaving::Waiting if !canvas.session().saving() => {
                         let version = canvas.session_mut().leave_request();
                         storage.submit(leave_job(canvas, core, version, (now, true)));
+                        carried = shown.and_then(|part| carried_picture(canvas, core, part));
                         canvas.leaving = Leaving::Storing;
                     }
                     Leaving::Waiting | Leaving::Storing => {}
@@ -321,7 +325,7 @@ impl Screen {
         }
         // The Pomodoro's records after the sheet's, End's cut first (S124).
         crate::practice::timer_saved(practice, storage);
-        Ok(())
+        Ok(carried)
     }
 }
 

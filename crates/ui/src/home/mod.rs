@@ -24,10 +24,10 @@ use openpaint_app::{
     Thumbnail, Title,
 };
 
-use crate::components::carry::{Arrival, Opening, land};
+use crate::components::carry::{self, Arrival, Opening};
 use crate::components::{
-    Alpha, ISLAND_TOP, Naming, Place, Source, TOP_BAND, icon_button, icon_toggle, island, notice,
-    picture_texture, pill, text_field,
+    Alpha, ISLAND_TOP, Naming, Place, Source, TOP_BAND, fitted, icon_button, icon_toggle, island,
+    notice, picture_texture, pill, text_field,
 };
 use crate::design::{CARD_GAP, DESK, Icon, SPACE};
 use crate::hooks::{HomeHook, Page};
@@ -99,14 +99,20 @@ impl HomeScreen {
     }
 
     /// The canvas, last shown at `from` (points), comes back into the card of `id` (or the
-    /// first card), a mode's sheet into the mode's column.
-    pub(crate) fn arrive(&mut self, from: Rect, (id, card): (Option<ProjectId>, bool)) {
+    /// first card), a mode's sheet into the mode's column with the `picture` it left with.
+    pub(crate) fn arrive(
+        &mut self,
+        from: Rect,
+        (id, card): (Option<ProjectId>, bool),
+        picture: Option<egui::TextureHandle>,
+    ) {
         self.arrivals += 1;
         self.arriving = Some(Arrival {
             from,
             id,
             card,
             run: self.arrivals,
+            picture,
         });
     }
 
@@ -220,13 +226,9 @@ impl HomeScreen {
                 Vec2::new(width, under.height() - SPACE - CARD_GAP),
             );
             studio.min.x = column.right();
-            let sheet = hook.column(ui, column, enabled, taps);
+            let place = hook.column(ui, column, enabled, taps);
             self.opened_by(hook);
-            if let Some(arrival) = self.arriving.filter(|arrival| arrival.card)
-                && land(ui.ctx(), &arrival, None, sheet)
-            {
-                self.arriving = None;
-            }
+            self.land_sheet(&ctx, hook, place);
         }
         self.studio(ui, studio, (projection, enabled), taps);
         self.rename_dialog(ui.ctx(), taps);
@@ -237,6 +239,22 @@ impl HomeScreen {
             self.opened_by(hook);
         }
         self.sizes_popover(ui.ctx(), under, taps);
+    }
+
+    /// A mode's sheet coming back lands in `place`, the mode's (`HomeHook::column`), at its own
+    /// shape: the picture it left with and the mode's marks over it shrink there together, as an
+    /// artwork's picture into its card (S144).
+    fn land_sheet(&mut self, ctx: &egui::Context, hook: &mut (dyn HomeHook + '_), place: Rect) {
+        let Some(arrival) = self.arriving.as_ref().filter(|arrival| arrival.card) else {
+            return;
+        };
+        let into = fitted(place, arrival.from.size());
+        let (at, landed) = carry::carried(ctx, arrival, into);
+        let painter = carry::sheet_at(ctx, arrival.picture.as_ref(), at);
+        hook.carried(&painter, (arrival.from, at));
+        if landed {
+            self.arriving = None;
+        }
     }
 
     /// Closes an open dialog as Cancel would (a mode's too), or the new-canvas popover. Returns

@@ -1,8 +1,8 @@
-//! Thumbnails: a canvas target reduced on the GPU to a small image for the gallery and read
-//! back. Each thumbnail pixel is the rounded mean of the canvas pixels in its box, computed in
-//! 8-bit integers, so `thumbnail_reference` reproduces it exactly on the CPU (the test that the
-//! thumbnail matches the artwork). The work on the calling thread is fixed: one dispatch and a
-//! readback of at most `max` pixels.
+//! Thumbnails: a canvas target (or a part of it, read where it lies) reduced on the GPU to a
+//! small image for the gallery and read back. Each thumbnail pixel is the rounded mean of the
+//! canvas pixels in its box, computed in 8-bit integers, so `thumbnail_reference` reproduces it
+//! exactly on the CPU (the test that the thumbnail matches the artwork). The work on the calling
+//! thread is fixed: one dispatch and a readback of at most `max` pixels.
 
 use wgpu::util::DeviceExt;
 
@@ -149,16 +149,46 @@ impl Core {
         self.thumbnail_of(target.texture(), max)
     }
 
+    /// As `thumbnail`, of the part of `target` at `[left, top, width, height]` (pixels, within
+    /// it): what a view showed of it (a mode's sheet going back to the home, S144).
+    pub fn thumbnail_part(
+        &self,
+        target: &CanvasTarget,
+        part: [u32; 4],
+        max: [u32; 2],
+    ) -> Result<RgbaImage, RenderError> {
+        self.thumbnail_within(target.texture(), part, max)
+    }
+
     /// As `thumbnail`, of what `texture` holds (a layer sample's piece).
     pub(crate) fn thumbnail_of(
         &self,
         texture: &wgpu::Texture,
         max: [u32; 2],
     ) -> Result<RgbaImage, RenderError> {
-        let canvas = [texture.width(), texture.height()];
+        let whole = [0, 0, texture.width(), texture.height()];
+        self.thumbnail_within(texture, whole, max)
+    }
+
+    /// The thumbnail of the part of `texture` at `[left, top, width, height]`, read where it lies
+    /// (kept within the texture, at least a pixel).
+    fn thumbnail_within(
+        &self,
+        texture: &wgpu::Texture,
+        [left, top, width, height]: [u32; 4],
+        max: [u32; 2],
+    ) -> Result<RgbaImage, RenderError> {
+        let canvas = [
+            width.clamp(1, texture.width()),
+            height.clamp(1, texture.height()),
+        ];
+        let origin = [
+            left.min(texture.width() - canvas[0]),
+            top.min(texture.height() - canvas[1]),
+        ];
         let size = thumbnail_size(canvas, max);
         let device = &self.gpu.device;
-        let words: Vec<u8> = [canvas, size]
+        let words: Vec<u8> = [canvas, size, origin, [0, 0]]
             .concat()
             .iter()
             .flat_map(|v| v.to_le_bytes())

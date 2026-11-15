@@ -108,9 +108,13 @@ pub trait HomeHook {
     /// Its page over the home, if one shows, drawn here with its own island (the top band holds
     /// nothing else then); the home's taps to `taps`. Called first in the pass.
     fn page(&mut self, ctx: &Context, taps: &mut Vec<Intent>) -> Page;
-    /// Its column in `rect` (not while a search is typed); where its sheet's picture lies, which
-    /// a sheet going back lands in.
+    /// Its column in `rect` (not while a search is typed); the place in it a sheet going back
+    /// lands in, at the sheet's own shape.
     fn column(&mut self, ui: &mut Ui, rect: Rect, enabled: bool, taps: &mut Vec<Intent>) -> Rect;
+    /// Its sheet going back into the home, which showed at `from` (points) as the canvas was
+    /// left, lies at `at` now, its picture painted there: what it laid over the canvas, there,
+    /// in `painter` (S144).
+    fn carried(&mut self, painter: &egui::Painter, from_at: (Rect, Rect));
     /// Its dialogs, after the home's own.
     fn dialogs(&mut self, ctx: &Context, taps: &mut Vec<Intent>);
     /// What it tells in the home's notice pill once the home has nothing to.

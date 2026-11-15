@@ -3,12 +3,15 @@
 // canvas's texel rounds to the 8-bit value its code stands for (`readback::eight_bits`).
 //
 // Box of thumbnail pixel (x, y): canvas columns floor(x * W / w) .. floor((x + 1) * W / w),
-// rows likewise; never empty because w <= W and h <= H.
+// rows likewise; never empty because w <= W and h <= H. A part of the canvas (what a view
+// showed) is read where it lies, from its top left corner on.
 
 struct Sizes {
-    // Canvas width and height, thumbnail width and height.
+    // The part's width and height, the thumbnail's, and the part's top left in the canvas.
     canvas: vec2<u32>,
     thumbnail: vec2<u32>,
+    origin: vec2<u32>,
+    unused: vec2<u32>,
 }
 
 @group(0) @binding(0) var canvas: texture_2d<f32>;
@@ -26,7 +29,7 @@ fn thumbnail(@builtin(global_invocation_id) id: vec3<u32>) {
     var sum = vec4<u32>(0u, 0u, 0u, 0u);
     for (var y = first.y; y < end.y; y++) {
         for (var x = first.x; x < end.x; x++) {
-            let texel = textureLoad(canvas, vec2<i32>(i32(x), i32(y)), 0);
+            let texel = textureLoad(canvas, vec2<i32>(sizes.origin + vec2<u32>(x, y)), 0);
             sum += vec4<u32>(round(texel * 255.0));
         }
     }

@@ -159,6 +159,11 @@ impl SheetPictures {
     }
 }
 
+/// The layer the sheet's exercises are drawn in, over the canvas.
+pub(super) fn layer() -> egui::LayerId {
+    egui::LayerId::new(Order::Background, egui::Id::new("practice sheet"))
+}
+
 /// The open practice sheet through `mapping` on a screen of `pixels_per_point`, its pictures
 /// from `pictures`.
 pub(crate) fn show_marks(
@@ -168,8 +173,7 @@ pub(crate) fn show_marks(
     pictures: &mut SheetPictures,
 ) {
     pictures.sync(ctx, practice);
-    let layer = egui::LayerId::new(Order::Background, egui::Id::new("practice sheet"));
-    let painter = ctx.layer_painter(layer);
+    let painter = ctx.layer_painter(layer());
     let screen = ctx.content_rect();
     let at = |point: [f64; 2]| canvas_point(mapping, pixels_per_point, point.map(|v| v as f32));
     // Points per canvas pixel; an original's line width and the overlay's beside it.

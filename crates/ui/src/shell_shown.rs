@@ -1,5 +1,5 @@
 //! What the canvas showed in the last pass (`Shown`), for routing this frame's contacts and for
-//! the pen's outline.
+//! the pen's outline; the part of a mode's sheet shown and the picture it leaves with (S144).
 
 use openpaint_app::{ButtonMap, CanvasView, SessionProjection, TransformFrame};
 use openpaint_core::{CanvasSize, Color};
@@ -50,5 +50,20 @@ impl Shown {
             buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
             mode,
         })
+    }
+}
+
+impl super::Shell {
+    /// The part of a mode's sheet the last canvas pass showed, in canvas pixels (left, top,
+    /// width, height): what its picture is made of as it leaves for the home (S144).
+    #[must_use]
+    pub fn shown_part(&self) -> Option<[u32; 4]> {
+        self.shown_at.and_then(|(_, part)| part)
+    }
+
+    /// The picture of that part, which the sheet takes back into the home with it: the home holds
+    /// no picture of a mode's sheet, as a card holds an artwork's (S144).
+    pub fn carry(&mut self, picture: openpaint_app::Thumbnail) {
+        self.carried = Some(picture);
     }
 }

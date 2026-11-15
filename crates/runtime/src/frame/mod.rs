@@ -387,8 +387,10 @@ impl Runtime {
         };
         let workers = (&mut self.storage, &mut self.cache);
         let practice = (&mut self.practice, &mut self.seeds);
-        self.screen
-            .progress(&self.core, workers, (area, now), practice)?;
+        let at = (area, now, self.shell.shown_part());
+        if let Some(picture) = self.screen.progress(&self.core, workers, at, practice)? {
+            self.shell.carry(picture);
+        }
         if let (Some(canvas), Some(frame)) = (self.screen.canvas_mut(), frame) {
             canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
         }

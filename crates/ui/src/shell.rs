@@ -20,7 +20,7 @@ use openpaint_render::BrushCursor;
 use crate::adjust_panel::AdjustPanel;
 use crate::canvas_input::CanvasInput;
 use crate::color_drop::ColorDrop;
-use crate::components::carry::{Opening, sheet_at};
+use crate::components::carry::{self, Opening, sheet_at};
 use crate::components::{
     CanvasArea, ControlMap, ScreenArea, ViewSettle, canvas_frame, chrome, controls, moving,
 };
@@ -84,9 +84,11 @@ pub struct Shell {
     /// The view the screen shows while it settles, and the artwork on its way from its card.
     view: ViewSettle,
     opening: Option<Opening>,
-    /// Which artwork the canvas came from, and where it showed last (points).
+    /// Which artwork the canvas came from, where it showed last (points; a mode's sheet the part
+    /// shown, with its canvas pixels: `sheet::left_from`) and the picture it left with (S144).
     came_from: Option<openpaint_app::ProjectId>,
-    shown_at: Option<egui::Rect>,
+    shown_at: Option<(egui::Rect, Option<[u32; 4]>)>,
+    carried: Option<openpaint_app::Thumbnail>,
     /// Something moved in the last pass.
     moving: bool,
     /// The controls of the last pass.
@@ -165,10 +167,15 @@ impl Shell {
                 self.came_from = self.opening.as_ref().and_then(|opening| opening.id);
             }
             (Showing::Canvas, Showing::Gallery) => {
-                // The last canvas pass's: a mode's sheet goes back into the mode's card.
+                // The last canvas pass's: a mode's sheet goes back into the mode's place with
+                // the picture it left with.
                 let card = self.shown.is_some_and(|shown| shown.mode);
-                if let Some(from) = self.shown_at.take() {
-                    self.home.arrive(from, (self.came_from, card));
+                let picture = self
+                    .carried
+                    .take()
+                    .map(|picture| carry::texture(ctx, &picture));
+                if let Some((from, _)) = self.shown_at.take() {
+                    self.home.arrive(from, (self.came_from, card), picture);
                 }
             }
             _ => {}
@@ -193,11 +200,10 @@ impl Shell {
         self.arrived();
         if let Some(mapping) = self.mapping(&area) {
             self.view.advance(&ctx);
-            let shown = self.view.shown(mapping);
-            self.shown_at =
-                sheet::show_sheet(&ctx, rect, self.shown, &shown, self.pixels_per_point);
+            let (shown, ppp) = (self.view.shown(mapping), self.pixels_per_point);
+            let whole = sheet::show_sheet(&ctx, rect, self.shown, &shown, ppp);
+            self.shown_at = sheet::left_from(whole, (rect, self.shown), &shown, ppp);
             selection_bar::show_path(&ctx, projection, &shown, self.pixels_per_point);
-            let ppp = self.pixels_per_point;
             self.transform.show_frame(&ctx, projection, &shown, ppp);
             shape_bar::show_marks(&ctx, projection, &shown, ppp);
             if let Some(hook) = hook.as_deref_mut() {

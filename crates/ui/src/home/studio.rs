@@ -35,7 +35,7 @@ impl HomeScreen {
             .filter(|item| shown_title(&ctx, &item.title).matches(&self.search))
             .collect();
         if projection.listed() && projection.items().is_empty() {
-            self.arriving = self.arriving.filter(|arrival| arrival.card);
+            self.arriving = self.arriving.take().filter(|arrival| arrival.card);
             let empty = Words::from(t::NO_ARTWORKS).shown(&ctx);
             list.centered_and_justified(|ui| ui.label(empty));
         } else if found.is_empty() && !projection.items().is_empty() {
@@ -68,8 +68,7 @@ impl HomeScreen {
             egui::Rect::from_min_size(origin + cell * pitch, card_size())
         };
         // The card the canvas comes back into: its own, else the first (changed last).
-        let arriving = self
-            .arriving
+        let arriving = (self.arriving.clone())
             .filter(|arrival| !arrival.card)
             .map(|arrival| {
                 let listed = items.iter().any(|item| Some(item.id) == arrival.id);
@@ -82,11 +81,11 @@ impl HomeScreen {
         for (index, item) in items.iter().enumerate() {
             let rect = place(index);
             let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-            let landing = arriving.filter(|(_, id)| *id == Some(item.id));
+            let landing = arriving.as_ref().filter(|(_, id)| *id == Some(item.id));
             let card = self.card(&mut slot, item, (enabled, landing.is_some()), taps);
             if let Some((arrival, _)) = landing {
                 let picture = self.pictures.get(&item.id).map(|(_, texture)| texture);
-                if land(ui.ctx(), &arrival, picture, card) {
+                if land(ui.ctx(), arrival, picture, card) {
                     self.arriving = None;
                 }
             }

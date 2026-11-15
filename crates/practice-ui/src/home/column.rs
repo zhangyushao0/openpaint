@@ -38,7 +38,8 @@ enum Tapped {
 
 impl HomePart {
     /// The column in `rect` for `path` and the Pomodoro's `timer`, its taps to `taps` and the
-    /// timer's to `timed`; returns where its sheet lies (a sheet going back lands in it).
+    /// timer's to `timed`; returns where Practice book lies: a sheet left goes back into the book,
+    /// where the home keeps every sheet's picture (S144).
     pub(super) fn column(
         &mut self,
         ui: &mut egui::Ui,
@@ -63,7 +64,7 @@ impl HomePart {
                 .layout(Layout::top_down(Align::Min)),
         );
         page.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
-        let tapped = page
+        let (tapped, book) = page
             .add_enabled_ui(enabled, |ui| {
                 // While a block is under way the row's Continue opens its lesson.
                 let timed = (timer.block.as_ref()).is_some_and(|block| {
@@ -78,13 +79,14 @@ impl HomePart {
                 let tile = unit_tiles(ui, path, inner.bottom() - TOUCH_TARGET - SPACE);
                 let tile = tile.map(|(skill, from)| Tapped::Start(Start::Skill(skill), from));
                 let tapped = reviewed.or(next).or(row).or(tile);
-                foot(ui, inner).or(tapped)
+                let (foot, book) = foot(ui, inner);
+                (foot.or(tapped), book)
             })
             .inner;
         if let Some(tapped) = tapped.or(options.then_some(Tapped::Options)) {
             self.column_tap(tapped, rect, path, (taps, timed));
         }
-        sheet
+        book
     }
 
     fn column_tap(
@@ -258,8 +260,9 @@ pub(super) fn rule(ui: &mut egui::Ui) {
         .hline(rect.x_range(), rect.center().y, (1.0, DIVIDER));
 }
 
-/// All units and Practice book at the foot of `inner`.
-fn foot(ui: &mut egui::Ui, inner: Rect) -> Option<Tapped> {
+/// All units and Practice book at the foot of `inner`; what was tapped, and where Practice book
+/// lies.
+fn foot(ui: &mut egui::Ui, inner: Rect) -> (Option<Tapped>, Rect) {
     let row = Rect::from_min_max(
         inner.left_bottom() - Vec2::new(0.0, TOUCH_TARGET),
         inner.max,
@@ -272,9 +275,10 @@ fn foot(ui: &mut egui::Ui, inner: Rect) -> Option<Tapped> {
     );
     let units = text_button(&mut foot, t::ALL_UNITS, true);
     let book = text_button(&mut foot, t::PRACTICE_BOOK, true);
-    if units.clicked() {
+    let tapped = if units.clicked() {
         Some(Tapped::Path(units.rect))
     } else {
         book.clicked().then_some(Tapped::Book(book.rect))
-    }
+    };
+    (tapped, book.rect)
 }

@@ -1,14 +1,14 @@
 //! The store's jobs the screen hands over: leaving the canvas, and the gallery's calls; the
 //! gallery's intents applied in order; and practice's answers from the store.
 
-use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest};
+use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest, Thumbnail};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice_app::{Options, PracticeLog};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
 use super::{Content, Screen, new_project};
-use crate::canvas::Canvas;
+use crate::canvas::{Canvas, Then};
 use crate::error::RuntimeError;
 use crate::practice::{PracticeDone, sheet};
 use crate::storage::{Job, LibraryCall};
@@ -149,6 +149,24 @@ pub(crate) fn leave_job(
         kept_at: Some(kept_at),
         close,
     }
+}
+
+/// What a practice sheet left for the home takes back with it (S144): the picture of `part`, the
+/// part of its canvas the view showed (canvas pixels), which shrinks into its place there as an
+/// artwork's picture into its card; never kept (D98). None for an artwork (its card holds its
+/// picture), for the next lesson, or when it cannot be made (the sheet goes back as paper).
+pub(super) fn carried_picture(
+    canvas: &mut Canvas,
+    core: &Core,
+    part: [u32; 4],
+) -> Option<Thumbnail> {
+    if sheet(canvas).is_none() || canvas.then != Then::Gallery {
+        return None;
+    }
+    canvas
+        .shown_picture(core, part)
+        .inspect_err(|error| log::error!("no picture of the sheet left: {error}"))
+        .ok()
 }
 
 /// The gallery's intents in order; anything else from a gallery frame is a stray.

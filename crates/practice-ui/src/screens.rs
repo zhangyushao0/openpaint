@@ -42,13 +42,20 @@ pub type Taken = (Vec<PracticeIntent>, Vec<OptionsIntent>, Vec<TimerIntent>);
 impl PracticeScreens {
     /// The hooks practice fills in one frame for what it shows (`shown`).
     pub fn hooked<'a>(&'a mut self, (sheet, path, timer): Shown<'a>) -> Hooked<'a> {
-        let sheet = sheet.map(|sheet| SheetHook {
-            part: &mut self.sheet,
-            sheet,
-            taps: &mut self.sheet_taps,
-            timer,
-            timer_taps: &mut self.timer_taps,
-        });
+        // On the home, what the sheet last left laid over the canvas goes back with it (S144).
+        let (sheet, laid) = match sheet {
+            Some(sheet) => {
+                let hook = SheetHook {
+                    part: &mut self.sheet,
+                    sheet,
+                    taps: &mut self.sheet_taps,
+                    timer,
+                    timer_taps: &mut self.timer_taps,
+                };
+                (Some(hook), &[][..])
+            }
+            None => (None, self.sheet.laid()),
+        };
         let home = path.map(|(path, notice)| PathHook {
             part: &mut self.home,
             path,
@@ -56,6 +63,7 @@ impl PracticeScreens {
             taps: &mut self.options_taps,
             timer,
             timer_taps: &mut self.home_timer_taps,
+            laid,
         });
         Hooked { sheet, home }
     }

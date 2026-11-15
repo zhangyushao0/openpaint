@@ -22,6 +22,8 @@ impl HomeHook for Column {
         rect
     }
 
+    fn carried(&mut self, _: &egui::Painter, _: (Rect, Rect)) {}
+
     fn dialogs(&mut self, _: &Context, _: &mut Vec<Intent>) {}
 
     fn notice(&self) -> Option<Text> {
