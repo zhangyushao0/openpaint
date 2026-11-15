@@ -316,7 +316,7 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
         }
         // A frame skipped while the GPU is behind consumes nothing.
         if paced.skipped {
-            host.latency.skipped();
+            host.latency.skipped(paced.patient);
             return Ok(again);
         }
         let end_ns = start_ns.saturating_add(work);

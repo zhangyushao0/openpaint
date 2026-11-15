@@ -24,12 +24,14 @@ impl fmt::Display for Summary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "pen latency, {} events in {} frames ({} skipped for the GPU, at most {} in \
-             flight; the frame before still in flight at {} of {} calls): event to frame start \
-             {}; event to present call {}; frame work {}; GPU waits {}",
+            "pen latency, {} events in {} frames ({} skipped for the GPU, {} of them for \
+             patience, at most {} in flight; the frame before still in flight at {} of {} \
+             calls): event to frame start {}; event to present call {}; frame work {}; GPU waits \
+             {}",
             self.events,
             self.frames,
             self.skipped,
+            self.patient,
             self.in_flight,
             self.skipped + self.behind,
             self.skipped + self.frames,

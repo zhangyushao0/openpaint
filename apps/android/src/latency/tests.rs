@@ -59,7 +59,7 @@ fn a_stroke_is_summarised_when_the_frame_takes_its_lift() {
     latency.input(&batch(MotionPhase::Down, ToolKind::Stylus), 0);
     assert_eq!(latency.frame((4 * MS, 6 * MS), cost(1, 1, 0)), None);
     latency.input(&batch(MotionPhase::Move, ToolKind::Stylus), 10 * MS);
-    latency.skipped();
+    latency.skipped(true);
     latency.input(&batch(MotionPhase::Move, ToolKind::Stylus), 12 * MS);
     assert_eq!(latency.frame((20 * MS, 23 * MS), cost(2, 0, 1)), None);
     latency.input(&batch(MotionPhase::Up, ToolKind::Stylus), 30 * MS);
@@ -93,11 +93,9 @@ fn a_stroke_is_summarised_when_the_frame_takes_its_lift() {
         ]
     );
     let line = summary.to_string();
-    let paced = "(1 skipped for the GPU, at most 1 in flight; the frame before still in flight";
-    assert!(
-        line.contains(&format!("{paced} at 3 of 4 calls)")),
-        "{line}"
-    );
+    let paced = "(1 skipped for the GPU, 1 of them for patience, at most 1 in flight; the frame \
+                 before still in flight at 3 of 4 calls)";
+    assert!(line.contains(paced), "{line}");
     assert!(
         line.contains("GPU waits p50 1.0 p95 2.0 max 2.0 ms; slowest #1"),
         "{line}"
@@ -245,16 +243,19 @@ fn fingers_hover_and_frames_without_pen_events_are_not_counted() {
     latency.input(&batch(MotionPhase::HoverMove, ToolKind::Stylus), 0);
     latency.input(&batch(MotionPhase::Down, ToolKind::Finger), 0);
     latency.input(&batch(MotionPhase::Up, ToolKind::Finger), 0);
-    latency.skipped();
+    latency.skipped(true);
     assert_eq!(latency.frame((5 * MS, 6 * MS), FrameCost::default()), None);
     latency.input(&batch(MotionPhase::Down, ToolKind::Stylus), 10 * MS);
     latency.frame((12 * MS, 13 * MS), FrameCost::default());
     latency.frame((20 * MS, 21 * MS), FrameCost::default());
+    // A call skipped with two frames unfinished is not one skipped for patience.
+    latency.skipped(false);
     latency.input(&batch(MotionPhase::Up, ToolKind::Stylus), 30 * MS);
     let summary = latency
         .frame((31 * MS, 32 * MS), FrameCost::default())
         .expect("summary");
-    assert_eq!((summary.events, summary.frames, summary.skipped), (2, 2, 0));
+    assert_eq!((summary.events, summary.frames), (2, 2));
+    assert_eq!((summary.skipped, summary.patient), (1, 0));
 }
 
 #[test]

@@ -1,6 +1,7 @@
 //! Frame pacing (DECISIONS D96, D97): no frame is submitted while the GPU is more than one of the
 //! screen's frames behind; how long a frame call waits for the frame before depends on what the
-//! frame is for (`Wanted`). A frame call that waits is skipped at once: nothing is evaluated,
+//! frame is for (`Wanted`) and, for a stroke, on whether the GPU has lately been late (`late`).
+//! A frame call that waits is skipped at once: nothing is evaluated,
 //! drawn or presented, and the host asks for the next one. Input keeps arriving between frame
 //! calls (`Runtime::motion` never touches the GPU) and waits in the runtime's queue, so the next
 //! frame drawn takes every sample since: a stroke's samples are never dropped, only drawn a frame
@@ -13,20 +14,31 @@ use openpaint_render::Core;
 pub(crate) const MOST_IN_FLIGHT: u64 = 1;
 
 /// Frame calls skipped in a row while the GPU still works on the frame before, at most, while a
-/// stroke is drawn; the next is submitted then. On the tablet a frame presented while the GPU
-/// worked on the one before waited for it in `present` (Opaque Paint at 400 px: 10 to 21 ms in a
-/// stroke's first frames), so a frame heavier than a vsync is waited out by skipping; but a frame
-/// drawn after many skips takes all the input since, so its region (and its work) grows with the
-/// wait (with no bound, the first stroke over a dense place drew in one frame of 2.6 s): three
-/// vsyncs (25 ms at 120 Hz) keep that small.
+/// stroke is drawn and the GPU has lately been late; the next is submitted then. On the tablet a
+/// frame presented while the GPU worked on the one before waited for it in `present` (Opaque
+/// Paint at 400 px: 10 to 21 ms in a stroke's first frames), so a frame heavier than a vsync is
+/// waited out by skipping; but a frame drawn after many skips takes all the input since, so its
+/// region (and its work) grows with the wait (with no bound, the first stroke over a dense place
+/// drew in one frame of 2.6 s): three vsyncs (25 ms at 120 Hz) keep that small.
 pub(crate) const PATIENCE: u32 = 3;
+
+/// Frame calls in a row that find the GPU on time after it was late, before a stroke's frame
+/// goes ahead with the frame before unfinished again (0.2 s at 120 Hz). While a stroke waits
+/// patiently, a frame whose CPU and GPU work together pass a vsync and one whose GPU work alone
+/// passes it but not two look alike (each is found unfinished a call after it, done the call
+/// after that); only going ahead tells them apart, so a brush between those comes back to
+/// patience after a few frames ahead each time this runs out.
+pub(crate) const DOUBT: u32 = 24;
 
 /// What a frame call is wanted for, which decides how long it waits for the frame before; the
 /// recorder and the bench count only the calls a hand or a motion wanted (not `Rest`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Wanted {
-    /// A stroke is drawn: a frame waits for the one before for up to `PATIENCE` calls, so the
-    /// next takes more of the pen's samples and a heavy brush's frame never waits in `present`.
+    /// A stroke is drawn: as `Motion` while the GPU keeps up; while it has lately been late
+    /// (`late`), a frame waits for the one before for up to `PATIENCE` calls, so the next takes
+    /// more of the pen's samples and a heavy brush's frame never waits in `present`. (Waiting
+    /// whenever the frame before was unfinished halved every light stroke whose frame was merely
+    /// submitted late in its vsync: at a view tier on the tablet, 301 events in 150 frames.)
     Stroke,
     /// A hand on or over the glass, or the interface moving (a panel growing, a ring sliding, a
     /// pill fading, the view settling): a frame every vsync. It never waits for the frame
@@ -63,6 +75,9 @@ impl Wanted {
 pub struct Paced {
     /// It was skipped: the GPU was behind.
     pub skipped: bool,
+    /// It was skipped for a stroke's patience alone: only the frame before was unfinished, and
+    /// the GPU had lately been late.
+    pub patient: bool,
     /// The screen's frames in flight when it began.
     pub in_flight: u64,
     /// What it was wanted for.
@@ -76,8 +91,18 @@ pub(crate) struct Pacing {
     waited: u32,
     /// The call before found the frame before it finished.
     done: bool,
+    /// Frame calls still to come before the GPU counts as on time again (`late`).
+    doubt: u32,
     /// Tests: frame calls still to skip as if the GPU were behind.
     lag: u32,
+}
+
+/// Whether a frame call finding `in_flight` of the screen's frames unfinished, `waited` calls in
+/// a row having been skipped before it, finds the GPU late: a frame unfinished a call after the
+/// one that submitted it. Only the frame the call before submitted, if it did, may be unfinished
+/// on time (a frame submitted late in its vsync, its GPU work running into the next).
+const fn late(in_flight: u64, waited: u32) -> bool {
+    in_flight > if waited == 0 { MOST_IN_FLIGHT } else { 0 }
 }
 
 impl Pacing {
@@ -94,10 +119,19 @@ impl Pacing {
         let lagging = self.lag > 0;
         self.lag = self.lag.saturating_sub(1);
         let settled = !window || std::mem::replace(&mut self.done, in_flight == 0);
-        let skipped = lagging || behind(in_flight, self.waited, (wanted, settled));
+        self.doubt = if late(in_flight, self.waited) {
+            DOUBT
+        } else {
+            self.doubt.saturating_sub(1)
+        };
+        let doubting = self.doubt > 0;
+        let paced = behind(in_flight, self.waited, (wanted, settled, doubting));
+        let skipped = lagging || paced;
+        let patient = paced && wanted == Wanted::Stroke && in_flight == MOST_IN_FLIGHT;
         self.waited = if skipped { self.waited + 1 } else { 0 };
         self.last = Paced {
             skipped,
+            patient,
             in_flight,
             wanted,
         };
@@ -115,11 +149,17 @@ impl Pacing {
 
 /// Whether a frame call `wanted` for that waits with `in_flight` of the screen's frames
 /// unfinished, `waited` calls in a row having waited already; `settled` when the call before
-/// already found the frame before finished (`skips`).
-pub(crate) const fn behind(in_flight: u64, waited: u32, (wanted, settled): (Wanted, bool)) -> bool {
+/// already found the frame before finished, `doubting` while the GPU has lately been late
+/// (`skips`).
+pub(crate) const fn behind(
+    in_flight: u64,
+    waited: u32,
+    (wanted, settled, doubting): (Wanted, bool, bool),
+) -> bool {
     match wanted {
         Wanted::Stroke => {
-            in_flight > MOST_IN_FLIGHT || (in_flight == MOST_IN_FLIGHT && waited < PATIENCE)
+            in_flight > MOST_IN_FLIGHT
+                || (doubting && in_flight == MOST_IN_FLIGHT && waited < PATIENCE)
         }
         Wanted::Motion => in_flight > MOST_IN_FLIGHT,
         Wanted::Rest => in_flight > 0 || !settled,
@@ -128,11 +168,11 @@ pub(crate) const fn behind(in_flight: u64, waited: u32, (wanted, settled): (Want
 
 #[cfg(test)]
 mod tests {
-    use super::{MOST_IN_FLIGHT, PATIENCE, Pacing, Wanted, behind};
+    use super::{DOUBT, MOST_IN_FLIGHT, PATIENCE, Pacing, Wanted, behind, late};
 
     #[test]
-    fn a_frame_waits_for_the_one_before_patiently_while_a_stroke_is_drawn_and_wholly_at_rest() {
-        let (stroke, rest) = ((Wanted::Stroke, true), (Wanted::Rest, true));
+    fn a_frame_waits_for_the_one_before_patiently_while_a_late_gpu_draws_a_stroke_and_at_rest() {
+        let (stroke, rest) = ((Wanted::Stroke, true, true), (Wanted::Rest, true, false));
         assert!(
             !behind(0, 0, stroke) && !behind(0, 0, rest),
             "nothing in flight"
@@ -146,27 +186,45 @@ mod tests {
             !behind(1, PATIENCE, stroke),
             "then the pen's input goes first"
         );
+        assert!(
+            !behind(1, 0, (Wanted::Stroke, true, false)),
+            "the GPU on time: the frame before is not waited for"
+        );
+        assert!(behind(2, 0, (Wanted::Stroke, true, false)), "two behind");
         assert!(behind(1, 99, rest), "at rest, until it is done");
         assert!(
-            behind(0, 0, (Wanted::Rest, false)),
+            behind(0, 0, (Wanted::Rest, false, false)),
             "and a vsync after it was found done"
         );
         assert!(
-            !behind(0, 0, (Wanted::Stroke, false)),
+            !behind(0, 0, (Wanted::Stroke, false, true)),
             "but not while a stroke is drawn"
         );
     }
 
     #[test]
+    fn the_gpu_is_late_when_a_frame_is_unfinished_a_call_after_the_one_that_submitted_it() {
+        assert!(!late(0, 0) && !late(0, 3), "nothing in flight");
+        assert!(!late(1, 0), "the frame the call before submitted");
+        assert!(late(1, 1), "a frame submitted two calls ago");
+        assert!(late(2, 0), "the frame before that one");
+    }
+
+    #[test]
     fn a_hand_or_the_interface_moving_draws_while_the_gpu_has_at_most_the_frame_before() {
-        let motion = |settled| (Wanted::Motion, settled);
-        assert!(!behind(0, 0, motion(true)) && !behind(0, 0, motion(false)));
-        assert!(
-            !behind(1, 0, motion(false)),
-            "the frame before still on the GPU: drawn at once"
-        );
-        assert!(behind(2, 0, motion(true)), "two behind: it waits");
-        assert!(behind(2, 99, motion(true)), "however long");
+        for doubting in [false, true] {
+            let motion = |settled| (Wanted::Motion, settled, doubting);
+            assert!(!behind(0, 0, motion(true)) && !behind(0, 0, motion(false)));
+            assert!(
+                !behind(1, 0, motion(false)),
+                "the frame before still on the GPU: drawn at once"
+            );
+            assert!(behind(2, 0, motion(true)), "two behind: it waits");
+            assert!(behind(2, 99, motion(true)), "however long");
+            let rest = |settled| (Wanted::Rest, settled, doubting);
+            assert!(behind(1, 99, rest(true)) && behind(0, 0, rest(false)));
+            assert!(!behind(0, 0, rest(true)), "at rest as ever");
+        }
     }
 
     #[test]
@@ -189,42 +247,75 @@ mod tests {
         );
     }
 
-    /// Frames drawn of `calls` frame calls a vsync apart (as the host asks for one while the
-    /// frame before wanted another), each frame's CPU work taking `cpu` vsyncs from its call and
-    /// its GPU work `gpu` after that and after the frame before's; the most frames ever
-    /// unfinished as one was submitted.
-    fn drawn(wanted: Wanted, (cpu, gpu): (f32, f32), calls: u16) -> (u16, usize) {
+    /// One frame call of `run`: the screen's frames unfinished as it began, whether it drew one
+    /// and whether it was skipped for patience alone.
+    #[derive(Debug, Clone, Copy)]
+    struct Call {
+        in_flight: usize,
+        drawn: bool,
+        patient: bool,
+    }
+
+    /// `calls` frame calls a vsync apart (as the host asks for one while the frame before
+    /// wanted another), the frame of call `k` taking `load(k)`: its CPU work so many vsyncs
+    /// from its call and its GPU work so many after that and after the frame before's.
+    fn run(wanted: Wanted, load: impl Fn(u16) -> (f32, f32), calls: u16) -> Vec<Call> {
         let mut pacing = Pacing::default();
-        let (mut ends, mut drawn, mut most): (Vec<f32>, u16, usize) = (Vec::new(), 0, 0);
+        let mut ends: Vec<f32> = Vec::new();
+        let mut out = Vec::new();
         for call in 0..calls {
-            let now = f32::from(call);
+            let (now, (cpu, gpu)) = (f32::from(call), load(call));
             ends.retain(|end| *end > now);
-            if !pacing.skips_with(ends.len() as u64, (true, wanted)) {
-                most = most.max(ends.len());
+            let in_flight = ends.len();
+            let drawn = !pacing.skips_with(in_flight as u64, (true, wanted));
+            if drawn {
                 let start = ends.last().map_or(now + cpu, |last| last.max(now + cpu));
                 ends.push(start + gpu);
-                drawn += 1;
             }
+            let patient = pacing.last().patient;
+            out.push(Call {
+                in_flight,
+                drawn,
+                patient,
+            });
         }
+        out
+    }
+
+    /// Of `calls`: the frames drawn, those submitted with a frame before unfinished, the calls
+    /// skipped for patience alone and the most frames unfinished as one was submitted.
+    fn counted(calls: &[Call]) -> (usize, usize, usize, usize) {
+        let drawn = || calls.iter().filter(|call| call.drawn);
+        (
+            drawn().count(),
+            drawn().filter(|call| call.in_flight > 0).count(),
+            calls.iter().filter(|call| call.patient).count(),
+            drawn().map(|call| call.in_flight).max().unwrap_or(0),
+        )
+    }
+
+    /// Frames drawn of `calls` frame calls whose frames each take `load` (`run`); the most
+    /// frames ever unfinished as one was submitted.
+    fn drawn(wanted: Wanted, load: (f32, f32), calls: u16) -> (usize, usize) {
+        let (drawn, _, _, most) = counted(&run(wanted, |_| load, calls));
         (drawn, most)
     }
 
     #[test]
     fn frames_whose_cpu_and_gpu_work_together_pass_a_vsync_come_every_vsync_while_wanted() {
-        // As a panel opening on the tablet while the clocks are low: each frame's CPU work and
-        // GPU work under a vsync, together over it.
-        let light = (0.6, 0.5);
-        assert_eq!(drawn(Wanted::Motion, light, 120).0, 120, "every vsync");
-        assert_eq!(
-            drawn(Wanted::Stroke, light, 120).0,
-            60,
-            "a stroke: every other"
-        );
-        assert_eq!(
-            drawn(Wanted::Rest, light, 120).0,
-            40,
-            "at rest: every third"
-        );
+        // As a panel opening on the tablet while the clocks are low, or a stroke at a view tier
+        // (2026-11-15: frame work p50 6.1 ms of a vsync's 8.3): each frame's CPU work and GPU
+        // work under a vsync, together over it.
+        for light in [(0.6, 0.5), (0.7, 0.5)] {
+            assert_eq!(drawn(Wanted::Motion, light, 120).0, 120, "every vsync");
+            let stroke = run(Wanted::Stroke, |_| light, 120);
+            assert_eq!(counted(&stroke), (120, 119, 0, 1), "a stroke too");
+            assert_eq!(
+                drawn(Wanted::Rest, light, 120).0,
+                40,
+                "at rest: every third"
+            );
+        }
         // Frames lighter than a vsync together come every vsync however they are wanted.
         let quick = (0.4, 0.3);
         for wanted in [Wanted::Motion, Wanted::Stroke] {
@@ -235,5 +326,45 @@ mod tests {
         let (heavy, most) = drawn(Wanted::Motion, (0.6, 1.5), 120);
         assert!(most <= MOST_IN_FLIGHT as usize, "{most}");
         assert!((78..=81).contains(&heavy), "the GPU's pace: {heavy}");
+    }
+
+    #[test]
+    fn a_stroke_heavier_than_a_vsync_on_the_gpu_waits_for_the_frame_before_once_it_was_late() {
+        // The GPU's work 1.5 vsyncs a frame: a frame every third call, as when every stroke
+        // waited; only the second frame goes ahead of the first unfinished (and waits for it in
+        // `present`), then the GPU is found late every third call and the calls stay patient.
+        let heavy = run(Wanted::Stroke, |_| (0.6, 1.5), 120);
+        assert_eq!(counted(&heavy), (41, 1, 78, 1));
+        assert!(heavy[1].drawn && heavy[1].in_flight == 1, "{:?}", heavy[1]);
+        // Heavier still: patience runs out after `PATIENCE` calls, as it always did.
+        let (drawn, early, patient, most) = counted(&run(Wanted::Stroke, |_| (0.6, 3.5), 120));
+        assert!(most <= MOST_IN_FLIGHT as usize, "{most}");
+        assert!(
+            early <= drawn && patient > drawn,
+            "{drawn} {early} {patient}"
+        );
+    }
+
+    #[test]
+    fn a_stroke_that_turns_heavy_and_light_again_falls_back_to_patience_and_recovers() {
+        // Light at a tier, heavy on the GPU over a dense place from call 60, light from 120.
+        let load = |call| match call {
+            60..120 => (0.6, 1.5),
+            _ => (0.7, 0.5),
+        };
+        let calls = run(Wanted::Stroke, load, 240);
+        assert!(
+            calls[..60].iter().all(|call| call.drawn),
+            "light: every call"
+        );
+        let (_, early, _, most) = counted(&calls[60..120]);
+        assert_eq!((early, most), (2, 1), "heavy: its first frame and one more");
+        // Back to light: the last heavy frame is found late at call 120, then patience until
+        // `DOUBT` calls in a row found the GPU on time; every call draws from 143 on.
+        let since = (calls.iter().rposition(|call| !call.drawn)).map_or(0, |at| at + 1);
+        assert_eq!(since, 143, "recovered within {} calls", since - 120);
+        assert!(since - 120 < DOUBT as usize);
+        let (drawn, _, _, most) = counted(&calls[120..since]);
+        assert_eq!((drawn, most), (11, 0), "every other call meanwhile");
     }
 }

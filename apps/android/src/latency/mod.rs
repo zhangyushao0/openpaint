@@ -15,8 +15,9 @@
 //! the passes encoded, the buffer writes, the submission), and what a frame spent beside its
 //! drawing and waits (its UI pass, and the rest: the view's other work, the screen's pass); the
 //! drawing's render passes a frame and the attachment bytes they loaded and stored (what a GPU
-//! drawing in tiles pays for them, S134); at how many calls the frame before was still in flight
-//! (a stroke's call then waits for it). Not split: the driver's own share of a submission or of
+//! drawing in tiles pays for them, S134); at how many calls the frame before was still in flight,
+//! and how many calls a stroke skipped for patience alone (the GPU lately late, D97). Not split:
+//! the driver's own share of a submission or of
 //! encoding. The GPU's time for a frame is
 //! not here: frames are timed on the GPU
 //! only while a benchmark turns it on (`Core::time_frames`), an extra submission and readback a
@@ -46,6 +47,7 @@ struct StrokeTimes {
     frame_work: Vec<i64>,
     costs: Vec<FrameCost>,
     skipped: usize,
+    patient: usize,
     lifted: bool,
     /// What the stroke's drawing drew onto the canvas and onto the view tier shown in every
     /// frame drawn since the pen touched down, those consuming none of its events included.
@@ -140,11 +142,12 @@ impl PenLatency {
         }
     }
 
-    /// A frame call was skipped while the GPU was behind: the stroke's events wait for the next
-    /// frame drawn.
-    pub fn skipped(&mut self) {
+    /// A frame call was skipped while the GPU was behind (`patient`: for a stroke's patience
+    /// alone, `Paced::patient`): the stroke's events wait for the next frame drawn.
+    pub fn skipped(&mut self, patient: bool) {
         if let Some(stroke) = &mut self.stroke {
             stroke.skipped += 1;
+            stroke.patient += usize::from(patient);
         }
     }
 
@@ -198,10 +201,12 @@ pub struct Slow {
 pub struct Summary {
     pub events: usize,
     pub frames: usize,
-    /// Frame calls skipped while the GPU was behind, and the most frames in flight at a drawn
-    /// frame's start; the frames drawn whose call found the frame before still in flight (a
+    /// Frame calls skipped while the GPU was behind, those of them skipped for a stroke's
+    /// patience alone (the GPU lately late, `Paced::patient`), and the most frames in flight at a
+    /// drawn frame's start; the frames drawn whose call found the frame before still in flight (a
     /// stroke's call skipped finds it so too).
     pub skipped: usize,
+    pub patient: usize,
     pub in_flight: u64,
     pub behind: usize,
     /// Event time to the start of the frame consuming it.
@@ -228,6 +233,7 @@ impl Summary {
             events: stroke.to_frame.len(),
             frames: stroke.frame_work.len(),
             skipped: stroke.skipped,
+            patient: stroke.patient,
             in_flight: (stroke.costs.iter())
                 .map(|c| c.in_flight)
                 .max()
