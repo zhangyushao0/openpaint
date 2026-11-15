@@ -15,6 +15,7 @@ use crate::geometry::heading::line_angle;
 use crate::geometry::marks::{last_edges, last_mark};
 use crate::geometry::off::{Heads, Off, Straight, once, ringed};
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
+use crate::marks::card::{Say, screen_way};
 use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, meet};
 use crate::records::metric::{Metric, Metrics, value};
@@ -36,6 +37,9 @@ pub struct SpaceCheck {
     pub lines: Vec<Edge>,
     pub off: Vec<Off>,
     pub metrics: Metrics,
+    /// The way the worst of it lies off the answer on the picture (frame units, y down): a
+    /// mark's offset, a halving line's up or down at its worse end, an upright's left or right.
+    pub toward: Option<Point>,
 }
 
 impl SpaceCheck {
@@ -43,40 +47,40 @@ impl SpaceCheck {
     #[must_use]
     pub fn of(task: &SpaceTask, lines: &[&[Point]]) -> Self {
         let target = task.target();
-        let (mark, read, off) = match task.trick {
+        let (mark, read, found) = match task.trick {
             Trick::Centre | Trick::Mirror => {
                 let mark = last_mark(lines);
-                let off = mark.map(|m| {
+                let found = mark.map(|m| {
                     let [u, v] = task.on_face(m);
-                    (u - target[0]).hypot(v - target[1])
+                    let answer = task.at([target[0], target[1]]);
+                    let toward = [m[0] - answer[0], m[1] - answer[1]];
+                    ((u - target[0]).hypot(v - target[1]), toward)
                 });
-                (mark, Vec::new(), off)
+                (mark, Vec::new(), found)
             }
             Trick::Halves => {
                 let read = last_edges(lines, 1, |e| !upright(e));
-                let off = read.first().and_then(|edge| {
-                    let heights = [0.0, 1.0].map(|u| {
-                        let edge_at = [task.at([u, 0.0]), task.at([u, 1.0])];
-                        meet(edge.ends, edge_at).map(|p| (task.on_face(p)[1] - target[0]).abs())
-                    });
-                    let [near, far] = heights;
-                    Some(near?.max(far?))
-                });
-                (None, read, off)
+                let found = read
+                    .first()
+                    .and_then(|edge| height_off(task, edge, target[0]));
+                (None, read, found)
             }
             Trick::Thirds | Trick::Step => {
                 let count = target.len();
                 let read = last_edges(lines, count, upright);
-                let off = depths_off(task, &read, &target);
-                (None, read, off)
+                let found = depths_off(task, &read, &target);
+                (None, read, found)
             }
         };
-        let metrics = off.map_or_else(Vec::new, |off| vec![(Metric::SpaceOff, off.min(WHOLE))]);
+        let metrics = found.map_or_else(Vec::new, |(off, _)| {
+            vec![(Metric::SpaceOff, off.min(WHOLE))]
+        });
         Self {
             off: marked(task, mark, &read),
             mark,
             lines: read,
             metrics,
+            toward: found.map(|(_, toward)| toward),
         }
     }
 
@@ -99,6 +103,29 @@ impl SpaceCheck {
         } else {
             Outcome::Redo
         })
+    }
+
+    /// The reason beside a result not right (S138): the mark, the halving line or the upright
+    /// the way it lies off the answer on the picture; a little within `NEAR_FACE`, clearly beyond.
+    #[must_use]
+    pub fn reason(&self, task: &SpaceTask) -> Option<Say> {
+        if !matches!(
+            self.verdict(task),
+            Verdict::App(Outcome::Near | Outcome::Redo)
+        ) {
+            return None;
+        }
+        let what = match task.trick {
+            Trick::Centre | Trick::Mirror => "point",
+            Trick::Halves => "line",
+            Trick::Thirds | Trick::Step => "upright",
+        };
+        let off = value(&self.metrics, Metric::SpaceOff)?;
+        Some(Say::reason(
+            what,
+            screen_way(self.toward?),
+            (off, NEAR_FACE),
+        ))
     }
 }
 
@@ -147,20 +174,41 @@ fn upright(edge: &Edge) -> bool {
     line_angle(edge.direction(), [0.0, 1.0]) <= UPRIGHT
 }
 
+/// How far the halving line `edge` runs off the face's middle height `goal` (the face's `v`) at
+/// the worse of its near and far edges, and that end's way off it on the picture (up or down).
+fn height_off(task: &SpaceTask, edge: &Edge, goal: f64) -> Option<(f64, Point)> {
+    let heights = [0.0, 1.0].map(|u| {
+        let edge_at = [task.at([u, 0.0]), task.at([u, 1.0])];
+        meet(edge.ends, edge_at).map(|p| (u, task.on_face(p)[1]))
+    });
+    let [near, far] = heights;
+    let (u, v) = [near?, far?]
+        .into_iter()
+        .max_by(|a, b| (a.1 - goal).abs().total_cmp(&(b.1 - goal).abs()))?;
+    let way = task.at([u, v])[1] - task.at([u, goal])[1];
+    Some(((v - goal).abs(), [0.0, way]))
+}
+
 /// How far the uprights `read` stand off the depths `target` (the face's `u`), where each meets
-/// the face's middle line: in order when as many were read, else the one read against the nearer.
-fn depths_off(task: &SpaceTask, read: &[Edge], target: &[f64]) -> Option<f64> {
+/// the face's middle line: in order when as many were read (the worst), else the one read against
+/// the nearer; and its way off on the picture (left or right).
+fn depths_off(task: &SpaceTask, read: &[Edge], target: &[f64]) -> Option<(f64, Point)> {
     let middle = [task.at([0.0, 0.5]), task.at([1.0, 0.5])];
     let mut depths: Vec<f64> = (read.iter())
         .filter_map(|edge| meet(edge.ends, middle).map(|p| task.on_face(p)[0]))
         .collect();
     depths.sort_by(f64::total_cmp);
-    let off = |depth: f64, goal: f64| (depth - goal).abs();
-    match depths.as_slice() {
-        [] => None,
-        [one] if target.len() > 1 => target.iter().map(|goal| off(*one, *goal)).reduce(f64::min),
-        all => (all.iter().zip(target))
-            .map(|(depth, goal)| off(*depth, *goal))
-            .reduce(f64::max),
-    }
+    let pairs: Vec<(f64, f64)> = match depths.as_slice() {
+        [one] if target.len() > 1 => target.iter().map(|goal| (*one, *goal)).collect(),
+        all => all.iter().copied().zip(target.iter().copied()).collect(),
+    };
+    let apart = |(depth, goal): &(f64, f64)| (depth - goal).abs();
+    let worst = |a: &(f64, f64), b: &(f64, f64)| apart(a).total_cmp(&apart(b));
+    let (depth, goal) = if depths.len() == 1 && target.len() > 1 {
+        pairs.into_iter().min_by(worst)?
+    } else {
+        pairs.into_iter().max_by(worst)?
+    };
+    let way = task.at([depth, 0.5])[0] - task.at([goal, 0.5])[0];
+    Some(((depth - goal).abs(), [way, 0.0]))
 }

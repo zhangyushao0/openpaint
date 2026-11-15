@@ -1,7 +1,8 @@
 //! A value scale's marks (S97), in the one frame drawn in: its cells, the ends filled as given, the
 //! cell in hand outlined in ink; compared, the even scale as a row under the copy's, cell under cell
 //! (a hued scale keeping its hue), a cell of the copy's that is uneven outlined red together with
-//! its even one. The card says how many cells are uneven.
+//! its even one. The card says which cell is furthest off and which way (S138), then how many
+//! cells are uneven.
 
 use crate::kinds::scales::scale::{ROW, ScaleCheck, ValueScale};
 use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
@@ -96,10 +97,9 @@ impl Compared for ScaleCompared {
         match &self.check {
             None => vec![CardItem::Reading],
             Some(check) if !check.uneven.is_empty() => {
-                vec![CardItem::Says(Say::counting(
-                    "cells-uneven",
-                    &[check.uneven.len()],
-                ))]
+                let reason = check.reason().map(CardItem::Says);
+                let uneven = Say::counting("cells-uneven", &[check.uneven.len()]);
+                reason.into_iter().chain([CardItem::Says(uneven)]).collect()
             }
             Some(_) => Vec::new(),
         }

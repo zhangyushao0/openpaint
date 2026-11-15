@@ -15,6 +15,7 @@
 //! value scales sRGB's channels together, so hue and purity hold), and so does the even scale
 //! between them: a hue held, its lightness stepped.
 
+use crate::marks::card::Say;
 use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::colour::{Rgb8, from_hsv, from_oklab, oklab};
 use crate::maths::path::Point;
@@ -286,5 +287,22 @@ impl ScaleCheck {
         metrics.push((Metric::ScaleUneven, self.uneven.len() as f64));
         metrics.push((Metric::ScaleReversed, self.reversed.len() as f64));
         metrics
+    }
+
+    /// The reason beside a result not right (S138): the uneven cell furthest off its even step,
+    /// numbered from the dark end, too light or too dark; a little within half a step (twice what
+    /// makes a cell uneven), clearly beyond.
+    #[must_use]
+    pub fn reason(&self) -> Option<Say> {
+        if !matches!(self.verdict(), Verdict::App(Outcome::Near | Outcome::Redo)) {
+            return None;
+        }
+        let (first, last) = (self.targets.first()?, self.targets.last()?);
+        let step = (last - first).abs() / (self.targets.len() - 1).max(1) as f64;
+        let (cell, off) = (self.uneven.iter())
+            .filter_map(|cell| Some((*cell, self.values[*cell]? - self.targets[*cell])))
+            .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))?;
+        let way = if off > 0.0 { "light" } else { "dark" };
+        Some(Say::reason("cell", way, (off, step / 2.0)).numbered(cell + 1))
     }
 }

@@ -19,6 +19,7 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
     match say.key {
         "off" => super::off(language, (count(0), count(1), count(2))),
         "ellipse-differs" => ellipse(language, say),
+        "reason" => super::reason(language, say),
         "cells-uneven" => super::cells_uneven(language, count(0)),
         "lightness-off" => super::lightness_off(language, count(0), word(1) == "lighter"),
         "not-toward" => super::not_toward(language, count(0)),

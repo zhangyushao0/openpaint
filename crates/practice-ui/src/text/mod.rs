@@ -4,7 +4,8 @@
 //! the path, a lesson's names, results and end; `sheet.rs`, `colour.rs`, `options.rs`,
 //! `perspective.rs`, `points.rs`, `solids.rs`, `objects.rs`, `division.rs`, `book.rs`,
 //! `names.rs`; each kind's name and How card in a file of its own under `kinds/`, S109b; a card's
-//! `Say` keys in `says.rs`), words made with numbers are functions beside them. Screens write no
+//! `Say` keys in `says.rs`, a reason's words in `reasons.rs`), words made with numbers are
+//! functions beside them. Screens write no
 //! words of their own (`cargo repo-check` refuses a capitalised literal under
 //! `crates/practice-ui/src` outside this module). Written Chinese-first as the ui's are: V大's
 //! words (原图, 明度, 纯度, 色块, 勾线笔, 素材包), no term the ui's `RETIRED` lists.
@@ -49,6 +50,7 @@ mod options;
 mod perspective;
 mod points;
 mod pomodoro;
+mod reasons;
 mod says;
 mod sheet;
 mod solids;
@@ -65,6 +67,7 @@ pub(crate) use options::*;
 pub(crate) use perspective::*;
 pub(crate) use points::*;
 pub(crate) use pomodoro::*;
+pub(crate) use reasons::reason;
 pub(crate) use says::said;
 pub(crate) use sheet::*;
 pub(crate) use solids::*;
@@ -129,6 +132,7 @@ mod tests {
         made.extend((1..=8).map(|unit| unit_title(zh, unit)));
         made.extend([Seal::Unit(2), Seal::TenLessons].map(|seal| seal_lines(zh, seal).concat()));
         made.extend(pomodoro::made(zh));
+        made.extend(reasons::made(zh));
         let tables = every_text().into_iter().map(|text| text.get(zh).to_owned());
         for chinese in tables.chain(made) {
             let read = (drawing.iter()).fold(chinese.clone(), |read, verb| read.replace(verb, ""));
@@ -177,6 +181,7 @@ mod tests {
                 .collect();
             shown.push(one_more_line(language, &offer));
             shown.extend(pomodoro::made(language));
+            shown.extend(reasons::made(language));
             for kind in kinds::every_kind() {
                 shown.extend(how_steps(kind, CELLS, language));
             }

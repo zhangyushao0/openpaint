@@ -71,7 +71,10 @@ impl Compared for SpaceCompared {
 
     fn card(&self, _seen: &Seen<'_>) -> Vec<CardItem> {
         let marked = matches!(self.task.trick, Trick::Centre | Trick::Mirror);
-        nothing_read(self.check.metrics.is_empty(), marked)
+        let reason = self.check.reason(&self.task).map(CardItem::Says);
+        (reason.into_iter())
+            .chain(nothing_read(self.check.metrics.is_empty(), marked))
+            .collect()
     }
 
     fn metrics(&self) -> Metrics {

@@ -1,16 +1,18 @@
 //! A colour combination compared (S82, S101): its picture over the copy in place as strongly as the
 //! user sets, the area the card compares outlined in ink on both frames, the edges where the copy
-//! made a weak contrast strong in the marking red. The card: the slider, a chip for each area to
+//! made a weak contrast strong in the marking red. The card: a reason when not right (S138), the
+//! slider, a chip for each area to
 //! choose one, the chosen area's colours on the wheel and in the colour table, or the point the
 //! eyedropper compared; a line where the area is not painted. A generated one's (a record of 1.18.1
 //! and before) shows its picture drawn again in its original's frame.
 
 use crate::colour_areas::areas_read::AreasCopy;
 use crate::kinds::colours::judgement::DELTA_SPAN;
+use crate::kinds::colours::marks::colour_reason;
 use crate::marks::card::{CardItem, Say, WheelSize};
 use crate::marks::compared::{Compared, Outcome, Seen, Verdict};
 use crate::marks::mark::{Figure, In, Place, SheetMark, Source};
-use crate::maths::colour::{Difference, Rgb8};
+use crate::maths::colour::{Difference, Rgb8, delta_e};
 use crate::maths::path::Point;
 
 /// A combination is clean when its areas are off by at most this on the mean (Oklab: two and a
@@ -91,7 +93,10 @@ impl Compared for AreasCompared {
                 None => CardItem::Says(Say::plain("not-painted")),
             },
         };
-        vec![CardItem::Slider, chips, last]
+        let reason = self.reason().map(CardItem::Says);
+        (reason.into_iter())
+            .chain([CardItem::Slider, chips, last])
+            .collect()
     }
 
     /// Once read: incomplete while an area is not painted; clean when the areas are off by
@@ -118,5 +123,23 @@ impl Compared for AreasCompared {
             _ => Outcome::Redo,
         };
         Verdict::App(outcome)
+    }
+}
+
+impl AreasCompared {
+    /// The reason beside a result not right (S138): the area painted furthest off its colour,
+    /// numbered as its chip, with its colour's reason; none where even that one lies within a
+    /// just-noticeable step (a weak contrast made strong shows red on the copy).
+    #[must_use]
+    pub fn reason(&self) -> Option<Say> {
+        if !matches!(self.verdict(), Verdict::App(Outcome::Near | Outcome::Redo)) {
+            return None;
+        }
+        let read = self.read.as_ref()?;
+        let (area, (original, copy)) = (self.colours.iter().zip(&read.copy.colours))
+            .enumerate()
+            .filter_map(|(area, (original, copy))| Some((area, (*original, (*copy)?))))
+            .max_by(|(_, a), (_, b)| delta_e(a.0, a.1).total_cmp(&delta_e(b.0, b.1)))?;
+        colour_reason(original, copy).map(|say| say.numbered(area + 1))
     }
 }

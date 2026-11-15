@@ -1,6 +1,7 @@
 //! What the practice card shows of a compared exercise under its title, whatever its kind (S109,
 //! D111): a small vocabulary the screen lays out without knowing the kind, words named by keys
-//! (`Say`) that the UI's tables read in the language shown.
+//! (`Say`) that the UI's tables read in the language shown; a reason's (S138) made alike for
+//! every kind that gives one.
 
 use crate::compositions::levels::LevelRow;
 use crate::maths::colour::Rgb8;
@@ -30,6 +31,42 @@ impl Say {
             key,
             args: counts.iter().map(|count| Arg::Count(*count)).collect(),
         }
+    }
+
+    /// The reason beside the app's result (S138, D121): what of the copy is off (`what`: point,
+    /// mark, line, upright, colour, cell), which way, and how far in words, never a number: a
+    /// little while `off` lies within `near`, the band in which the check calls it near, clearly
+    /// beyond.
+    #[must_use]
+    pub fn reason(what: &'static str, way: &'static str, (off, near): (f64, f64)) -> Self {
+        let degree = if off.abs() <= near {
+            "little"
+        } else {
+            "clearly"
+        };
+        Self {
+            key: "reason",
+            args: vec![Arg::Word(what), Arg::Word(way), Arg::Word(degree)],
+        }
+    }
+
+    /// The same reason of the area or cell `number` (from 1).
+    #[must_use]
+    pub fn numbered(mut self, number: usize) -> Self {
+        self.args.push(Arg::Count(number));
+        self
+    }
+}
+
+/// Which way `offset` (the copy's less the answer's, frame units, y down) points on the screen by
+/// its larger part: left, right, up or down.
+#[must_use]
+pub(crate) fn screen_way([x, y]: Point) -> &'static str {
+    match (x.abs() >= y.abs(), x < 0.0, y < 0.0) {
+        (true, true, _) => "left",
+        (true, false, _) => "right",
+        (false, _, true) => "up",
+        (false, _, false) => "down",
     }
 }
 

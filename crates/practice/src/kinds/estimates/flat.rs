@@ -14,6 +14,7 @@ use crate::geometry::edges::Edge;
 use crate::geometry::marks::{last_edges, last_mark};
 use crate::geometry::off::PEN_WIDTH;
 use crate::geometry::off::{Heads, Off, Straight, ringed};
+use crate::marks::card::{Say, screen_way};
 use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
@@ -248,6 +249,56 @@ impl FlatCheck {
             (false, false) => Outcome::Redo,
         })
     }
+
+    /// The reason beside a result not right (S138): a point's mark off the answer the way its
+    /// larger part goes; a proportion's mark too far from the ringed end or too near it; an angle's
+    /// line turned either way or, where missing the dot is the larger share of its band, passing
+    /// to one side of it. A little within the near band (`NEAR_OFF`, `NEAR_ANGLE`), clearly beyond.
+    #[must_use]
+    pub fn reason(&self, flat: &Flat) -> Option<Say> {
+        if !matches!(
+            self.verdict(flat),
+            Verdict::App(Outcome::Near | Outcome::Redo)
+        ) {
+            return None;
+        }
+        match (*flat, self.mark, self.line) {
+            (Flat::Point { at }, Some(mark), _) => {
+                let way = screen_way([mark[0] - at[0], mark[1] - at[1]]);
+                Some(Say::reason("point", way, (distance(mark, at), NEAR_OFF)))
+            }
+            (Flat::Proportion { share, copy, .. }, Some(mark), _) => {
+                let error = share_along(copy, mark) - share;
+                let way = if error > 0.0 { "far" } else { "near" };
+                let off = error * distance(copy[0], copy[1]);
+                Some(Say::reason("mark", way, (off, NEAR_OFF)))
+            }
+            (Flat::Angle { original, through }, _, Some(line)) => {
+                let turned = wrapped(heading(line.ends) - heading(original));
+                let foot = foot(line.ends, through);
+                let missed = distance(foot, through);
+                Some(if turned.abs() / NEAR_ANGLE >= missed / NEAR_OFF {
+                    let way = if turned > 0.0 {
+                        "clockwise"
+                    } else {
+                        "anticlockwise"
+                    };
+                    Say::reason("line", way, (turned, NEAR_ANGLE))
+                } else {
+                    let way = screen_way([foot[0] - through[0], foot[1] - through[1]]);
+                    Say::reason("line", way, (missed, NEAR_OFF))
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The point of the line through `a` and `b` nearest `p`.
+fn foot([a, b]: [Point; 2], p: Point) -> Point {
+    let d = unit([a, b]);
+    let along = (p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1];
+    [a[0] + along * d[0], a[1] + along * d[1]]
 }
 
 /// How far `p` lies from the line through `a` and `b`.
