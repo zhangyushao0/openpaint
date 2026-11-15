@@ -5,7 +5,8 @@
 //! (`openpaint_practice::SheetMark`, S109) which `mark_draw.rs` draws without knowing the
 //! kind. The pictures they lay are uploaded here: the packs' as the store reads them (a single
 //! shape's with its ground faded, S99), those the practice crate draws (a generated combination's,
-//! an object's, value masses' answer) and a key shift's frames in grey (S107). All of it is drawn
+//! an object's, value masses' answer) and those a reading brings (a key shift's frames in grey,
+//! S107). All of it is drawn
 //! by the screen over the canvas through the view, never into the artwork: the originals cannot be
 //! drawn on.
 
@@ -16,7 +17,7 @@ use egui::epaint::TextShape;
 use egui::{Align2, Color32, FontId, Mesh, Order, Pos2, Shape, Stroke, TextureHandle};
 use openpaint_app::ViewMapping;
 use openpaint_practice::{FRAME, Frame, ItemRef, Rgb8};
-use openpaint_practice_app::{Greys, INK_DIAMETER, PictureImage, PracticeProjection};
+use openpaint_practice_app::{INK_DIAMETER, PictureImage, PracticeProjection};
 
 use openpaint_ui::components::{Alpha, canvas_point, picture_texture};
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH};
@@ -42,13 +43,13 @@ const PROBE: f32 = 10.0;
 
 /// The sheet's pictures as textures, uploaded as the store reads them (none: one that could not
 /// be read), its single shapes' with their ground faded (S99), the pictures the practice crate
-/// draws, and a compared key shift's frames in grey.
+/// draws, and those a compared copy's reading brought (a key shift's frames in grey).
 #[derive(Default)]
 pub(crate) struct SheetPictures {
     shown: Vec<(ItemRef, Option<TextureHandle>)>,
     grounded: Vec<(ItemRef, TextureHandle)>,
     painted: Vec<(Arc<PictureImage>, TextureHandle)>,
-    greys: Option<(Arc<Greys>, [Option<TextureHandle>; 2])>,
+    read: Option<(Arc<Vec<PictureImage>>, Vec<TextureHandle>)>,
 }
 
 impl fmt::Debug for SheetPictures {
@@ -85,7 +86,7 @@ impl SheetPictures {
             self.grounded.push((item.clone(), texture));
         }
         self.sync_painted(ctx, &practice.sheet.painted);
-        self.sync_greys(ctx, practice.greys.as_ref());
+        self.sync_read(ctx, practice.read_pictures.as_ref());
     }
 
     /// Uploads the pictures of `painted` not uploaded yet, lets go of the others.
@@ -110,23 +111,23 @@ impl SheetPictures {
         }
     }
 
-    /// Uploads a key shift's grey frames once they show; lets go otherwise.
-    fn sync_greys(&mut self, ctx: &egui::Context, greys: Option<&Arc<Greys>>) {
-        let Some(greys) = greys else {
-            self.greys = None;
+    /// Uploads the pictures the compared copy's reading brought once they come; lets go of them
+    /// otherwise.
+    fn sync_read(&mut self, ctx: &egui::Context, pictures: Option<&Arc<Vec<PictureImage>>>) {
+        let Some(pictures) = pictures else {
+            self.read = None;
             return;
         };
-        if (self.greys.as_ref()).is_some_and(|(held, _)| Arc::ptr_eq(held, greys)) {
+        if (self.read.as_ref()).is_some_and(|(held, _)| Arc::ptr_eq(held, pictures)) {
             return;
         }
-        let texture = |name: &str, image: &PictureImage| {
-            picture_texture(ctx, name, (image.size, &image.pixels, Alpha::Straight))
-        };
-        let textures = [
-            (greys.original.as_deref()).map(|image| texture("key-grey-original", image)),
-            Some(texture("key-grey-copy", &greys.copy)),
-        ];
-        self.greys = Some((Arc::clone(greys), textures));
+        let textures = (pictures.iter().enumerate())
+            .map(|(at, image)| {
+                let name = format!("practice-read-{at}");
+                picture_texture(ctx, name, (image.size, &image.pixels, Alpha::Straight))
+            })
+            .collect();
+        self.read = Some((Arc::clone(pictures), textures));
     }
 
     /// `item`'s texture: `None` while not read yet, `Some(None)` when it could not be.
@@ -153,9 +154,9 @@ impl SheetPictures {
             .map(|(_, texture)| texture)
     }
 
-    /// A key shift's frame in grey: the original's (`0`) or the copy's (`1`).
-    pub(crate) fn grey(&self, frame: usize) -> Option<&TextureHandle> {
-        self.greys.as_ref()?.1.get(frame)?.as_ref()
+    /// The picture the compared copy's reading brought at place `at`, once uploaded.
+    pub(crate) fn read(&self, at: usize) -> Option<&TextureHandle> {
+        self.read.as_ref()?.1.get(at)
     }
 }
 

@@ -89,8 +89,8 @@ fn figures() -> Vec<Figure> {
         Source::Pack,
         Source::Painted,
         Source::PaintedOrPack,
-        Source::GreyOriginal,
-        Source::GreyCopy,
+        Source::Read(0),
+        Source::Read(1),
     ];
     let shown = [0.0, 1.0, 0.35, f32::MIN_POSITIVE, -0.0];
     for (n, (source, shown)) in sources.into_iter().zip(shown).enumerate() {
@@ -239,7 +239,7 @@ fn a_mark_s_unknown_code_is_refused_never_guessed() {
         place: Place::Frame,
         shown: 1.0,
     });
-    assert_eq!(refused(&laid, 7, 5), CORRUPT, "a source");
+    assert_eq!(refused(&laid, 7, 19), CORRUPT, "a source");
     assert_eq!(refused(&laid, 8, 2), CORRUPT, "a place");
     let dot = one(Figure::Dot {
         at: [0.0; 2],

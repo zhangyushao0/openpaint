@@ -6,12 +6,12 @@
 //! the record. How much of the original shows over the copy is the user's (a slider); a picture's
 //! colour areas are compared one at a time, the area's outline marked on both frames; a value
 //! scale is filled a cell at a time, the cell in hand (Fill fills it, then the next; the pen
-//! touching a cell takes it, S100); a reading that brings its frames in grey shows them on asking
-//! (a key shift's Grey view, S107). The eyedropper is `pick.rs`.
+//! touching a cell takes it, S100); the pictures a reading brings are laid by its marks (a key
+//! shift's frames in grey on asking, its Grey view, S107). The eyedropper is `pick.rs`.
 
 use std::sync::Arc;
 
-use openpaint_practice::{Areas, Comparison, Point, Reading, Rgb8, ValueScale, in_grey};
+use openpaint_practice::{Areas, Comparison, Point, Reading, Rgb8, ValueScale};
 
 use super::compare::judged;
 use super::{Compared, PracticeSheet, unavailable};
@@ -19,13 +19,12 @@ use crate::copy::PAPER;
 use crate::pictures::PictureImage;
 use crate::projection::{PracticeNotice, Probe, SHOWN};
 use crate::refused::Refused;
-use crate::shown::{CopyRead, Greys};
+use crate::shown::CopyRead;
 use openpaint_app::Availability;
 
 /// The copy's frame for the runtime to draw and read, for the Compare numbered `sequence`:
-/// canvas pixels from `origin`, `size` large, read as its kind's `reading` says (`run`), with the
-/// original's picture as read for the screen (none: not read, or none) for a reading that brings
-/// its frames in grey.
+/// canvas pixels from `origin`, `size` large, read as its kind's `reading` says (`run`) with the
+/// original's picture as read for the screen beside it (none: not read, or none).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReadJob {
     pub sequence: u64,
@@ -37,26 +36,18 @@ pub struct ReadJob {
 
 impl ReadJob {
     /// The copy whose frame's pixels are `pixels` (8-bit RGBA on the sheet's paper) as read, with
-    /// the numbers a first Compare keeps and, where its reading brings them, both frames in grey.
+    /// the numbers a first Compare keeps and the pictures its reading brings.
     #[must_use]
     pub fn run(&self, pixels: &PictureImage) -> Option<CopyRead> {
-        let read = self.reading.read(pixels.size, &pixels.pixels, PAPER);
-        let grey = |image: &PictureImage| {
-            Arc::new(PictureImage {
-                size: image.size,
-                pixels: in_grey(&image.pixels),
-            })
-        };
-        let greys = (self.reading.greys()).then(|| {
-            Arc::new(Greys {
-                copy: grey(pixels),
-                original: self.original.as_deref().map(grey),
-            })
-        });
+        let original = (self.original.as_deref()).map(|image| (image.size, &image.pixels[..]));
+        let read = (self.reading).read(pixels.size, &pixels.pixels, PAPER, original);
+        let pictures = (read.pictures.into_iter())
+            .map(|(size, pixels)| PictureImage { size, pixels })
+            .collect();
         Some(CopyRead {
             comparison: read.comparison,
             metrics: read.metrics,
-            greys,
+            pictures: Arc::new(pictures),
         })
     }
 }
@@ -310,11 +301,10 @@ impl PracticeSheet {
     }
 }
 
-/// A read copy's frames in grey, as its reading brought them (none until read, or for a reading
-/// without).
-pub(super) fn greys(state: &ReadState) -> Option<Arc<Greys>> {
+/// The pictures a read copy's reading brought (none until read, or for a reading without).
+pub(super) fn read_pictures(state: &ReadState) -> Option<Arc<Vec<PictureImage>>> {
     match state {
-        ReadState::Read(read) => read.greys.clone(),
+        ReadState::Read(read) if !read.pictures.is_empty() => Some(Arc::clone(&read.pictures)),
         _ => None,
     }
 }

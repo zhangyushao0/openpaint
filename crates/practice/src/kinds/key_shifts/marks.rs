@@ -15,6 +15,11 @@ use crate::marks::mark::{Figure, In, Place, SheetMark, Source};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
 
+/// The pictures its reading brings (`reading.rs`), by their place: the copy in grey, then the
+/// crop in grey where it was read.
+pub(crate) const GREY_COPY: u8 = 0;
+pub(crate) const GREY_ORIGINAL: u8 = 1;
+
 /// The crop in the original's frame, the tendency beside the copy's.
 pub(crate) fn givens(tendency: Tendency) -> Vec<SheetMark> {
     let mut marks = crate::marks::drawing::pictured();
@@ -66,10 +71,10 @@ impl Compared for KeyCompared {
                 place,
                 shown: 1.0,
             };
-            let original = picture(Source::GreyOriginal, Place::Corners(self.corners));
+            let original = picture(Source::Read(GREY_ORIGINAL), Place::Corners(self.corners));
             let mut marks = vec![
                 SheetMark::free(In::Original, original),
-                SheetMark::free(In::Copy, picture(Source::GreyCopy, Place::Frame)),
+                SheetMark::free(In::Copy, picture(Source::Read(GREY_COPY), Place::Frame)),
             ];
             let off = read.check.off_lightness.iter();
             marks.extend(off.map(|area| red(read.outline(*area).unwrap_or_default())));

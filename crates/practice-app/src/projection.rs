@@ -20,7 +20,7 @@ use openpaint_practice::{
 
 use crate::lesson::{End, Judged, LessonRow, LessonShown};
 use crate::pictures::PictureImage;
-pub use crate::shown::{CopyRead, Greys};
+pub use crate::shown::CopyRead;
 use openpaint_app::Availability;
 use openpaint_app::LayerRefusal;
 use openpaint_app::Title;
@@ -133,8 +133,9 @@ pub struct PracticeProjection {
     pub overlay: Option<Vec<SheetMark>>,
     /// What the card shows of the comparison under its title (S109).
     pub card: Vec<CardItem>,
-    /// A compared key shift's frames in grey, while the Grey view shows them (S107).
-    pub greys: Option<Arc<Greys>>,
+    /// The pictures the compared copy's reading brought, which its marks lay (`Source::Read`: a
+    /// key shift's frames in grey, S107).
+    pub read_pictures: Option<Arc<Vec<PictureImage>>>,
     pub notice: Option<PracticeNotice>,
     /// Whether Aligned can be chosen for the shown exercise: lines, or a picture with an outline.
     pub aligned_offered: bool,

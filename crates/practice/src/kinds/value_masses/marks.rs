@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::compositions::value_masses::ValueMasses;
 use crate::kinds::value_masses::value_masses_read::MassesCheck;
-use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
+use crate::marks::asked::{Asked, Compare, Pixels, Read, Reading, Reads};
 use crate::marks::card::CardItem;
 use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::drawing::picture_laid;
@@ -37,7 +37,7 @@ impl Reads for MassesReading {
         })
     }
 
-    fn read(&self, size: [u32; 2], pixels: &[u8], _paper: Rgb8) -> Read {
+    fn read(&self, size: [u32; 2], pixels: &[u8], _: Rgb8, _: Option<Pixels<'_>>) -> Read {
         let check = self.answer.read((size, pixels), self.place);
         let metrics = check.metrics.clone();
         let compared = MassesCompared {
@@ -48,6 +48,7 @@ impl Reads for MassesReading {
         Read {
             comparison: Comparison::of(compared),
             metrics,
+            pictures: Vec::new(),
         }
     }
 }

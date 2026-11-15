@@ -5,7 +5,7 @@
 //! cells are uneven.
 
 use crate::kinds::scales::scale::{ROW, ScaleCheck, ValueScale};
-use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
+use crate::marks::asked::{Asked, Compare, Pixels, Read, Reading, Reads};
 use crate::marks::card::{CardItem, Say};
 use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Figure, In, SheetMark};
@@ -27,7 +27,7 @@ impl Reads for ScaleReading {
         })
     }
 
-    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8) -> Read {
+    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8, _: Option<Pixels<'_>>) -> Read {
         let check = self.scale.read(size, pixels, paper);
         let metrics = check.metrics();
         Read {
@@ -36,6 +36,7 @@ impl Reads for ScaleReading {
                 check: Some(check),
             }),
             metrics,
+            pictures: Vec::new(),
         }
     }
 }

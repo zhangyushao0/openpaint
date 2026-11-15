@@ -14,10 +14,10 @@ impl PracticeSheet {
         let compare = self.compare_offered(current, artwork);
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
         let painted = self.painted_overlay();
-        let (overlay, card, greys) = current
+        let (overlay, card, read_pictures) = current
             .and_then(|_| self.overlay())
-            .map_or((None, Vec::new(), None), |(marks, card, greys)| {
-                (Some(marks), card, greys)
+            .map_or((None, Vec::new(), None), |(marks, card, pictures)| {
+                (Some(marks), card, pictures)
             });
         PracticeProjection {
             sheet: Arc::clone(&self.sheet),
@@ -35,7 +35,7 @@ impl PracticeSheet {
             result: result.cloned(),
             overlay,
             card,
-            greys,
+            read_pictures,
             notice: self.notice,
             aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
             fitting: self.fitting(),

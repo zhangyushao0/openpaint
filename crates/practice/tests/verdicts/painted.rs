@@ -76,7 +76,7 @@ fn read(exercise: &Exercise, picture: Option<&SheetPicture>, pixels: &[u8]) -> V
     };
     assert_eq!(reading.unread().verdict(), Verdict::Incomplete, "unread");
     reading
-        .read([SIDE, SIDE], pixels, PAPER)
+        .read([SIDE, SIDE], pixels, PAPER, None)
         .comparison
         .verdict()
 }

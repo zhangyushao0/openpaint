@@ -65,9 +65,9 @@ pub enum Source {
     Painted,
     /// The picture drawn for it, else its pack picture (a colour combination's).
     PaintedOrPack,
-    /// The pair's frames read in grey (S107's Grey view).
-    GreyOriginal,
-    GreyCopy,
+    /// A picture the compared copy's reading brought, by its place among them (`Read::pictures`:
+    /// a key shift's frames in grey for its Grey view, S107).
+    Read(u8),
 }
 
 /// Where a picture lies in its frame.

@@ -41,13 +41,11 @@ const PENS: [LinePen; 14] = [
     LinePen::Hatch(Value::Middle),
     LinePen::Hatch(Value::Light),
 ];
-const SOURCES: [Source; 5] = [
-    Source::Pack,
-    Source::Painted,
-    Source::PaintedOrPack,
-    Source::GreyOriginal,
-    Source::GreyCopy,
-];
+const SOURCES: [Source; 3] = [Source::Pack, Source::Painted, Source::PaintedOrPack];
+/// The first source code of a reading's pictures (`Source::Read`), by their place on, and how
+/// many places a reading's pictures have.
+const READ: u8 = 3;
+const READ_PLACES: u8 = 16;
 
 /// The figures' codes: the drawn ones below `COLOURED`, the coloured and laid ones from it.
 const LINE: u8 = 0;
@@ -257,7 +255,7 @@ fn read_coloured(code: u8, reader: &mut Reader<'_>) -> Result<Figure, PortError>
             Figure::Cell { cell, rect }
         }
         PICTURE => {
-            let (source, place) = (coded(reader, &SOURCES)?, read_place(reader)?);
+            let (source, place) = (read_source(reader)?, read_place(reader)?);
             Figure::Picture {
                 source,
                 place,
@@ -270,15 +268,14 @@ fn read_coloured(code: u8, reader: &mut Reader<'_>) -> Result<Figure, PortError>
     })
 }
 
-/// A laid picture's source (u8), place (a u8, 0 the frame, 1 between four corners that follow)
-/// and strength (f32).
+/// A laid picture's source (u8: `SOURCES`' place, a reading's picture from `READ` on), place (a
+/// u8, 0 the frame, 1 between four corners that follow) and strength (f32).
 fn write_picture(writer: &mut Writer, (source, place, shown): (Source, &Place, f32)) {
     writer.u8(match source {
         Source::Pack => 0,
         Source::Painted => 1,
         Source::PaintedOrPack => 2,
-        Source::GreyOriginal => 3,
-        Source::GreyCopy => 4,
+        Source::Read(at) => READ.saturating_add(at),
     });
     match place {
         Place::Frame => writer.u8(0),
@@ -290,6 +287,15 @@ fn write_picture(writer: &mut Writer, (source, place, shown): (Source, &Place, f
         }
     }
     writer.f32(shown);
+}
+
+fn read_source(reader: &mut Reader<'_>) -> Result<Source, PortError> {
+    let code = reader.u8()?;
+    match code.checked_sub(READ) {
+        Some(at) if at < READ_PLACES => Ok(Source::Read(at)),
+        Some(_) => Err(reader.corrupt()),
+        None => Ok(SOURCES[usize::from(code)]),
+    }
 }
 
 fn read_place(reader: &mut Reader<'_>) -> Result<Place, PortError> {

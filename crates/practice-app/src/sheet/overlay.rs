@@ -2,7 +2,7 @@
 //! comparison's marks and card items (`openpaint_practice::Compared`) for what the user set: the
 //! fit a drawn copy's original lies by (in place, or aligned once found), how strongly a picture
 //! shows, the area the card compares, the Grey view, Construction and the point the eyedropper
-//! compared.
+//! compared; and the pictures its reading brought, which its marks lay.
 
 use std::sync::Arc;
 
@@ -10,11 +10,15 @@ use openpaint_practice::{CardItem, Fit, Seen, SheetMark};
 
 use super::PracticeSheet;
 use super::compare::{Compared, Fitting};
-use super::read::greys;
-use crate::shown::Greys;
+use super::read::read_pictures;
+use crate::pictures::PictureImage;
 
-/// What a comparison shows: its marks, its card, and a key shift's frames in grey.
-type Shown = (Vec<SheetMark>, Vec<CardItem>, Option<Arc<Greys>>);
+/// What a comparison shows: its marks, its card, and the pictures its reading brought.
+type Shown = (
+    Vec<SheetMark>,
+    Vec<CardItem>,
+    Option<Arc<Vec<PictureImage>>>,
+);
 
 impl PracticeSheet {
     /// The fit the overlay lies by now: none while the aligned one is being found.
@@ -34,8 +38,8 @@ impl PracticeSheet {
         self.aligned && matches!(self.compared, Some(Compared::Drawn(Fitting::Asked(_), _)))
     }
 
-    /// What lies over the shown copy while comparing, what the card shows of it, and a key
-    /// shift's frames in grey while the Grey view shows them.
+    /// What lies over the shown copy while comparing, what the card shows of it, and the pictures
+    /// its reading brought.
     pub(super) fn overlay(&self) -> Option<Shown> {
         let compared = self.compared.as_ref()?;
         let fit = match compared {
@@ -53,10 +57,10 @@ impl PracticeSheet {
             probe: self.probe_colours(),
         };
         let comparison = compared.shown();
-        let greys = match compared {
-            Compared::Painted(_, state, _) if grey => greys(state),
+        let pictures = match compared {
+            Compared::Painted(_, state, _) => read_pictures(state),
             _ => None,
         };
-        Some((comparison.marks(&seen), comparison.card(&seen), greys))
+        Some((comparison.marks(&seen), comparison.card(&seen), pictures))
     }
 }

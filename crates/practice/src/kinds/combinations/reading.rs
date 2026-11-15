@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use super::marks::{AreasCompared, AreasRead};
 use crate::colour_areas::areas::Areas;
-use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
+use crate::marks::asked::{Asked, Compare, Pixels, Read, Reading, Reads};
 use crate::marks::compared::Comparison;
 use crate::marks::drawing::picture_laid;
 use crate::maths::colour::Rgb8;
@@ -29,7 +29,7 @@ impl Reads for AreasReading {
         })
     }
 
-    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8) -> Read {
+    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8, _: Option<Pixels<'_>>) -> Read {
         let areas = &self.areas;
         let copy = areas.read(size, pixels, paper);
         let strong = (copy.contrasts.iter())
@@ -44,6 +44,7 @@ impl Reads for AreasReading {
         Read {
             comparison: Comparison::of(compared),
             metrics,
+            pictures: Vec::new(),
         }
     }
 }

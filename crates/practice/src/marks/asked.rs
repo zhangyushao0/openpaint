@@ -64,19 +64,33 @@ pub enum Compare {
     Read(Reading),
 }
 
-/// A painted copy as its frame's pixels read: its comparison and the numbers a first Compare keeps.
+/// A painted copy as its frame's pixels read: its comparison, the numbers a first Compare keeps,
+/// and the pictures it brings for its marks to lay (`Source::Read`, by their place here: a key
+/// shift's frames in grey, S107).
 #[derive(Debug, Clone)]
 pub struct Read {
     pub comparison: Comparison,
     pub metrics: Metrics,
+    pub pictures: Vec<Painted>,
 }
+
+/// A picture handed to a reading: its size and 8-bit RGBA pixels, straight alpha.
+pub type Pixels<'a> = ([u32; 2], &'a [u8]);
 
 /// How a painted copy is read, on the compare worker.
 pub trait Reads: Any + Debug + Send + Sync {
     /// What shows until the copy is read.
     fn unread(&self) -> Comparison;
-    /// The copy whose frame's pixels are `pixels` (8-bit RGBA, `size`, on `paper`), as read.
-    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8) -> Read;
+    /// The copy whose frame's pixels are `pixels` (8-bit RGBA, `size`, on `paper`), as read, the
+    /// exercise's pack picture as read for the screen beside it (`original`; none: not read, or
+    /// none).
+    fn read(
+        &self,
+        size: [u32; 2],
+        pixels: &[u8],
+        paper: Rgb8,
+        original: Option<Pixels<'_>>,
+    ) -> Read;
     /// Whether its pair of frames shows in grey on asking once read (a key shift's Grey view,
     /// S107).
     fn greys(&self) -> bool {

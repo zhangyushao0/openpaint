@@ -49,8 +49,7 @@ pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};
 pub use crate::pomodoro::{BlockEnd, BlockShown, Timed, TimerIntent, TimerShown, TimerTold};
 pub use crate::projection::{
-    CopyRead, Greys, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe, SHOWN,
-    SheetView,
+    CopyRead, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe, SHOWN, SheetView,
 };
 pub use crate::refused::Refused;
 pub use crate::session::SheetSession;

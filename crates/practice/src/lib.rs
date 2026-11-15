@@ -118,7 +118,7 @@ pub use kinds::{
     Counted, DrawnCopy, Facts, Fill, Kept, Kind, Needs, Original, Pen, Picking, Skill, SkillLevel,
     ToolSet,
 };
-pub use marks::asked::{Asked, Compare, Copied, Painted, Read, Reading, Reads, ToFit};
+pub use marks::asked::{Asked, Compare, Copied, Painted, Pixels, Read, Reading, Reads, ToFit};
 pub use marks::card::{Arg, CardItem, Say, WheelSize};
 pub use marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};
 pub use marks::drawing::PictureCompared;

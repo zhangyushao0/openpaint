@@ -1,7 +1,8 @@
 //! A key shift's copy compared (S107, V大's 变调): no answer; read from its frame's pixels on the
 //! compare worker as a combination's areas are and judged by the three checks (`KeyCheck`): the
 //! marked areas' outlines and the merged pairs' edges come with the reading, and both frames in
-//! grey on asking (the Grey view). A crop no pack holds with areas: its picture laid over it.
+//! grey, the pictures it brings, laid on asking (the Grey view). A crop no pack holds with areas:
+//! its picture laid over it.
 
 use std::sync::Arc;
 
@@ -10,10 +11,10 @@ use super::key_shift_check::KeyCheck;
 use super::marks::{KeyCompared, KeyRead};
 use crate::colour_areas::areas::Areas;
 use crate::kinds::Kind;
-use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
+use crate::marks::asked::{Asked, Compare, Pixels, Read, Reading, Reads};
 use crate::marks::compared::Comparison;
 use crate::marks::drawing::picture_laid;
-use crate::maths::colour::Rgb8;
+use crate::maths::colour::{Rgb8, in_grey};
 use crate::maths::path::Point;
 use crate::records::metric::Metrics;
 
@@ -37,8 +38,16 @@ impl Reads for KeyReading {
         })
     }
 
-    /// What is off and the marks' lines, with the numbers a first Compare keeps.
-    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8) -> Read {
+    /// What is off and the marks' lines, with the numbers a first Compare keeps, and both frames
+    /// in grey for the Grey view: the copy's (`GREY_COPY`) and the crop's where it was read
+    /// (`GREY_ORIGINAL`).
+    fn read(
+        &self,
+        size: [u32; 2],
+        pixels: &[u8],
+        paper: Rgb8,
+        original: Option<Pixels<'_>>,
+    ) -> Read {
         let areas = &self.areas;
         let colours = areas.read(size, pixels, paper).colours;
         let check = KeyCheck::of(areas, &colours, self.tendency);
@@ -61,9 +70,14 @@ impl Reads for KeyReading {
                 edges,
             }),
         };
+        let grey = (size, in_grey(pixels));
+        let pictures = std::iter::once(grey)
+            .chain(original.map(|(size, rgba)| (size, in_grey(rgba))))
+            .collect();
         Read {
             comparison: Comparison::of(compared),
             metrics,
+            pictures,
         }
     }
 

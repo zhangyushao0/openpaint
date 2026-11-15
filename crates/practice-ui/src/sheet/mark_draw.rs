@@ -344,8 +344,7 @@ impl Drawing<'_> {
             Source::Pack => pack(),
             Source::Painted => pictures.painted(practice, index),
             Source::PaintedOrPack => pictures.painted(practice, index).or_else(pack),
-            Source::GreyOriginal => pictures.grey(0),
-            Source::GreyCopy => pictures.grey(1),
+            Source::Read(at) => pictures.read(usize::from(at)),
         };
         let Some(texture) = texture else {
             return;

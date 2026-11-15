@@ -107,7 +107,7 @@ fn overlay(session: &SheetSession) -> Option<(KeyCompared, bool, bool)> {
         .as_ref()?
         .downcast::<KeyCompared>()?
         .clone();
-    Some((compared, practice.grey, practice.greys.is_some()))
+    Some((compared, practice.grey, practice.read_pictures.is_some()))
 }
 
 #[test]
