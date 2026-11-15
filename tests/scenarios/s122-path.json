@@ -8,7 +8,7 @@
     "That's all for today: the home. Next lesson Colours (never practised); under a rule Review on the side: Lines · 2 exercises, Review, and Again last time (a redo waits). Review: Lesson 4 · Lines on the sheet, the bar Lines 1/2, its first exercise the line that came out Again; both Accurate, Finish; the redo is answered.",
     "A lesson the app judges: All units, Unit 2 (Single shapes and Colour combinations greyed, Needs a practice pack / Needs a pack of colour crops: tapped, they start nothing and the page stays; the others to tap), Unit 3, Estimates: Lesson 5 · Estimates, Place a point's How; Got it. I mark the point where the original's is and Compare: the app's verdict, Accurate ringed, nothing to tap. The second I mark far off: Again ringed, the answer's cross in red and Construction to show how it is found. Next to the end, Finish: the end's row says Accurate, Again and four not judged.",
     "A dot: All units, Lines, six lines each judged Accurate, Finish. The window of the last six judged lines is all Accurate, so the end says Up to “Beginning” over Lines' dots, the first inked in. That's all for today; All units: the Lines tile shows one dot; the next lesson stays Colours by the rule (fewest dots first), the review now Estimates.",
-    "The practice book (from the path's foot): October, today ringed; tap Monday 5 October: today's card, its time and one picture, the whole sheet cropped to the rows used, named by its lessons: Lesson 1 · First lesson, Lesson 2 · Lines, … Lesson 6 · Lines.",
+    "The practice book (from the path's foot): October, today ringed; tap Monday 5 October: today's card, its time and one picture, the whole sheet cropped to the rows used, named by its lessons, their span and what they practised once each: Lessons 1–6 · First lesson, Lines, Combined lines, Estimates, wrapped under the picture.",
     "A lesson left open: Home, Start opens Colours on the next row (its How), Home again: the home says Lesson under way: Colours 1/3, and Continue. The app is closed and started again: Home shows the same, the path as left (Lines one dot). Continue opens Colours on the same sheet at its first pair, its How not again (told once); Next to its end, That's all for today.",
     "The next day (the app left overnight): Start: today's sheet is a new one, its first row Lesson 8 · Combined lines (the rule moves on: Colours was practised); yesterday's sheet stays as it was.",
     "Cancel: Home on the sheet at any point leaves for the home, the lesson kept under way; Back from the path and the book is Home. Failure: a lesson that does not fit the rows left takes a new sheet (the app's tests)."
@@ -155,7 +155,7 @@
     { "tap": { "at": "Practice book" } },
     { "screenshot": { "name": "book" } },
     { "tap": { "at": "Monday 5 October" } },
-    { "expect": { "shown": ["Lesson 1 · First lesson, Lesson 2 · Lines, Lesson 3 · Combined lines, Lesson 4 · Lines, Lesson 5 · Estimates, Lesson 6 · Lines"] } },
+    { "expect": { "shown": ["Lessons 1–6 · First lesson, Lines, Combined lines, Estimates"] } },
     { "screenshot": { "name": "book-today" } },
     { "tap": { "at": "Home" } },
     { "tap": { "at": "Start" } },

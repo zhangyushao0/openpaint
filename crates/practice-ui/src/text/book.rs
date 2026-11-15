@@ -3,9 +3,10 @@
 //! as a seal's characters are).
 
 use openpaint_practice::Seal;
+use openpaint_practice_app::LessonRow;
 use openpaint_ui::dates::Date;
 
-use super::{Language, Text};
+use super::{Language, Text, lesson_kind, row_label};
 
 texts! { PRACTICE_BOOK_TABLE;
     PRACTICE_BOOK = "Practice book", "练习簿";
@@ -104,13 +105,32 @@ pub(crate) fn book_totals(language: Language, lessons: u32, seconds: u64) -> Str
     }
 }
 
-/// A day's sheet named by its lessons (S121c): "Lesson 3 · Lines, Lesson 4 · Colours",
-/// "第 3 课 · 线条，第 4 课 · 单色"; a comma between them, for a lesson's name holds a dot.
-pub(crate) fn lessons_joined(language: Language, names: &[String]) -> String {
-    match language {
-        Language::English => names.join(", "),
-        Language::Chinese => names.join("，"),
+/// A day's sheet named by its lessons (S121c), short enough to wrap under its small picture
+/// (S143): one lesson as its row ("Lesson 3 · Lines"), several by the span of their numbers and
+/// what they practised, each once in order: "Lessons 23–28 · Key shifts", "第 1 至 3 课 · 第一课、
+/// 线条". A day's lessons follow down its sheet, so their numbers run on.
+pub(crate) fn sheet_lessons(language: Language, rows: &[LessonRow]) -> String {
+    let (Some(first), Some(last)) = (rows.first(), rows.last()) else {
+        return String::new();
+    };
+    if rows.len() == 1 {
+        return row_label(language, first);
     }
+    let mut kinds: Vec<String> = Vec::new();
+    for kind in rows.iter().filter_map(|row| lesson_kind(language, row)) {
+        if !kinds.contains(&kind) {
+            kinds.push(kind);
+        }
+    }
+    let (from, to) = (first.number, last.number);
+    let (span, kinds) = match language {
+        Language::English => (format!("Lessons {from}–{to}"), kinds.join(", ")),
+        Language::Chinese => (format!("第 {from} 至 {to} 课"), kinds.join("、")),
+    };
+    if kinds.is_empty() {
+        return span;
+    }
+    format!("{span} · {kinds}")
 }
 
 /// What a seal's stamp says: two short lines, stacked.
@@ -166,5 +186,43 @@ mod tests {
             seal_lines(Language::Chinese, Seal::Unit(2)),
             ["二".to_owned(), "单元".to_owned()]
         );
+    }
+
+    #[test]
+    fn a_sheet_of_several_lessons_is_named_by_their_span_and_what_they_practised() {
+        let skill = |key| openpaint_practice::Skill::of_key(key);
+        let row = |number, first, key| LessonRow {
+            slot: 0,
+            number,
+            skill: skill(key),
+            unit: None,
+            first,
+        };
+        let one = [row(22, false, "key-shift")];
+        assert_eq!(sheet_lessons(Language::Chinese, &one), "第 22 课 · 变调");
+        let six: Vec<LessonRow> = (23..=28).map(|n| row(n, false, "key-shift")).collect();
+        assert_eq!(
+            sheet_lessons(Language::English, &six),
+            "Lessons 23–28 · Key shifts"
+        );
+        assert_eq!(
+            sheet_lessons(Language::Chinese, &six),
+            "第 23 至 28 课 · 变调"
+        );
+        let mixed = [
+            row(1, true, "line"),
+            row(2, false, "line"),
+            row(3, false, "colour"),
+            row(4, false, "line"),
+        ];
+        assert_eq!(
+            sheet_lessons(Language::English, &mixed),
+            "Lessons 1–4 · First lesson, Lines, Colours"
+        );
+        assert_eq!(
+            sheet_lessons(Language::Chinese, &mixed),
+            "第 1 至 4 课 · 第一课、线条、单色"
+        );
+        assert_eq!(sheet_lessons(Language::English, &[]), "");
     }
 }

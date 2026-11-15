@@ -1,11 +1,12 @@
 //! The practice book (S89): Practice book on the home's column or the path page opens it, a page
 //! of paper grown out of the word over the home, Gallery (its island) or the back button putting it
 //! back. At its top its name and, quietly, the lessons done and the time practised; under them the
-//! month's calendar (`days.rs`; a day tapped shows its card: its time, its sheets, which open, and
-//! its colours) and, beside it, progress seen (`progress.rs`: the colour's first picks, the first
-//! and latest lines, the seals). No legends, no days in a row, nothing to fill: what was done,
-//! drawn.
+//! month's calendar (`days.rs`; a day tapped shows its card over progress, `day.rs`: its time, its
+//! sheets, which open, and its colours) and, beside it, progress seen (`progress.rs`: the colour's
+//! first picks, the first and latest lines, the seals). No legends, no days in a row, nothing to
+//! fill: what was done, drawn.
 
+mod day;
 mod days;
 mod progress;
 #[cfg(test)]
@@ -121,7 +122,7 @@ impl HomePart {
             page(ui, screen, (&path.book, month, &mut self.book.swipe))
         });
         let chosen = self.book.day;
-        let carded = chosen.and_then(|day| days::day_card(ctx, &path.book, day, screen));
+        let carded = chosen.and_then(|day| day::day_card(ctx, &path.book, day, screen));
         match carded.or(tapped) {
             Some(BookTap::Day(day)) => self.book.day = day,
             Some(BookTap::Month(first)) => (self.book.month, self.book.day) = (Some(first), None),

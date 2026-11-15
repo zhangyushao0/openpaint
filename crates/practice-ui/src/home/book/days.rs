@@ -1,24 +1,15 @@
 //! The practice book's days (S89): a month as a calendar, Monday first, earlier months a swipe (or
 //! the chevrons beside its name) away; a day practised an ink wash behind its number, darker the
 //! longer, today ringed, days ahead pale, a day without practice plain paper. A day practised,
-//! tapped, shows its card grown out of it over progress: its date, its time with a small red seal
-//! for each Pomodoro block completed on it (S124), its sheets small (a
-//! day's sheet the rows its lessons used, named by them; a tap opens one) and the colours matched,
-//! each a square split corner to corner, the original above the diagonal and the copy's first pick
-//! below it.
+//! tapped, shows its card (`day.rs`).
 
-use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2};
-use openpaint_practice::Rgb8;
-use openpaint_practice_app::{BookProjection, BookRecord, Mark, SheetRead};
-use openpaint_ui::components::chrome::Source;
-use openpaint_ui::components::{controls, icon_button, paint_sheet, paper};
+use egui::{Align, Align2, Layout, Pos2, Rect, Sense, Stroke, TextStyle, Vec2};
+use openpaint_practice_app::BookProjection;
+use openpaint_ui::components::{controls, icon_button};
 use openpaint_ui::dates::{Date, weekday};
-use openpaint_ui::design::{
-    CORNER, DIVIDER, INK, INK_SECONDARY, Icon, MARK_LINE, SPACE, TOUCH_TARGET, surface_frame,
-};
+use openpaint_ui::design::{INK, Icon, MARK_LINE, SPACE, TOUCH_TARGET};
 
-use super::super::pomodoro::{small_seals, small_seals_width};
-use super::{BookTap, layout};
+use super::BookTap;
 use crate::palette::PENCIL;
 use crate::text::{self as t, Language};
 
@@ -30,14 +21,6 @@ const DARKEST: f32 = 3600.0;
 const WASH: (f32, f32) = (0.1, 0.42);
 /// How far a finger swipes before the month turns, in points.
 const SWIPE: f32 = 80.0;
-/// A sheet's picture's height on a day's card, its widest, and a colour's square, in points.
-const SHEET: f32 = 152.0;
-const SHEET_WIDEST: f32 = 224.0;
-const SQUARE: f32 = 36.0;
-/// A day's card's widest, in points.
-const CARD: f32 = 720.0;
-/// A sheet's shape before it is read: a full lesson's (2,920 by 3,160 pixels).
-const SHEET_SHAPE: f32 = 2920.0 / 3160.0;
 
 /// The month `shown` (its first day) in `rect`: its name and chevrons, the weekdays and the days;
 /// what was tapped.
@@ -160,187 +143,4 @@ fn paint_day(ui: &egui::Ui, cell: Rect, (day, today): (i64, i64), practised: Opt
     let body = TextStyle::Body.resolve(ui.style());
     let number = Date::of(day).day.to_string();
     painter.text(cell.center(), Align2::CENTER_CENTER, number, body, ink);
-}
-
-/// The card of `day` (practised), grown out of its `cell` over progress on `screen`; a sheet
-/// tapped opens it.
-pub(super) fn day_card(
-    ctx: &egui::Context,
-    book: &BookProjection,
-    (day, cell): (i64, Rect),
-    screen: Rect,
-) -> Option<BookTap> {
-    let shown = book.book.day(day)?;
-    let [_, side] = layout(screen);
-    let id = Id::new("practice book day");
-    let source = Source::Rect {
-        rect: cell,
-        radius: (cell.height() / 2.0, CORNER),
-        veil: false,
-    };
-    let area = egui::Area::new(id)
-        .order(Order::Foreground)
-        .movable(false)
-        .constrain(false)
-        .fade_in(false)
-        .fixed_pos(side.min);
-    let margin = 2.0 * SPACE;
-    let (tapped, _) = paper(ctx, id, source, area, |ui| {
-        surface_frame(egui::Margin::same(margin as i8))
-            .show(ui, |ui| {
-                ui.set_width(side.width().min(CARD) - 2.0 * margin);
-                let language = t::language(ui.ctx());
-                ui.heading(t::day_title(language, Date::of(day), weekday(day)));
-                let time = t::practice_time(language, shown.seconds);
-                let blocks = u8::try_from(shown.blocks).unwrap_or(u8::MAX);
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(time).color(INK_SECONDARY));
-                    seals(ui, blocks);
-                });
-                ui.add_space(SPACE);
-                let tapped = sheets(ui, book, &shown.records);
-                colours(ui, book, &shown.records);
-                tapped
-            })
-            .inner
-    });
-    tapped
-}
-
-/// A day's Pomodoro blocks completed, each a small red seal beside its time (S124).
-fn seals(ui: &mut egui::Ui, blocks: u8) {
-    if blocks == 0 {
-        return;
-    }
-    let size = Vec2::new(
-        small_seals_width(blocks),
-        ui.text_style_height(&TextStyle::Body),
-    );
-    let (band, _) = ui.allocate_exact_size(size, Sense::hover());
-    small_seals(ui.painter(), (band.left_center(), blocks));
-}
-
-/// The sheets of `records`, small, side by side, each named under its picture; the one tapped.
-fn sheets(ui: &mut egui::Ui, book: &BookProjection, records: &[u64]) -> Option<BookTap> {
-    let mut tapped = None;
-    ui.horizontal_wrapped(|ui| {
-        for record in records.iter().filter_map(|id| book.record(*id)) {
-            let read = book.read.get(&record.id);
-            let shape = read.map_or(SHEET_SHAPE, |read| {
-                read.size[0] as f32 / read.size[1].max(1) as f32
-            });
-            let size = Vec2::new((SHEET * shape).min(SHEET_WIDEST), SHEET);
-            let (english, shown) = name(record, ui.ctx());
-            ui.vertical(|ui| {
-                let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-                paint_sheet(ui.painter(), None, rect, egui::Color32::WHITE);
-                if let Some(read) = read {
-                    paint_marks(ui, rect, read);
-                }
-                controls::register(ui, &english, rect);
-                ui.label(egui::RichText::new(shown).small().color(INK_SECONDARY));
-                if response.clicked() {
-                    tapped = Some(BookTap::Open(record.sheet, rect));
-                }
-            });
-            ui.add_space(SPACE);
-        }
-    });
-    tapped
-}
-
-/// A sheet's name, in English (its control's) and as the pass's language shows it: a colour
-/// copy's title, a day's sheet its lessons' names joined (S121c).
-fn name(record: &BookRecord, ctx: &egui::Context) -> (String, String) {
-    if let Some(title) = &record.copy {
-        return (
-            title.as_str().to_owned(),
-            t::shown_name(ctx, title.as_str()).into_owned(),
-        );
-    }
-    let named = |language: Language| {
-        let names: Vec<String> = (record.rows.iter())
-            .map(|row| t::row_label(language, row))
-            .collect();
-        t::lessons_joined(language, &names)
-    };
-    (named(Language::English), named(t::language(ctx)))
-}
-
-/// What lies on a sheet read, drawn small in `rect`.
-fn paint_marks(ui: &egui::Ui, rect: Rect, read: &SheetRead) {
-    let painter = ui.painter().with_clip_rect(rect);
-    let scale = rect.width() / read.size[0].max(1) as f32;
-    let at = |[x, y]: [f32; 2]| rect.min + Vec2::new(x, y) * scale;
-    for [min, max] in &read.frames {
-        let frame = Rect::from_min_max(at(*min), at(*max));
-        painter.rect_stroke(
-            frame,
-            0.0,
-            Stroke::new(0.75, PENCIL),
-            egui::StrokeKind::Inside,
-        );
-    }
-    for mark in &read.marks {
-        match mark {
-            Mark::Line {
-                points,
-                colour,
-                width,
-            } => {
-                let points: Vec<Pos2> = points.iter().copied().map(at).collect();
-                let stroke = Stroke::new((width * scale).max(0.6), rgb(*colour));
-                painter.add(Shape::line(points, stroke));
-            }
-            Mark::Fill {
-                rect: [min, max],
-                colour,
-            } => {
-                painter.rect_filled(Rect::from_min_max(at(*min), at(*max)), 0.0, rgb(*colour));
-            }
-        }
-    }
-}
-
-/// The colours matched on `records`' sheets, seven to a row.
-fn colours(ui: &mut egui::Ui, book: &BookProjection, records: &[u64]) {
-    let pairs: Vec<(Rgb8, Rgb8)> = (records.iter())
-        .filter_map(|id| book.read.get(id))
-        .flat_map(|read| read.colours.iter().copied())
-        .collect();
-    if pairs.is_empty() {
-        return;
-    }
-    ui.add_space(SPACE);
-    for row in pairs.chunks(7) {
-        ui.horizontal(|ui| {
-            for (original, copy) in row {
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(SQUARE), Sense::hover());
-                let painter = ui.painter();
-                let [tl, tr, br, bl] = [
-                    rect.left_top(),
-                    rect.right_top(),
-                    rect.right_bottom(),
-                    rect.left_bottom(),
-                ];
-                let none = Stroke::NONE;
-                painter.add(Shape::convex_polygon(
-                    vec![tl, tr, bl],
-                    rgb(*original),
-                    none,
-                ));
-                painter.add(Shape::convex_polygon(vec![tr, br, bl], rgb(*copy), none));
-                painter.rect_stroke(
-                    rect,
-                    0.0,
-                    Stroke::new(1.0, DIVIDER),
-                    egui::StrokeKind::Inside,
-                );
-            }
-        });
-    }
-}
-
-fn rgb([r, g, b]: Rgb8) -> egui::Color32 {
-    egui::Color32::from_rgb(r, g, b)
 }

@@ -254,16 +254,24 @@ pub(crate) fn lesson_number(language: Language, number: u32) -> String {
 /// "Lesson 7 · Full lesson, unit 2".
 pub(crate) fn row_label(language: Language, row: &LessonRow) -> String {
     let number = lesson_number(language, row.number);
-    let what = match (row.first, row.skill, row.unit) {
+    match lesson_kind(language, row) {
+        Some(what) => format!("{number} · {what}"),
+        None => number,
+    }
+}
+
+/// What a lesson practised, as its label names it after its number: "Lines", "第一课",
+/// "Full lesson, unit 2"; none for a lesson of nothing named.
+pub(crate) fn lesson_kind(language: Language, row: &LessonRow) -> Option<String> {
+    Some(match (row.first, row.skill, row.unit) {
         (true, _, _) => FIRST_LESSON.get(language).to_owned(),
         (false, Some(skill), _) => skill_name(skill).get(language).to_owned(),
         (false, None, Some(unit)) => match language {
             Language::English => format!("Full lesson, unit {unit}"),
             Language::Chinese => format!("第 {unit} 单元完整一课"),
         },
-        (false, None, None) => return number,
-    };
-    format!("{number} · {what}")
+        (false, None, None) => return None,
+    })
 }
 
 #[cfg(test)]
