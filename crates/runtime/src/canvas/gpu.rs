@@ -107,6 +107,14 @@ impl Canvas {
         self.view_pending || self.filling() || self.warming() || self.taking_ahead()
     }
 
+    /// The work that changes what shows and that frames do with the frame clock held: tiles
+    /// fill, the tier shown's tiles fill, the residuals warm. Not a tier about to start, nor the
+    /// snapshots under the next stroke, which wait for time to pass (the view standing still,
+    /// the screen untouched).
+    pub(crate) fn working(&self) -> bool {
+        self.view_missing || self.filling() || self.warming()
+    }
+
     /// A stroke is being drawn (the pen is on the glass).
     pub(crate) fn drawing(&self) -> bool {
         self.work.session().active().is_some()
@@ -169,10 +177,9 @@ impl Canvas {
         (frame, now): (&ViewFrame, f64),
     ) -> Result<(), RuntimeError> {
         let request = request(self.work.session());
-        self.view_pending = self
-            .view
-            .update(core, &mut self.target, &request, (frame, now))?
-            .pending();
+        let work = (self.view).update(core, &mut self.target, &request, (frame, now))?;
+        self.view_pending = work.pending();
+        self.view_missing = work.waiting > 0;
         self.shown = Some(*frame);
         Ok(())
     }
@@ -312,6 +319,7 @@ impl Canvas {
         self.target = CanvasTarget::new(core, self.target.size())?;
         self.view = ViewCache::new(core);
         self.view_pending = false;
+        self.view_missing = false;
         self.shown = None;
         self.evaluated = false;
         self.changed_from = None;

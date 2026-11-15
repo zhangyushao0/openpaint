@@ -79,6 +79,9 @@ pub(crate) struct Canvas {
     view: ViewCache,
     /// The last view update left tiles to fill or a tier to start; the view it had.
     view_pending: bool,
+    /// The last view update left tiles of the tier shown to fill (frames fill them, the clock
+    /// held or not).
+    view_missing: bool,
     shown: Option<ViewFrame>,
     /// False until the whole canvas has been evaluated once.
     evaluated: bool,
@@ -148,6 +151,7 @@ impl Canvas {
             target: CanvasTarget::new(core, size)?,
             view: ViewCache::new(core),
             view_pending: false,
+            view_missing: false,
             shown: None,
             evaluated: false,
             changed_from: None,

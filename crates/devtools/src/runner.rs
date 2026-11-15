@@ -11,7 +11,8 @@
 //! without input; waiting for a worker never moves it. Input steps never wait for motion (the hand
 //! acts on the final state at once); a step that looks (a checkpoint, a screenshot, a view, an
 //! export, an expect) first lets every motion settle, unless a screenshot asks for a moment
-//! `after_ms` the last input. A last newline of a `type` step is Enter, the keyboard's Done.
+//! `after_ms` the last input, where the canvas's background work is done with the clock held
+//! first (S129). A last newline of a `type` step is Enter, the keyboard's Done.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -57,6 +58,7 @@ pub fn run(
     // One device for the run, restarts included; its screen in 8 bits: every check reads 8-bit
     // values, which a ten-bit screen gives only after decoding each texel on the CPU.
     let core = Core::headless_eight_bits().map_err(RuntimeError::Render)?;
+    clock::hold_gpu(&core)?;
     let mut runner = Runner {
         core: Arc::new(core),
         scenario,
@@ -87,6 +89,13 @@ pub fn run(
             continue;
         }
         records.extend(runner.step(&mut runtime, step)?);
+        // A `lose_device` step hands the runner the device made again; any other new device is
+        // the driver's reset (under a suite's load), whose notice the screens would then show.
+        if !Arc::ptr_eq(&runtime.core(), &runner.core) {
+            return Err(ScenarioError::Missing(
+                "device lost: the driver reset the GPU, not a step; the display was made again",
+            ));
+        }
     }
     Ok(Report {
         records,
@@ -197,6 +206,7 @@ impl Runner<'_> {
                 self.frame(runtime)?;
                 // A restart opens the app on the device made again.
                 self.core = runtime.core();
+                clock::hold_gpu(&self.core)?;
             }
             Step::System(answer) => {
                 if let Some(answer) = system::answer(&mut self.requests, *answer, &self.written)? {
@@ -220,12 +230,15 @@ impl Runner<'_> {
     }
 
     /// A step that touches the screen, its spots resolved on the screen the last frame laid
-    /// out.
+    /// out, once the canvas's background work is done (`fill_held`): a stroke drawn into a view
+    /// tile that is ready shows a step apart from one drawn whole after it, so whether the raster
+    /// worker had finished a tile when the pen came down moved s98-alike's screens (S129).
     fn contact(
         &mut self,
         runtime: &mut Runtime,
         step: &Step,
     ) -> Result<Vec<Record>, ScenarioError> {
+        self.fill_held(runtime)?;
         let now = self.clock_ms;
         let batches = match step {
             Step::Tap { at, tool } => gesture::tap(*tool, self.spot(runtime, at)?, now),
