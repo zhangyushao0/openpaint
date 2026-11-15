@@ -13,7 +13,7 @@
 //!
 //! The smudge residuals keep within a share of the budget (`ARENA_SHARE`), the least recently
 //! needed going first, never one the last frame needed. Once a minute while a canvas is open,
-//! what holds memory is logged (`budget_note.rs`). `release`, for Android's `onTrimMemory`, lets
+//! what holds memory is logged (`budget/note.rs`). `release`, for Android's `onTrimMemory`, lets
 //! the tiers, the raster targets, the snapshots and the arena's blocks no scene shows go at once.
 
 use openpaint_render::{CacheBytes, Core};
@@ -23,7 +23,6 @@ use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::screen::Screen;
 
-#[path = "budget_note.rs"]
 mod note;
 use note::{mb, note, report};
 

@@ -115,6 +115,6 @@ mod tests {
         assert!(!screen_source("crates/ui/src/text/canvas.rs"));
         assert!(!screen_source("crates/practice-ui/src/text/kinds/lines.rs"));
         assert!(!screen_source("crates/practice-ui/src/sheet/demo_tests.rs"));
-        assert!(!screen_source("crates/runtime/src/frame.rs"));
+        assert!(!screen_source("crates/runtime/src/frame/mod.rs"));
     }
 }

@@ -21,7 +21,6 @@ use crate::practice::submit_options;
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
 
-#[path = "screen_jobs.rs"]
 mod jobs;
 use jobs::gallery_job;
 pub(crate) use jobs::{dispatch_gallery, leave_job};

@@ -50,9 +50,9 @@ Canvas: 1.0.0 (2026-10-22), paced benches on test art imported by `open-file` (p
 | Item | Result | Date | Notes |
 | --- | --- | --- | --- |
 | Stage exits, the author on the tablet | pass | 2026-10-02 to 22 | G1 to G7, every stage's features tried; G7 painting "works well" |
-| `cargo gate` (dev machine, Windows) | pass (exit 0) | 2026-11-15 | S134: 198 s, each test binary under the 600 s limit |
+| `cargo gate` (dev machine, Windows) | pass (exit 0) | 2026-11-15 | S136: 170 s, each test binary under the 600 s limit |
 | `target` size (dev machine, after a gate) | 51.7 GB | 2026-11-14 | a new version adds about 2.5 GB for a day |
-| Every scenario, `cargo scenarios --jobs 8` | 85 of 85 pass | 2026-11-15 | S134: `--compare` against `--keep` at e3f3fe2, every one of 1,904 files alike, the 39 that walk a sheet on its 2x tier among them |
+| Every scenario, `cargo scenarios --jobs 8` | 85 of 85 pass | 2026-11-15 | S136: `--compare` against `--keep` at d217983, every one of 1,904 files alike |
 | Two languages (`s77-languages`, the 15 `-zh` scenarios, the text tables' tests) | pass | 2026-11-14 | every screen of the Pomodoro looked at in both, nothing clipped; every entry has its Chinese, none a retired term |
 | Store format 1 (`store/tests/`, `practice-store/tests/`) | pass | 2026-11-12 | a frozen sample of every record kind byte for byte; practice's records through the record spaces round-trip; other formats refused untouched; packs format 4, another refused |
 | The tablet's library in the new shape (S120c) | pass | 2026-11-10 | converted at its first opening (backup `s120c-before.tar`); 22 sheets and 22 givens as a dev-machine conversion, byte for byte but 3 givens' floats' last bits; the 566 other records untouched |

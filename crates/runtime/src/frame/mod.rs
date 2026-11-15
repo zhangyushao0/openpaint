@@ -60,7 +60,7 @@ pub struct Runtime {
     /// Makes the window's surface again on a new device, from `attach` until `detach`.
     pub(crate) window: Option<Reattach>,
     pub(crate) recoveries: Recoveries,
-    /// The GPU memory budget of the device's class (`budget.rs`).
+    /// The GPU memory budget of the device's class (`budget/`).
     pub(crate) budget: Budget,
     /// The harness's frame, in place of a window.
     pub(crate) offscreen: Option<ScreenTarget>,
@@ -118,9 +118,7 @@ pub struct Runtime {
     pub(crate) storage: Storage,
 }
 
-#[path = "frame_receive.rs"]
 mod receive;
-#[path = "frame_start.rs"]
 mod start;
 pub use start::StartOptions;
 

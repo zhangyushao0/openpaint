@@ -17,7 +17,7 @@ use crate::budget::Unit;
 use crate::error::RuntimeError;
 use crate::pictures::Drawn;
 
-/// What the GPU memory budget leaves the canvas's caches to grow into this frame (`budget.rs`).
+/// What the GPU memory budget leaves the canvas's caches to grow into this frame (`budget/`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Rooms {
     pub(crate) tiers: u64,

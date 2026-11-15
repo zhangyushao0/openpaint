@@ -2,7 +2,7 @@
 //! quarter of the device's memory (about 3 GB of the tablet's 12: the app is the one the author
 //! paints in, in front, and a cache made again costs seconds); on a GPU with memory of its own
 //! (the development machine) a fixed 2 GiB. Above the budget the runtime lets caches go by
-//! recency, never what the frame shows or the stroke being drawn uses (`runtime/src/budget.rs`);
+//! recency, never what the frame shows or the stroke being drawn uses (`runtime/src/budget/`);
 //! it never fails for it.
 
 use crate::core::Core;
