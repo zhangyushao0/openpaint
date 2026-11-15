@@ -46,6 +46,16 @@ Units 1 to 4 are built and unit 5 has begun, laid out as a path since S122, time
 
 Unit 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins unit 5 as a skill after the key shifts.
 
+Units 5 to 8, as the author accepted them on mocks (2026-11-15, every recommendation taken; the path mock's rows from "第 5 单元 · 结构翻转" down). Each builder's contract is its item in the design of that day, kept by the main session; one builder at a time, one proof each:
+- A. Abstract analysis (S112, unit 5, the 2026-11-06 form): the pack's picture on a locked bottom layer of the sheet, placed in its frame and never an undo step; pens 强 red, 次 green, 弱 blue; Compare's veils from the picture's pixels (a reading brings pictures, in place of `Greys`), first the veils of all 61 compositions looked at, a veil hiding the focal point on more than about five dropped.
+- B. Structure rotation (S113, unit 5): unit 4's generated carved objects seen twice, one view the picture, the other the exact answer; the author chose generated objects over CC0 models (real models only if the blocks feel too abstract).
+- C. Re-tests (a unit's fixed set, its start's as the next lesson, its end's beside it, both shown side by side), ability curves in the book, an extra drill only in a lesson's summary.
+- D. Unit 6: a gamut mask (Gurney) as its own skill, checked by the app.
+- E. Unit 7: placement from a floor plan (V大's distribution method).
+- F. Unit 7: curved structure rotation, V大's three phases as its levels (after B).
+- G. Unit 8: contrast thumbnails (the analysis reversed, after A); the cold-warm copy as a long colour copy, lights warm and shadows cool on one picture.
+- H. Ghosted lines first in unit 1 (Drawabox) and a two-value Notan as value masses' variant at 熟练 and 稳.
+
 ## Reshape
 
 The author, 2026-11-09, after an audit of the whole repository: the structure follows the order things were built in. Practice, now a product, hangs on the painting app as its one guest (`Mode`, `CanvasHook`, `GalleryHook`: one implementor each, the gallery the only home); the course is a function a stage and nothing reads the results kept; a kind's facts are parallel enums turned back into branches; the painting flow has no owner and its draft in hand is implicit; the engine rebuilds one flat scene a version and keeps two tile caches alike; history code rode in the product. Work runs in packages (AGENTS.md, 2026-11-11).
@@ -60,8 +70,8 @@ The author, 2026-11-09, after an audit of the whole repository: the structure fo
   3. Checks that hold without a watcher: done (S129). s96-value-masses and s26-insert-image did not move in ten runs of the suite; plain `cargo test -p openpaint-runtime` passed alone (S126's 14 failures not reproduced: it ran beside other work).
   4. Tidy, after the engine: render's and the runtime's `#[path]` siblings into folders by ownership: done (S136); the old product's names out of practice's code and tests: done (S137).
   5. The read-only check of a practice feature's spread: done 2026-11-15, verdict "leave the structure, start content". The Pomodoro had something of its own at every layer (a record, a flow, screens, a clock, host calls) and its package deleted the full lesson; content has none of these. Counted along the code: a harder variant 5 to 9 files in practice alone, a reason 6 to 8 in practice and its words, a new kind about 22 with ten registrations of a line or two; the runtime's practice glue names no kind.
-  6. Then content: harder variants where a level is weak, units 6 to 8 (S112, S113, unit 7); a reason beside the app's result: done (S138).
-- Content, as 2 takes it up: S112 Abstract analysis (抽象分析: the user marks a picture's strongest place, its contrasts and their distribution on a layer over it; Compare veils where each measurable contrast is weak and scores nothing), S113 Structure rotation against renders, unit 7 (curved structure rotation, objects placed by a plan, whole-picture key shifts toward two tendencies), trajectories and re-tests on the learner model; studio features chosen with the author from Candidates, S115 Adjustment previews that finish among them (the author, 2026-11-07: while a slider moves the part the screen shows redrawn at the screen's resolution, the full one after release, waiting tiles from the view's middle outward).
+  6. Then content: a reason beside the app's result (S138), harder levels from every source the plan drew on (S139 to S142), then units 5 to 8 by builders A to H (G9 above).
+- Content after units 5 to 8: the author's practice records cleared for a fresh start (their wish, 2026-11-15, asked again first); studio features chosen with the author from Candidates, S115 Adjustment previews that finish among them (the author, 2026-11-07: while a slider moves the part the screen shows redrawn at the screen's resolution, the full one after release, waiting tiles from the view's middle outward).
 
 ## G8 Independent extensions after stabilisation
 
@@ -156,16 +166,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 ## Done
 
-Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to S96, the G9 slices' full lines to S103 and the lines of S97 to S127, the recorder and S123: `docs/archive/ROADMAP-2026-11.md`.
-- S118b 2026-11-14 1.23.3: the documents to what a builder needs: ARCHITECTURE the contract (each crate's module map in its `lib.rs` `//!`), STATUS current facts, DECISIONS' mechanics left to the `//!`s, the stages' lines archived; the limits lowered; repo-check holds the `#[path]` siblings at 114.
-- S128 2026-11-14 1.23.3: the display cache written when the canvas is left (E4) — `Screen::left` (the gallery, the next lesson, the app hidden) its only writer; no copy, readback and write of the whole canvas after each save; a kill without the app hidden first reopens filling. D96.
-- S129 2026-11-14 1.23.3: checks that hold without a watcher — the runner makes the raster pipelines first, holds the frame budget unbounded and lets the canvas fill before each gesture and timed screenshot; `cargo scenarios --keep` / `--compare`; a scenario lost to memory, the GPU or a reset replayed alone.
-- S130 2026-11-14 1.23.3: a stroke at a view tier drawn once a frame (T1) — while a tier shows its drawing draws the stroke's frames alone; the canvas draws a frame only where the tier cannot (a tile reached not shown or not ready) and the whole stroke in its lift's frame. D91.
-- S131 2026-11-14 1.23.3: the pen latency line says where a painting stroke's frames go — the tier's drawing time beside evaluation, the pass chains the canvas and the tier drew a frame, the snapshots each took and the strokes each laid again; counting only, nothing drawn changes.
-- S132 2026-11-14 1.23.3: a stroke's frame at a view tier is one pass chain however many tiles it crosses (T2), finished into each tile's slot; a crossing cost a chain a tile (10 to 15 ms against 3 on the tablet). The pen latency line gives the tier's time at one chain and at more. D91.
-- S133 2026-11-14 1.23.3: snapshots only where the pen can land, left standing by strokes that miss their tile, taken ahead one a frame under a hovering pen (T3, E2); the pen latency line splits a one-chain frame's drawing and the frame's work beside it. D91, D96.
-- S134 2026-11-15 1.23.3: a stroke's frame passes over small attachments — a tile's targets when its regions fit, its finish through a small target copied into place (a tile-drawing GPU loads and stores a pass's whole attachment); the view's tiles found once a frame; the pen latency line counts passes, attachment bytes and calls behind. D91.
-- S135 2026-11-15 1.23.3: a stroke's frame waits for the one before only while the GPU has lately been late (a frame unfinished a call after its own), so a light stroke at a view tier draws every vsync, not every other; a heavy brush waits as before. The pen latency line counts calls skipped for patience. D97.
+Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to S96, the G9 slices' full lines to S103 and the lines of S97 to S135, the recorder and S123: `docs/archive/ROADMAP-2026-11.md`.
 - S136 2026-11-15 1.24.0: render's and the runtime's `#[path]` siblings into 23 folders, each owner its `mod.rs` beside its parts (`protocol/`, `raster/`, `scene/`, `smudge/engine/`, `frame/`...); module paths unchanged; repo-check holds 68 siblings (114), render's root within 64; screenshots byte for byte.
 - S137 2026-11-15 1.24.0: the earlier product's names out of practice's code and tests: stage to unit (`Picked::Full { unit }`), session to sheet or lesson (`PracticeLog::sheet`, `Book::lessons`), drill to lesson; history said as history; bytes and words unchanged; screenshots byte for byte.
 - S138 2026-11-15 1.24.0: a reason beside the app's result — not right, the card's first line says what is off, which way and a little or clearly ("点偏左了一点"): estimates, points in space, colours, combinations, scales; verdicts and numbers unchanged. D121.
