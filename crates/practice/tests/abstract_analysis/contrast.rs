@@ -1,5 +1,5 @@
-//! Abstract analysis's contrasts (S112a): synthetic pictures, each clear in the views its contrast
-//! is drawn for, along its edge only, and veiled whole in every other.
+//! The contrast measure (S112a): synthetic pictures, each clear in the views its contrast is drawn
+//! for, along its edge only, and veiled whole in every other.
 
 use openpaint_practice::{ContrastView, Contrasts, Point, Rgb8, VEILED, from_oklch};
 

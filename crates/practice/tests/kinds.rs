@@ -29,6 +29,7 @@ fn every_kind() -> Vec<Kind> {
         let tiered = [Kind::Shape, Kind::Crop, Kind::Division, Kind::WholeCopy];
         kinds.extend(tiered.map(|kind| kind(tier)));
         kinds.push(Kind::ValueMasses(tier));
+        kinds.push(Kind::Analysis(tier));
     }
     for tone in ScaleTone::ALL {
         kinds.extend([5, 7, 9].map(|cells| Kind::Scale(tone, cells)));
@@ -47,7 +48,7 @@ fn every_kind() -> Vec<Kind> {
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_one() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -56,10 +57,11 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty() {
     }
     codes.sort_unstable();
     codes.dedup();
-    assert_eq!(codes, (1..=20).collect::<Vec<u8>>());
+    assert_eq!(codes, (1..=21).collect::<Vec<u8>>());
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
-    assert_eq!(Kind::of_code(21, 0), None);
+    assert_eq!(Kind::of_code(22, 0), None);
+    assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
     assert_eq!(Kind::Flat(Estimate::Angle).code(), (11, 2));
@@ -95,7 +97,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 29);
+    assert_eq!(topics().len(), 30);
     // The retired generated combinations go by the combinations' topic.
     let generated = Kind::Areas(Arrangement::ALL[0]).facts();
     assert_eq!(generated, Kind::Crop(Tier::Simple).facts());
@@ -111,7 +113,7 @@ fn a_topic_s_facts_say_what_it_is() {
         assert!(facts.seconds >= 30, "{key}: how long one takes");
         let tools = &facts.tools;
         let pens: &[Pen] = match key {
-            "division" => &Pen::DIVIDING,
+            "division" | "abstract-analysis" => &Pen::DIVIDING,
             "whole-copy" => &Pen::COPYING,
             "value-masses" => &Pen::VALUES,
             "colour" | "scale" | "combination" | "key-shift" | "study" => &[],
@@ -134,8 +136,9 @@ fn a_topic_s_facts_say_what_it_is() {
         );
     }
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
-    // The fourteen built from given parts, and the free scribble's one frame (S122).
-    assert_eq!(constructed.count(), 15);
+    // The fourteen built from given parts, the free scribble's one frame (S122) and abstract
+    // analysis's, its picture under the marks (S112).
+    assert_eq!(constructed.count(), 16);
 }
 
 /// A pack of `kind` pictures, four of each of `tiers`, with value masses that read and areas.
@@ -232,6 +235,7 @@ fn prints_and_compares(exercise: &Exercise) {
         original: &*original,
         picture: picture.as_ref(),
         copy: &Held,
+        choices: openpaint_practice::Choices::default(),
     };
     assert!(original.compare(&asked).is_some(), "{exercise:?}: compared");
 }
@@ -321,12 +325,22 @@ fn compositions_and_shapes_get_harder_with_the_level_and_need_their_pictures() {
         let planned = schedule::lesson(skill, level, 5, &standing).expect("a lesson");
         let (exercise, _) = &planned.exercises[0];
         let tier = match exercise.kind {
-            Kind::Shape(t) | Kind::Division(t) | Kind::WholeCopy(t) | Kind::ValueMasses(t) => t,
+            Kind::Shape(t)
+            | Kind::Division(t)
+            | Kind::WholeCopy(t)
+            | Kind::ValueMasses(t)
+            | Kind::Analysis(t) => t,
             other => panic!("{other:?}"),
         };
         (tier, exercise.picture.clone())
     };
-    for key in ["shape", "division", "whole-copy", "value-masses"] {
+    let composed = [
+        "division",
+        "whole-copy",
+        "value-masses",
+        "abstract-analysis",
+    ];
+    for key in std::iter::once("shape").chain(composed) {
         assert_eq!(tier(key, SkillLevel::Second).0, Tier::Medium, "{key}");
         assert_eq!(tier(key, SkillLevel::Third).0, Tier::Hard, "{key}");
         assert!(
@@ -336,19 +350,16 @@ fn compositions_and_shapes_get_harder_with_the_level_and_need_their_pictures() {
     }
     assert_eq!(tier("shape", SkillLevel::First).0, Tier::Entry);
     assert_eq!(tier("division", SkillLevel::First).0, Tier::Simple);
+    assert_eq!(tier("abstract-analysis", SkillLevel::First).0, Tier::Simple);
     let none = Pictures::default();
     let bare = Standing {
         pictures: &none,
         learner: &learner,
     };
-    for key in [
-        "shape",
-        "combination",
-        "division",
-        "whole-copy",
-        "value-masses",
-        "key-shift",
-    ] {
+    for key in ["shape", "combination", "key-shift"]
+        .into_iter()
+        .chain(composed)
+    {
         let skill = Skill::of_key(key).expect("a skill");
         assert!(skill.lacks(&none).is_some(), "{key}");
         assert!(

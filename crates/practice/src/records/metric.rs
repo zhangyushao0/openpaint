@@ -7,7 +7,8 @@
 //! estimates, points in space, solids and objects keep their exact errors for the trajectories,
 //! never shown (D107); a division its lines' counts and lengths per level, for its card's table
 //! and later trajectories (S95); value masses the share painted at the answer's value (S96); a
-//! key shift how many areas each of its checks marked (S107).
+//! key shift how many areas each of its checks marked (S107); abstract analysis what its card's
+//! choices held (S112).
 //! Retired, never reused, unknown when read (a record holding one is refused): codes 1 to 8,
 //! 1.1.0's line metrics (key points, frame, shape, speed, wobble, strokes, erased, seconds); 21 to
 //! 23 and 25 to 27, a colour's hue (degrees, only where both passed an RGB chroma gate),
@@ -69,10 +70,15 @@ pub enum Metric {
     KeyLightness,
     KeyUnmoved,
     KeyMerged,
+    /// Abstract analysis (S112): what the card's choices held at the first Compare, the eye before
+    /// the answer: the contrasts chosen as a bit set (`Choices::chips`) and the distribution
+    /// chosen (`Choices::shape`, 0 to 3).
+    ChosenChips,
+    ChosenShape,
 }
 
 impl Metric {
-    pub const ALL: [Self; 32] = [
+    pub const ALL: [Self; 34] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -105,6 +111,8 @@ impl Metric {
         Self::KeyLightness,
         Self::KeyUnmoved,
         Self::KeyMerged,
+        Self::ChosenChips,
+        Self::ChosenShape,
     ];
 
     /// The code it is stored by; never reused.
@@ -143,6 +151,8 @@ impl Metric {
             Self::KeyLightness => 56,
             Self::KeyUnmoved => 57,
             Self::KeyMerged => 58,
+            Self::ChosenChips => 59,
+            Self::ChosenShape => 60,
         }
     }
 

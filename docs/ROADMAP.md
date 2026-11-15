@@ -44,10 +44,10 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 
 Units 1 to 4 are built and unit 5 has begun, laid out as a path since S122, timed by the Pomodoro since S124 (S75 to S124 are done: the list at the end and its archive).
 
-Unit 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins unit 5 as a skill after the key shifts.
+Unit 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis (S112, done), structure rotation; each joins unit 5 as a skill after the key shifts.
 
 Units 5 to 8, as the author accepted them on mocks (2026-11-15, every recommendation taken; the path mock's rows from "第 5 单元 · 结构翻转" down). Each builder's contract is its item in the design of that day, kept by the main session; one builder at a time, one proof each:
-- A. Abstract analysis (S112, unit 5, the 2026-11-06 form): the pack's picture on a locked bottom layer of the sheet, placed in its frame and never an undo step; pens 强 red, 次 green, 弱 blue; Compare's veils from the picture's pixels (a reading brings pictures, in place of `Greys`), first the veils of all 61 compositions looked at, a veil hiding the focal point on more than about five dropped.
+- A. Done (S112a to S112c, 2026-11-15). Abstract analysis (S112, unit 5, the 2026-11-06 form): the pack's picture on a locked bottom layer of the sheet, placed in its frame and never an undo step; pens 强 red, 次 green, 弱 blue; Compare's veils from the picture's pixels (a reading brings pictures, in place of `Greys`), first the veils of all 61 compositions looked at, a veil hiding the focal point on more than about five dropped.
 - B. Structure rotation (S113, unit 5): unit 4's generated carved objects seen twice, one view the picture, the other the exact answer; the author chose generated objects over CC0 models (real models only if the blocks feel too abstract).
 - C. Re-tests (a unit's fixed set, its start's as the next lesson, its end's beside it, both shown side by side), ability curves in the book, an extra drill only in a lesson's summary.
 - D. Unit 6: a gamut mask (Gurney) as its own skill, checked by the app.
@@ -178,3 +178,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S144 2026-11-15 1.24.0: a practice sheet leaves for the home as an artwork does — the part on screen, its picture taken then and never kept, its marks over it, shrinks into Practice book with the studio's motion; no blank square. D98.
 - S112a 2026-11-15 1.25.0: abstract analysis's measure — veils where 明度, 纯度, 色相 or 虚实 contrast is weak and the squint, from a composition's pixels (`abstract_analysis/contrast.rs`); thresholds set on contact sheets of the 61 compositions (`harness contrasts`); no kind yet.
 - S112b 2026-11-15 1.25.0: a reading brings its pictures — `Reads::read` takes the original as read for the screen and returns pictures its marks lay (`Source::Read`); key shifts' greys made by their reading, `Greys` gone; screenshots byte for byte.
+- S112c 2026-11-15 1.25.0: abstract analysis (unit 5) — 强, 次, 弱 over the picture on a locked Picture layer, the card's four steps and chips before Compare, five views veiling where a contrast is weak, the eye's three. D122.

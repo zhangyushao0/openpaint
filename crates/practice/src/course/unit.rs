@@ -27,8 +27,8 @@ pub const UNITS: [Unit; 8] = [
     unit(3, &[Skill(11), Skill(12), Skill(13)]),
     // Objects, divisions, value masses, whole copies.
     unit(4, &[Skill(14), Skill(15), Skill(17), Skill(16)]),
-    // Key shifts.
-    unit(5, &[Skill(19)]),
+    // Key shifts, abstract analysis.
+    unit(5, &[Skill(19), Skill(21)]),
     unit(6, &[]),
     unit(7, &[]),
     unit(8, &[]),

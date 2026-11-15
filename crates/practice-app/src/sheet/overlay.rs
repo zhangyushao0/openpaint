@@ -53,6 +53,7 @@ impl PracticeSheet {
             chosen,
             outline: &outline,
             grey,
+            view: self.painting_state.view,
             fit,
             probe: self.probe_colours(),
         };

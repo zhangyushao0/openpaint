@@ -106,6 +106,9 @@ pub struct ToolSet {
     /// A whole copy's (S95, S96): its pens draw on layers of their own (`layers.rs` in the app),
     /// the wheel and Fill only while a painting pen paints its colour blocks.
     pub layered: bool,
+    /// Its levels' pens mark a picture's places rather than divide it, named 强, 次 and 弱
+    /// (abstract analysis, S112).
+    pub marks: bool,
 }
 
 impl ToolSet {
@@ -118,6 +121,7 @@ impl ToolSet {
         history: false,
         eyedropper: false,
         layered: false,
+        marks: false,
     };
     /// Sketch, Draw and, once compared, Correct; Undo and Redo (lines, shapes, geometry).
     pub(crate) const DRAWING: Self = Self {
@@ -129,6 +133,13 @@ impl ToolSet {
     pub(crate) const DIVIDING: Self = Self {
         pens: &Pen::DIVIDING,
         history: true,
+        ..Self::NONE
+    };
+    /// The levels' pens as marks, strongest, second and weak; Undo and Redo (S112).
+    pub(crate) const MARKING: Self = Self {
+        pens: &Pen::DIVIDING,
+        history: true,
+        marks: true,
         ..Self::NONE
     };
     /// Its division's pens and Draw, the painting pens for its colour blocks with the eyedropper,

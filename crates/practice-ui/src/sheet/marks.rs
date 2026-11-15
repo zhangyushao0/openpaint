@@ -282,7 +282,11 @@ pub(crate) fn pictured(
     // In step with the frame: a colour copy's frame is four times a lesson's.
     let grown = (frame.unit() / FRAME) as f32;
     let font = FontId::proportional((14.0 * scale * grown).max(6.0));
+    // A picture laid under the marks on the sheet's layer is the canvas's: its credit alone here
+    // (S112).
+    let under = (practice.sheet.kinds.get(index)).is_some_and(|kind| kind.facts().under);
     match (picture, texture) {
+        (Some(_), Some(Some(_))) if under => {}
         (Some(picture), Some(Some(texture))) => {
             let corners = picture.fit.corners().map(|p| at(frame.to_canvas(p)));
             painter.add(quad(grounded.unwrap_or(texture), corners, Color32::WHITE));

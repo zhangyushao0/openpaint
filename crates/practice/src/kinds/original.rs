@@ -12,6 +12,7 @@ use std::sync::Arc;
 use crate::colour_areas::areas::Areas;
 use crate::kinds::scales::scale::ValueScale;
 use crate::marks::asked::{Asked, Compare, Painted};
+use crate::marks::card::CardItem;
 use crate::marks::compared::{Compared, Comparison, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::maths::colour::Rgb8;
@@ -25,6 +26,11 @@ pub trait Original: Any + Debug + Send + Sync {
     /// What it gives in its exercise's frames before Compare; a pack's
     /// picture is the sheet's to lay.
     fn givens(&self) -> Vec<SheetMark> {
+        Vec::new()
+    }
+    /// What the card shows while the copy is made, before Compare: the steps it asks and the
+    /// choices it takes (abstract analysis's, S112); nothing for most kinds.
+    fn task(&self) -> Vec<CardItem> {
         Vec::new()
     }
     /// Its copy, drawn as `copy`, checked as geometry (S84 to S98); none for a kind not checked

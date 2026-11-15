@@ -34,6 +34,17 @@ texts! { PRACTICE_SHEET_NOTICES;
     DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里松手即可填充。";
 }
 
+/// An exercise's pens, its levels' pens named as marks where its tools mark a picture (S112:
+/// 强, 次, 弱).
+pub(crate) const fn pen_of(pen: Pen, marks: bool) -> Text {
+    match pen {
+        Pen::Main if marks => super::STRONG_PEN,
+        Pen::Second if marks => super::SECOND_MARK_PEN,
+        Pen::Third if marks => super::WEAK_PEN,
+        _ => self::pen(pen),
+    }
+}
+
 /// An exercise's pens.
 pub(crate) const fn pen(pen: Pen) -> Text {
     match pen {

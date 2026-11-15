@@ -32,19 +32,33 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
         "ellipse-fits" => plain(super::ELLIPSE_FITS),
         "not-painted" => plain(super::NOT_PAINTED),
         "no-outline" => plain(super::NO_OUTLINE),
+        "analysis-strongest" => plain(super::ANALYSIS_STRONGEST),
+        "analysis-strongest-how" => plain(super::ANALYSIS_STRONGEST_HOW),
+        "analysis-by" => plain(super::ANALYSIS_BY),
+        "analysis-second" => plain(super::ANALYSIS_SECOND),
+        "analysis-second-how" => plain(super::ANALYSIS_SECOND_HOW),
+        "analysis-spread" => plain(super::ANALYSIS_SPREAD),
+        "analysis-look" => plain(super::ANALYSIS_LOOK),
+        "analysis-chosen" => super::analysis_chosen(language, &words(say)),
+        "analysis-spread-chosen" => super::analysis_spread(language, words(say).first().copied()),
         key => key.to_owned(),
     }
+}
+
+/// `say`'s words, a count an empty word.
+fn words(say: &Say) -> Vec<&'static str> {
+    (say.args.iter())
+        .map(|arg| match arg {
+            Arg::Word(word) => *word,
+            Arg::Count(_) => "",
+        })
+        .collect()
 }
 
 /// An ellipse's difference from its words: its roundness, its tilt, then each side missed and
 /// which way.
 fn ellipse(language: Language, say: &Say) -> String {
-    let words: Vec<&str> = (say.args.iter())
-        .map(|arg| match arg {
-            Arg::Word(word) => *word,
-            Arg::Count(_) => "",
-        })
-        .collect();
+    let words = words(say);
     let roundness = match words.first() {
         Some(&"rounder") => Some(Roundness::Rounder),
         Some(&"flatter") => Some(Roundness::Flatter),

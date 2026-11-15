@@ -35,14 +35,17 @@ pub(crate) enum CopyLayer {
 }
 
 impl PracticeSheet {
-    /// Whether a pen landing at `point` (canvas pixels) may draw; if not, the notice says why.
-    /// Drawing in the frame takes the comparison away: a correction is made by eye. On a value
-    /// scale it takes the cell between the ends it lands in, for Fill cell, and lays nothing with
-    /// the scale's own tools (S100: a cell is one flat value; with all tools the brush paints it).
-    pub(crate) fn may_draw(&mut self, point: [f32; 2]) -> bool {
+    /// Whether a pen landing at `point` (canvas pixels) may draw, the sheet's picture layer
+    /// holding `placed` pictures; if not, the notice says why. Drawing in the frame takes the
+    /// comparison away: a correction is made by eye. On a value scale it takes the cell between
+    /// the ends it lands in, for Fill cell, and lays nothing with the scale's own tools (S100: a
+    /// cell is one flat value; with all tools the brush paints it). A frame whose picture lies
+    /// under the marks takes nothing until it is laid (S112: so an undo never crosses it).
+    pub(crate) fn may_draw(&mut self, point: [f32; 2], placed: usize) -> bool {
         let point = point.map(f64::from);
         let landed = match self.current() {
             None => Err(PracticeNotice::Done),
+            Some(index) if self.waits_for_picture(index, placed) => Ok(false),
             Some(index) => {
                 let frame = self.sheet.pairs[index].copy;
                 if frame.holds(point) {

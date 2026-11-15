@@ -26,6 +26,8 @@ pub struct Seen<'a> {
     pub outline: &'a [Vec<Point>],
     /// The frames show in grey (S107).
     pub grey: bool,
+    /// The view of the card's views shown (`CardItem::Views`, S112).
+    pub view: usize,
     /// The fit the original lies by over the copy (`Fit::SAME` in place); none while the aligned
     /// one is being found.
     pub fit: Option<Fit>,

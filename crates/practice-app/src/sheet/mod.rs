@@ -23,7 +23,7 @@ use openpaint_practice::{
 
 use crate::lesson::End;
 use crate::pens::PracticePens;
-use crate::pictures::{FitJob, PictureImage, grounded};
+use crate::pictures::{FitJob, PictureImage};
 use crate::projection::{Pen, PracticeIntent, PracticeNotice, SheetView};
 use crate::refused::Refused;
 use openpaint_app::Availability;
@@ -54,11 +54,13 @@ pub(crate) struct Beside {
 mod append;
 mod block;
 mod checks;
+mod choices;
 mod compare;
 mod lesson;
 mod overlay;
 mod pens;
 mod pick;
+mod pictures;
 mod projected;
 mod read;
 mod time;
@@ -187,33 +189,6 @@ impl PracticeSheet {
         practice
     }
 
-    /// The next picture of the sheet to read for the screen, once each.
-    pub fn picture_request(&mut self) -> Option<ItemRef> {
-        let item = (self.sheet.pictures.iter().flatten())
-            .map(|picture| &picture.item)
-            .find(|item| !self.asked.contains(*item))?
-            .clone();
-        self.asked.insert(item.clone());
-        Some(item)
-    }
-
-    /// The store read `item`'s picture (`None`: it could not); one whose ground shows faded (a
-    /// single shape's) faded once (S99).
-    pub fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
-        self.images.retain(|(kept, _)| *kept != item);
-        self.grounded.retain(|(kept, _)| *kept != item);
-        let faded = (self.sheet.pictures.iter().zip(&self.sheet.kinds))
-            .filter(|(_, kind)| kind.facts().grounded)
-            .find_map(|(picture, _)| picture.as_ref().filter(|p| p.item == item));
-        let grounded = faded
-            .zip(image.as_ref())
-            .and_then(|(picture, image)| grounded(picture, image));
-        if let Some(grounded) = grounded {
-            self.grounded.push((item.clone(), Arc::new(grounded)));
-        }
-        self.images.push((item, image.map(Arc::new)));
-    }
-
     /// Its record as it stands.
     #[must_use]
     pub const fn record(&self) -> &Sheet {
@@ -293,6 +268,7 @@ impl PracticeSheet {
             _ => self.drawing,
         };
         self.painted_shown();
+        self.choices_shown();
         let at = current.zip(self.record.held()).and_then(|(index, held)| {
             let at = index.checked_sub(held.first_exercise())?;
             Some((at, held.lesson.warm_up()))
@@ -357,6 +333,9 @@ impl PracticeSheet {
             PracticeIntent::Shown(share) => self.painting_state.shown = share.clamp(0.0, 1.0),
             PracticeIntent::Area(area) => self.choose_area(area)?,
             PracticeIntent::Grey(on) => self.grey(on)?,
+            PracticeIntent::Toggle(chip) => self.toggle(chip)?,
+            PracticeIntent::Shape(shape) => self.choose_shape(shape)?,
+            PracticeIntent::View(view) => self.choose_view(view)?,
             PracticeIntent::Pen(pen) => self.choose(pen)?,
             PracticeIntent::AllTools(on) => {
                 // A long colour copy has no tools of its own (S104).

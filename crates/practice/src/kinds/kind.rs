@@ -81,6 +81,10 @@ pub enum Kind {
     /// A free scribble in one empty frame: the first lesson's first exercise, nothing given,
     /// nothing compared, no result (S122, `free/`).
     Free,
+    /// A composition's picture of a tier analysed over it: its strongest place ringed, by what
+    /// contrast it lives, the second and the weak, how strength is spread (V大's 抽象对比分析, S112,
+    /// `abstract_analysis/`).
+    Analysis(Tier),
 }
 
 impl Kind {
@@ -91,7 +95,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 20), its
+    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 21), its
     /// variant its description's (`Described::variant`). A code names one generator for good; a
     /// changed generator is a new code.
     #[must_use]

@@ -50,8 +50,8 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 20): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 20] = [
+/// Every kind, by its stored code (1 to 21): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 21] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -72,4 +72,5 @@ pub(crate) const KINDS: [&dyn Described; 20] = [
     &combinations::Crops,
     &key_shifts::KeyShifts,
     &free::Free,
+    &abstract_analysis::Analyses,
 ];

@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use openpaint_practice::{Areas, Comparison, Point, Reading, Rgb8, ValueScale};
+use openpaint_practice::{Areas, Choices, Comparison, Point, Reading, Rgb8, ValueScale};
 
 use super::compare::judged;
 use super::{Compared, PracticeSheet, unavailable};
@@ -83,6 +83,10 @@ pub(super) struct Painting {
     pub(super) probe: Option<Probe>,
     /// A compared copy's frames shown in grey (S107).
     pub(super) grey: bool,
+    /// What the card's choices hold, and the view of a comparison's views shown (S112,
+    /// `choices.rs`).
+    pub(super) choices: Choices,
+    pub(super) view: usize,
 }
 
 impl Default for Painting {
@@ -98,6 +102,8 @@ impl Default for Painting {
             probing: None,
             probe: None,
             grey: false,
+            choices: Choices::default(),
+            view: 0,
         }
     }
 }

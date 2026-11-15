@@ -65,9 +65,8 @@ impl Screen {
                 self.options_answered(|options| options.added(&result));
             }
             PracticeDone::Picture(item, image) => {
-                let open = self.canvas_mut().and_then(sheet);
-                if let Some(sheet) = open {
-                    sheet.picture_read(item, image);
+                if let Some(canvas) = self.canvas_mut() {
+                    canvas.picture_read(item, image);
                 }
             }
             PracticeDone::Renamed(.., Err(error))

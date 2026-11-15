@@ -126,7 +126,7 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     // The first exercise: its kind after the lesson's exercise in hand and count.
     let kind = picked + 3 + 2 + 4;
     let mut unknown = bytes.clone();
-    unknown[kind] = 21;
+    unknown[kind] = 22;
     assert!(
         decode_sheet(&key, &unknown).is_err(),
         "a kind no version wrote yet"

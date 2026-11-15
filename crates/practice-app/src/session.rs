@@ -15,11 +15,12 @@ use openpaint_app::{
     AppError, Availability, ContactPhase, Device, Intent, Session, StrokeIntent, Viewport,
 };
 use openpaint_core::{Artwork, StrokeStyle};
-use openpaint_practice::{Givens, Lesson, Sheet};
+use openpaint_practice::{Givens, ItemRef, Lesson, Sheet};
 
-use crate::layers::layered;
+use crate::layers::{laid_under, layered, pictures_laid};
 use crate::log::PracticeLog;
 use crate::pens::PracticePens;
+use crate::pictures::PictureImage;
 use crate::projection::{PracticeIntent, PracticeProjection};
 use crate::refused::Refused;
 use crate::sheet::{PracticeSheet, Practising};
@@ -89,7 +90,8 @@ impl SheetSession {
         if let Intent::Stroke(_) = intent {
             // What a stroke ends, ended before the sheet answers, as the session does first.
             self.session.make_way(&intent);
-            let draws = landing(&intent).is_none_or(|at| self.sheet.may_draw(at));
+            let placed = pictures_laid(self.session.artwork());
+            let draws = landing(&intent).is_none_or(|at| self.sheet.may_draw(at, placed));
             self.session.set_bounds(self.sheet.frame_clip().cloned());
             // The stroke begins on the layer the sheet keeps for its pen.
             self.keep_layers();
@@ -241,9 +243,17 @@ impl SheetSession {
             .set_brush(pen.unwrap_or_else(|| self.brush.clone()));
     }
 
-    /// A whole copy's division and line drawing layers as the pen and Compare want them
-    /// (`layers.rs`), amended into the version shown; a sheet with no room for them stays as it
-    /// is. Never while a stroke is drawn.
+    /// The store read `item`'s picture (`None`: it could not): the sheet takes it, and where it
+    /// lies under an exercise's marks it is laid there at once (S112).
+    pub fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
+        self.sheet.picture_read(item, image);
+        self.keep_layers();
+    }
+
+    /// A whole copy's division and line drawing layers as the pen and Compare want them, and the
+    /// pictures abstract analysis's marks lie over laid on their layer (`layers/`), amended into
+    /// the version shown; a sheet with no room for them stays as it is. Never while a stroke is
+    /// drawn.
     fn keep_layers(&mut self) {
         if self.session.active().is_some() {
             return;
@@ -251,6 +261,13 @@ impl SheetSession {
         let wanted = self.sheet.layering();
         let layered = wanted.and_then(|layering| layered(self.session.artwork(), layering).ok());
         if let Some(artwork) = layered {
+            self.session.amend(artwork);
+        }
+        let under = self.sheet.under(pictures_laid(self.session.artwork()));
+        if under.is_empty() {
+            return;
+        }
+        if let Ok(artwork) = laid_under(self.session.artwork(), &under) {
             self.session.amend(artwork);
         }
     }

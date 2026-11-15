@@ -1,7 +1,7 @@
 //! The names practice gives, stored in English and shown in the language through the ui's names
 //! (`openpaint_ui::text::Names`, `NAMES`): a colour copy's "Colour copy 2", a picture of one's own
-//! "Picture 4", a whole copy's "Division", "Line drawing" and "Colour blocks" layers; and the
-//! official packs, named by their id.
+//! "Picture 4", a whole copy's "Division", "Line drawing" and "Colour blocks" layers, abstract
+//! analysis's "Picture" layer (S112); and the official packs, named by their id.
 
 use super::{Language, Names, STUDY_EXERCISE};
 
@@ -10,6 +10,7 @@ texts! { PRACTICE_NAMES;
     DIVISION_LAYER_NAME = "Division", "画面分割";
     LINES_LAYER_NAME = "Line drawing", "线稿";
     BLOCKS_LAYER_NAME = "Colour blocks", "色块";
+    PICTURE_LAYER_NAME = "Picture", "原图";
     SHAPES_PACK = "Single shapes", "单体图形";
     COMPOSITIONS_PACK = "Compositions", "构图";
     COMBINATIONS_PACK = "Colour combinations", "色彩组合";
@@ -18,7 +19,12 @@ texts! { PRACTICE_NAMES;
 /// The names practice gives, for the shell (`Shell::set_names`).
 pub const NAMES: Names = Names {
     numbered: &[PICTURE_NAME, STUDY_EXERCISE],
-    fixed: &[DIVISION_LAYER_NAME, LINES_LAYER_NAME, BLOCKS_LAYER_NAME],
+    fixed: &[
+        DIVISION_LAYER_NAME,
+        LINES_LAYER_NAME,
+        BLOCKS_LAYER_NAME,
+        PICTURE_LAYER_NAME,
+    ],
 };
 
 /// The official packs by their id, each with its name (S102b).
@@ -54,7 +60,7 @@ mod tests {
         assert_eq!(zh("Picture 4"), "图片 4");
         assert_eq!(zh("Division"), "画面分割");
         assert_eq!(zh("Line drawing copy"), "线稿 副本");
-        assert_eq!(zh("Picture"), "Picture", "no number");
+        assert_eq!(zh("Picture"), "原图", "no number: the picture layer (S112)");
     }
 
     #[test]
@@ -65,6 +71,10 @@ mod tests {
         );
         assert_eq!(LINES_LAYER_NAME.id(), openpaint_practice_app::LINES_LAYER);
         assert_eq!(BLOCKS_LAYER_NAME.id(), openpaint_practice_app::BLOCKS_LAYER);
+        assert_eq!(
+            PICTURE_LAYER_NAME.id(),
+            openpaint_practice_app::PICTURE_LAYER
+        );
     }
 
     #[test]

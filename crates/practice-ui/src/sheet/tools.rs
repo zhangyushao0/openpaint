@@ -238,12 +238,14 @@ fn pens(
 ) {
     let chosen = practice.pen.map(|(pen, _)| pen);
     let compared = practice.result.is_some();
+    // Abstract analysis's levels mark a picture: 强, 次, 弱 (S112).
+    let marks = (practice.kind).is_some_and(|kind| kind.facts().tools.marks);
     choices(ui, id, |ui, group| {
         for &pen in offered {
             if pen == Pen::Correct && !compared {
                 continue;
             }
-            let word = text_choice(ui, group, t::pen(pen), chosen == Some(pen));
+            let word = text_choice(ui, group, t::pen_of(pen, marks), chosen == Some(pen));
             // A division's level shows its colour under its word (S95), a grey its grey (S96).
             let colour = (pen.level())
                 .map(level_colour)

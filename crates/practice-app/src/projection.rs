@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    CardItem, Exercise, First, Given, Kind, Layout, Original, Outcome, Pack, Pair, Point, Rgb8,
-    Sheet, SheetMark, SheetPicture,
+    CardItem, Choices, Exercise, First, Given, Kind, Layout, Original, Outcome, Pack, Pair, Point,
+    Rgb8, Sheet, SheetMark, SheetPicture,
 };
 
 use crate::lesson::{End, Judged, LessonRow, LessonShown};
@@ -51,6 +51,12 @@ pub enum PracticeIntent {
     Area(usize),
     /// A compared key shift's frames in grey (true) or in colour (S107).
     Grey(bool),
+    /// Chip `n` of the card's row of chips turned, before the first Compare (S112).
+    Toggle(u8),
+    /// Picture `n` of the card's row of pictures chosen, before the first Compare (S112).
+    Shape(u8),
+    /// View `n` of the comparison's views shown (S112).
+    View(u8),
     /// The pen the exercise's own tools draw or paint with.
     Pen(Pen),
     /// The full interface over the sheet (true), or the exercise's own tools.
@@ -158,6 +164,11 @@ pub struct PracticeProjection {
     pub shown: f32,
     pub area: usize,
     pub grey: bool,
+    /// What the card shows while the shown exercise is made, before Compare (S112), what its
+    /// choices hold, and the view of a comparison's views shown.
+    pub task: Vec<CardItem>,
+    pub choices: Choices,
+    pub view: usize,
     /// The lesson in hand as the bar names it (S122); none on a long colour copy's sheet. Once
     /// the lesson is done, still its own (its last exercise's place).
     pub lesson: Option<LessonShown>,

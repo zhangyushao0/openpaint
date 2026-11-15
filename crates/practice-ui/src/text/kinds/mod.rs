@@ -11,6 +11,7 @@ use openpaint_practice::Kind;
 
 use super::{Language, Text};
 
+mod abstract_analysis;
 mod boxes;
 mod colours;
 mod combinations;
@@ -31,6 +32,11 @@ mod study;
 mod value_masses;
 mod whole_copies;
 
+pub(crate) use abstract_analysis::{
+    ANALYSIS_BY, ANALYSIS_LOOK, ANALYSIS_SECOND, ANALYSIS_SECOND_HOW, ANALYSIS_SPREAD,
+    ANALYSIS_STRONGEST, ANALYSIS_STRONGEST_HOW, SECOND_MARK_PEN, STRONG_PEN, WEAK_PEN,
+    analysis_chosen, analysis_spread, choice_word,
+};
 pub(crate) use key_shifts::{
     GREY_VIEW, ORIGINAL_LOCKED, TENDENCY, lightness_off, merged, not_toward,
 };
@@ -77,7 +83,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 19] = [
+const KINDS: [&[KindWords]; 20] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -97,6 +103,7 @@ const KINDS: [&[KindWords]; 19] = [
     &value_masses::WORDS,
     &key_shifts::WORDS,
     &free::WORDS,
+    &abstract_analysis::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -152,6 +159,7 @@ pub(crate) fn kind_of(key: &str) -> Kind {
 pub(crate) fn tables() -> Vec<&'static [Text]> {
     vec![
         PRACTICE_HOW,
+        abstract_analysis::PRACTICE_ANALYSIS,
         boxes::PRACTICE_BOXES,
         colours::PRACTICE_COLOURS,
         combinations::PRACTICE_COMBINATIONS,

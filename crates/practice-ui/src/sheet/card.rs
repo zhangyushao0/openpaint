@@ -96,14 +96,7 @@ pub(crate) fn compared(
     if practice.kind.is_none() || !practice.comparing {
         return;
     }
-    let language = language(ui.ctx());
-    let heading = if practice.copy {
-        t::shown_name(ui.ctx(), practice.sheet.name.as_str()).into_owned()
-    } else {
-        let place = practice.lesson.map_or(1, |lesson| lesson.place.0);
-        t::exercise(language, lesson_name(practice.lesson, practice.kind), place)
-    };
-    ui.heading(heading);
+    heading(ui, practice);
     let judged = practice.judged;
     let eye = judged.is_some_and(|judged| judged.verdict == Verdict::Eye);
     if let Some(judged) = judged.filter(|_| !eye) {
@@ -115,6 +108,31 @@ pub(crate) fn compared(
     if let Some(judged) = judged.filter(|_| eye) {
         result_row(ui, judged, taps);
     }
+}
+
+/// The shown exercise while it is made, where its original asks steps of the card (S112): its
+/// title, then those steps and the choices they take.
+pub(crate) fn task(
+    ui: &mut egui::Ui,
+    practice: &PracticeProjection,
+    taps: &mut Vec<PracticeIntent>,
+) {
+    heading(ui, practice);
+    for item in &practice.task {
+        item_of(ui, practice, item, taps);
+    }
+}
+
+/// The card's title: a colour copy's name, else the lesson's and the exercise's place.
+fn heading(ui: &mut egui::Ui, practice: &PracticeProjection) {
+    let heading = if practice.copy {
+        t::shown_name(ui.ctx(), practice.sheet.name.as_str()).into_owned()
+    } else {
+        let place = practice.lesson.map_or(1, |lesson| lesson.place.0);
+        let name = lesson_name(practice.lesson, practice.kind);
+        t::exercise(language(ui.ctx()), name, place)
+    };
+    ui.heading(heading);
 }
 
 /// One of the card's items.
@@ -166,6 +184,16 @@ fn item_of(
         } => disc(ui, (originals, copy), *tendency, mask, chosen),
         CardItem::Bar { original, copy } => items::lightness(ui, *original, *copy),
         CardItem::Levels(rows) => items::levels(ui, rows),
+        // The choices are fixed from the first Compare on (D99).
+        CardItem::Toggles(keys) => {
+            let open = practice.result.is_none();
+            items::toggles(ui, keys, (practice.choices, open), taps);
+        }
+        CardItem::Shapes(shapes) => {
+            let open = practice.result.is_none();
+            items::shapes(ui, shapes, (practice.choices, open), taps);
+        }
+        CardItem::Views(keys) => items::views(ui, keys, practice.view, taps),
     }
 }
 

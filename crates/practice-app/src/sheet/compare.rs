@@ -165,6 +165,7 @@ impl PracticeSheet {
             original: &*original,
             picture: sheet.pictures.get(index).and_then(Option::as_deref),
             copy: &copy,
+            choices: self.painting_state.choices,
         };
         Ok(match original.compare(&asked).ok_or_else(nothing)? {
             Compare::Made(shown) => Compared::Made(shown),

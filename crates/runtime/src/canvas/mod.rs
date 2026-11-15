@@ -6,7 +6,8 @@
 
 use openpaint_app::{FillFailed, Session, Title, Toolbox, ViewMapping, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle, StrokeTool};
-use openpaint_practice_app::{PracticePens, SheetSession, copy_brush};
+use openpaint_practice::ItemRef;
+use openpaint_practice_app::{PictureImage, PracticePens, SheetSession, copy_brush};
 
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, ViewCache, ViewFrame, tip_radius,
@@ -189,6 +190,19 @@ impl Canvas {
     pub(crate) fn fill_finished(&mut self, sequence: u64, result: Result<RegionMask, FillFailed>) {
         let before = self.work.session().shown().clone();
         self.work.session_mut().fill_finished(sequence, result);
+        if !before.same_version(self.work.session().shown()) {
+            self.changed_from.get_or_insert(before);
+        }
+    }
+
+    /// A pack's picture read for the open sheet: it takes it, and one laid under an exercise's
+    /// marks on its picture layer is evaluated by the pixels it changes (S112).
+    pub(crate) fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
+        let before = self.work.session().shown().clone();
+        let Some(sheet) = self.work.sheet_mut() else {
+            return;
+        };
+        sheet.picture_read(item, image);
         if !before.same_version(self.work.session().shown()) {
             self.changed_from.get_or_insert(before);
         }

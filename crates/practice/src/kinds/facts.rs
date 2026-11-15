@@ -66,6 +66,9 @@ pub struct Facts {
     pub kept: Kept,
     pub counted: Counted,
     pub grounded: bool,
+    /// Whether its pack picture lies under the marks in its one frame, on a locked layer of the
+    /// sheet ("Picture", never an undo step, never picked; abstract analysis, S112).
+    pub under: bool,
     pub seconds: u16,
 }
 
@@ -85,7 +88,15 @@ impl Facts {
             kept: Kept::Nothing,
             counted: Counted::Nothing,
             grounded: false,
+            under: false,
             seconds,
+        }
+    }
+
+    pub(crate) const fn under(self) -> Self {
+        Self {
+            under: true,
+            ..self
         }
     }
 

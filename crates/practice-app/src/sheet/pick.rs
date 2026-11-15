@@ -5,7 +5,8 @@
 //! compares the original and the copy there (`Probe`): the runtime reads the copy's pixel and
 //! hands it back (`probed`), a whole copy's bare paper comparing nothing. Value masses compare
 //! greys, not colours: nothing. A key shift's original is never picked, its copy as the canvas
-//! (S107). Over an exercise before the one in hand its original is made again by its generator
+//! (S107), nor a picture laid under abstract analysis's marks (S112). Over an exercise before the
+//! one in hand its original is made again by its generator
 //! for the pick, the one place a sheet still remakes an exercise not in hand.
 
 use std::sync::Arc;
@@ -76,6 +77,11 @@ impl PracticeSheet {
             return self.picked(index, point, true);
         }
         match over(true) {
+            // A picture laid under the marks is an original too, never picked (S112).
+            Some(index) if self.facts(index).is_some_and(|facts| facts.under) => {
+                self.notice = Some(PracticeNotice::OriginalLocked);
+                PracticePick::Refused
+            }
             Some(index) => self.picked(index, point, false),
             None => PracticePick::Canvas,
         }

@@ -6,11 +6,13 @@
 //! with their difference) and a division's table of its levels.
 
 use egui::{Align2, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, TextStyle, Vec2};
+use openpaint_practice::Choices as Chosen;
 use openpaint_practice::{LIGHTNESS_OFF, Level, LevelRow, MOST_MAIN, Rgb8, Say, from_oklab, oklab};
 use openpaint_practice_app::PracticeIntent;
 
 use openpaint_ui::components::{
     Choices, SettingSlider, card_text, choices, controls, setting_slider, text_choice,
+    text_choice_wide,
 };
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, Outline, PANEL, SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
@@ -189,6 +191,113 @@ pub(crate) fn levels(ui: &mut egui::Ui, rows: &[LevelRow; 3]) {
         let name = t::level(level).get(language);
         row(ui, (Some(level), name), [&count, &mean], red);
     }
+}
+
+/// A choice's or a view's word by its key, its key itself where no table knows it.
+fn word_of(key: &str) -> Words<'_> {
+    t::choice_word(key).map_or_else(|| Words::made(key), Words::from)
+}
+
+/// A row of chips (S112), three to a line, those `chosen` holds on in the ink pill; a tap turns
+/// one while `open` (before the first Compare), else they are only shown.
+pub(crate) fn toggles(
+    ui: &mut egui::Ui,
+    keys: &[&str],
+    (chosen, open): (Chosen, bool),
+    taps: &mut Vec<PracticeIntent>,
+) {
+    let width = (ui.available_width() / 3.0 - SPACE).floor();
+    for (line, row) in keys.chunks(3).enumerate() {
+        ui.horizontal(|ui| {
+            for (place, key) in (line * 3..).zip(row) {
+                let chip = u8::try_from(place).unwrap_or(u8::MAX);
+                let on = chosen.on(chip);
+                choices(ui, &format!("toggle {place}"), |ui, group| {
+                    let word = text_choice_wide(ui, group, word_of(key), (open, on), width);
+                    if word.clicked() && open {
+                        push_once(taps, PracticeIntent::Toggle(chip));
+                    }
+                });
+            }
+        });
+    }
+}
+
+/// A row of small pictures of bars, each with its word under it (S112), the one `chosen` holds
+/// ringed; a tap chooses one while `open`.
+pub(crate) fn shapes(
+    ui: &mut egui::Ui,
+    shapes: &[(&str, [f32; 5])],
+    (chosen, open): (Chosen, bool),
+    taps: &mut Vec<PracticeIntent>,
+) {
+    let count = shapes.len().max(1) as f32;
+    let width = (ui.available_width() / count - SPACE).floor();
+    let height = TOUCH_TARGET + ui.text_style_height(&TextStyle::Small) + SPACE;
+    ui.horizontal(|ui| {
+        choices(ui, "shapes", |ui, group| {
+            for (place, (key, bars)) in shapes.iter().enumerate() {
+                let shape = u8::try_from(place).unwrap_or(u8::MAX);
+                let sense = if open { Sense::click() } else { Sense::hover() };
+                let (rect, response) = ui.allocate_exact_size(Vec2::new(width, height), sense);
+                let words = word_of(key);
+                controls::register(ui, words.id(), rect);
+                if chosen.shape == Some(shape) {
+                    group.chosen(Outline::row(rect));
+                }
+                paint_shape(ui, rect, bars, words.shown(ui.ctx()));
+                if response.clicked() && open {
+                    push_once(taps, PracticeIntent::Shape(shape));
+                }
+            }
+        });
+    });
+}
+
+/// `bars` (0 to 1) side by side in the upper part of `rect`, `word` small under them.
+fn paint_shape(ui: &egui::Ui, rect: Rect, bars: &[f32; 5], word: &str) {
+    let painter = ui.painter();
+    let field = Rect::from_min_size(
+        rect.min + Vec2::new(SPACE, SPACE / 2.0),
+        Vec2::new(rect.width() - 2.0 * SPACE, TOUCH_TARGET - SPACE),
+    );
+    let bar = field.width() / 9.0;
+    for (place, share) in bars.iter().enumerate() {
+        let left = field.left() + 2.0 * bar * place as f32;
+        let top = field.bottom() - field.height() * share.clamp(0.0, 1.0);
+        let shown = Rect::from_min_max(
+            egui::pos2(left, top),
+            egui::pos2(left + bar, field.bottom()),
+        );
+        painter.rect_filled(shown, 0.0, INK);
+    }
+    let font = TextStyle::Small.resolve(ui.style());
+    let under = egui::pos2(rect.center().x, field.bottom() + SPACE / 2.0);
+    painter.text(under, Align2::CENTER_TOP, word, font, INK);
+}
+
+/// Compare's views (S112), the one shown in the ink pill; a tap shows another.
+pub(crate) fn views(
+    ui: &mut egui::Ui,
+    keys: &[&str],
+    shown: usize,
+    taps: &mut Vec<PracticeIntent>,
+) {
+    let width = (ui.available_width() / 3.0 - SPACE).floor();
+    choices(ui, "views", |ui, group| {
+        for (line, row) in keys.chunks(3).enumerate() {
+            ui.horizontal(|ui| {
+                for (place, key) in (line * 3..).zip(row) {
+                    let on = place == shown;
+                    let word = text_choice_wide(ui, group, word_of(key), (true, on), width);
+                    if word.clicked() && !on {
+                        let view = u8::try_from(place).unwrap_or(u8::MAX);
+                        push_once(taps, PracticeIntent::View(view));
+                    }
+                }
+            });
+        }
+    });
 }
 
 /// A row of the table: a level's colour line and its name (none: the heads' row, quiet), and two

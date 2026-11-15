@@ -10,7 +10,13 @@
 //! division and line drawing are made, above the others, the first time the whole copy shows with
 //! its own tools; the layers keep the names the app gave them (shown in the language). Once
 //! another exercise shows (or the lesson ends) the sheet's first layer is drawn on again and the
-//! division shows at full strength.
+//! division shows at full strength. The pictures abstract analysis's marks lie over are a locked
+//! layer of their own under every other (`picture.rs`, S112).
+
+mod picture;
+
+pub use picture::{LAID_SIDE, PICTURE_LAYER};
+pub(crate) use picture::{Under, laid_under, pictures_laid};
 
 use openpaint_core::{Artwork, ArtworkCommand, CoreError, LayerCommand, LayerId, LayerName};
 
@@ -64,11 +70,7 @@ pub(crate) fn layered(artwork: &Artwork, layering: Layering) -> Result<Artwork, 
 /// Another exercise, or the end: the sheet's first layer (the one under every layer of the whole
 /// copy's) is drawn on again, and the division shows at full strength where there is one.
 fn rested(artwork: &Artwork) -> Result<Artwork, CoreError> {
-    let copy = [DIVISION_LAYER, LINES_LAYER, BLOCKS_LAYER];
-    let base = (artwork.layers().iter())
-        .find(|layer| !copy.contains(&layer.name().as_str()))
-        .map(openpaint_core::Layer::id);
-    let artwork = match base {
+    let artwork = match base(artwork) {
         Some(base) if artwork.active() != base => command(artwork, LayerCommand::Select(base))?,
         _ => artwork.clone(),
     };
@@ -89,6 +91,15 @@ fn rested(artwork: &Artwork) -> Result<Artwork, CoreError> {
             visible: true,
         },
     )
+}
+
+/// The sheet's first layer, which holds every exercise's strokes but a whole copy's: the lowest
+/// one the app did not make for a purpose of its own.
+fn base(artwork: &Artwork) -> Option<LayerId> {
+    let own = [DIVISION_LAYER, LINES_LAYER, BLOCKS_LAYER, PICTURE_LAYER];
+    (artwork.layers().iter())
+        .find(|layer| !own.contains(&layer.name().as_str()))
+        .map(openpaint_core::Layer::id)
 }
 
 /// The layer named `name`, if `artwork` has one.

@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::compositions::levels::Level;
 use crate::kinds::Original;
+use crate::marks::card::Choices;
 use crate::marks::compared::{Comparison, DrawnCopy};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
@@ -32,13 +33,15 @@ pub trait Copied {
 }
 
 /// An exercise asked to be compared: what it gives, its picture as the sheet holds it (none for
-/// a kind without one, or one no pack holds now) and its copy.
+/// a kind without one, or one no pack holds now), its copy, and what the user chose on its card
+/// before Compare (S112; none chosen for most kinds).
 #[derive(Clone, Copy)]
 pub struct Asked<'a> {
     pub exercise: &'a Exercise,
     pub original: &'a dyn Original,
     pub picture: Option<&'a SheetPicture>,
     pub copy: &'a dyn Copied,
+    pub choices: Choices,
 }
 
 /// A drawn copy's original to fit onto it for Aligned: lines, or a single shape's outline

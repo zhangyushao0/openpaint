@@ -1,11 +1,13 @@
 //! What the practice card shows of a compared exercise under its title, whatever its kind (S109,
 //! D111): a small vocabulary the screen lays out without knowing the kind, words named by keys
 //! (`Say`) that the UI's tables read in the language shown; a reason's (S138) made alike for
-//! every kind that gives one.
+//! every kind that gives one; and what a card asks the user to choose before Compare (`Choices`,
+//! S112).
 
 use crate::compositions::levels::LevelRow;
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
+use crate::records::metric::{Metric, Metrics, value};
 
 /// A reason's degree when it says none (`Say::way`), beside "little" and "clearly".
 const UNSAID: &str = "unsaid";
@@ -143,4 +145,59 @@ pub enum CardItem {
     Bar { original: Rgb8, copy: Rgb8 },
     /// A division's levels, their lines counted and measured (S95).
     Levels([LevelRow; 3]),
+    /// A row of chips, each a word's key, those `Choices::chips` holds on; a tap turns one, until
+    /// the first Compare (S112).
+    Toggles(&'static [&'static str]),
+    /// A row of small pictures of bars, each its word's key and its bars' heights (0 to 1), the
+    /// one `Choices::shape` holds on; a tap chooses it, until the first Compare (S112).
+    Shapes(&'static [(&'static str, [f32; 5])]),
+    /// Compare's views of the copy, each a word's key, the one `Seen::view` shows on; a tap shows
+    /// another (S112).
+    Views(&'static [&'static str]),
+}
+
+/// What the user chose on a card before the first Compare (S112): chips of its row toggled,
+/// several on (a bit each, by their place), and one of its row of pictures. Kept with the first
+/// Compare and fixed from then on (D99: the eye before the answer).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Choices {
+    pub chips: u8,
+    pub shape: Option<u8>,
+}
+
+impl Choices {
+    /// With chip `chip` (from 0, under 8) turned.
+    #[must_use]
+    pub const fn toggled(self, chip: u8) -> Self {
+        Self {
+            chips: self.chips ^ (1 << (chip % 8)),
+            shape: self.shape,
+        }
+    }
+
+    /// Whether chip `chip` is on.
+    #[must_use]
+    pub const fn on(self, chip: u8) -> bool {
+        self.chips & (1 << (chip % 8)) != 0
+    }
+
+    /// As a first Compare keeps them: the chips as a bit set, the picture chosen where one is.
+    #[must_use]
+    pub fn metrics(self) -> Metrics {
+        let mut metrics = vec![(Metric::ChosenChips, f64::from(self.chips))];
+        metrics.extend((self.shape).map(|shape| (Metric::ChosenShape, f64::from(shape))));
+        metrics
+    }
+
+    /// The choices a first Compare kept in `metrics`; none where it kept none.
+    #[must_use]
+    pub fn kept(metrics: &[(Metric, f64)]) -> Option<Self> {
+        let chips = value(metrics, Metric::ChosenChips)?;
+        let shape = value(metrics, Metric::ChosenShape);
+        let code = |v: f64| v.clamp(0.0, f64::from(u8::MAX)).round() as u8;
+        Some(Self {
+            chips: code(chips),
+            shape: shape.map(code),
+        })
+    }
 }

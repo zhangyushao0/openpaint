@@ -24,7 +24,10 @@
 //!
 //! Size, isolation and the subject are not measured: the How says so. The thresholds were set on
 //! the contact sheets of the 61 official compositions (`cargo run -p openpaint-harness --
-//! contrasts`), each with its reason beside it.
+//! contrasts`), each with its reason beside it. A view ships unless it veils a focus made by its
+//! own contrast on more than about five of them (a tonal picture's focus veiled under 纯度 or 色相
+//! is the truth, not a miss): the main session's reading of the bar on the sheets, 2026-11-15,
+//! all five shipped (D122).
 
 use crate::compositions::value_masses::{BLUR, MASSES_SIDE, RIM, blurred, cells_of, rimless};
 use crate::maths::colour::{Rgb8, from_oklab, linear, oklab_of_linear};

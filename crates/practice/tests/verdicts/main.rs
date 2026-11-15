@@ -57,6 +57,7 @@ pub fn compare(
         original: &*original,
         picture,
         copy: laid,
+        choices: openpaint_practice::Choices::default(),
     })
 }
 

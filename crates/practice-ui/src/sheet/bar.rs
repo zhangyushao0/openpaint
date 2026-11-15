@@ -7,7 +7,8 @@
 //! (`tools.rs`), and under them the card, grown out of the word that asked for it: the How (by
 //! itself the first time a kind comes up; the first lesson's own), the comparison with its
 //! result, a lesson's end (while a block runs only when the next lesson was rolled back) or a block's end
-//! (`card.rs`, `first.rs`, `result.rs`, `end.rs`, `block_end.rs`). The sheet itself is `marks.rs`
+//! (`card.rs`, `first.rs`, `result.rs`, `end.rs`, `block_end.rs`); while the copy is made, the
+//! steps an exercise asks of the card (S112). The sheet itself is `marks.rs`
 //! and `rows.rs`.
 
 use egui::Align;
@@ -115,6 +116,13 @@ impl PracticeBar {
             Some(CardShown::Compared) => Some(
                 card(ctx, "practice card", opened, |ui| {
                     practice_card::compared(ui, practice, taps.sheet);
+                })
+                .1,
+            ),
+            // While the copy is made, the steps its original asks of the card (S112).
+            None if practice.current.is_some() && !practice.task.is_empty() => Some(
+                card(ctx, "practice card", opened, |ui| {
+                    practice_card::task(ui, practice, taps.sheet);
                 })
                 .1,
             ),

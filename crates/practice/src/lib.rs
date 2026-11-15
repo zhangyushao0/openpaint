@@ -53,6 +53,9 @@ pub use kinds::abstract_analysis::contrast::{
     CHROMA_CONTRAST, CONTRAST_REACH, ContrastView, Contrasts, HARD_EDGE, HUE_CONTRAST,
     LIGHTNESS_CONTRAST, SQUINTED, Threshold, VEILED,
 };
+pub use kinds::abstract_analysis::marks::{
+    AnalysisCompared, AnalysisReading, CONTRASTS, DISTRIBUTIONS, VIEWS,
+};
 pub use kinds::boxes::ThroughBox;
 pub use kinds::boxes::marks::BoxCompared;
 pub use kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, NEAR_MISSED, THROUGH_TO_ADD};
@@ -119,7 +122,7 @@ pub use kinds::{
     ToolSet,
 };
 pub use marks::asked::{Asked, Compare, Copied, Painted, Pixels, Read, Reading, Reads, ToFit};
-pub use marks::card::{Arg, CardItem, Say, WheelSize};
+pub use marks::card::{Arg, CardItem, Choices, Say, WheelSize};
 pub use marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};
 pub use marks::drawing::PictureCompared;
 pub use marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};

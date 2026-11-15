@@ -38,7 +38,9 @@ mod shown;
 
 pub use crate::book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::copies::{CopyShown, PictureShown};
-pub use crate::layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
+pub use crate::layers::{
+    BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LAID_SIDE, LINES_LAYER, PICTURE_LAYER,
+};
 pub use crate::lesson::{End, Judged, LessonRow, LessonShown};
 pub use crate::log::PracticeLog;
 pub use crate::options::{

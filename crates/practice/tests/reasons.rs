@@ -179,6 +179,7 @@ fn first_said(compared: &dyn Compared) -> Option<Vec<String>> {
         chosen: 0,
         outline: &[],
         grey: false,
+        view: 0,
         fit: None,
         probe: None,
     };
