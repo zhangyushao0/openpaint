@@ -24,8 +24,9 @@ use std::time::{Duration, Instant};
 use crate::process::{cargo_command, root};
 use memory::Memory;
 
-/// How long a test binary, or the doc tests, may run before it is killed as hung: the slowest
-/// binary takes about 105 s beside the others.
+/// How long a test binary, or the doc tests, may run before it is killed as hung and named, the
+/// gate failing: about five times the slowest binary beside the others (`bench_practice`, 123 s;
+/// the runtime's tests 111 s; every other under a minute, S129).
 const HANG_LIMIT: Duration = Duration::from_secs(600);
 
 /// A test binary cargo built.

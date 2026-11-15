@@ -53,6 +53,8 @@ pub enum HarnessError {
         item: String,
         problem: String,
     },
+    /// `scenario --all --compare`: files that still differ from the baseline.
+    Differ(usize),
 }
 
 impl fmt::Display for HarnessError {
@@ -85,6 +87,7 @@ impl fmt::Display for HarnessError {
                 write!(f, "{what}: {value} bytes or items, past its bound {bound}")
             }
             Self::Pack { item, problem } => write!(f, "item {item}: {problem}"),
+            Self::Differ(files) => write!(f, "{files} files differ from the baseline"),
         }
     }
 }
