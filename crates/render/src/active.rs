@@ -2,7 +2,8 @@
 //! each frame adds only the spans of its curve that settled since the last one. The coverage
 //! keeps only settled spans (`Path::settled`); the last two, which later samples may still
 //! change, are its tail, laid every frame and never kept, so a stroke drawn a few samples at a
-//! time ends exactly as the finished stroke drawn at once.
+//! time ends exactly as the finished stroke drawn at once. A frame drawn elsewhere (`pass`: the
+//! view tier shown) leaves the track where it was, and the next draws everything since.
 
 use std::ops::Range;
 
@@ -124,6 +125,20 @@ impl ActiveTrack {
         self.tracked.is_some()
     }
 
+    /// `active`, drawn over `artwork`, is drawn elsewhere this evaluation (the view tier shown),
+    /// not by this drawing: it stays tracked as far as the drawing drew it (from nothing when it
+    /// drew none of it), so the next `advance` lays everything since and its commit everything
+    /// the drawing lacks. False, nothing changed, while another stroke is tracked (its pixels go
+    /// first: the drawing draws this evaluation).
+    pub(crate) fn pass(&mut self, artwork: &Artwork, active: &ActiveStroke) -> bool {
+        match &mut self.tracked {
+            Some(tracked) if tracked.continues_into(active) => tracked.base = artwork.clone(),
+            Some(_) => return false,
+            None => self.tracked = Some(Tracked::of(artwork, active)),
+        }
+        true
+    }
+
     fn record(
         &mut self,
         artwork: &Artwork,
@@ -137,17 +152,7 @@ impl ActiveTrack {
             .is_some_and(|tracked| tracked.continues_into(active));
         let tracked = match self.tracked.as_mut() {
             Some(tracked) if continuing => tracked,
-            _ => self.tracked.insert(Tracked {
-                base: artwork.clone(),
-                layer: active.layer(),
-                on_mask: active.on_mask(),
-                style: active.style().clone(),
-                clip: active.clip().cloned(),
-                samples: Vec::new(),
-                kept: 0,
-                region: None,
-                tail: None,
-            }),
+            _ => self.tracked.insert(Tracked::of(artwork, active)),
         };
         tracked.base = artwork.clone();
         let done = tracked.samples.len();
@@ -159,6 +164,21 @@ impl ActiveTrack {
 }
 
 impl Tracked {
+    /// `active` over `artwork`, none of it drawn yet.
+    fn of(artwork: &Artwork, active: &ActiveStroke) -> Self {
+        Self {
+            base: artwork.clone(),
+            layer: active.layer(),
+            on_mask: active.on_mask(),
+            style: active.style().clone(),
+            clip: active.clip().cloned(),
+            samples: Vec::new(),
+            kept: 0,
+            region: None,
+            tail: None,
+        }
+    }
+
     /// True when `active` is this stroke with zero or more samples added.
     fn continues_into(&self, active: &ActiveStroke) -> bool {
         self.layer == active.layer()
@@ -174,7 +194,7 @@ impl Tracked {
     /// the old spans and the new are evaluated again; a smudge committed as drawn also shows its
     /// tail now; a stroke with an end taper narrows its last stretch now (`lift_region`).
     /// A stroke whose samples were replaced whole (snapped to a shape) was tracked anew
-    /// from then on.
+    /// from then on. One the drawing drew none of (`pass`) is all of it, once committed.
     fn gone(&self, artwork: &Artwork) -> Option<PixelRect> {
         if artwork.same_version(&self.base) {
             return self.region;
@@ -186,6 +206,13 @@ impl Tracked {
         };
         let stroke = strokes.last()?;
         let samples = stroke.samples();
+        let tapered = lift_region(&self.style, samples);
+        if self.samples.is_empty() {
+            // Drawn elsewhere only: all of it when committed, nothing when dropped.
+            let committed = *stroke.style() == self.style;
+            let all = || union(stroke_region(&self.style, samples, 0), tapered);
+            return committed.then(all).flatten();
+        }
         let shared = samples
             .iter()
             .zip(&self.samples)
@@ -198,7 +225,6 @@ impl Tracked {
             return self.region;
         }
         let smudge = self.style.tool() == StrokeTool::Smudge;
-        let tapered = lift_region(&self.style, samples);
         if shared == samples.len() && shared == self.samples.len() {
             return union(self.tail.filter(|_| smudge), tapered);
         }

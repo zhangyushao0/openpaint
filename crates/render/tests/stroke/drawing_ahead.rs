@@ -3,7 +3,7 @@
 //! over the same place lays it from the snapshots taken before it), an undo lets go only those it
 //! reaches, a layer switch every one; after each, the strokes drawn take no snapshot on the frame
 //! loop and every frame and lift is the canvas drawn cold. At a view tier the same for its shown
-//! tiles, every ready tile its export. Without the worker (the tests' screen) strokes one after
+//! tiles, every ready tile its export every frame, the canvas from the lift on. Without the worker (the tests' screen) strokes one after
 //! another over a dense place are cold too, their snapshots taken and brought up by the frames.
 
 use std::time::Instant;
@@ -89,6 +89,19 @@ impl Loop {
     fn shows(&self, core: &Core, artwork: &Artwork, what: &str) {
         let read = self.target.read(core).expect("read");
         assert!(read == cold(core, artwork), "{what}");
+        self.tiles(core, artwork, what);
+    }
+
+    /// A frame of a stroke: at a tier every ready tile the export of `so_far` (the canvas takes
+    /// the stroke at its lift), else the canvas `so_far` drawn cold.
+    fn draws(&self, core: &Core, so_far: &Artwork, what: &str) {
+        match self.shown {
+            Some(_) => self.tiles(core, so_far, what),
+            None => self.shows(core, so_far, what),
+        }
+    }
+
+    fn tiles(&self, core: &Core, artwork: &Artwork, what: &str) {
         if let Some((_, scale)) = self.shown {
             let export = whole(core, artwork, scale);
             let compared = assert_tiles(core, &self.view, (&export, scale));
@@ -118,7 +131,7 @@ fn stroke(core: &Core, screen: &mut Loop, artwork: &Artwork, centre: [f32; 2]) -
         end += chunk.len();
         screen.frame(core, (artwork, Some(session.active())), &[]);
         let so_far = committed(artwork, (&style, &samples[..end]), None);
-        screen.shows(core, &so_far, &format!("{centre:?} after {end} samples"));
+        screen.draws(core, &so_far, &format!("{centre:?} after {end} samples"));
     }
     let lifted = session.finish().artwork;
     screen.frame(core, (&lifted, None), &[]);

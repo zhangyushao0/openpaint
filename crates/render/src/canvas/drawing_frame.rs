@@ -5,7 +5,10 @@
 //! kept coverage and tail, and the units above it (`drawing_parts.rs`), all one batch, one
 //! submission. The frame after the lift draws the committed stroke (its end tapered) where it
 //! changed, from the same snapshots: so every frame and the lift equal the canvas
-//! drawn cold, and nothing is drawn again after the lift.
+//! drawn cold, and nothing is drawn again after the lift. While a view tier shows, its drawing
+//! draws the stroke's frames and the canvas only those the tier cannot draw at every tile they
+//! reach (`stroke_left`), from where it last drew; its lift's frame draws on the canvas all it
+//! lacks (`ActiveTrack::pass`), so the canvas equals it drawn cold from the lift on.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -136,6 +139,8 @@ impl CanvasTarget {
         core: &Core,
         request: &FrameRequest<'_>,
     ) -> Result<Vec<PixelRect>, RenderError> {
+        // It draws everything since the canvas last drew the stroke.
+        self.behind = false;
         let mut drawing = std::mem::take(&mut self.drawing);
         let moved = std::mem::take(&mut self.moved);
         let (view, format, size) = (self.raster.view.clone(), self.texture.format(), self.size());
@@ -156,6 +161,26 @@ impl CanvasTarget {
         let parts = work?.parts;
         self.raster.stale(&parts);
         Ok(parts)
+    }
+
+    /// After the view tier shown drew this frame of the stroke (`covered`: at every tile it
+    /// reached): the frame the canvas left to it (`drawn`) drawn now when the tier could not,
+    /// with everything the canvas lacks of the stroke since it last drew it; the canvas pixels
+    /// drawn, which the other tiers take as any change. A frame it covered the canvas takes at
+    /// the lift, or at the next frame it draws (a read's among them).
+    ///
+    /// # Errors
+    /// As the raster core.
+    pub(crate) fn stroke_left(
+        &mut self,
+        core: &Core,
+        request: &FrameRequest<'_>,
+        covered: bool,
+    ) -> Result<Vec<PixelRect>, RenderError> {
+        if !std::mem::take(&mut self.left) || covered {
+            return Ok(Vec::new());
+        }
+        self.stroke_frame(core, request)
     }
 
     /// One frame of `drawing` onto `onto` for `request`, whose scene the canvas built this frame

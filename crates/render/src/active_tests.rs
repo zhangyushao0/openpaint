@@ -147,6 +147,38 @@ fn another_stroke_starts_over_and_erases_the_first() {
     );
 }
 
+/// A stroke drawn elsewhere (`pass`, a view tier) is all of it once committed, nothing once
+/// dropped, and the next frame drawn lays everything so far; another stroke is not passed.
+#[test]
+fn a_stroke_drawn_elsewhere_is_laid_whole_by_its_next_frame_or_its_commit() {
+    let base = blank();
+    let mut session = begin(&base, StrokeTool::Paint, 0);
+    extend(&mut session, 1..8);
+    let style = session.active().style().clone();
+    let mut track = ActiveTrack::default();
+    assert!(track.pass(&base, session.active()) && track.tracking());
+    let all = session.active().samples().to_vec();
+    let committed = track.advance(&session.clone().finish().artwork, None, true);
+    assert_eq!(committed.redraw, stroke_region(&style, &all, 0));
+    assert!(committed.redraw.is_some());
+    let mut track = ActiveTrack::default();
+    track.pass(&base, session.active());
+    let dropped = track.advance(&session.clone().cancel(), None, true);
+    assert_eq!(dropped.redraw, None, "it drew nothing");
+    let mut track = ActiveTrack::default();
+    track.pass(&base, session.active());
+    extend(&mut session, 8..12);
+    assert!(track.pass(&base, session.active()), "the same stroke grown");
+    let step = track.advance(&base, Some(session.active()), true);
+    let once = ActiveTrack::default().advance(&base, Some(session.active()), true);
+    assert_eq!(
+        (step.reset, step.kept, step.fresh_region),
+        (false, once.kept, once.fresh_region)
+    );
+    let other = begin(&base, StrokeTool::Paint, 20);
+    assert!(!track.pass(&base, other.active()), "its pixels go first");
+}
+
 #[test]
 fn a_smudge_trails_its_tail_until_committed() {
     let base = blank();

@@ -67,7 +67,9 @@ impl Screen {
         work
     }
 
-    /// `frame` without the worker: the tiles handed over wait for `serve`.
+    /// `frame` without the worker: the tiles handed over wait for `serve`. A frame of a stroke is
+    /// the screen's own (`draw_frame`: a view tier shown draws it, the canvas where the tier
+    /// cannot and at the lift); any other draws the canvas whole, as a read would.
     pub fn update(
         &mut self,
         core: &Core,
@@ -76,7 +78,11 @@ impl Screen {
         view: &ViewFrame,
     ) -> ViewWork {
         let request = request(artwork, active);
-        self.target.draw(core, &request, regions).expect("evaluate");
+        let drawn = match active {
+            Some(_) => self.target.draw_frame(core, &request, regions),
+            None => self.target.draw(core, &request, regions),
+        };
+        drawn.expect("evaluate");
         self.now += 1.0 / 60.0;
         self.view
             .update(core, &mut self.target, &request, (view, self.now))

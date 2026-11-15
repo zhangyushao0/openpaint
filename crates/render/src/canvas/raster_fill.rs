@@ -1,7 +1,7 @@
 //! The screen canvas drawn by the raster core (`raster.rs` holds what waits): its
 //! changes drawn at once when small (`draw_now`), else as the worker's tiles
 //! (`raster_hand.rs`); the stroke being drawn and its lift at once where they change the
-//! canvas (`drawing_frame.rs`).
+//! canvas (`drawing_frame.rs`), its frames while a view tier shows only where the tier cannot.
 
 use super::CanvasTarget;
 use super::raster::EDIT_PIXELS;
@@ -26,7 +26,8 @@ impl CanvasTarget {
     /// dropped) drawn at once where it changed, from its kept coverage over its snapshots
     /// (`drawing_frame.rs`), with the regions passed meanwhile (its mirrored copies, a smudge
     /// started over); with none, the regions passed are drawn or wait (`frame`: one of the
-    /// screen's). Returns the canvas pixels drawn now.
+    /// screen's). A frame of the stroke with nothing else changed is left to the view tier shown
+    /// (`stroke_left`). Returns the canvas pixels drawn now.
     pub(super) fn drawn(
         &mut self,
         core: &Core,
@@ -51,7 +52,16 @@ impl CanvasTarget {
         target.dirtied(&dirty);
         target.moved.clear();
         let mut changed = Vec::new();
-        if stroke || target.drawing.tracking() {
+        // While a view tier shows, a frame of the stroke is the tier's, the canvas's only where
+        // the tier cannot draw it (`stroke_left`); any other evaluation draws it here.
+        let tiered = frame && std::mem::take(&mut target.tiered);
+        target.left = stroke
+            && tiered
+            && dirty.is_empty()
+            && (request.active)
+                .is_some_and(|active| (target.drawing.track).pass(request.artwork, active));
+        target.behind |= target.left;
+        if (stroke || target.drawing.tracking()) && !target.left {
             target.moved.extend(dirty);
             changed = target.stroke_frame(core, request)?;
         } else {

@@ -1,6 +1,7 @@
 //! The stroke being drawn on the raster core (`canvas/drawing.rs`), of other kinds: a
 //! smudge, whose contacts trail the pen until it lifts, equals the same frame drawn on a canvas
-//! showing the artwork until then, and its lift the commit cold; a stroke snapped to a shape
+//! showing the artwork until then (at a tier, its tiles), and its lift the commit cold; a stroke
+//! snapped to a shape
 //! (QuickShape), one drawn with mirrored copies (symmetry) and one dropped are cold every frame.
 
 use openpaint_core::{Artwork, Color, StrokeSample, StrokeTool};
@@ -30,9 +31,10 @@ fn a_smudge_drawn_in_batches_is_the_frame_drawn_at_once_and_its_lift_the_commit(
             once.frame(&core, (&base, Some(session.active())), &[], &view);
             let what = format!("a smudge at {zoom}x after {end} samples");
             let read = |screen: &Screen| screen.target.read(&core).expect("read");
-            assert!(read(&screen) == read(&once), "{what}");
-            if scale.is_some() {
-                same_tiles(&screen, &once, &what);
+            // At a tier the tier draws it, the canvas takes it at its lift.
+            match scale {
+                Some(_) => same_tiles(&screen, &once, &what),
+                None => assert!(read(&screen) == read(&once), "{what}"),
             }
             if end == samples.len() {
                 break;

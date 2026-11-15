@@ -3,7 +3,8 @@
 //! power-of-two scale (2, 4 or 8 output pixels per canvas pixel), in tiles of `TIER_TILE` output
 //! pixels aligned to the canvas, holding the visible tiles and a ring of one tile. The canvas
 //! target stays the truth for everything else and is drawn first each frame; the tier draws
-//! through its scene and takes what it changed.
+//! through its scene and takes what it changed. A stroke's frames are the tier's alone: the
+//! canvas draws one after it only where it could not, and takes the stroke whole at its lift.
 //!
 //! Each frame: a change to a ready tile is drawn in place when it fits the frame, else the tile
 //! waits to be drawn whole (the canvas shows meanwhile); missing tiles are drawn whole by the
@@ -159,21 +160,7 @@ impl ViewCache {
         }
         let mut work = ViewWork::default();
         self.take_answers(core, canvas, &mut work);
-        // Tiers not shown in full keep only tiles no change reached; tiles the raster worker
-        // draws that a change reached are drawn again.
-        for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
-            for (tile, _) in touched(tier, &changed) {
-                tier.set_ready(tile, false);
-            }
-        }
-        let tiers = (self.current.iter_mut())
-            .chain(self.previous.iter_mut())
-            .chain(self.kept.iter_mut());
-        for tier in tiers {
-            for tile in self.raster.reached(&tier.map, &changed) {
-                tier.set_ready(tile, false);
-            }
-        }
+        self.reached(&changed);
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()
             .flatten()
@@ -182,7 +169,11 @@ impl ViewCache {
         }
         let view = (frame, now, wanted);
         let changes = ((&changed[..], &dirtied[..]), &mut work);
-        self.work_on_current(core, (canvas, request), view, changes)?;
+        let covered = self.work_on_current(core, (canvas, request), view, changes)?;
+        // A frame of the stroke the tier could not draw whole is the canvas's now.
+        let late = canvas.stroke_left(core, request, covered)?;
+        self.reached(&late);
+        canvas.tiered = self.current.is_some();
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()
             .flatten()
@@ -204,34 +195,55 @@ impl ViewCache {
         Ok(work)
     }
 
+    /// Tiers not shown in full keep only tiles no change reached (canvas pixels `changed`); tiles
+    /// the raster worker draws that a change reached are drawn again.
+    fn reached(&mut self, changed: &[PixelRect]) {
+        for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
+            for (tile, _) in touched(tier, changed) {
+                tier.set_ready(tile, false);
+            }
+        }
+        let tiers = (self.current.iter_mut())
+            .chain(self.previous.iter_mut())
+            .chain(self.kept.iter_mut());
+        for tier in tiers {
+            for tile in self.raster.reached(&tier.map, changed) {
+                tier.set_ready(tile, false);
+            }
+        }
+    }
+
     /// The shown tier's work this frame: what changed in place, then a share of the missing tiles
     /// when it is the tier `wanted`, handed to the raster worker. Its drawing follows
-    /// the artwork first, the canvas pixels `dirtied` naming what changes reached.
+    /// the artwork first, the canvas pixels `dirtied` naming what changes reached. Whether it
+    /// drew the stroke being drawn (or lifted) at every tile the frame reached.
     fn work_on_current(
         &mut self,
         core: &Core,
         (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
         (frame, now, wanted): (&ViewFrame, f64, Option<u32>),
         ((changed, dirtied), work): ((&[PixelRect], &[PixelRect]), &mut ViewWork),
-    ) -> Result<(), RenderError> {
+    ) -> Result<bool, RenderError> {
         self.taking = false;
         let raster = &mut self.raster;
         let Some(current) = &mut self.current else {
-            return Ok(());
+            return Ok(false);
         };
         let scale = current.scale();
         canvas.follow(&mut current.drawing, request, (Some(dirtied), scale));
         // What changed shows at once when it fits; missing tiles are background work. The
         // stroke being drawn, and its lift, at once where the view shows them.
+        let mut covered = false;
         if request.active.is_some() || current.drawing.tracking() {
             let needed = Needed::of(&current.map, frame);
             let place = (&mut *canvas, request);
             stroke_raster(core, (current, &needed), place, (work, now))?;
+            covered = work.dropped.is_empty();
         } else {
             in_place_raster(core, current, (&mut *canvas, request), (changed, work, now))?;
         }
         if Some(current.scale()) != wanted {
-            return Ok(());
+            return Ok(covered);
         }
         // Tiles the view left stay ready until a needed tile wants their slot.
         let needed = Needed::of(&current.map, frame);
@@ -246,7 +258,7 @@ impl ViewCache {
             self.keep_previous();
         }
         self.taking = taking;
-        Ok(())
+        Ok(covered)
     }
 
     /// Starts tier `wanted` (or none): the tier shown so far becomes the previous one, shown

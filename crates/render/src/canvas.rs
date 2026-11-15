@@ -1,7 +1,8 @@
 //! `CanvasTarget`: a texture holding an artwork's canvas, and the one entry that draws a frame
 //! request into regions of it (`draw`, `draw_frame`). The raster core draws every scene: changes
 //! at once when they fit the frame, else as the raster worker's tiles (`canvas/raster_fill.rs`),
-//! the stroke being drawn where it changes the canvas (`canvas/drawing_frame.rs`). Its scene, smudge
+//! the stroke being drawn where it changes the canvas (`canvas/drawing_frame.rs`; while a view
+//! tier shows, only where the tier cannot draw it, and at its lift). Its scene, smudge
 //! residuals and filter results are kept between draws (`canvas/scene_cache.rs`, `canvas/budget.rs`).
 
 use openpaint_core::{ActiveStroke, Artwork, RegionMask};
@@ -42,6 +43,13 @@ pub struct CanvasTarget {
     pub(crate) drawing: Drawing,
     pub(crate) moved: Vec<PixelRect>,
     dirtied: Vec<PixelRect>,
+    /// A view tier showed at the last view update: the next frame of a stroke is the tier's
+    /// (`ViewCache::update`); this frame's was left to it, the canvas drawing it after the tier
+    /// only where the tier could not (`stroke_left`), else at the lift; one was since the
+    /// canvas last drew the stroke (`behind`).
+    pub(crate) tiered: bool,
+    left: bool,
+    behind: bool,
     /// Where the screen looks: the waiting tiles it shows go first.
     focus: Option<Focus>,
     /// Nothing was drawn into it yet: its pixels are undefined.
@@ -138,6 +146,9 @@ impl CanvasTarget {
             drawing: Drawing::default(),
             moved: Vec::new(),
             dirtied: Vec::new(),
+            tiered: false,
+            left: false,
+            behind: false,
             focus: None,
             blank: true,
             warming: None,
@@ -293,6 +304,14 @@ impl CanvasTarget {
     #[must_use]
     pub fn pending(&self) -> bool {
         self.raster.pending()
+    }
+
+    /// The stroke being drawn is behind on the canvas: a view tier drew frames of it the canvas
+    /// left to it (`draw_frame`), which `read` and `pick` read without until a `draw` (or its
+    /// lift's frame) draws them.
+    #[must_use]
+    pub fn behind(&self) -> bool {
+        self.behind
     }
 
     /// Where the screen looks on the canvas from now on: the waiting tiles it shows are drawn

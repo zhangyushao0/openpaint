@@ -48,11 +48,12 @@ impl Canvas {
         self.evaluated_now(core, true)
     }
 
-    /// Evaluates everything still to show now, every waiting tile too, before the target is
-    /// read (a pick, the gallery picture); the smudge residuals that took at once go back within
-    /// their room after it.
+    /// Evaluates everything still to show now, every waiting tile too and the stroke being drawn
+    /// where a view tier drew it alone, before the target is read (a pick, the gallery picture);
+    /// the smudge residuals that took at once go back within their room after it.
     pub(crate) fn settle(&mut self, core: &Core) -> Result<(), RuntimeError> {
-        if self.evaluated && self.changed_from.is_none() && !self.target.pending() {
+        let behind = self.target.pending() || self.target.behind();
+        if self.evaluated && self.changed_from.is_none() && !behind {
             return Ok(());
         }
         self.evaluated_now(core, false)?;

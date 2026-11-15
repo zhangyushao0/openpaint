@@ -7,7 +7,8 @@
 //! picture (each scale reduced comes back to the canvas); draws alike every time, in bands as in
 //! one piece, in scattered regions as whole; its tier tiles are its export;
 //! changes over it (a stroke, a fill, a hidden layer) and their undo end as drawn cold; a stroke,
-//! a smudge and a clipped stroke drawn inside it are cold every frame and at their lift.
+//! a smudge and a clipped stroke drawn inside it are cold every frame (at a tier, its tiles) and
+//! at their lift.
 
 use openpaint_core::{
     Adjustment, Artwork, ArtworkCommand, BlendMode, Blur, Color, Curves, GroupCommand, Hsb,
@@ -16,7 +17,7 @@ use openpaint_core::{
 };
 use openpaint_render::{Banding, CanvasTarget, PixelRect, changed_regions};
 
-use crate::drawing::{CHUNKS, begun, committed, path, screen, shows};
+use crate::drawing::{CHUNKS, begun, committed, draws, path, screen, shows};
 use crate::fixture::{
     SIZE, apply, cold, core, diagonal, layer, plain, region, request, wave, with_layer, with_stroke,
 };
@@ -257,7 +258,7 @@ fn drawn_inside(
             assert!(read(&screen.target) == read(&once.target), "{what}");
         } else {
             let so_far = committed(base, (style, &samples[..end]), clip);
-            shows(&screen, &so_far, scale, &what);
+            draws(&screen, &so_far, scale, &what);
         }
         if end == samples.len() {
             break;

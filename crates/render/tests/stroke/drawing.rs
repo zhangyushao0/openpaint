@@ -1,7 +1,8 @@
 //! The stroke being drawn on the raster core: drawn a few samples a frame
-//! over an artwork the raster core draws, after every batch the canvas (and every ready tile of the
-//! view tier shown) equals the artwork with the stroke so far committed drawn cold (its end not
-//! tapered yet), bit for bit; the lift's frame equals the committed artwork drawn cold; for
+//! over an artwork the raster core draws, after every batch the canvas (at a view tier, every
+//! ready tile of the tier, which draws the stroke alone: `drawing_tier.rs`) equals the artwork with
+//! the stroke so far committed drawn cold (its end not tapered yet), bit for bit; the lift's frame
+//! leaves both the committed artwork drawn cold; for
 //! paint, erasing, Alpha Lock, a selection's clip, a mask, a clipping chain's layer (a smudge, a
 //! stroke snapped to a shape and one drawn with mirrored copies: `drawing_kinds.rs`; strokes one
 //! after another and the snapshots under them: `drawing_ahead.rs`), over a moved selection's
@@ -93,16 +94,28 @@ pub fn screen(
     (screen, view)
 }
 
-/// Every check of a frame: the canvas the cold draw of `so_far`, the tier's ready tiles its
-/// export at `scale`.
-pub fn shows(screen: &Screen, so_far: &Artwork, scale: Option<u32>, what: &str) {
+/// Every check of a frame no stroke is drawn in (a lift's): the canvas the cold draw of
+/// `artwork`, the tier's ready tiles its export at `scale`.
+pub fn shows(screen: &Screen, artwork: &Artwork, scale: Option<u32>, what: &str) {
     let core = core();
     assert!(
-        screen.target.read(&core).expect("read") == cold(&core, so_far),
+        screen.target.read(&core).expect("read") == cold(&core, artwork),
         "{what}: the canvas"
     );
     if let Some(scale) = scale {
-        screen.assert_tiles(&core, &whole(&core, so_far, scale), scale);
+        screen.assert_tiles(&core, &whole(&core, artwork, scale), scale);
+    }
+}
+
+/// Every check of a frame of a stroke: at a tier its ready tiles the export of `so_far` at
+/// `scale` (the canvas takes the stroke at its lift), else the canvas the cold draw of `so_far`.
+pub fn draws(screen: &Screen, so_far: &Artwork, scale: Option<u32>, what: &str) {
+    let core = core();
+    match scale {
+        Some(scale) => {
+            screen.assert_tiles(&core, &whole(&core, so_far, scale), scale);
+        }
+        None => shows(screen, so_far, None, what),
     }
 }
 
@@ -121,7 +134,7 @@ fn drawn(case: &Case, zoom: f32, scale: Option<u32>) {
         screen.frame(&core, (&case.base, Some(session.active())), &[], &view);
         let so_far = (&case.blunt, &case.samples[..end]);
         let what = format!("{} at {zoom}x after {end} samples", case.name);
-        shows(
+        draws(
             &screen,
             &committed(&case.base, so_far, case.clip.as_ref()),
             scale,
