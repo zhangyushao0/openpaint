@@ -15,18 +15,20 @@ use openpaint_render::{
 };
 
 use crate::drawing::{begun, committed, path, screen, shows};
-use crate::fixture::{HANG, SIZE, cold, layer, plain, with_stroke};
+use crate::fixture::{HANG, cold, layer, plain, with_stroke};
 use crate::raster::{color, every_raster_source};
 use crate::scale::whole;
 use crate::tiers::{assert_tiles, frame};
 
 /// The canvas (and its view tier, shown through `view`) as the frame loop drives it, the raster
 /// worker's orders served after each frame.
-struct Loop {
-    target: CanvasTarget,
-    view: ViewCache,
+pub struct Loop {
+    pub target: CanvasTarget,
+    pub view: ViewCache,
     drawer: RasterDrawer,
     shown: Option<(ViewFrame, u32)>,
+    /// A hand is near the screen: frames without a stroke are not idle (a lift, between strokes).
+    pub touched: bool,
     /// The frame clock, 60 frames a second, and whether the last frame's tier waited.
     now: f64,
     pending: bool,
@@ -34,10 +36,12 @@ struct Loop {
 
 impl Loop {
     /// `artwork` opened, shown through `shown` (its tier's scale) or at fit.
-    fn new(core: &Core, artwork: &Artwork, shown: Option<(ViewFrame, u32)>) -> Self {
-        let mut target = CanvasTarget::new(core, SIZE).expect("target");
+    pub fn new(core: &Core, artwork: &Artwork, shown: Option<(ViewFrame, u32)>) -> Self {
+        let canvas = artwork.canvas();
+        let size = [canvas.width(), canvas.height()];
+        let mut target = CanvasTarget::new(core, size).expect("target");
         target
-            .draw(core, &request(artwork, None), &[PixelRect::full(SIZE)])
+            .draw(core, &request(artwork, None), &[PixelRect::full(size)])
             .expect("opened");
         Self {
             target,
@@ -46,18 +50,19 @@ impl Loop {
             shown,
             now: 0.0,
             pending: false,
+            touched: false,
         }
     }
 
-    /// One frame of `artwork` (with the stroke `active`, else while nothing touches the screen)
-    /// with `regions` changed.
-    fn frame(
+    /// One frame of `artwork` (with the stroke `active`, else while nothing touches the screen
+    /// unless `touched`) with `regions` changed.
+    pub fn frame(
         &mut self,
         core: &Core,
         (artwork, active): (&Artwork, Option<&ActiveStroke>),
         regions: &[PixelRect],
     ) {
-        core.begin_frame_idle(active.is_none());
+        core.begin_frame_idle(active.is_none() && !self.touched);
         let request = request(artwork, active);
         self.target
             .draw_frame(core, &request, regions)
@@ -72,8 +77,9 @@ impl Loop {
         self.drawer.serve(core, (&mut self.target, &mut self.view));
     }
 
-    /// Idle frames of `artwork` until nothing waits and every snapshot is taken.
-    fn settle(&mut self, core: &Core, artwork: &Artwork) {
+    /// Idle frames of `artwork` (the hand gone) until nothing waits and every snapshot is taken.
+    pub fn settle(&mut self, core: &Core, artwork: &Artwork) {
+        self.touched = false;
         let start = Instant::now();
         loop {
             self.frame(core, (artwork, None), &[]);
@@ -86,7 +92,7 @@ impl Loop {
     }
 
     /// The canvas is `artwork` drawn cold, and every ready tile of the tier its export.
-    fn shows(&self, core: &Core, artwork: &Artwork, what: &str) {
+    pub fn shows(&self, core: &Core, artwork: &Artwork, what: &str) {
         let read = self.target.read(core).expect("read");
         assert!(read == cold(core, artwork), "{what}");
         self.tiles(core, artwork, what);
@@ -120,10 +126,24 @@ fn request<'a>(artwork: &'a Artwork, active: Option<&'a ActiveStroke>) -> FrameR
 
 /// A stroke about `centre` drawn over `artwork` a few samples a frame and lifted, each frame cold
 /// and none taking a snapshot; the artwork after.
-fn stroke(core: &Core, screen: &mut Loop, artwork: &Artwork, centre: [f32; 2]) -> Artwork {
-    let style = plain(28.0, 0.8, color(0.9, 0.3, 0.2));
-    let samples = path(centre, 80.0, 25);
+pub fn stroke(core: &Core, screen: &mut Loop, artwork: &Artwork, centre: [f32; 2]) -> Artwork {
     let before = core.counts().snapshots;
+    let lifted = drawn(core, screen, artwork, (centre, 80.0));
+    let taken = core.counts().snapshots - before;
+    assert_eq!(taken, 0, "{centre:?}: snapshots taken while drawing");
+    lifted
+}
+
+/// A stroke about `centre`, `reach` pixels each way, drawn over `artwork` a few samples a frame
+/// and lifted, each frame and the lift cold; the artwork after.
+pub fn drawn(
+    core: &Core,
+    screen: &mut Loop,
+    artwork: &Artwork,
+    (centre, reach): ([f32; 2], f32),
+) -> Artwork {
+    let style = plain(28.0, 0.8, color(0.9, 0.3, 0.2));
+    let samples = path(centre, reach, 25);
     let mut session = begun(artwork, (&style, &samples[..1]), None);
     let mut end = 1;
     for chunk in samples[1..].chunks(4) {
@@ -136,13 +156,11 @@ fn stroke(core: &Core, screen: &mut Loop, artwork: &Artwork, centre: [f32; 2]) -
     let lifted = session.finish().artwork;
     screen.frame(core, (&lifted, None), &[]);
     screen.shows(core, &lifted, &format!("{centre:?} lifted"));
-    let taken = core.counts().snapshots - before;
-    assert_eq!(taken, 0, "{centre:?}: snapshots taken while drawing");
     lifted
 }
 
 /// Every raster source with 40 strokes more about the canvas's middle: a dense place.
-fn dense() -> Artwork {
+pub fn dense() -> Artwork {
     let mut base = every_raster_source();
     for k in 0..40u16 {
         let angle = f32::from(k) * 2.4;
@@ -180,7 +198,7 @@ fn strokes_one_after_another_over_a_dense_place_are_cold() {
 }
 
 /// A device of its own: its counts and its frames' pacing are the test's alone.
-fn own_core() -> Core {
+pub fn own_core() -> Core {
     let core = Core::headless().expect("a GPU adapter is required for render tests");
     core.set_frame_budget(f64::INFINITY);
     core

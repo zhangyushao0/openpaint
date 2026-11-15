@@ -130,7 +130,7 @@ impl CanvasTarget {
         let atlas = self.raster_atlas(core)?;
         let units = (scene, &held.bases);
         let under = drawing.under.get(&tile).cloned();
-        let from = under.as_ref().map(|under| under.at);
+        let from = under.as_ref().map(|under| *under.stands.end());
         let range = (from, base.at, base.restored);
         let mut plan = RasterPlan::snapshot(units, (output, side), atlas, range)?;
         let slots = match under {
@@ -261,9 +261,9 @@ fn regions(
 
 /// The tiles whose snapshot a frame brings up to the drawing's place (taken anew, or the strokes
 /// committed since laid onto it), and where each of `regions` (of an output of `size` pixels)
-/// resumes: every tile a region meets stands before one unit, the one it resumes at, so those
-/// lacking strokes another lacks too are left as they are (the region lays the strokes since),
-/// and the rest are brought up; from the paper without a place.
+/// resumes: at a unit every tile it meets stands before, the latest (the region lays the strokes
+/// since), when they have one; else the tiles lacking strokes are brought up and it is the
+/// place's; from the paper without a place.
 fn settle(
     drawing: &Drawing,
     regions: &[PixelRect],
@@ -283,16 +283,16 @@ fn settle(
         .filter(|tile| !drawing.under.contains_key(*tile))
         .copied()
         .collect();
-    let at = |needed: &BTreeSet<[u32; 2]>, tile: &[u32; 2]| match drawing.under.get(tile) {
-        Some(under) if !needed.contains(tile) => under.at,
-        _ => base.at,
+    // The units a tile's snapshot stands before; the place's alone once brought up.
+    let stands = |needed: &BTreeSet<[u32; 2]>, tile: &[u32; 2]| match drawing.under.get(tile) {
+        Some(under) if !needed.contains(tile) => (*under.stands.start(), *under.stands.end()),
+        _ => (base.at, base.at),
     };
     loop {
         let mut more: Vec<[u32; 2]> = Vec::new();
         for met in &tiles {
-            let first = met.first().map(|tile| at(&needed, tile));
-            if met.iter().any(|tile| Some(at(&needed, tile)) != first) {
-                more.extend(met.iter().filter(|tile| at(&needed, tile) != base.at));
+            if agreed(met.iter().map(|tile| stands(&needed, tile))).is_none() {
+                more.extend(met.iter().filter(|tile| stands(&needed, tile).1 != base.at));
             }
         }
         if more.is_empty() {
@@ -302,11 +302,19 @@ fn settle(
     }
     let resumes = (tiles.iter())
         .map(|met| Resume {
-            at: met.first().map_or(base.at, |tile| at(&needed, tile)),
+            at: agreed(met.iter().map(|tile| stands(&needed, tile))).unwrap_or(base.at),
             restored: Some(base.restored),
         })
         .collect();
     (needed.into_iter().collect(), resumes)
+}
+
+/// The latest unit every one of the snapshots standing before units `stands` (first, last)
+/// stands before: the least last, when no first is later; `None` when they share none or are
+/// none.
+pub(super) fn agreed(stands: impl IntoIterator<Item = (usize, usize)>) -> Option<usize> {
+    let (first, last) = (stands.into_iter()).reduce(|(a, b), (c, d)| (a.max(c), b.min(d)))?;
+    (first <= last).then_some(last)
 }
 
 /// The restores of output pixels `region` (of an output of `size` pixels) from the snapshots of
@@ -324,4 +332,59 @@ fn restores(drawing: &Drawing, region: PixelRect, size: [u32; 2]) -> Vec<SlotCop
         all.extend(copies(&under.slots, (offset, at, side)));
     }
     all
+}
+
+#[cfg(test)]
+mod tests {
+    use openpaint_core::{Artwork, CanvasSize};
+
+    use super::{PixelRect, agreed, settle};
+    use crate::canvas::drawing::{Base, Drawing, Under};
+    use crate::raster_plan::Restored;
+
+    #[test]
+    fn a_region_resumes_where_its_tiles_stand_together_else_brings_up_the_lagging() {
+        assert_eq!(agreed([(2, 5), (4, 7)]), Some(5), "the latest shared");
+        assert_eq!(agreed([(1, 1), (3, 7)]), None, "none shared");
+        assert_eq!(agreed([]), None);
+        let artwork = Artwork::new(CanvasSize::new(8 * 256, 256).expect("size"));
+        let restored = Restored {
+            on_mask: false,
+            chain: false,
+            group: false,
+        };
+        let mut drawing = Drawing::default();
+        let place = (artwork.active(), false);
+        let (at, epoch) = (7, 0);
+        drawing.base = Some(Base {
+            artwork,
+            place,
+            at,
+            restored,
+            epoch,
+        });
+        // Tile n stands before these units; tile 4 has no snapshot.
+        let stands = [(2, 5), (4, 7), (1, 1), (3, 7), (0, 0), (6, 7), (2, 3)];
+        for (column, (first, last)) in (0u32..).zip(stands).filter(|(column, _)| *column != 4) {
+            let slots = Vec::new();
+            let under = Under {
+                slots,
+                stands: first..=last,
+                made: 0,
+            };
+            drawing.under.insert([column, 0], under);
+        }
+        // A region over the tiles `a` to `b` (columns).
+        let across = |(a, b): (i32, i32)| PixelRect {
+            min: [a * 256 + 10, 10],
+            max: [b * 256 + 60, 20],
+        };
+        let regions = [(0, 1), (2, 3), (3, 3), (4, 5), (6, 6)].map(across);
+        let (needed, resumes) = settle(&drawing, &regions, [8 * 256, 256]);
+        let at: Vec<usize> = resumes.iter().map(|resume| resume.at).collect();
+        // Tiles 0 and 1 meet at 5; tile 2 shares no unit with tile 3: brought up; tile 3 alone
+        // stands before the place; tile 4 is taken; tile 6 keeps its lag.
+        assert_eq!(at, [5, 7, 7, 7, 3]);
+        assert_eq!(needed, [[2, 0], [4, 0]]);
+    }
 }

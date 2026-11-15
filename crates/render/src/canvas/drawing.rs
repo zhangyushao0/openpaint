@@ -2,16 +2,18 @@
 //! tier) keeps for the strokes drawn on it. Per 256-px output tile, in slots of pages of its own:
 //! a snapshot of the region's float targets (the canvas, the layer, its mask or clipping chain as
 //! the place needs) as the units before the next stroke's place leave them, which outlives the
-//! stroke: a stroke committed there since is laid onto it when it is next used (`at` names the unit
-//! it stands before), a change elsewhere in the artwork leaves it, one reaching it lets it go
-//! (`drawing_follow.rs`); and, while a stroke is drawn, its coverage so far (`kept`; its density
+//! stroke: one committed there since that does not reach the tile leaves it standing, one that
+//! does is laid onto it when it is next used (`stands` names the units it stands before), a change
+//! elsewhere in the artwork leaves it, one reaching it lets it go (`drawing_follow.rs`); and,
+//! while a stroke is drawn, its coverage so far (`kept`; its density
 //! and paper contact for a pencil), to which every frame adds the spans that settled since, in
 //! order, as the blend unit would lay them in one go. A frame then draws only where the stroke
 //! changed: the targets restored from the snapshots, the stroke laid from its kept coverage and its
-//! tail, the units after it (`drawing_frame.rs`); the raster worker takes snapshots ahead while
-//! nothing touches the screen (`drawing_ahead.rs`).
+//! tail, the units after it (`drawing_frame.rs`); the raster worker takes snapshots ahead where
+//! the pen can land while nothing touches the screen or the pen hovers (`drawing_ahead.rs`).
 
 use std::collections::BTreeMap;
+use std::ops::RangeInclusive;
 
 use openpaint_core::{Artwork, LayerId};
 
@@ -61,11 +63,13 @@ pub(crate) struct Kept {
     pub(crate) laid: u64,
 }
 
-/// A tile's snapshot: its targets each in a slot, the unit it stands before, and which it is.
+/// A tile's snapshot: its targets each in a slot, the units it stands before (from the one its
+/// pixels were laid up to through the last one that no stroke appended since reached the tile:
+/// the units between lay nothing there), and which it is.
 #[derive(Debug, Clone)]
 pub(crate) struct Under {
     pub(crate) slots: Vec<(Scratch, SlotAt)>,
-    pub(crate) at: usize,
+    pub(crate) stands: RangeInclusive<usize>,
     pub(crate) made: u64,
 }
 
@@ -179,7 +183,7 @@ impl Drawing {
     /// Whether tile `tile`'s snapshot stands before the unit the place's stroke lays at.
     pub(crate) fn up_to_date(&self, tile: [u32; 2]) -> bool {
         match (&self.base, self.under.get(&tile)) {
-            (Some(base), Some(under)) => under.at == base.at,
+            (Some(base), Some(under)) => *under.stands.end() == base.at,
             _ => false,
         }
     }
@@ -195,6 +199,20 @@ impl Drawing {
             .filter(|tile| self.taking.iter().all(|taking| taking.tile != *tile))
             .take(most)
             .collect()
+    }
+
+    /// The snapshots of the tiles `keep` refuses go (no pen lands there now), unless a stroke is
+    /// tracked.
+    pub(crate) fn keep_only(&mut self, keep: impl Fn([u32; 2]) -> bool) {
+        if self.tracking() {
+            return;
+        }
+        let gone: Vec<[u32; 2]> = (self.under.keys().copied())
+            .filter(|tile| !keep(*tile))
+            .collect();
+        for tile in gone {
+            self.forget(tile);
+        }
     }
 
     /// Tile `tile`'s snapshot goes.
@@ -235,7 +253,15 @@ impl Drawing {
         }
         self.made += 1;
         let made = self.made;
-        self.under.insert(tile, Under { slots, at, made });
+        let stands = at..=at;
+        self.under.insert(
+            tile,
+            Under {
+                slots,
+                stands,
+                made,
+            },
+        );
     }
 
     /// Frees snapshot slots `slots` (a snapshot taken for nothing).

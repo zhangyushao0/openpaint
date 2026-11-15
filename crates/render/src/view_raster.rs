@@ -168,6 +168,8 @@ pub(crate) fn snapshots_ahead(
     (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
     ready: bool,
 ) -> Result<bool, RenderError> {
+    // Where no pen lands now (not shown, nor the ring): its snapshots go.
+    tier.drawing.keep_only(|tile| needed.needs(tile));
     let drawing = &tier.drawing;
     if !ready || canvas.pending() || drawing.base.is_none() || drawing.tracking() {
         return Ok(false);

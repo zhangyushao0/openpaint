@@ -133,15 +133,12 @@ impl CanvasTarget {
                 let at = cache.scene.raster.active()?;
                 Some((at, Restored::at(&cache.scene, (at, place.on_mask))))
             });
-        let dirty: Option<Vec<PixelRect>> = dirty.map(|rects| {
-            let output = Output::at(scale, [0, 0]).unwrap_or(Output::CANVAS);
-            rects.iter().map(|rect| output.place(rect)).collect()
-        });
+        let output = Output::at(scale, [0, 0]).unwrap_or(Output::CANVAS);
         drawing.follow(
             request.artwork,
             (place.layer, place.on_mask),
             at,
-            dirty.as_deref(),
+            (dirty, output),
         );
     }
 

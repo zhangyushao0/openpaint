@@ -11,6 +11,7 @@ mod deposit;
 mod drawing;
 mod drawing_ahead;
 mod drawing_kinds;
+mod drawing_stands;
 mod drawing_tier;
 mod erase;
 mod exact;

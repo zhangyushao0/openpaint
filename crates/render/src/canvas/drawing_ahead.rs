@@ -1,12 +1,14 @@
-//! Snapshots taken ahead (`drawing.rs`): while nothing touches the screen and nothing of the
-//! canvas waits, the raster worker takes the snapshots the 1x canvas's tiles lack (and, once its
-//! tiles are ready, those of the view tier's shown tiles), or lays the strokes committed since
-//! onto those that lack them, the tiles the screen shows nearest its middle first, a few at a
+//! Snapshots taken ahead (`drawing.rs`) where the pen can land: the 1x canvas's tiles the screen
+//! shows and a ring of one tile round them (every tile without a view), and the view tier's shown
+//! tiles once they are ready; the others' go. While nothing touches the screen and nothing of the
+//! canvas waits, the raster worker takes the snapshots they lack, or lays the strokes committed
+//! since onto those lacking them, the tiles the screen shows nearest its middle first, a few at a
 //! time, each into slots the drawing holds for it until it is answered (dropped unsubmitted once
-//! a hand arrives, as the worker's other background work), within the snapshots' room in the GPU memory budget.
-//! An answer is kept unless a change reached the tile, or the frame loop brought its snapshot up
-//! first; so the first frames of a stroke find what lies under it and take no snapshot. What a
-//! stroke's frames draw with (a coverage page, the scratch targets) is made ahead too.
+//! a hand arrives, as the worker's other background work), within the snapshots' room in the GPU
+//! memory budget. An answer is kept unless a change reached the tile, or the frame loop brought
+//! its snapshot up first; so the first frames of a stroke find what lies under it and take no
+//! snapshot. What a stroke's frames draw with (a coverage page, the scratch targets) is made
+//! ahead too.
 
 use super::CanvasTarget;
 use super::drawing::{Drawing, Taking, slot_copies};
@@ -19,6 +21,7 @@ use crate::raster_plan::{Scratch, SlotAt, SlotCopy};
 use crate::raster_worker::{JobInto, SnapshotJob};
 use crate::smudge::around_output;
 use crate::view_tiles::{TIER_TILE, tile_rect};
+use crate::waiting::Focus;
 
 /// Snapshots with the raster worker at most, per drawing.
 pub(crate) const TAKING: usize = 4;
@@ -31,6 +34,8 @@ impl CanvasTarget {
         core: &Core,
         request: &FrameRequest<'_>,
     ) -> Result<(), RenderError> {
+        let (focus, size) = (self.focus, self.size());
+        self.drawing.keep_only(|tile| lands(focus, size, tile));
         if !core.pace().idle() || self.drawing.tracking() || self.drawing.base.is_none() {
             return Ok(());
         }
@@ -87,7 +92,8 @@ impl CanvasTarget {
             let side = rect.size();
             let under = drawing.under.get(&tile).cloned();
             let snapshot = SnapshotJob {
-                from: (under.as_ref()).map(|under| (under.at, copies(&under.slots, side))),
+                from: (under.as_ref())
+                    .map(|under| (*under.stands.end(), copies(&under.slots, side))),
                 to: base.at,
                 restored: base.restored,
                 keep: copies(&slots, side),
@@ -109,12 +115,13 @@ impl CanvasTarget {
     }
 
     /// The tiles whose snapshot `drawing` (the canvas's) wants taken next, as many as may be
-    /// taken at once: those the screen shows first, nearest its middle (rows from the top
-    /// without a view).
+    /// taken at once: where the pen can land (`lands`), those the screen shows first, nearest its
+    /// middle (rows from the top without a view).
     fn wanted_snapshots(&self, drawing: &Drawing) -> Vec<[u32; 2]> {
-        let [columns, rows] = self.size().map(|side| side.div_ceil(TIER_TILE));
+        let (focus, size) = (self.focus, self.size());
+        let [columns, rows] = size.map(|side| side.div_ceil(TIER_TILE));
         let all = (0..rows).flat_map(|row| (0..columns).map(move |column| [column, row]));
-        let mut wanted = drawing.wanted(all, usize::MAX);
+        let mut wanted = drawing.wanted(all.filter(|tile| lands(focus, size, *tile)), usize::MAX);
         if let Some(focus) = self.focus {
             wanted.sort_by_cached_key(|tile| focus.order(&tile_rect(*tile, self.size())));
         }
@@ -141,6 +148,16 @@ impl CanvasTarget {
         let more = drawing.bytes_for(targets);
         others + drawing.bytes() + more <= self.snapshot_room
     }
+}
+
+/// Whether the pen can land on tile `tile` of a canvas of `size` pixels with the screen looking
+/// at `focus`: it shows the tile or the ring of one tile round what it shows (a stroke reaching
+/// further takes its snapshots in its own frames); every tile without a view.
+fn lands(focus: Option<Focus>, size: [u32; 2], tile: [u32; 2]) -> bool {
+    focus.is_none_or(|focus| {
+        let near = focus.shown.widened(TIER_TILE as i32);
+        !tile_rect(tile, size).intersect(&near).is_empty()
+    })
 }
 
 /// A snapshot's targets as slot copies of a whole tile of `size` pixels.
