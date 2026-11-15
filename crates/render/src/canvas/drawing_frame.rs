@@ -23,6 +23,7 @@ use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
+use crate::profile::{StrokeDrew, canvas_drew};
 use crate::protocol::Op;
 use crate::raster::{Finish, Region, SceneBuffers};
 use crate::raster_lay::coverage;
@@ -46,12 +47,27 @@ pub(crate) struct Onto<'a> {
 }
 
 /// What one frame of a drawing drew: its regions (output pixels) and the output tiles it drew and
-/// passed over.
+/// passed over; the snapshot parts it took and the units its regions laid again over snapshots
+/// that lagged them (counted for the pen latency log, `profile.rs`).
 #[derive(Debug, Default)]
 pub(crate) struct StrokeWork {
     pub(crate) parts: Vec<PixelRect>,
     pub(crate) drawn: Vec<[u32; 2]>,
     pub(crate) skipped: Vec<[u32; 2]>,
+    pub(crate) snapshots: usize,
+    pub(crate) laid_again: usize,
+}
+
+impl StrokeWork {
+    /// What it drew, counted.
+    pub(crate) fn drew(&self) -> StrokeDrew {
+        let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        StrokeDrew {
+            regions: count(self.parts.len()),
+            snapshots: count(self.snapshots),
+            laid_again: count(self.laid_again),
+        }
+    }
 }
 
 /// One region of a frame's batch: its plan, where its output lies, its paper, its finish.
@@ -158,7 +174,9 @@ impl CanvasTarget {
         let work = self.draw_stroke(core, request, &mut drawing, (&onto, &moved));
         self.drawing = drawing;
         self.moved = moved;
-        let parts = work?.parts;
+        let work = work?;
+        canvas_drew(work.drew());
+        let parts = work.parts;
         self.raster.stale(&parts);
         Ok(parts)
     }
@@ -180,7 +198,11 @@ impl CanvasTarget {
         if !std::mem::take(&mut self.left) || covered {
             return Ok(Vec::new());
         }
-        self.stroke_frame(core, request)
+        // The canvas's drawing, as `canvas()` times the rest of it.
+        let started = std::time::Instant::now();
+        let drawn = self.stroke_frame(core, request);
+        crate::profile::drawn(started.elapsed());
+        drawn
     }
 
     /// One frame of `drawing` onto `onto` for `request`, whose scene the canvas built this frame

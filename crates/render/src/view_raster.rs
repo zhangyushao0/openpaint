@@ -123,6 +123,7 @@ pub(crate) fn stroke_raster(
     (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
     (work, now): (&mut ViewWork, f64),
 ) -> Result<(), RenderError> {
+    let started = std::time::Instant::now();
     let mut drawing = std::mem::take(&mut tier.drawing);
     let moved = std::mem::take(&mut canvas.moved);
     let done = {
@@ -144,6 +145,7 @@ pub(crate) fn stroke_raster(
     tier.drawing = drawing;
     canvas.moved = moved;
     let done = done?;
+    crate::profile::tier_drew(done.drew(), started.elapsed());
     for tile in &done.skipped {
         tier.set_ready(*tile, false);
     }

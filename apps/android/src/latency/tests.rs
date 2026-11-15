@@ -1,0 +1,190 @@
+use super::*;
+use openpaint_runtime::{Buttons, Pointer, PointerSample};
+
+const MS: i64 = 1_000_000;
+
+fn batch(phase: MotionPhase, tool: ToolKind) -> MotionBatch {
+    MotionBatch {
+        phase,
+        buttons: Buttons::default(),
+        pointers: vec![Pointer {
+            id: 0,
+            tool,
+            samples: vec![PointerSample {
+                position: [0.0, 0.0],
+                pressure: 0.5,
+                tilt: 0.0,
+                orientation: 0.0,
+                time_ms: 0,
+            }],
+        }],
+    }
+}
+
+fn cost(waited_ms: i64, scene_ms: i64, in_flight: u64) -> FrameCost {
+    FrameCost {
+        drawn_ns: 2 * scene_ms * MS,
+        scene_ns: scene_ms * MS,
+        waited_ns: waited_ms * MS,
+        longest: if waited_ms > 0 { "present" } else { "" },
+        in_flight,
+        ..FrameCost::default()
+    }
+}
+
+fn drew(regions: u32, snapshots: u32, laid_again: u32) -> StrokeDrew {
+    StrokeDrew {
+        regions,
+        snapshots,
+        laid_again,
+    }
+}
+
+/// A frame drawing the canvas for `canvas_ms` and the tier for `tier_ms`, drawing `canvas` and
+/// `tier`.
+fn painting(canvas_ms: i64, tier_ms: i64, (canvas, tier): (StrokeDrew, StrokeDrew)) -> FrameCost {
+    FrameCost {
+        drawn_ns: canvas_ms * MS,
+        tier_ns: tier_ms * MS,
+        canvas,
+        tier,
+        ..FrameCost::default()
+    }
+}
+
+#[test]
+fn a_stroke_is_summarised_when_the_frame_takes_its_lift() {
+    let mut latency = PenLatency::default();
+    latency.input(&batch(MotionPhase::Down, ToolKind::Stylus), 0);
+    assert_eq!(latency.frame((4 * MS, 6 * MS), cost(1, 1, 0)), None);
+    latency.input(&batch(MotionPhase::Move, ToolKind::Stylus), 10 * MS);
+    latency.skipped();
+    latency.input(&batch(MotionPhase::Move, ToolKind::Stylus), 12 * MS);
+    assert_eq!(latency.frame((20 * MS, 23 * MS), cost(2, 0, 1)), None);
+    latency.input(&batch(MotionPhase::Up, ToolKind::Stylus), 30 * MS);
+    let summary = latency
+        .frame((36 * MS, 38 * MS), cost(0, 1, 1))
+        .expect("summary");
+    assert_eq!((summary.events, summary.frames), (4, 3));
+    assert_eq!((summary.skipped, summary.in_flight), (1, 1));
+    // To frame start: 4, 10, 8, 6 ms; to present call: 6, 13, 11, 8; work: 2, 3, 2.
+    let spread = |p50, p95, max| Spread {
+        p50: p50 * MS,
+        p95: p95 * MS,
+        max: max * MS,
+    };
+    assert_eq!(summary.to_frame, spread(6, 10, 10));
+    assert_eq!(summary.to_present, spread(8, 13, 13));
+    assert_eq!(summary.frame_work, spread(2, 3, 3));
+    assert_eq!(summary.waited, spread(1, 2, 2));
+    assert_eq!(summary.painted, None, "nothing drawn: no painting fields");
+    let slow = |at, ms, cost| Slow {
+        at,
+        ns: ms * MS,
+        cost,
+    };
+    assert_eq!(
+        summary.slowest,
+        [
+            slow(1, 3, cost(2, 0, 1)),
+            slow(0, 2, cost(1, 1, 0)),
+            slow(2, 2, cost(0, 1, 1))
+        ]
+    );
+    let line = summary.to_string();
+    assert!(
+        line.contains("(1 skipped for the GPU, at most 1 in flight)"),
+        "{line}"
+    );
+    assert!(
+        line.contains("GPU waits p50 1.0 p95 2.0 max 2.0 ms; slowest #1"),
+        "{line}"
+    );
+    assert!(
+        line.ends_with(
+            "slowest #1 3.0 (evaluation 0.0, tier 0.0, scene 0.0, waits 2.0 most in present) #0 \
+             2.0 (evaluation 2.0, tier 0.0, scene 1.0, waits 1.0 most in present) #2 2.0 \
+             (evaluation 2.0, tier 0.0, scene 1.0, waits 0.0) ms"
+        ),
+        "{line}"
+    );
+    assert_eq!(
+        latency.frame((50 * MS, 52 * MS), FrameCost::default()),
+        None,
+        "one summary per stroke"
+    );
+}
+
+/// At a tier the canvas draws a frame only where the tier could not, and the lift: the line says
+/// each one's drawing time, chains, snapshots and strokes laid again.
+#[test]
+fn a_painting_stroke_says_where_its_frames_went() {
+    let mut latency = PenLatency::default();
+    let stylus = |phase| batch(phase, ToolKind::Stylus);
+    latency.input(&stylus(MotionPhase::Down), 0);
+    let first = (drew(0, 0, 0), drew(2, 2, 0));
+    assert_eq!(latency.frame((1, 2), painting(1, 6, first)), None);
+    // A frame consuming no event still counts what it drew over the stroke.
+    let quiet = (drew(0, 0, 0), drew(1, 1, 0));
+    assert_eq!(latency.frame((3, 4), painting(0, 1, quiet)), None);
+    latency.input(&stylus(MotionPhase::Move), 5);
+    let left = (drew(1, 1, 0), drew(1, 0, 3));
+    assert_eq!(latency.frame((6, 7), painting(4, 3, left)), None);
+    latency.input(&stylus(MotionPhase::Move), 8);
+    let tier = (drew(0, 0, 0), drew(4, 0, 3));
+    assert_eq!(latency.frame((9, 10), painting(1, 2, tier)), None);
+    latency.input(&stylus(MotionPhase::Up), 11);
+    let lift = (drew(2, 0, 5), drew(1, 0, 0));
+    let summary = latency
+        .frame((12, 13), painting(5, 1, lift))
+        .expect("summary");
+    let painted = summary.painted.expect("it painted");
+    let spread = |p50, p95, max| Spread { p50, p95, max };
+    // Evaluation 1, 4, 1, 5 ms; tier 6, 3, 2, 1; chains canvas 0, 1, 0, 2 and tier 2, 1, 4, 1.
+    assert_eq!(painted.evaluation, spread(MS, 5 * MS, 5 * MS));
+    assert_eq!(painted.tier_ns, spread(2 * MS, 6 * MS, 6 * MS));
+    assert_eq!(painted.canvas_chains, spread(0, 2, 2));
+    assert_eq!(painted.tier_chains, spread(1, 4, 4));
+    assert_eq!(painted.canvas_frames, 2);
+    assert_eq!(
+        (painted.canvas, painted.tier),
+        (drew(3, 1, 5), drew(9, 3, 6))
+    );
+    let line = summary.to_string();
+    assert!(
+        line.contains(
+            "GPU waits p50 0.0 p95 0.0 max 0.0 ms; evaluation p50 1.0 p95 5.0, tier p50 2.0 p95 \
+             6.0 ms; chains a frame canvas p50 0 max 2 (drawn in 2 frames), tier p50 1 max 4; \
+             snapshots taken canvas 1, tier 3; strokes laid again canvas 5, tier 6; slowest #0"
+        ),
+        "{line}"
+    );
+}
+
+#[test]
+fn fingers_hover_and_frames_without_pen_events_are_not_counted() {
+    let mut latency = PenLatency::default();
+    latency.input(&batch(MotionPhase::HoverMove, ToolKind::Stylus), 0);
+    latency.input(&batch(MotionPhase::Down, ToolKind::Finger), 0);
+    latency.input(&batch(MotionPhase::Up, ToolKind::Finger), 0);
+    latency.skipped();
+    assert_eq!(latency.frame((5 * MS, 6 * MS), FrameCost::default()), None);
+    latency.input(&batch(MotionPhase::Down, ToolKind::Stylus), 10 * MS);
+    latency.frame((12 * MS, 13 * MS), FrameCost::default());
+    latency.frame((20 * MS, 21 * MS), FrameCost::default());
+    latency.input(&batch(MotionPhase::Up, ToolKind::Stylus), 30 * MS);
+    let summary = latency
+        .frame((31 * MS, 32 * MS), FrameCost::default())
+        .expect("summary");
+    assert_eq!((summary.events, summary.frames, summary.skipped), (2, 2, 0));
+}
+
+#[test]
+fn the_log_line_reads_in_milliseconds() {
+    let spread = Spread {
+        p50: 8_240_000,
+        p95: 12 * MS,
+        max: 15_049_999,
+    };
+    assert_eq!(spread.to_string(), "p50 8.2 p95 12.0 max 15.0 ms");
+}

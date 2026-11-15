@@ -103,9 +103,7 @@ mod tests {
                 waited_ns: longest_ms * 1_000_000,
                 longest_ns: longest_ms * 1_000_000,
                 longest: "acquire",
-                scenes: 0,
-                scene_ns: 0,
-                drawn_ns: 0,
+                ..Spent::default()
             },
         }
     }

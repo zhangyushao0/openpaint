@@ -47,6 +47,12 @@ impl CanvasTarget {
             return Ok(work);
         }
         let (needed, resumes) = settle(drawing, &regions, size);
+        let base = drawing.base.as_ref().map_or(0, |base| base.at);
+        work.snapshots = needed.len();
+        work.laid_again = (resumes.iter())
+            .filter(|resume| resume.restored.is_some())
+            .map(|resume| base.saturating_sub(resume.at))
+            .sum();
         // The residuals the regions read, and the snapshots brought up (whole tiles).
         let near: Vec<PixelRect> = (regions.iter().copied())
             .chain(needed.iter().map(|tile| tile_rect(*tile, size)))

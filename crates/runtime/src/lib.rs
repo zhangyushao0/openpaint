@@ -65,7 +65,7 @@ pub use openpaint_app::{
     ScreenProjection,
 };
 pub use openpaint_practice_app::Start;
-pub use openpaint_render::{Background, Counts, Spent, SurfaceWindow, take_spent};
+pub use openpaint_render::{Background, Counts, Spent, StrokeDrew, SurfaceWindow, take_spent};
 pub use openpaint_store::DisplayCache;
 pub use openpaint_ui::design::{FontFile, TextFonts};
 pub use openpaint_ui::{CanvasArea, Control, ControlMap, Unresolved};
