@@ -1,10 +1,11 @@
-//! Combined lines (`Kind::Combined`): two to four lines copied as one shape, in four arrangements;
+//! Combined lines (`Kind::Combined`): two to six lines copied as one shape, in six arrangements;
 //! given, compared and fitted as a single line's lines are (`lines/marks.rs`).
 //!
 //! A lesson (a group about 2 minutes) holds three: the first level joined, crossing and branched
-//! lines (the First-prefix rule), the second the branched and the near ones with a crossing, the
-//! third near lines, whose gaps are the proportions to keep, twice with a crossing; the
-//! arrangements in turn by the lesson.
+//! lines (the First-prefix rule), the second near lines (whose gaps are the proportions to keep),
+//! lines inside a closed shape (whose empty shapes are) and branched ones, in turn by the lesson;
+//! the third two larger groups (S141), a cluster and lines inside a closed shape, their order in
+//! turn, so the lesson keeps its minutes.
 
 pub(crate) mod combined;
 pub(crate) mod demo;
@@ -27,20 +28,19 @@ pub(crate) struct CombinedLines;
 const FACTS: [Facts; 1] = [Facts::of("combined", ToolSet::DRAWING, 120)
     .aligned()
     .counted(Counted::Line)];
-/// A lesson's groups.
-const COUNT: usize = 3;
-/// Each level's arrangements: the first's in order, the others' in turn from the lesson's place.
+/// Each level's arrangements: the first's in order, the others' in turn from the lesson's place,
+/// all of them a lesson.
 const FIRST: [Combination; 3] = [
     Combination::Joined,
     Combination::Crossing,
     Combination::Branched,
 ];
 const SECOND: [Combination; 3] = [
-    Combination::Branched,
     Combination::Near,
-    Combination::Crossing,
+    Combination::Enclosed,
+    Combination::Branched,
 ];
-const THIRD: [Combination; 3] = [Combination::Near, Combination::Crossing, Combination::Near];
+const THIRD: [Combination; 2] = [Combination::Cluster, Combination::Enclosed];
 
 impl Described for CombinedLines {
     fn code(&self) -> u8 {
@@ -79,8 +79,8 @@ impl Described for CombinedLines {
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         let arrangements = match level {
             SkillLevel::First => FIRST.to_vec(),
-            SkillLevel::Second => rotated(&SECOND, turn.turn, COUNT),
-            SkillLevel::Third => rotated(&THIRD, turn.turn, COUNT),
+            SkillLevel::Second => rotated(&SECOND, turn.turn, SECOND.len()),
+            SkillLevel::Third => rotated(&THIRD, turn.turn, THIRD.len()),
         };
         laid(arrangements.into_iter().map(Kind::Combined))
     }

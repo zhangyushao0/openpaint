@@ -1,7 +1,7 @@
 //! Colour combinations from real crops (S101): the answer the pack builder finds, validated on S82's
 //! generated pictures, whose areas are known (each area found, its colour within ΔE 0.02, the weak
-//! pairs found), the rules a crop is held to, and the crops a lesson picks by its level (S140), a
-//! combination's and a key shift's.
+//! pairs found), the rules a crop is held to, and the crops a lesson picks by its level (S140, a
+//! key shift's first level S141), a combination's and a key shift's.
 
 use std::sync::Arc;
 
@@ -294,25 +294,23 @@ fn a_lesson_s_crop_has_its_level_s_areas_or_the_nearest_tier_held() {
     use SkillLevel::{First, Second, Third};
     use Tier::{Hard, Medium, Simple};
     let all = tiered(&[Simple, Medium, Hard], 4);
-    // Combinations (V大: a picture that does not split into a few big blocks is not for a
-    // beginner): three or four areas at the first level, five at the second, six or seven at the
-    // third; each of the tier once before any again, and again of the tier, not the next.
-    for (level, tier) in [(First, Simple), (Second, Medium), (Third, Hard)] {
-        assert_eq!(tiers(&all, "combination", level, 6), [tier; 6], "{level:?}");
-        assert_eq!(distinct(&all, "combination", level, 4), 4, "{level:?}");
+    // Combinations and key shifts (V大: a picture that does not split into a few big blocks is
+    // not for a beginner; key shifts' first level since S141): three or four areas at the first
+    // level, five at the second, six or seven at the third; each of the tier once before any
+    // again, and again of the tier, not the next.
+    for key in ["combination", "key-shift"] {
+        for (level, tier) in [(First, Simple), (Second, Medium), (Third, Hard)] {
+            assert_eq!(tiers(&all, key, level, 6), [tier; 6], "{key} {level:?}");
+            assert_eq!(distinct(&all, key, level, 4), 4, "{key} {level:?}");
+        }
     }
-    // Key shifts: any crop at the first level, each once before any again; five areas at the
-    // second, six or seven at the third.
-    assert_eq!(distinct(&all, "key-shift", First, 12), 12);
-    assert_eq!(tiers(&all, "key-shift", Second, 6), [Medium; 6]);
-    assert_eq!(tiers(&all, "key-shift", Third, 6), [Hard; 6]);
     // Where the packs hold none of a level's tier: the nearest they hold, the easier first.
     let no_hard = tiered(&[Simple, Medium], 2);
     let no_medium = tiered(&[Simple, Hard], 2);
+    let hard_only = tiered(&[Hard], 2);
     for key in ["combination", "key-shift"] {
         assert_eq!(tiers(&no_hard, key, Third, 3), [Medium; 3], "{key}");
         assert_eq!(tiers(&no_medium, key, Second, 3), [Simple; 3], "{key}");
+        assert_eq!(tiers(&hard_only, key, First, 3), [Hard; 3], "{key}");
     }
-    let hard_only = tiered(&[Hard], 2);
-    assert_eq!(tiers(&hard_only, "combination", First, 3), [Hard; 3]);
 }

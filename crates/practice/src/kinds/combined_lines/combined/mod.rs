@@ -1,23 +1,25 @@
-//! Combined lines to copy (V大's W1 combined lines): two to four lines in one frame, to be seen
-//! and copied as one shape. Near-straight lines and curves mix, in four arrangements: joined end
-//! to end (an open chain of corners, or a closed shape), branching off a line, crossing, or
-//! running near one another without touching.
+//! Combined lines to copy (V大's W1 combined lines): lines in one frame, to be seen and copied as
+//! one shape. Near-straight lines and curves mix, in four arrangements of two to four lines:
+//! joined end to end (an open chain of corners, or a closed shape), branching off a line,
+//! crossing, or running near one another without touching; and in two of four to six (S141,
+//! V大's W2 wrapping and negative shapes, `wrapped.rs`): a closed shape with lines inside it, and
+//! one big cluster mixing joins, branches, crossings and near runs.
 //!
 //! A group is made as the method copies it: its key points first (the ends, the corners, where a
-//! line leaves or crosses another; `combined_layouts.rs`), then each line between its two points
-//! with a bend of its own (a single line's curvature, turned and sized so its ends are those
-//! points). The whole group is then sized and placed in the frame as a single line is and held to
-//! its arrangement's rules in frame units: every line long enough to read; lines meeting only
-//! where they are meant to and opening clearly from there; a crossing once, away from the ends;
-//! lines apart with a gap the eye sees; near lines near. A group breaking a rule is made again
-//! from where the sequence stands, so the same seed gives the same group.
+//! line leaves or crosses another; `layouts.rs`), then each line between its two points with a
+//! bend of its own (a single line's curvature, turned and sized so its ends are those points).
+//! The whole group is then sized and placed in the frame as a single line is and held to its
+//! arrangement's rules in frame units: every line long enough to read; lines meeting only where
+//! they are meant to and opening clearly from there; a crossing once, away from the ends; lines
+//! apart with a gap the eye sees; near lines near. A group breaking a rule is made again from
+//! where the sequence stands, so the same seed gives the same group.
 
 use crate::kinds::lines::line::Placing;
 use crate::maths::path::{Point, apart, crossings, distance, length, resample};
 use crate::maths::random::Random;
 
-#[path = "combined_layouts.rs"]
 mod layouts;
+mod wrapped;
 
 /// Groups made at most for one seed before the last is taken (every seed tested keeps the rules
 /// well within).
@@ -47,10 +49,21 @@ pub enum Combination {
     Crossing,
     /// Lines running near one another, never touching.
     Near,
+    /// A closed shape of three or four lines, one or two lines inside it from its outline (S141).
+    Enclosed,
+    /// Five or six lines in one group: a chain, a branch, a crossing, a near run (S141).
+    Cluster,
 }
 
 impl Combination {
-    pub const ALL: [Self; 4] = [Self::Joined, Self::Branched, Self::Crossing, Self::Near];
+    pub const ALL: [Self; 6] = [
+        Self::Joined,
+        Self::Branched,
+        Self::Crossing,
+        Self::Near,
+        Self::Enclosed,
+        Self::Cluster,
+    ];
 }
 
 /// A group of lines to copy, in frame units (the frame from `[0, 0]` to `[1, 1]`, y down).
@@ -65,7 +78,7 @@ impl CombinedLines {
     #[must_use]
     pub fn generate(combination: Combination, seed: u64) -> Self {
         Self {
-            lines: made(combination, seed).0,
+            lines: made(combination, seed).0.lines,
         }
     }
 }
@@ -91,14 +104,21 @@ struct Draft {
     touches: Vec<(usize, usize, Touch)>,
 }
 
-/// The group of `combination` that `seed` makes, and the try that kept the rules (none: the last
-/// try, taken as it is).
-fn made(combination: Combination, seed: u64) -> (Vec<Vec<Point>>, Option<usize>) {
+/// The group of `combination` that `seed` makes, placed, and the try that kept the rules (none:
+/// the last try, taken as it is).
+fn made(combination: Combination, seed: u64) -> (Draft, Option<usize>) {
     let mut random = Random::new(seed);
-    let mut last = Vec::new();
+    let mut last = Draft {
+        lines: Vec::new(),
+        touches: Vec::new(),
+    };
     for attempt in 0..TRIES {
         let draft = layouts::draft(combination, &mut random);
-        let size = random.range(0.56, 0.76);
+        // Groups of many lines a little larger, their inner shapes room to read.
+        let size = match combination {
+            Combination::Enclosed | Combination::Cluster => random.range(0.64, 0.76),
+            _ => random.range(0.56, 0.76),
+        };
         let drawn: Vec<&[Point]> = draft.lines.iter().map(Vec::as_slice).collect();
         let placing = Placing::of(&drawn, size, &mut random);
         let lines: Vec<Vec<Point>> = (draft.lines.iter())
@@ -117,10 +137,11 @@ fn made(combination: Combination, seed: u64) -> (Vec<Vec<Point>>, Option<usize>)
                 other => (a, b, other),
             })
             .collect();
-        if keeps_rules(&lines, &touches) {
-            return (lines, Some(attempt));
+        let kept = keeps_rules(&lines, &touches);
+        last = Draft { lines, touches };
+        if kept {
+            return (last, Some(attempt));
         }
-        last = lines;
     }
     (last, None)
 }
@@ -239,13 +260,18 @@ mod tests {
     fn every_arrangement_keeps_its_rules_seed_after_seed() {
         for combination in Combination::ALL {
             let mut tries = 0;
+            let lines = match combination {
+                Combination::Enclosed => 4..=6,
+                Combination::Cluster => 5..=6,
+                _ => 2..=4,
+            };
             for seed in 0..500 {
-                let (lines, kept) = made(combination, seed);
+                let (group, kept) = made(combination, seed);
                 let Some(attempt) = kept else {
                     panic!("{combination:?} {seed}: no group kept the rules");
                 };
                 tries += attempt + 1;
-                assert!((2..=4).contains(&lines.len()), "{combination:?} {seed}");
+                assert!(lines.contains(&group.lines.len()), "{combination:?} {seed}");
             }
             // Made again seldom: a sheet's groups cost little to make.
             assert!(

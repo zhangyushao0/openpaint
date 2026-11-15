@@ -5,7 +5,8 @@
 //! its tendency's lean in turn at every level (`Lean::ALL`: warm and cool each lesson, pure and
 //! grey every second, so no colour habit forms; unit 5's plan of 2026-11-06, S140). The levels
 //! differ in their crops and how far the tendency lies from the crop's main hue (S140): the first
-//! any crop, `AWAY`; the second a crop of five areas, `AWAY`; the third one of six or seven,
+//! a crop of three or four areas (S141: V大, a picture that does not split into a few big blocks
+//! is not for a beginner), `AWAY`; the second one of five, `AWAY`; the third one of six or seven,
 //! `FAR_AWAY` (the nearest tier the packs hold where they hold none).
 
 pub(crate) mod demo;
@@ -73,9 +74,9 @@ impl Described for KeyShifts {
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         let lean = Lean::ALL[turn.turn % Lean::ALL.len()];
         let (tier, least) = match level {
-            SkillLevel::First => (None, AWAY),
-            SkillLevel::Second => (Some(Tier::Medium), AWAY),
-            SkillLevel::Third => (Some(Tier::Hard), FAR_AWAY),
+            SkillLevel::First => (Tier::Simple, AWAY),
+            SkillLevel::Second => (Tier::Medium, AWAY),
+            SkillLevel::Third => (Tier::Hard, FAR_AWAY),
         };
         key_shift((lean, least), tier, turn).into_iter().collect()
     }
@@ -133,12 +134,12 @@ impl Original for Shift {
     }
 }
 
-/// A key shift of `lean` on a crop of `tier` (any without one) `turn`'s picker picks, its
+/// A key shift of `lean` on a crop of `tier` (or the nearest tier held) `turn`'s picker picks, its
 /// tendency's hue picked by the seed's own sequence among those at least `least` degrees from the
 /// crop's main hue; none without crops.
 fn key_shift(
     (lean, least): (Lean, f64),
-    tier: Option<Tier>,
+    tier: Tier,
     turn: &Turn<'_>,
 ) -> Option<(Kind, Option<ItemRef>)> {
     let mut random = Random::new(derived(turn.seed, u64::MAX - 3));

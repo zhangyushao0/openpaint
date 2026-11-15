@@ -6,6 +6,7 @@
     "Compare: the whole original group lies over my lines in the thick semi-transparent red, in place (where it lies in its frame), so my placement shows; the card asks how close it is (Accurate, Almost, Again; a tap is optional). One tap on Aligned: the group moves and sizes onto my lines as one shape (never turned; my sketch marks left out), so only the shape's errors show. The pen has turned blue: I correct the worst line in blue over the old one; the red goes as my pen lands. Compare again: the red comes back over the corrected copy, aligned as I chose.",
     "Chinese: All tools, Actions, 中文: the bar reads '组合线条 1/3', How brings the 组合线条 instructions in Chinese, the compare card says 对齐 and 原位, its three results 准, 差一点, 重来. Back to the exercise's own tools.",
     "The end: Finish on the third group shows the whole sheet; the card reads 组合线条, 3 题 and the time, a dot for each exercise, the skill's dots, 再来一课 and 今天到这儿.",
+    "Levels (S141): That's all for today, then a lesson of Combined lines at level 2 (熟练): three groups, near lines, lines inside a closed shape and branched lines, in turn by the lesson; this second lesson opens on a closed shape of three or four lines with one or two lines inside it, each starting on its outline, so the empty shapes between them are what to check (V大's 正负形). At level 3 (稳) two larger groups, a cluster and a closed shape with lines inside, their order in turn: the cluster first here, five or six lines in one group, a chain with a line leaving it, one crossing it and one running near it; I see its envelope first (V大's 包裹). I draw its outer lines roughly and Compare: the whole cluster in red over my lines in place.",
     "Not here: numbers for lines (the overlay is the feedback); combined lines of my own choosing; a warm-up (a unit's full lesson has one)."
   ],
   "screen": [2880, 1800],
@@ -48,6 +49,23 @@
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Finish" } },
-    { "screenshot": { "name": "summary-zh" } }
+    { "screenshot": { "name": "summary-zh" } },
+    { "tap": { "at": "All tools" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "English" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "All tools" } },
+    { "tap": { "at": "That's all for today" } },
+    { "lesson": { "skill": "combined", "level": 2 } },
+    { "screenshot": { "name": "combined-level-two" } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "combined", "level": 3 } },
+    { "screenshot": { "name": "combined-level-three" } },
+    { "stroke": { "points": [[1250, 700, 0.8], [1400, 820, 0.9], [1550, 900, 1.0], [1700, 1100, 0.8]] } },
+    { "stroke": { "points": [[1300, 1150, 0.8], [1450, 1050, 0.9], [1600, 950, 0.8]] } },
+    { "tap": { "at": "Compare" } },
+    { "screenshot": { "name": "combined-cluster-compared" } },
+    { "tap": { "at": "Next" } },
+    { "screenshot": { "name": "combined-level-three-enclosed" } }
   ]
 }

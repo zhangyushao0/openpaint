@@ -3,12 +3,15 @@
 //! `marks.rs`).
 //!
 //! A lesson (a line about 48 seconds) holds six: the first level its first (a near-straight line,
-//! arcs, S-curves, a hook), the second arcs, S-curves and hooks in even shares, the third
-//! S-curves and hooks alone, the bends hardest to keep.
+//! arcs, S-curves, a hook), the second arcs, S-curves, a hook and two three-bend meanders (more
+//! key points to place), the third meanders, a hook and three rippled lines (the big trend first,
+//! then the ripples on it; S141, V大's W1 key points and W2 hierarchy).
 
 pub(crate) mod demo;
 pub(crate) mod line;
 pub(crate) mod marks;
+#[cfg(test)]
+mod tests;
 
 use std::sync::Arc;
 
@@ -41,18 +44,18 @@ const FIRST: [LineTier; 6] = [
 const SECOND: [LineTier; 6] = [
     LineTier::Arc,
     LineTier::Wave,
+    LineTier::Meander,
     LineTier::Hook,
-    LineTier::Arc,
     LineTier::Wave,
-    LineTier::Hook,
+    LineTier::Meander,
 ];
 const THIRD: [LineTier; 6] = [
-    LineTier::Wave,
+    LineTier::Meander,
+    LineTier::Layered,
     LineTier::Hook,
-    LineTier::Hook,
-    LineTier::Wave,
-    LineTier::Hook,
-    LineTier::Wave,
+    LineTier::Layered,
+    LineTier::Meander,
+    LineTier::Layered,
 ];
 
 impl Described for Lines {

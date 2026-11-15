@@ -2,7 +2,7 @@
 //! skill's (`in_turn`, `turned`), and its pictures picked by the seed (`Picker`): shapes others
 //! than those shown before while there are, the user's own where asked; compositions others than
 //! the last ten lessons' while there are, none twice in a lesson while another is left (S95);
-//! crops of the tier asked (S140) or any, none shown before while any is left (S101). The
+//! crops of the tier asked (S140, S141), none shown before while any is left (S101). The
 //! pictures themselves are the packs' (`packs/pictures.rs`).
 
 use std::collections::HashSet;
@@ -110,13 +110,13 @@ impl<'a> Picker<'a> {
 
     /// A colour combination with its crop (S101) of `tier` or the nearest tier held (S140).
     pub(crate) fn crop(&mut self, tier: Tier) -> Option<(Kind, Option<ItemRef>)> {
-        let (tier, item) = self.picked_crop(Some(tier))?;
+        let (tier, item) = self.picked_crop(tier)?;
         Some((Kind::Crop(tier), Some(item)))
     }
 
     /// A crop with its tier (a combination's, a key shift's): of `tier` or the nearest tier held,
-    /// of any without one; one no earlier lesson showed while any is left; none without crops.
-    pub(crate) fn picked_crop(&mut self, tier: Option<Tier>) -> Option<(Tier, ItemRef)> {
+    /// one no earlier lesson showed while any is left; none without crops.
+    pub(crate) fn picked_crop(&mut self, tier: Tier) -> Option<(Tier, ItemRef)> {
         let pictures = self.turn.pictures;
         let (tier, item) = pictures.pick_crop(tier, &mut self.crops, &self.used)?;
         self.used.insert(item.clone());

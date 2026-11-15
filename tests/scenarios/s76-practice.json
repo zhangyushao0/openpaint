@@ -10,6 +10,7 @@
     "Compare: each colour shows inside the other's frame, and the card shows the wheel with both colours placed, mine in ink and the original in red, with arrows from mine to it round the ring and across the square; under it the colour table: ΔE, then lightness, chroma and hue (Oklab's parts of ΔE, × 100), each a bar from the original's red line towards darker or lighter, greyer or purer, or the neighbouring hue mine lies towards, and its signed number; no sentence, and what ink and red mean is said once in How. The numbers kept are those of my first Compare: what my eye did before it saw the answer.",
     "All tools: one tap at the top left brings the full interface onto the sheet (every island, the side bar, my own brushes and the colour button); All tools carries the ink pill. Tap it again: back to the exercise's own tools.",
     "The end: Finish on the third colour shows the whole sheet; the card reads Colours, 3 exercises and the time, a dot for each result (the first ringed as the app judged it), the skill's dots, One more and That's all for today.",
+    "Levels (S141): a lesson of Lines at level 2 (熟练) holds an arc, an S, a hook and two meanders, lines that bend three times each way in turn, longer than the first level's: four or five key points to place instead of two or three. At level 3 (稳) meanders, a hook and three layered lines: a long arc or deep S carrying three to six small ripples, each about three pen widths from crest to trough; I place the big trend first, then the ripples on it (V大's W2 hierarchy). I copy one roughly and Compare: the red original lies over my line in place, its ripples plain beside my smooth stroke.",
     "Not here: line numbers of any kind (a later study can measure the strokes kept); pen sizes or colours of my own on the practice pens (All tools has every brush)."
   ],
   "screen": [2880, 1800],
@@ -74,6 +75,20 @@
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Finish" } },
-    { "screenshot": { "name": "summary" } }
+    { "screenshot": { "name": "summary" } },
+    { "tap": { "at": "That's all for today" } },
+    { "lesson": { "skill": "line", "level": 2 } },
+    { "screenshot": { "name": "line-level-two" } },
+    { "tap": { "at": "Next" } },
+    { "tap": { "at": "Next" } },
+    { "screenshot": { "name": "line-meander" } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "line", "level": 3 } },
+    { "screenshot": { "name": "line-level-three" } },
+    { "tap": { "at": "Next" } },
+    { "screenshot": { "name": "line-layered" } },
+    { "stroke": { "points": [[1250, 1150, 0.8], [1350, 950, 0.9], [1500, 800, 1.0], [1650, 760, 0.9], [1750, 780, 0.8]] } },
+    { "tap": { "at": "Compare" } },
+    { "screenshot": { "name": "line-layered-compared" } }
   ]
 }

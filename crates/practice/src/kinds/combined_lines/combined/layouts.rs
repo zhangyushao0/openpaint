@@ -1,5 +1,6 @@
-//! The four arrangements of combined lines (`combined.rs`), laid out in working units where a
-//! group is one to two across: the key points first, then each line between two of them.
+//! The arrangements of combined lines of two to four lines (`mod.rs`), laid out in working units
+//! where a group is one to two across: the key points first, then each line between two of them;
+//! and the pieces the larger ones (`wrapped.rs`) are built of.
 //!
 //! - Joined: two to four lines end to end, an open chain turning 40 to 137 degrees at each corner
 //!   (as often on alike as on alternating sides), or, with three or four, a closed shape round a
@@ -11,7 +12,7 @@
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
-use super::{Combination, Draft, Touch};
+use super::{Combination, Draft, Touch, wrapped};
 use crate::kinds::lines::line::{Curvature, LineTier, integrate};
 use crate::maths::path::{Point, along, crossings};
 use crate::maths::random::Random;
@@ -22,11 +23,13 @@ pub(super) fn draft(combination: Combination, random: &mut Random) -> Draft {
         Combination::Branched => branched(random),
         Combination::Crossing => crossing(random),
         Combination::Near => near(random),
+        Combination::Enclosed => wrapped::enclosed(random),
+        Combination::Cluster => wrapped::cluster(random),
     }
 }
 
 /// One of `chances`' values, each as likely as its chance (the chances add up to 1).
-fn pick(random: &mut Random, chances: &[(usize, f64)]) -> usize {
+pub(super) fn pick(random: &mut Random, chances: &[(usize, f64)]) -> usize {
     let mut left = random.unit();
     for &(value, chance) in chances {
         if left < chance {
@@ -38,7 +41,7 @@ fn pick(random: &mut Random, chances: &[(usize, f64)]) -> usize {
 }
 
 /// `by` from `from` towards `angle`.
-fn step(from: Point, angle: f64, by: f64) -> Point {
+pub(super) fn step(from: Point, angle: f64, by: f64) -> Point {
     [from[0] + by * angle.cos(), from[1] + by * angle.sin()]
 }
 
@@ -53,7 +56,7 @@ const LONG: f64 = 0.8;
 
 /// The bend of a line from `a` to `b`: near-straight, or with the chance `curved` an arc (seven
 /// times in ten, always on a short line) or an S.
-fn bend(random: &mut Random, curved: f64, (a, b): (Point, Point)) -> LineTier {
+pub(super) fn bend(random: &mut Random, curved: f64, (a, b): (Point, Point)) -> LineTier {
     let long = (b[0] - a[0]).hypot(b[1] - a[1]) >= LONG;
     if random.unit() >= curved {
         LineTier::Straight
@@ -65,13 +68,13 @@ fn bend(random: &mut Random, curved: f64, (a, b): (Point, Point)) -> LineTier {
 }
 
 /// Meeting at `at` at a corner the eye finds.
-const fn corner(at: Point) -> Touch {
+pub(super) const fn corner(at: Point) -> Touch {
     Touch::Meet { at, corner: true }
 }
 
 /// A line from `a` to `b` bending as a single line of `tier` does: its curvature integrated,
 /// then turned and sized so its ends are `a` and `b`.
-fn member(a: Point, b: Point, tier: LineTier, random: &mut Random) -> Vec<Point> {
+pub(super) fn member(a: Point, b: Point, tier: LineTier, random: &mut Random) -> Vec<Point> {
     let path = integrate(&Curvature::of(tier, random), 0.0);
     let (Some(&first), Some(&last)) = (path.first(), path.last()) else {
         return vec![a, b];
@@ -118,7 +121,7 @@ fn joined(random: &mut Random) -> Draft {
 }
 
 /// An open chain's `count + 1` corners.
-fn chain(count: usize, random: &mut Random) -> Vec<Point> {
+pub(super) fn chain(count: usize, random: &mut Random) -> Vec<Point> {
     let mut angle = random.range(0.0, TAU);
     let mut side = random.sign();
     let mut corners = vec![[0.0, 0.0]];
@@ -135,7 +138,7 @@ fn chain(count: usize, random: &mut Random) -> Vec<Point> {
 }
 
 /// A closed shape's `count` corners, round a middle.
-fn ring(count: usize, random: &mut Random) -> Vec<Point> {
+pub(super) fn ring(count: usize, random: &mut Random) -> Vec<Point> {
     let start = random.range(0.0, TAU);
     let share = TAU / count as f64;
     (0..count)

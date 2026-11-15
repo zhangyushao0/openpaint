@@ -1,10 +1,11 @@
-//! The generators: the same seed gives the same exercise, exercises stay in their frames and
-//! vary, and unit 1's full lesson gives each exercise its own seed, its colours mostly low in
-//! saturation (the sheet: `sheet.rs`).
+//! The generators: the same seed gives the same exercise (the variants before S141 as they were),
+//! exercises stay in their frames and vary, lines' and line groups' lessons ask more at each
+//! level (S141), and unit 1's full lesson gives each exercise its own seed, its colours mostly
+//! low in saturation (the sheet: `sheet.rs`).
 
 use openpaint_practice::{
     Combination, CombinedLines, Exercise, ItemRef, Kind, Learner, LineExercise, LineTier, Pictures,
-    SkillLevel, Standing, Tier, Tone, hsv, length, schedule,
+    Purpose, Sheet, SkillLevel, Standing, Tier, Tone, hsv, length, schedule,
 };
 
 #[test]
@@ -55,14 +56,19 @@ fn a_generator_keeps_giving_the_same_line() {
 }
 
 #[test]
-fn combined_lines_are_the_same_per_seed_and_two_to_four_lines_in_the_frame() {
+fn combined_lines_are_the_same_per_seed_and_two_to_six_lines_in_the_frame() {
     for combination in Combination::ALL {
-        let mut counts = [0; 5];
+        let mut counts = [0; 7];
+        let held = match combination {
+            Combination::Enclosed => 4..=6,
+            Combination::Cluster => 5..=6,
+            _ => 2..=4,
+        };
         for seed in 0..120 {
             let group = CombinedLines::generate(combination, seed);
             assert_eq!(group, CombinedLines::generate(combination, seed));
             let lines = group.lines.len();
-            assert!((2..=4).contains(&lines), "{combination:?} {seed}");
+            assert!(held.contains(&lines), "{combination:?} {seed}");
             counts[lines] += 1;
             for line in &group.lines {
                 assert!(length(line) >= 0.16, "{combination:?} {seed}: a short line");
@@ -97,6 +103,90 @@ fn a_generator_keeps_giving_the_same_group() {
     let group = CombinedLines::generate(Combination::Crossing, 0x5EED_0045);
     let first = &group.lines[0];
     assert_eq!([first[0], first[first.len() - 1]], CROSSED);
+}
+
+/// Each line before S141 seeded `0x5EED_0141`: its first and middle points, as ee393c6 laid them.
+const LINES_BEFORE: [(LineTier, [[f64; 2]; 2]); 4] = [
+    (
+        LineTier::Straight,
+        [
+            [0.8471355384666874, 0.7182744320892254],
+            [0.5002544524841326, 0.5074122383359594],
+        ],
+    ),
+    (
+        LineTier::Arc,
+        [
+            [0.26802940290307087, 0.2589082889396934],
+            [0.512770032961778, 0.5103854779914025],
+        ],
+    ),
+    (
+        LineTier::Wave,
+        [
+            [0.8517000470129809, 0.4872615174436666],
+            [0.5054771335676116, 0.55454883380176],
+        ],
+    ),
+    (
+        LineTier::Hook,
+        [
+            [0.5459004178611838, 0.33547330200746905],
+            [0.5073556187142002, 0.681560768120901],
+        ],
+    ),
+];
+
+/// Each group before S141 seeded `0x5EED_0141`: its count of lines, its first point and its last,
+/// as ee393c6 laid them.
+const GROUPS_BEFORE: [(Combination, usize, [[f64; 2]; 2]); 4] = [
+    (
+        Combination::Joined,
+        2,
+        [
+            [0.24676999923107776, 0.8720231433390516],
+            [0.32880661651185583, 0.25028714407372765],
+        ],
+    ),
+    (
+        Combination::Branched,
+        3,
+        [
+            [0.25885863840161333, 0.17384642178108697],
+            [0.43373194369469587, 0.7743776032749385],
+        ],
+    ),
+    (
+        Combination::Crossing,
+        2,
+        [
+            [0.12757153879785035, 0.5481643377700782],
+            [0.6867029293695798, 0.7866379475658274],
+        ],
+    ),
+    (
+        Combination::Near,
+        2,
+        [
+            [0.1985561804242636, 0.5453266047765613],
+            [0.798182423186997, 0.5586602347180413],
+        ],
+    ),
+];
+
+#[test]
+fn the_variants_before_s141_lay_what_they_laid() {
+    // New variants are appended (S141); an existing one's seed still gives its exercise.
+    for (tier, pinned) in LINES_BEFORE {
+        let line = LineExercise::generate(tier, 0x5EED_0141).points;
+        assert_eq!([line[0], line[240]], pinned, "{tier:?}");
+    }
+    for (combination, count, pinned) in GROUPS_BEFORE {
+        let group = CombinedLines::generate(combination, 0x5EED_0141).lines;
+        let last = group.last().map_or([0.0; 2], |line| line[line.len() - 1]);
+        let laid = (group.len(), [group[0][0], last]);
+        assert_eq!(laid, (count, pinned), "{combination:?}");
+    }
 }
 
 #[test]
@@ -171,7 +261,67 @@ fn a_code_past_a_kind_s_variants_reads_as_none() {
     assert_eq!(Kind::of_code(13, 3), None);
     assert_eq!(Kind::of_code(14, 4), None);
     assert_eq!(Kind::of_code(15, 0), None);
-    assert_eq!(Kind::of_code(3, 4), None);
+    assert_eq!(Kind::of_code(3, 6), None);
+    assert_eq!(Kind::of_code(1, 6), None);
+    // S141's variants appended: their codes come after those stored before.
+    assert_eq!(Kind::Line(LineTier::Layered).code(), (1, 5));
+    assert_eq!(Kind::Combined(Combination::Cluster).code(), (3, 5));
+}
+
+/// The kinds of the `turn`th lesson of the skill keyed `key` at `level` (each lesson before it
+/// taken by the learner).
+fn lesson_kinds(key: &str, level: SkillLevel, turn: usize) -> Vec<Kind> {
+    let skill = openpaint_practice::Skill::of_key(key).expect("a skill");
+    let pictures = Pictures::default();
+    let mut learner = Learner::default();
+    let mut kinds = Vec::new();
+    for _ in 0..=turn {
+        let standing = Standing {
+            pictures: &pictures,
+            learner: &learner,
+        };
+        let planned = schedule::lesson(skill, level, 0x5EED_0141, &standing).expect("a lesson");
+        kinds = planned.exercises.iter().map(|(e, _)| e.kind).collect();
+        let mut sheet = Sheet::begun(1, (Purpose::Day, 1_791_201_600), planned);
+        learner = learner.with(&sheet.lessons.remove(0));
+    }
+    kinds
+}
+
+#[test]
+fn lines_and_line_groups_ask_more_key_points_and_relations_at_the_upper_levels() {
+    use Combination::{Branched, Cluster, Crossing, Enclosed, Joined, Near};
+    use LineTier::{Arc, Hook, Layered, Meander, Straight, Wave};
+    use SkillLevel::{First, Second, Third};
+    let lines = |level| lesson_kinds("line", level, 0);
+    let [first, second, third] = [First, Second, Third].map(lines);
+    assert_eq!(
+        first,
+        [Straight, Arc, Wave, Arc, Hook, Wave].map(Kind::Line)
+    );
+    assert_eq!(
+        second,
+        [Arc, Wave, Meander, Hook, Wave, Meander].map(Kind::Line)
+    );
+    let third_tiers = [Meander, Layered, Hook, Layered, Meander, Layered];
+    assert_eq!(third, third_tiers.map(Kind::Line));
+    // Groups: the second level three, in turn by the lesson; the third two larger ones, their
+    // order in turn, so the lesson keeps its minutes.
+    let groups = |level, turn| lesson_kinds("combined", level, turn);
+    assert_eq!(
+        groups(First, 1),
+        [Joined, Crossing, Branched].map(Kind::Combined)
+    );
+    assert_eq!(
+        groups(Second, 0),
+        [Near, Enclosed, Branched].map(Kind::Combined)
+    );
+    assert_eq!(
+        groups(Second, 1),
+        [Enclosed, Branched, Near].map(Kind::Combined)
+    );
+    assert_eq!(groups(Third, 0), [Cluster, Enclosed].map(Kind::Combined));
+    assert_eq!(groups(Third, 1), [Enclosed, Cluster].map(Kind::Combined));
 }
 
 #[test]
