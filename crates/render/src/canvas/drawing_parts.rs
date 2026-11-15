@@ -1,8 +1,11 @@
 //! The regions a frame of a stroke's drawing draws (`drawing_frame.rs`): what the frame
-//! changes, as regions as large as the frame loop's targets where the output's tiles lie side by
-//! side (the canvas), else a region per tile; each drawn from the snapshots of the tiles it meets
-//! (taken now when one has none, or laying the strokes committed since the one it has), the
-//! stroke laid at its unit from its kept coverage and its tail, then the units above it.
+//! changes, as regions as large as the frame loop's targets, one pass chain each, wherever the
+//! output's tiles lie (the canvas's side by side, a view tier's each in a slot of its own: a
+//! region finishes into each tile it meets, at that tile's place); a region per tile only where
+//! the box would meet a tile not drawn now. Each region is drawn from the snapshots of the tiles
+//! it meets (taken now when one has none, or laying the strokes committed since the one it has),
+//! the stroke laid at its unit from its kept coverage and its tail, then the units above it. One
+//! chain whatever the tiles: a frame crossing a tier tile's border cost a chain a tile (S132).
 
 use std::collections::BTreeSet;
 
@@ -15,7 +18,7 @@ use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
-use crate::raster::Finish;
+use crate::raster::{Finish, Placed};
 use crate::raster_plan::{Pass, RasterPlan, Resume, SlotCopy};
 use crate::scene::Scene;
 use crate::smudge::around_output;
@@ -102,20 +105,11 @@ impl CanvasTarget {
             plan.passes
                 .insert(0, Pass::Restore(restores(drawing, region, size)));
         }
-        let first = tiles.first().copied().unwrap_or_default();
-        let corner = first.map(|at| at * TIER_TILE);
-        let place = (onto.place)(first).ok_or(NO_SCENE)?;
-        let finish = Finish {
-            view: onto.view,
-            format: onto.format,
-            at: [0, 1].map(|axis| place[axis] + min[axis] - corner[axis]),
-            only: &[],
-        };
         Ok(Part {
             plan,
             output,
             paper,
-            finish: Some(finish),
+            finish: Some(finish(onto, region, size)?),
         })
     }
 
@@ -163,6 +157,42 @@ impl CanvasTarget {
     }
 }
 
+/// Where output pixels `region` (of an output of `size` pixels) go in `onto`: each tile's part
+/// at its tile's place, as one place where the tiles lie side by side there (the canvas).
+fn finish<'a>(
+    onto: &Onto<'a>,
+    region: PixelRect,
+    size: [u32; 2],
+) -> Result<Finish<'a>, RenderError> {
+    let mut into = Vec::new();
+    for (tile, part) in meeting(region, size) {
+        let outside = RenderError::Invalid("a stroke's region meets a tile not drawn now");
+        let place = (onto.place)(tile).ok_or(outside)?;
+        // Where the region's top-left lands when this tile lands at its place.
+        let shift = [0, 1].map(|axis| place[axis] as i32 - (tile[axis] * TIER_TILE) as i32);
+        let at = [0, 1].map(|axis| region.min[axis] + shift[axis]);
+        let only = PixelRect {
+            min: [0, 1].map(|axis| part.min[axis] + shift[axis]),
+            max: [0, 1].map(|axis| part.max[axis] + shift[axis]),
+        };
+        into.push(Placed {
+            at,
+            only: vec![only],
+        });
+    }
+    if into.windows(2).all(|pair| pair[0].at == pair[1].at) {
+        into.truncate(1);
+        if let Some(whole) = into.first_mut() {
+            whole.only.clear();
+        }
+    }
+    Ok(Finish {
+        view: onto.view,
+        format: onto.format,
+        into,
+    })
+}
+
 /// The regions `changed` (canvas pixels) makes of an output of `size` pixels drawn onto `onto`,
 /// at most `capacity` pixels each, and the tiles passed over (not drawn now).
 fn regions(
@@ -192,9 +222,6 @@ fn regions(
         }
         shown
     });
-    if !onto.joined {
-        return Ok((parts.into_iter().map(|(_, part)| part).collect(), skipped));
-    }
     let Some(all) = parts
         .iter()
         .map(|(_, part)| *part)
@@ -202,7 +229,8 @@ fn regions(
     else {
         return Ok((Vec::new(), skipped));
     };
-    // The box of every part, cut into equal pieces the targets hold, each the box of what it holds.
+    // The box of every part, cut into equal pieces the targets hold, each the box of what it
+    // holds; where that box meets a tile not drawn now, its parts a region each.
     let side = all.size();
     let count = [0, 1].map(|axis| side[axis].div_ceil(capacity[axis]).max(1));
     let mut regions = Vec::new();
@@ -214,11 +242,18 @@ fn regions(
                 min: [0, 1].map(|axis| edge(axis, at[axis])),
                 max: [0, 1].map(|axis| edge(axis, at[axis] + 1)),
             };
-            let held = (parts.iter())
+            let held: Vec<PixelRect> = (parts.iter())
                 .map(|(_, part)| part.intersect(&piece))
                 .filter(|part| !part.is_empty())
-                .reduce(|a, b| a.union(&b));
-            regions.extend(held);
+                .collect();
+            let Some(joined) = held.iter().copied().reduce(|a, b| a.union(&b)) else {
+                continue;
+            };
+            if meeting(joined, size).all(|(tile, _)| (onto.place)(tile).is_some()) {
+                regions.push(joined);
+            } else {
+                regions.extend(held);
+            }
         }
     }
     Ok((regions, skipped))

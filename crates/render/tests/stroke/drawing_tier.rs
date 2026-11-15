@@ -1,5 +1,6 @@
 //! A stroke while a view tier shows (D91): the tier draws its frames alone, each ready tile the
-//! export of the stroke so far; the canvas draws a frame only where the tier cannot (a tile the
+//! export of the stroke so far, a frame crossing tiles in one pass chain; the canvas draws a frame
+//! only where the tier cannot (a tile the
 //! stroke reaches that is not shown or not ready), from where it last drew, and takes the stroke
 //! whole at its lift, in the lift's frame. So every reader of the canvas after the lift reads the
 //! stroke: the blit's fallback under a tile not ready, the canvas shown again at fit, a pick, the
@@ -9,10 +10,10 @@
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, BrushRecipe, Color, StrokeSample, StrokeStyle, StrokeTool, Taper};
-use openpaint_render::{changed_regions, thumbnail_reference, thumbnail_size};
+use openpaint_render::{changed_regions, take_spent, thumbnail_reference, thumbnail_size};
 
 use crate::drawing::{begun, committed, path, screen, shows};
-use crate::fixture::{SIZE, cold, core, pixel, plain, sample};
+use crate::fixture::{SIZE, cold, core, graphite, pixel, plain, sample};
 use crate::raster::{color, every_raster_source};
 use crate::scale::whole;
 use crate::tiers::{Screen, frame, request};
@@ -96,6 +97,47 @@ fn a_stroke_inside_the_shown_tiles_is_the_tiers_alone_until_its_lift() {
             &mut check,
         );
     }
+}
+
+/// A frame whose samples cross a tier tile's corner (four tiles at once) is one pass chain
+/// finishing into each tile's slot, every ready tile the tier drawn cold (its export), every frame
+/// and the lift.
+#[test]
+fn a_frame_crossing_tier_tiles_is_one_chain_and_each_tile_its_export() {
+    let core = core();
+    let base = every_raster_source();
+    let view = frame(ZOOM, CENTRE);
+    let (mut screen, _) = screen(&base, (ZOOM, CENTRE));
+    let pencil = StrokeStyle::new(graphite(), 6.0, 0.8, Color::BLACK).expect("pencil");
+    // Tiles of 128 canvas pixels: the third batch goes from (122, 122) over the corner to (140, 140).
+    let samples: Vec<StrokeSample> = (0..7u16)
+        .map(|i| {
+            let at = 104.0 + 6.0 * f32::from(i);
+            sample(at, at, 0.8, u32::from(i) * 8)
+        })
+        .collect();
+    let mut session = begun(&base, (&pencil, &samples[..1]), None);
+    let mut end = 1;
+    let mut most = 0;
+    let _ = take_spent();
+    loop {
+        let work = screen.frame(&core, (&base, Some(session.active())), &[], &view);
+        let spent = take_spent();
+        assert!(work.dropped.is_empty(), "every tile it reaches is shown");
+        assert_eq!(spent.tier.regions, 1, "one chain after {end} samples");
+        most = most.max(work.updated.len());
+        let so_far = committed(&base, (&pencil, &samples[..end]), None);
+        screen.assert_tiles(&core, &whole(&core, &so_far, 2), 2);
+        if end == samples.len() {
+            break;
+        }
+        end = (end + 3).min(samples.len());
+        session.extend(&samples[end - 3..end]).expect("extend");
+    }
+    assert_eq!(most, 4, "a frame drew the four tiles at the corner");
+    let lifted = session.finish().artwork;
+    screen.frame(&core, (&lifted, None), &[], &view);
+    shows(&screen, &lifted, Some(2), "lifted");
 }
 
 /// A stroke from the shown tiles into the ring and back: a frame reaching a tile the tier cannot

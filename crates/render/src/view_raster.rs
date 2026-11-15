@@ -138,7 +138,6 @@ pub(crate) fn stroke_raster(
             view: held.atlas_view(),
             format: held.atlas().format(),
             place: &place,
-            joined: false,
         };
         canvas.draw_stroke(core, request, &mut drawing, (&onto, &moved))
     };

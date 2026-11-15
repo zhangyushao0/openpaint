@@ -16,7 +16,7 @@ use crate::error::RenderError;
 use crate::filter::Filters;
 use crate::geom::PixelRect;
 use crate::output::Output;
-use crate::raster::{Finish, RasterTargets, SceneBuffers};
+use crate::raster::{Finish, Placed, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
 use crate::readback::{FORMAT, target_texture};
 use crate::scene::Scene;
@@ -164,8 +164,10 @@ impl Material {
         let finish = Finish {
             view: &self.view,
             format: FORMAT,
-            at: region.region.min.map(i32::unsigned_abs),
-            only: &region.tiles,
+            into: vec![Placed {
+                at: region.region.min,
+                only: region.tiles.clone(),
+            }],
         };
         targets.draw(core, (buffers, plan), (*output, [0.0; 4]), &finish)?;
         core.tally.rastered(1);

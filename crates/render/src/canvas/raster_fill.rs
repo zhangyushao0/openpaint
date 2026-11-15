@@ -213,12 +213,7 @@ impl CanvasTarget {
         let targets = self.raster.targets.as_mut().ok_or(NO_SCENE)?;
         let buffers = SceneBuffers::of(&cache.ops, held);
         for (plan, output, at) in plans {
-            let finish = Finish {
-                view: into,
-                format,
-                at: *at,
-                only: &[],
-            };
+            let finish = Finish::at(into, format, *at);
             targets.draw(core, (&buffers, plan), (*output, paper), &finish)?;
             if self.paced {
                 wait(&core.gpu, "a worker's raster region")?;

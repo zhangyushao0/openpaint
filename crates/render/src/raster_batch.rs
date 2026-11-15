@@ -108,8 +108,10 @@ impl RasterTargets {
             let at = (region.plan.size, region.plan.base);
             bytes.extend(values(region.output, at, atlas, region.paper));
             bytes.resize(start + VALUES_STRIDE as usize, 0);
-            let at = region.finish.map_or([0, 0], |finish| finish.at);
-            instances.extend(instance_bytes(&region.plan.instances, at));
+            let places: Vec<[i32; 2]> = region.finish.map_or(vec![[0, 0]], |finish| {
+                finish.into.iter().map(|placed| placed.at).collect()
+            });
+            instances.extend(instance_bytes(&region.plan.instances, &places));
         }
         let gpu = &core.gpu;
         let grown = |label, size: u64, usage| {

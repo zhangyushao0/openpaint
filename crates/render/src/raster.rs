@@ -12,6 +12,7 @@
 
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Pass, RasterPlan, SCRATCH, Scratch};
@@ -120,14 +121,39 @@ impl Target {
     }
 }
 
-/// Where a region's pixels go: a destination's view, its format, the pixel holding the region's
-/// top-left, and the destination's pixels it writes (a smudge's material, only the tiles its
-/// residual reads); empty: the whole region.
+/// Where a region's pixels go: a destination's view, its format, and each place they go to
+/// there (a view tier's tiles each to a slot of its own).
 pub(crate) struct Finish<'a> {
     pub(crate) view: &'a wgpu::TextureView,
     pub(crate) format: wgpu::TextureFormat,
-    pub(crate) at: [u32; 2],
-    pub(crate) only: &'a [crate::geom::PixelRect],
+    pub(crate) into: Vec<Placed>,
+}
+
+/// One place a region's pixels go to: the destination pixel holding the region's top-left (it
+/// may lie outside the destination when `only` names what is written), and the destination's
+/// pixels written from there (a smudge's material, only the tiles its residual reads; a view
+/// tier's tile, its part of the region); empty: the whole region.
+pub(crate) struct Placed {
+    pub(crate) at: [i32; 2],
+    pub(crate) only: Vec<PixelRect>,
+}
+
+impl<'a> Finish<'a> {
+    /// The whole region into `view` of `format`, its top-left at destination pixel `at`.
+    pub(crate) fn at(
+        view: &'a wgpu::TextureView,
+        format: wgpu::TextureFormat,
+        at: [u32; 2],
+    ) -> Self {
+        Self {
+            view,
+            format,
+            into: vec![Placed {
+                at: at.map(|at| i32::try_from(at).unwrap_or(i32::MAX)),
+                only: Vec::new(),
+            }],
+        }
+    }
 }
 
 impl RasterTargets {

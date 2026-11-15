@@ -185,13 +185,7 @@ impl RasterDrawer {
         let (time, stamps) = core.pace().raster_start(plan.counts.estimate(plan.size));
         let (finish, pages) = match &job.into {
             JobInto::Tile { view, format, at } => {
-                let finish = Finish {
-                    view,
-                    format: *format,
-                    at: *at,
-                    only: &[],
-                };
-                (Some(finish), Pages::NONE)
+                (Some(Finish::at(view, *format, *at)), Pages::NONE)
             }
             JobInto::Snapshot(snapshot) => (
                 None,

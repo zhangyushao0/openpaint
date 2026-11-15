@@ -9,8 +9,9 @@
 //! Beside them: each frame's waits for the GPU and scene building, the frames skipped while the
 //! GPU was behind (frame pacing) and the most frames in flight at a frame's start. For a stroke
 //! that painted, where its frames went (`Painted`): the canvas's drawing and the view tier's
-//! (CPU), the pass chains each drew, the snapshot parts each took and the strokes each laid again
-//! over snapshots that lagged. The GPU's time for a frame is not here: frames are timed on the GPU
+//! (CPU; the tier's apart at one chain and at more), the pass chains each drew (each slowest frame
+//! names its own), the snapshot parts each took and the strokes each laid again over snapshots
+//! that lagged. The GPU's time for a frame is not here: frames are timed on the GPU
 //! only while a benchmark turns it on (`Core::time_frames`), an extra submission and readback a
 //! frame.
 
@@ -207,12 +208,15 @@ impl Summary {
 
 /// Where a painting stroke's frames went, per frame that consumed pen events: drawing the canvas
 /// (the log's "evaluation") and the stroke into the view tier shown (CPU, their waits included),
-/// the pass chains (regions) each drew and the frames the canvas drew any in; over the stroke,
-/// what each drew of snapshots and strokes laid again (`StrokeDrew`'s, its regions unused).
+/// the tier's apart for the frames it drew in one chain and in more (with how many of each), the
+/// pass chains (regions) each drew and the frames the canvas drew any in; over the stroke, what
+/// each drew of snapshots and strokes laid again (`StrokeDrew`'s, its regions unused).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Painted {
     pub evaluation: Spread,
     pub tier_ns: Spread,
+    pub tier_one: (Spread, usize),
+    pub tier_more: (Spread, usize),
     pub canvas_chains: Spread,
     pub tier_chains: Spread,
     pub canvas_frames: usize,
@@ -228,9 +232,19 @@ impl Painted {
         }
         let each =
             |value: fn(&FrameCost) -> i64| Spread::of(stroke.costs.iter().map(value).collect());
+        let tier = |chains: fn(u32) -> bool| {
+            let times: Vec<i64> = (stroke.costs.iter())
+                .filter(|c| chains(c.tier.regions))
+                .map(|c| c.tier_ns)
+                .collect();
+            let frames = times.len();
+            (Spread::of(times), frames)
+        };
         Some(Self {
             evaluation: each(|c| c.drawn_ns),
             tier_ns: each(|c| c.tier_ns),
+            tier_one: tier(|chains| chains == 1),
+            tier_more: tier(|chains| chains > 1),
             canvas_chains: each(|c| i64::from(c.canvas.regions)),
             tier_chains: each(|c| i64::from(c.tier.regions)),
             canvas_frames: (stroke.costs.iter())

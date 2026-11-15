@@ -43,10 +43,13 @@ impl fmt::Display for Summary {
         for Slow { at, ns, cost } in self.slowest {
             write!(
                 f,
-                " #{at} {:.1} (evaluation {:.1}, tier {:.1}, scene {:.1}, waits {:.1}",
+                " #{at} {:.1} (evaluation {:.1}, tier {:.1}, chains canvas {} tier {}, scene {:.1}, \
+                 waits {:.1}",
                 ms(ns),
                 ms(cost.drawn_ns),
                 ms(cost.tier_ns),
+                cost.canvas.regions,
+                cost.tier.regions,
                 ms(cost.scene_ns),
                 ms(cost.waited_ns)
             )?;
@@ -62,15 +65,21 @@ impl fmt::Display for Summary {
 impl fmt::Display for Painted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (evaluation, tier) = (self.evaluation, self.tier_ns);
+        let ((one, ones), (more, mores)) = (self.tier_one, self.tier_more);
         write!(
             f,
-            "evaluation p50 {:.1} p95 {:.1}, tier p50 {:.1} p95 {:.1} ms; chains a frame canvas \
-             p50 {} max {} (drawn in {} frames), tier p50 {} max {}; snapshots taken canvas {}, \
-             tier {}; strokes laid again canvas {}, tier {}",
+            "evaluation p50 {:.1} p95 {:.1}, tier p50 {:.1} p95 {:.1} ms (one chain p50 {:.1} \
+             p95 {:.1} in {ones} frames, more p50 {:.1} p95 {:.1} in {mores}); chains a frame \
+             canvas p50 {} max {} (drawn in {} frames), tier p50 {} max {}; snapshots taken \
+             canvas {}, tier {}; strokes laid again canvas {}, tier {}",
             ms(evaluation.p50),
             ms(evaluation.p95),
             ms(tier.p50),
             ms(tier.p95),
+            ms(one.p50),
+            ms(one.p95),
+            ms(more.p50),
+            ms(more.p95),
             self.canvas_chains.p50,
             self.canvas_chains.max,
             self.canvas_frames,

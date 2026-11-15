@@ -35,15 +35,13 @@ use crate::stroke::stroke_region;
 use crate::view_tiles::TIER_TILE;
 
 /// Where a drawing's regions go: the output's scale, the texture holding it (its view and
-/// format), where an output tile's pixels lie in it (`None`: the tile is not drawn now), and
-/// whether its tiles lie there side by side at their own pixels (the canvas: a region may span
-/// tiles), or each in a slot of its own (a view tier's atlas).
+/// format), and where an output tile's pixels lie in it (`None`: the tile is not drawn now): side
+/// by side at their own pixels (the canvas), or each in a slot of its own (a view tier's atlas).
 pub(crate) struct Onto<'a> {
     pub(crate) scale: u32,
     pub(crate) view: &'a wgpu::TextureView,
     pub(crate) format: wgpu::TextureFormat,
     pub(crate) place: &'a dyn Fn([u32; 2]) -> Option<[u32; 2]>,
-    pub(crate) joined: bool,
 }
 
 /// What one frame of a drawing drew: its regions (output pixels) and the output tiles it drew and
@@ -169,7 +167,6 @@ impl CanvasTarget {
             view: &view,
             format,
             place: &place,
-            joined: true,
         };
         let work = self.draw_stroke(core, request, &mut drawing, (&onto, &moved));
         self.drawing = drawing;

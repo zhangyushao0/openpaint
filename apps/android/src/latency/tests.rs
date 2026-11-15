@@ -102,9 +102,10 @@ fn a_stroke_is_summarised_when_the_frame_takes_its_lift() {
     );
     assert!(
         line.ends_with(
-            "slowest #1 3.0 (evaluation 0.0, tier 0.0, scene 0.0, waits 2.0 most in present) #0 \
-             2.0 (evaluation 2.0, tier 0.0, scene 1.0, waits 1.0 most in present) #2 2.0 \
-             (evaluation 2.0, tier 0.0, scene 1.0, waits 0.0) ms"
+            "slowest #1 3.0 (evaluation 0.0, tier 0.0, chains canvas 0 tier 0, scene 0.0, waits \
+             2.0 most in present) #0 2.0 (evaluation 2.0, tier 0.0, chains canvas 0 tier 0, \
+             scene 1.0, waits 1.0 most in present) #2 2.0 (evaluation 2.0, tier 0.0, chains \
+             canvas 0 tier 0, scene 1.0, waits 0.0) ms"
         ),
         "{line}"
     );
@@ -143,6 +144,9 @@ fn a_painting_stroke_says_where_its_frames_went() {
     // Evaluation 1, 4, 1, 5 ms; tier 6, 3, 2, 1; chains canvas 0, 1, 0, 2 and tier 2, 1, 4, 1.
     assert_eq!(painted.evaluation, spread(MS, 5 * MS, 5 * MS));
     assert_eq!(painted.tier_ns, spread(2 * MS, 6 * MS, 6 * MS));
+    // The tier at one chain 3 and 1 ms, at more 6 and 2.
+    assert_eq!(painted.tier_one, (spread(MS, 3 * MS, 3 * MS), 2));
+    assert_eq!(painted.tier_more, (spread(2 * MS, 6 * MS, 6 * MS), 2));
     assert_eq!(painted.canvas_chains, spread(0, 2, 2));
     assert_eq!(painted.tier_chains, spread(1, 4, 4));
     assert_eq!(painted.canvas_frames, 2);
@@ -154,10 +158,15 @@ fn a_painting_stroke_says_where_its_frames_went() {
     assert!(
         line.contains(
             "GPU waits p50 0.0 p95 0.0 max 0.0 ms; evaluation p50 1.0 p95 5.0, tier p50 2.0 p95 \
-             6.0 ms; chains a frame canvas p50 0 max 2 (drawn in 2 frames), tier p50 1 max 4; \
-             snapshots taken canvas 1, tier 3; strokes laid again canvas 5, tier 6; slowest #0"
+             6.0 ms (one chain p50 1.0 p95 3.0 in 2 frames, more p50 2.0 p95 6.0 in 2); chains \
+             a frame canvas p50 0 max 2 (drawn in 2 frames), tier p50 1 max 4; snapshots taken \
+             canvas 1, tier 3; strokes laid again canvas 5, tier 6; slowest #0"
         ),
         "{line}"
+    );
+    assert!(
+        line.contains("#0 0.0 (evaluation 1.0, tier 6.0, chains canvas 0 tier 2, scene 0.0"),
+        "each slowest frame names its chains: {line}"
     );
 }
 

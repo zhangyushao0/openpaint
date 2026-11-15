@@ -175,8 +175,9 @@ impl RasterTargets {
         );
     }
 
-    /// The canvas rounded into the destination's pixels from `finish.at` (only those of
-    /// `finish.only` when it names any), by `pipeline`, its instance `finished` naming that place.
+    /// The canvas rounded into the destination's pixels at each of `finish`'s places (only those
+    /// a place names when it names any), in one pass, by `pipeline`; the instances from `finished`
+    /// on naming those places in turn.
     fn finish(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -185,27 +186,25 @@ impl RasterTargets {
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         let mut pass = begin(encoder, finish.view, wgpu::LoadOp::Load, timestamps);
-        region(&mut pass, finish.at, size);
         self.bind(&mut pass, self.reads.get(CANVAS));
         pass.set_pipeline(pipeline);
-        if finish.only.is_empty() {
-            pass.draw(0..3, finished..finished + 1);
-            return;
-        }
-        let [x, y] = finish.at.map(|at| i32::try_from(at).unwrap_or(i32::MAX));
-        let whole = PixelRect {
-            min: [x, y],
-            max: [x + size[0] as i32, y + size[1] as i32],
-        };
-        for rect in finish.only {
-            let part = rect.intersect(&whole);
-            if part.is_empty() {
-                continue;
+        for (instance, placed) in (finished..).zip(&finish.into) {
+            let [x, y] = placed.at;
+            let whole = PixelRect {
+                min: [x, y],
+                max: [x + size[0] as i32, y + size[1] as i32],
+            };
+            let parts = (placed.only.iter()).map(|rect| rect.intersect(&whole));
+            let parts: Vec<PixelRect> = if placed.only.is_empty() {
+                vec![whole]
+            } else {
+                parts.filter(|part| !part.is_empty()).collect()
+            };
+            for part in parts {
+                // The triangle covers the part alone; each pixel reads its own region pixel.
+                region(&mut pass, part.min.map(i32::unsigned_abs), part.size());
+                pass.draw(0..3, instance..instance + 1);
             }
-            let [x0, y0] = part.min.map(i32::unsigned_abs);
-            let [x1, y1] = part.max.map(i32::unsigned_abs);
-            pass.set_scissor_rect(x0, y0, x1 - x0, y1 - y0);
-            pass.draw(0..3, finished..finished + 1);
         }
     }
 }
@@ -305,15 +304,17 @@ pub(super) fn values(
     bytes
 }
 
-/// The instances as GPU bytes, then the finish's: the destination pixel at the region's top-left.
-pub(super) fn instance_bytes(list: &[Instance], at: [u32; 2]) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity((list.len() + 1) * INSTANCE_BYTES as usize);
-    let place = at.map(|v| i32::try_from(v).unwrap_or(i32::MAX));
-    let finish = Instance {
-        a: [0; 4],
-        b: [place[0], place[1], 0, 0],
-    };
-    for instance in list.iter().chain([&finish]) {
+/// The instances as GPU bytes, then the finish's, one a place: the destination pixel at the
+/// region's top-left.
+pub(super) fn instance_bytes(list: &[Instance], places: &[[i32; 2]]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity((list.len() + places.len()) * INSTANCE_BYTES as usize);
+    let finishes: Vec<Instance> = (places.iter())
+        .map(|place| Instance {
+            a: [0; 4],
+            b: [place[0], place[1], 0, 0],
+        })
+        .collect();
+    for instance in list.iter().chain(&finishes) {
         bytes.extend(instance.a.iter().flat_map(|v| v.to_le_bytes()));
         bytes.extend(instance.b.iter().flat_map(|v| v.to_le_bytes()));
     }

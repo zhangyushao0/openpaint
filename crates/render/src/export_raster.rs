@@ -125,12 +125,7 @@ impl RasterExport {
                 let size = [width.min(columns - x), height.min(rows - y)];
                 let output = Output::at(scale, [left + x, top + y])?;
                 let buffers = self.region(core, artwork, (output, size))?;
-                let finish = Finish {
-                    view: &view,
-                    format: FORMAT,
-                    at: [x, y],
-                    only: &[],
-                };
+                let finish = Finish::at(&view, FORMAT, [x, y]);
                 let units = (&self.scene, buffers.bases());
                 let plan = RasterPlan::build(units, (output, size), self.targets.atlas())?;
                 let drawn = (&buffers, &plan);
