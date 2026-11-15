@@ -1,6 +1,7 @@
 //! Colour combinations of real crops (S101): a crop of a pack beside an empty frame of its shape,
 //! filled and compared, its copy read against the areas the pack holds (the outline and the
-//! weak contrasts made strong in the frame's units), the eyedropper reading the pack's picture;
+//! weak contrasts made strong in the frame's units), the card opened on the area its reason names
+//! (S139), the eyedropper reading the pack's picture;
 //! Compare unavailable once the crop is removed; and the path knowing whether a pack kept holds
 //! crops, a lesson of combinations only then.
 
@@ -180,6 +181,10 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
         "in the frame's units"
     );
     assert!(outline.iter().flatten().all(inside));
+    // The card opens on the area its reason names (S139): the second band, pushed far off, its
+    // chip chosen and its outline on both frames, so "Area 2" is found without counting.
+    assert_eq!(session.projection().area, 1, "its chip chosen");
+    assert_eq!(outline, areas.edges_in_frame(1, None, extent));
     // The eyedropper on the original compares the pack's picture there.
     let on = pair.original.to_canvas([0.1, 0.3]).map(|v| v as f32);
     let PracticePick::Probe { original, .. } = session.sheet_mut().pick(on) else {

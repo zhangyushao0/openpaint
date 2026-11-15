@@ -3,8 +3,9 @@
 //!
 //! A lesson holds one key shift (about 6 minutes), a crop none shown before while any is left,
 //! its tendency's hue never near the crop's own main hue: the first level a warm tendency, pure
-//! and grey in turn, the second a cool one, pure and grey in turn, the
-//! third the grey ones, warm and cool, whose shift is the subtlest to hold.
+//! and grey in turn (the First-prefix rule); the second and the third every lean in turn
+//! (`Lean::ALL`: warm and cool each lesson, pure and grey every second, so no colour habit
+//! forms), their crops picked as the first level's.
 
 pub(crate) mod demo;
 pub(crate) mod key_shift;
@@ -36,9 +37,6 @@ const FACTS: [Facts; 1] = [Facts::of("key-shift", ToolSet::PAINTING, 360)
 /// How many key shifts a lesson's place turns through at the first level (as unit 5's drills
 /// held them before S122), the leans in turn across them.
 const TURNED: usize = 2;
-/// The second level's leans and the third's, in turn.
-const COOL: [Lean; 2] = [Lean::CoolPure, Lean::CoolGrey];
-const GREY: [Lean; 2] = [Lean::CoolGrey, Lean::WarmGrey];
 
 impl Described for KeyShifts {
     fn code(&self) -> u8 {
@@ -77,8 +75,7 @@ impl Described for KeyShifts {
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         let lean = match level {
             SkillLevel::First => in_turn(&Lean::ALL, turn.turn, TURNED)[0],
-            SkillLevel::Second => COOL[turn.turn % COOL.len()],
-            SkillLevel::Third => GREY[turn.turn % GREY.len()],
+            SkillLevel::Second | SkillLevel::Third => Lean::ALL[turn.turn % Lean::ALL.len()],
         };
         key_shift(lean, turn).into_iter().collect()
     }

@@ -1,14 +1,15 @@
 //! The reason beside the app's result (S138, `Say::reason`): one line under the rings saying what
 //! of the copy is off, which way and how far in words ("The point is a little to the left.",
-//! "点偏左了一点。"), never a number. In V大's terms: 色相, 明度 (偏亮/偏暗), 纯度 (偏纯/偏灰),
-//! 色块, 带圈的一端, 顺时针/逆时针.
+//! "点偏左了一点。"), never a number; a value scale's cell which way alone (S139, `Say::way`:
+//! "Cell 3 is too dark.", "第 3 格偏暗。"). In V大's terms: 色相, 明度 (偏亮/偏暗), 纯度
+//! (偏纯/偏灰), 色块, 带圈的一端, 顺时针/逆时针.
 
 use openpaint_practice::{Arg, Say};
 
 use super::Language;
 
 /// What `say`, a reason, reads as in `language`: its subject (`what`, numbered where it names an
-/// area or a cell), its way and its degree.
+/// area or a cell), its way and its degree (clearly, a little, or none said).
 pub(crate) fn reason(language: Language, say: &Say) -> String {
     let word = |at: usize| match say.args.get(at) {
         Some(Arg::Word(word)) => *word,
@@ -18,14 +19,19 @@ pub(crate) fn reason(language: Language, say: &Say) -> String {
         Some(Arg::Count(number)) => Some(*number),
         _ => None,
     };
-    let clearly = word(2) == "clearly";
+    let clearly = match word(2) {
+        "clearly" => Some(true),
+        "little" => Some(false),
+        _ => None,
+    };
     match language {
         Language::English => english((word(0), number), word(1), clearly),
         Language::Chinese => chinese((word(0), number), word(1), clearly),
     }
 }
 
-fn english((what, number): (&str, Option<usize>), way: &str, clearly: bool) -> String {
+/// `clearly`: clearly, a little, or no degree said.
+fn english((what, number): (&str, Option<usize>), way: &str, clearly: Option<bool>) -> String {
     let subject = match (what, number) {
         ("colour", Some(n)) => format!("Area {n}"),
         ("cell", Some(n)) => format!("Cell {n}"),
@@ -35,22 +41,29 @@ fn english((what, number): (&str, Option<usize>), way: &str, clearly: bool) -> S
         ("upright", _) => "The upright".to_owned(),
         _ => "The point".to_owned(),
     };
-    let degree = if clearly { "clearly" } else { "a little" };
+    let degree = match clearly {
+        Some(true) => "clearly ",
+        Some(false) => "a little ",
+        None => "",
+    };
     let said = match way {
-        "left" | "right" => format!("is {degree} to the {way}"),
-        "up" => format!("is {degree} high"),
-        "down" => format!("is {degree} low"),
-        "far" => format!("is {degree} too far from the ringed end"),
-        "near" => format!("is {degree} too near the ringed end"),
-        "clockwise" | "anticlockwise" if clearly => format!("is clearly turned {way}"),
-        "clockwise" | "anticlockwise" => format!("is turned a little {way}"),
-        "light" | "dark" | "pure" | "grey" => format!("is {degree} too {way}"),
-        hue => format!("leans {degree} toward {hue}"),
+        "left" | "right" => format!("is {degree}to the {way}"),
+        "up" => format!("is {degree}high"),
+        "down" => format!("is {degree}low"),
+        "far" => format!("is {degree}too far from the ringed end"),
+        "near" => format!("is {degree}too near the ringed end"),
+        "clockwise" | "anticlockwise" if clearly == Some(false) => {
+            format!("is turned a little {way}")
+        }
+        "clockwise" | "anticlockwise" => format!("is {degree}turned {way}"),
+        "light" | "dark" | "pure" | "grey" => format!("is {degree}too {way}"),
+        hue => format!("leans {degree}toward {hue}"),
     };
     format!("{subject} {said}.")
 }
 
-fn chinese((what, number): (&str, Option<usize>), way: &str, clearly: bool) -> String {
+/// `clearly`: clearly, a little, or no degree said.
+fn chinese((what, number): (&str, Option<usize>), way: &str, clearly: Option<bool>) -> String {
     let subject = match (what, number) {
         ("colour", Some(n)) => format!("色块 {n} "),
         ("cell", Some(n)) => format!("第 {n} 格"),
@@ -61,16 +74,21 @@ fn chinese((what, number): (&str, Option<usize>), way: &str, clearly: bool) -> S
         _ => "点".to_owned(),
     };
     let said = match (way, clearly) {
-        ("far", false) => "离带圈的一端远了一点".to_owned(),
-        ("far", true) => "离带圈的一端明显太远".to_owned(),
-        ("near", false) => "离带圈的一端近了一点".to_owned(),
-        ("near", true) => "离带圈的一端明显太近".to_owned(),
-        ("clockwise", false) => "顺时针转偏了一点".to_owned(),
-        ("clockwise", true) => "明显顺时针转偏了".to_owned(),
-        ("anticlockwise", false) => "逆时针转偏了一点".to_owned(),
-        ("anticlockwise", true) => "明显逆时针转偏了".to_owned(),
-        (way, false) => format!("{}了一点", leaning(way)),
-        (way, true) => format!("明显{}", leaning(way)),
+        ("far", Some(false)) => "离带圈的一端远了一点".to_owned(),
+        ("far", Some(true)) => "离带圈的一端明显太远".to_owned(),
+        ("far", None) => "离带圈的一端太远".to_owned(),
+        ("near", Some(false)) => "离带圈的一端近了一点".to_owned(),
+        ("near", Some(true)) => "离带圈的一端明显太近".to_owned(),
+        ("near", None) => "离带圈的一端太近".to_owned(),
+        ("clockwise", Some(false)) => "顺时针转偏了一点".to_owned(),
+        ("clockwise", Some(true)) => "明显顺时针转偏了".to_owned(),
+        ("clockwise", None) => "顺时针转偏了".to_owned(),
+        ("anticlockwise", Some(false)) => "逆时针转偏了一点".to_owned(),
+        ("anticlockwise", Some(true)) => "明显逆时针转偏了".to_owned(),
+        ("anticlockwise", None) => "逆时针转偏了".to_owned(),
+        (way, Some(false)) => format!("{}了一点", leaning(way)),
+        (way, Some(true)) => format!("明显{}", leaning(way)),
+        (way, None) => leaning(way).to_owned(),
     };
     format!("{subject}{said}。")
 }
@@ -98,7 +116,7 @@ fn leaning(way: &str) -> &'static str {
 /// Every reason's words in `language`, for the tables' tests.
 #[cfg(test)]
 pub(crate) fn made(language: Language) -> Vec<String> {
-    let ways: [(&'static str, &[&'static str]); 6] = [
+    let ways: [(&'static str, &[&'static str]); 5] = [
         ("point", &["left", "right", "up", "down"]),
         ("mark", &["far", "near"]),
         ("line", &["clockwise", "anticlockwise", "up", "down"]),
@@ -109,20 +127,22 @@ pub(crate) fn made(language: Language) -> Vec<String> {
                 "red", "yellow", "green", "cyan", "blue", "purple", "light", "dark", "pure", "grey",
             ],
         ),
-        ("cell", &["light", "dark"]),
     ];
     let mut made = Vec::new();
     for (what, ways) in ways {
         for way in ways {
             for off in [0.5, 2.0] {
                 let say = Say::reason(what, way, (off, 1.0));
-                let say = if what == "cell" { say.numbered(4) } else { say };
                 made.push(reason(language, &say));
                 if what == "colour" {
                     made.push(reason(language, &say.numbered(3)));
                 }
             }
         }
+    }
+    // A value scale's cell, which way alone (S139).
+    for way in ["light", "dark"] {
+        made.push(reason(language, &Say::way("cell", way).numbered(4)));
     }
     made
 }
@@ -165,9 +185,13 @@ mod tests {
         let area = Say::reason("colour", "grey", (2.0, 1.0)).numbered(3);
         assert_eq!(said(en, &area), "Area 3 is clearly too grey.");
         assert_eq!(said(zh, &area), "色块 3 明显偏灰。");
-        let cell = Say::reason("cell", "dark", (0.5, 1.0)).numbered(4);
-        assert_eq!(said(en, &cell), "Cell 4 is a little too dark.");
-        assert_eq!(said(zh, &cell), "第 4 格偏暗了一点。");
+        // A cell which way alone (S139): its result counts the cells uneven, not how far.
+        let cell = Say::way("cell", "dark").numbered(3);
+        assert_eq!(said(en, &cell), "Cell 3 is too dark.");
+        assert_eq!(said(zh, &cell), "第 3 格偏暗。");
+        let cell = Say::way("cell", "light").numbered(4);
+        assert_eq!(said(en, &cell), "Cell 4 is too light.");
+        assert_eq!(said(zh, &cell), "第 4 格偏亮。");
     }
 
     #[test]

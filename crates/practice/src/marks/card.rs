@@ -7,6 +7,9 @@ use crate::compositions::levels::LevelRow;
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
 
+/// A reason's degree when it says none (`Say::way`), beside "little" and "clearly".
+const UNSAID: &str = "unsaid";
+
 /// Words the card says, named by a key the UI's tables know, with what they count or name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Say {
@@ -34,9 +37,8 @@ impl Say {
     }
 
     /// The reason beside the app's result (S138, D121): what of the copy is off (`what`: point,
-    /// mark, line, upright, colour, cell), which way, and how far in words, never a number: a
-    /// little while `off` lies within `near`, the band in which the check calls it near, clearly
-    /// beyond.
+    /// mark, line, upright, colour), which way, and how far in words, never a number: a little
+    /// while `off` lies within `near`, the band in which the check calls it near, clearly beyond.
     #[must_use]
     pub fn reason(what: &'static str, way: &'static str, (off, near): (f64, f64)) -> Self {
         let degree = if off.abs() <= near {
@@ -47,6 +49,16 @@ impl Say {
         Self {
             key: "reason",
             args: vec![Arg::Word(what), Arg::Word(way), Arg::Word(degree)],
+        }
+    }
+
+    /// A reason saying what is off and which way only, its degree left unsaid (S139): a value
+    /// scale's cell, whose result counts the cells uneven rather than measuring how far one is.
+    #[must_use]
+    pub fn way(what: &'static str, way: &'static str) -> Self {
+        Self {
+            key: "reason",
+            args: vec![Arg::Word(what), Arg::Word(way), Arg::Word(UNSAID)],
         }
     }
 

@@ -266,12 +266,13 @@ fn every_skill_at_every_level_lays_a_few_minutes_that_generate_print_and_compare
         // A lesson of one exercise fills its window over three; others over six.
         let window = if levels[0].len() == 1 { 3 } else { 6 };
         assert_eq!(skill.window(), window, "{}", skill.key());
-        // Each level is another lesson but where the kind has nothing harder to offer.
+        // Each level is another lesson but where the kind has nothing harder to offer (a key
+        // shift's levels differ only in the turn of their tendencies, S139).
         let key = skill.key();
-        if key != "combination" {
+        if !["combination", "key-shift"].contains(&key) {
             assert_ne!(levels[0], levels[1], "{key}: the second level");
         }
-        if !["combination", "box"].contains(&key) {
+        if !["combination", "box", "key-shift"].contains(&key) {
             assert_ne!(levels[1], levels[2], "{key}: the third level");
         }
     }

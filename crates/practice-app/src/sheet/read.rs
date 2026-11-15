@@ -247,8 +247,8 @@ impl PracticeSheet {
     }
 
     /// The runtime read the copy for the Compare numbered `sequence` (`None`: it could not): the
-    /// copy as read shows if that Compare's comparison still does, and its numbers are kept as
-    /// the exercise's first.
+    /// copy as read shows if that Compare's comparison still does, on the area its reason names
+    /// where it names one (S139), and its numbers are kept as the exercise's first.
     pub fn read(&mut self, sequence: u64, painted: Option<CopyRead>) {
         if self.current().is_none() || sequence <= self.painting_state.since {
             return;
@@ -265,10 +265,18 @@ impl PracticeSheet {
             }
             self.changed = true;
         }
+        let named = painted
+            .as_ref()
+            .and_then(|read| read.comparison.named_area());
         if let Some(Compared::Painted(_, shown, _)) = &mut self.compared
             && *shown == ReadState::Asked(sequence)
         {
             *shown = painted.map_or(ReadState::Unread, ReadState::Read);
+            // The card opens on the area its reason names, outlined on both frames (one it cannot
+            // choose, of a crop no pack holds now, leaves the area chosen as it was).
+            if let Some(area) = named {
+                self.choose_area(area).ok();
+            }
         }
     }
 

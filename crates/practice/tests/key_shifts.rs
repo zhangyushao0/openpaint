@@ -7,10 +7,10 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    APART, AWAY, Areas, Arrangement, CELLS, GeneratedAreas, KeyCheck, Kind, LIGHTNESS_OFF, Lean,
-    Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures, Random, Rgb8, Skill,
-    SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab, main_hue, oklab, oklch, schedule,
-    toward, turn,
+    APART, AWAY, Areas, Arrangement, CELLS, GeneratedAreas, ItemRef, KeyCheck, Kind, LIGHTNESS_OFF,
+    Lean, Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures, Purpose, Random,
+    Rgb8, Sheet, Skill, SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab, main_hue, oklab,
+    oklch, schedule, toward, turn,
 };
 
 fn lab(colour: Rgb8) -> [f64; 3] {
@@ -194,20 +194,17 @@ fn crops(count: usize) -> Pack {
     }
 }
 
-#[test]
-fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue() {
-    let pictures = Pictures::of(&[crops(8)]);
-    let learner = Learner::default();
-    let standing = Standing {
-        pictures: &pictures,
-        learner: &learner,
-    };
+/// The tendencies and crops of `count` key-shift lessons in a row at `level`, each taken by the
+/// learner before the next is laid.
+fn in_a_row(pictures: &Pictures, level: SkillLevel, count: usize) -> Vec<(Tendency, ItemRef)> {
     let skill = Skill::of_key("key-shift").expect("the key shifts");
-    assert_eq!(skill.needs(), Needs::Crops);
-    // The first level warm, the second cool, the third grey.
-    let leans = [Lean::WarmPure, Lean::CoolPure, Lean::CoolGrey];
-    let main = main_hue(&crops(1).items[0].areas.clone().unwrap()).unwrap();
-    for (level, lean) in SkillLevel::ALL.into_iter().zip(leans) {
+    let mut learner = Learner::default();
+    let mut laid = Vec::new();
+    for _ in 0..count {
+        let standing = Standing {
+            pictures,
+            learner: &learner,
+        };
         let planned = schedule::lesson(skill, level, 0x5EED_0107, &standing).expect("a lesson");
         let [(exercise, _)] = planned.exercises.as_slice() else {
             panic!("{level:?}: one key shift");
@@ -215,12 +212,63 @@ fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue
         let Kind::KeyShift(tendency) = exercise.kind else {
             panic!("{level:?}: a key shift");
         };
-        assert_eq!(tendency.lean, lean, "{level:?}");
-        assert!(exercise.picture.is_some(), "its crop");
-        // The crops' main hue is orange-brown: no tendency lies within `AWAY` of it.
-        assert!(turn(f64::from(tendency.hue), main).abs() >= AWAY);
+        laid.push((tendency, exercise.picture.clone().expect("its crop")));
+        // 2026-10-05 12:00 UTC.
+        let mut sheet = Sheet::begun(1, (Purpose::Day, 1_791_201_600), planned);
+        learner = learner.with(&sheet.lessons.remove(0));
     }
+    laid
+}
+
+#[test]
+fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue() {
+    let pictures = Pictures::of(&[crops(8)]);
+    let skill = Skill::of_key("key-shift").expect("the key shifts");
+    assert_eq!(skill.needs(), Needs::Crops);
+    let main = main_hue(&crops(1).items[0].areas.clone().unwrap()).unwrap();
+    let leans = |level| -> Vec<Lean> {
+        let laid = in_a_row(&pictures, level, 8);
+        for (tendency, _) in &laid {
+            // The crops' main hue is orange-brown: no tendency lies within `AWAY` of it.
+            assert!(
+                turn(f64::from(tendency.hue), main).abs() >= AWAY,
+                "{level:?}"
+            );
+        }
+        laid.iter().map(|(tendency, _)| tendency.lean).collect()
+    };
+    // The first level as before S122 (the First-prefix rule): warm, pure and grey in turn.
+    let first = leans(SkillLevel::First);
+    assert_eq!(first[..4], [Lean::WarmPure, Lean::WarmGrey].repeat(2));
+    // The second and the third every lean in turn (S139, the plan of 2026-11-06): warm and cool
+    // every lesson, pure and grey every second, so any three lessons in a row hold both of each.
+    for level in [SkillLevel::Second, SkillLevel::Third] {
+        let turned = leans(level);
+        assert_eq!(turned[..4], Lean::ALL, "{level:?}");
+        assert_eq!(turned[4..], Lean::ALL, "{level:?}: round again");
+        for three in turned.windows(3) {
+            let warm = three.iter().filter(|lean| lean.warm()).count();
+            let pure = three.iter().filter(|lean| lean.pure()).count();
+            assert!(
+                (1..=2).contains(&warm) && (1..=2).contains(&pure),
+                "{three:?}"
+            );
+        }
+    }
+    // Every level picks its crops alike: none twice while another is left.
+    let crops_of = |level| -> Vec<ItemRef> {
+        let laid = in_a_row(&pictures, level, 8);
+        laid.into_iter().map(|(_, crop)| crop).collect()
+    };
+    let picked = crops_of(SkillLevel::First);
+    let mut each = picked.clone();
+    each.sort_by(|a, b| a.item.cmp(&b.item));
+    each.dedup();
+    assert_eq!(each.len(), 8, "{picked:?}");
+    assert_eq!(crops_of(SkillLevel::Second), picked);
+    assert_eq!(crops_of(SkillLevel::Third), picked);
     // Without crops: no key shift.
+    let learner = Learner::default();
     let none = Pictures::of(&[]);
     let bare = Standing {
         pictures: &none,

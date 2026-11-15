@@ -1,10 +1,10 @@
 //! A colour combination compared (S82, S101): its picture over the copy in place as strongly as the
 //! user sets, the area the card compares outlined in ink on both frames, the edges where the copy
 //! made a weak contrast strong in the marking red. The card: a reason when not right (S138), the
-//! slider, a chip for each area to
-//! choose one, the chosen area's colours on the wheel and in the colour table, or the point the
-//! eyedropper compared; a line where the area is not painted. A generated one's (a record of 1.18.1
-//! and before) shows its picture drawn again in its original's frame.
+//! slider, a chip for each area to choose one (the reason's area chosen as the card opens, S139),
+//! the chosen area's colours on the wheel and in the colour table, or the point the eyedropper
+//! compared; a line where the area is not painted. A generated one's (a record of 1.18.1 and
+//! before) shows its picture drawn again in its original's frame.
 
 use crate::colour_areas::areas_read::AreasCopy;
 use crate::kinds::colours::judgement::DELTA_SPAN;
@@ -124,6 +124,12 @@ impl Compared for AreasCompared {
         };
         Verdict::App(outcome)
     }
+
+    /// The area the reason names (S139): the card opens on its chip, its outline on both frames,
+    /// so the learner finds "Area 2" without counting the chips.
+    fn named_area(&self) -> Option<usize> {
+        self.furthest().map(|(area, _)| area)
+    }
 }
 
 impl AreasCompared {
@@ -132,6 +138,11 @@ impl AreasCompared {
     /// just-noticeable step (a weak contrast made strong shows red on the copy).
     #[must_use]
     pub fn reason(&self) -> Option<Say> {
+        self.furthest().map(|(_, say)| say)
+    }
+
+    /// The area the reason names (from 0) and the reason.
+    fn furthest(&self) -> Option<(usize, Say)> {
         if !matches!(self.verdict(), Verdict::App(Outcome::Near | Outcome::Redo)) {
             return None;
         }
@@ -140,6 +151,6 @@ impl AreasCompared {
             .enumerate()
             .filter_map(|(area, (original, copy))| Some((area, (*original, (*copy)?))))
             .max_by(|(_, a), (_, b)| delta_e(a.0, a.1).total_cmp(&delta_e(b.0, b.1)))?;
-        colour_reason(original, copy).map(|say| say.numbered(area + 1))
+        colour_reason(original, copy).map(|say| (area, say.numbered(area + 1)))
     }
 }

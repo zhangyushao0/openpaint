@@ -165,6 +165,11 @@ pub trait Compared: std::any::Any + Debug + Send + Sync {
     /// Who judges it and, where the app does, its outcome (S119); every kind says, none by
     /// default.
     fn verdict(&self) -> Verdict;
+    /// The area its card opens chosen on once read, outlined on both frames (S139): the one its
+    /// reason names, findable without counting chips; none (the area chosen stays) by default.
+    fn named_area(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// `pieces` as lines to read.

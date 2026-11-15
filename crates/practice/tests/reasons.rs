@@ -1,6 +1,7 @@
 //! The reason beside the app's result (S138): for each kind whose check finds which way the copy
 //! is off, when the result is not right, one line naming what is off, which way, and a little
-//! (within the check's near band) or clearly (beyond); none for a right answer.
+//! (within the check's near band) or clearly (beyond), a value scale's cell which way alone
+//! (S139); none for a right answer.
 
 use openpaint_practice::{
     AreasCompared, AreasCopy, AreasRead, Arg, CardItem, ColourCompared, Compared, Flat, FlatCheck,
@@ -237,12 +238,15 @@ fn a_combination_names_the_area_furthest_off() {
         }),
     };
     assert_eq!(first_said(&painted(colours.clone())), None, "right");
+    assert_eq!(painted(colours.clone()).named_area(), None);
     let [l, c, h] = oklch(colours[1]);
     let mut copy = colours.clone();
     copy[1] = lch(l - 0.2, c, h);
     copy[0] = lch(oklch(colours[0])[0] + 0.03, 0.05, 200.0);
-    let said = first_said(&painted(copy)).expect("a reason");
+    let said = first_said(&painted(copy.clone())).expect("a reason");
     assert_eq!(said, ["colour", "dark", "clearly", "2"]);
+    // Its card opens on that area's chip (S139), so the learner finds area 2 without counting.
+    assert_eq!(painted(copy).named_area(), Some(1));
 }
 
 #[test]
@@ -257,10 +261,17 @@ fn a_scale_names_its_cell_furthest_off_and_which_way() {
         scale.check(values)
     };
     assert!(checked([0.0; 5]).reason().is_none(), "even");
-    let near = checked([0.0, 0.3, 0.0, 0.0, 0.0]).reason();
-    assert_eq!(reason_of(near), ["cell", "light", "little", "2"]);
-    let worst = checked([0.0, 0.3, 0.0, -0.7, 0.0]).reason();
-    assert_eq!(reason_of(worst), ["cell", "dark", "clearly", "4"]);
+    // Which way alone, no degree (S139): a scale is judged by how many cells are uneven, so a
+    // cell far off may stand in an Almost and one a little off in an Again.
+    let near = checked([0.0, 0.3, 0.0, 0.0, 0.0]);
+    assert_eq!(near.verdict(), Verdict::App(Outcome::Near));
+    assert_eq!(reason_of(near.reason()), ["cell", "light", "unsaid", "2"]);
+    let far = checked([0.0, 0.0, -0.9, 0.0, 0.0]);
+    assert_eq!(far.verdict(), Verdict::App(Outcome::Near));
+    assert_eq!(reason_of(far.reason()), ["cell", "dark", "unsaid", "3"]);
+    let worst = checked([0.0, 0.3, 0.0, -0.7, 0.0]);
+    assert_eq!(worst.verdict(), Verdict::App(Outcome::Redo));
+    assert_eq!(reason_of(worst.reason()), ["cell", "dark", "unsaid", "4"]);
     // A cell not filled yet: no result, so no reason.
     let mut values: Vec<Option<f64>> = targets.iter().map(|t| Some(*t)).collect();
     values[1] = Some(targets[1] - step);
