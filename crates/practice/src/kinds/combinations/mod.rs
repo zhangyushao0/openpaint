@@ -2,9 +2,11 @@
 //! copied by eye and read against the areas the pack holds (`colour_areas/`, `reading.rs`). Its How
 //! plays on a generated example (`demo.rs`).
 //!
-//! A lesson holds one crop (about 4 minutes), none shown before while any is left, at every
-//! level: a crop is picked by its own sequence whatever its tier (`packs/pictures.rs`), so its
-//! levels differ only in which crop comes.
+//! A lesson holds one crop (about 4 minutes), none shown before while any is left, of its
+//! level's tier by the crop's areas (S140, V大's hierarchy: a picture that does not split into a
+//! few big blocks is not for a beginner): three or four at the first level, five at the second,
+//! six or seven at the third, the nearest tier the packs hold where they hold none
+//! (`packs/pictures.rs`).
 
 pub(crate) mod demo;
 pub(crate) mod marks;
@@ -57,8 +59,16 @@ impl Described for Crops {
         Some(demo::areas())
     }
 
-    fn lesson(&self, _level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        Picker::new(turn, Tier::Simple).crop().into_iter().collect()
+    fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
+        let tier = match level {
+            SkillLevel::First => Tier::Simple,
+            SkillLevel::Second => Tier::Medium,
+            SkillLevel::Third => Tier::Hard,
+        };
+        Picker::new(turn, Tier::Simple)
+            .crop(tier)
+            .into_iter()
+            .collect()
     }
 
     fn window(&self) -> usize {

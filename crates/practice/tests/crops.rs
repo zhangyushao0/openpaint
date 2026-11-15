@@ -1,10 +1,14 @@
 //! Colour combinations from real crops (S101): the answer the pack builder finds, validated on S82's
 //! generated pictures, whose areas are known (each area found, its colour within ΔE 0.02, the weak
-//! pairs found), and the rules a crop is held to.
+//! pairs found), the rules a crop is held to, and the crops a lesson picks by its level (S140), a
+//! combination's and a key shift's.
+
+use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Arrangement, CropRefusal, FEWEST_AREAS, GeneratedAreas, LEAST_LONGER, MOST_AREAS,
-    Places, Tier, best, candidates, delta_e, refusal, tier_of,
+    Areas, Arrangement, CropRefusal, FEWEST_AREAS, GeneratedAreas, Kind, LEAST_LONGER, Learner,
+    MOST_AREAS, Pack, PackItem, PictureKind, Pictures, Places, Purpose, Sheet, Skill, SkillLevel,
+    Standing, Tier, best, candidates, delta_e, refusal, schedule, tier_of,
 };
 
 /// The generated pictures' side in pixels: about a crop's.
@@ -214,4 +218,101 @@ fn the_builder_keeps_the_best_crops_none_overlapping_and_the_same_every_time() {
         let [x, y] = crop.at;
         (x == 0 || x + crop.size[0] == size[0]) && (y == 0 || y + crop.size[1] == size[1])
     }));
+}
+
+/// A pack of `count` crops of each of `tiers`, each named by its tier, all of a few colours.
+fn tiered(tiers: &[Tier], count: usize) -> Pictures {
+    let areas = Areas::of_map(
+        [2, 2],
+        vec![0, 1, 2, 0],
+        vec![[160, 80, 40], [90, 96, 110], [220; 3]],
+    );
+    let item = |tier: Tier, n: usize| PackItem {
+        id: format!("{}-{n}", tier.name()),
+        kind: PictureKind::Crop,
+        tier,
+        size: [600, 600],
+        title: "test".to_owned(),
+        credit: None,
+        outline: None,
+        masses: None,
+        areas: areas.clone().map(Arc::new),
+    };
+    Pictures::of(&[Pack {
+        id: "test-crops".to_owned(),
+        title: "Test crops".to_owned(),
+        items: (tiers.iter())
+            .flat_map(|tier| (0..count).map(move |n| item(*tier, n)))
+            .collect(),
+    }])
+}
+
+/// The crops `count` lessons of `key` in a row at `level` lay (the tier its name says, and its
+/// name), each taken by the learner before the next is laid.
+fn laid(pictures: &Pictures, key: &str, level: SkillLevel, count: usize) -> Vec<(Tier, String)> {
+    let skill = Skill::of_key(key).expect("a skill");
+    let mut learner = Learner::default();
+    let mut laid = Vec::new();
+    for _ in 0..count {
+        let standing = Standing {
+            pictures,
+            learner: &learner,
+        };
+        let planned = schedule::lesson(skill, level, 0x5EED_0140, &standing).expect("a lesson");
+        let (exercise, _) = &planned.exercises[0];
+        let item = exercise.picture.clone().expect("its crop").item;
+        let tier = Tier::of_name(item.split('-').next().unwrap_or_default()).expect("a tier");
+        if let Kind::Crop(held) = exercise.kind {
+            assert_eq!(held, tier, "a combination's kind holds its crop's tier");
+        }
+        laid.push((tier, item));
+        // 2026-10-05 12:00 UTC.
+        let mut sheet = Sheet::begun(1, (Purpose::Day, 1_791_201_600), planned);
+        learner = learner.with(&sheet.lessons.remove(0));
+    }
+    laid
+}
+
+/// The tiers of `laid`'s crops.
+fn tiers(pictures: &Pictures, key: &str, level: SkillLevel, count: usize) -> Vec<Tier> {
+    let crops = laid(pictures, key, level, count);
+    crops.into_iter().map(|(tier, _)| tier).collect()
+}
+
+/// How many crops of `laid`'s are each other's.
+fn distinct(pictures: &Pictures, key: &str, level: SkillLevel, count: usize) -> usize {
+    let mut names: Vec<String> = (laid(pictures, key, level, count).into_iter())
+        .map(|(_, name)| name)
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names.len()
+}
+
+#[test]
+fn a_lesson_s_crop_has_its_level_s_areas_or_the_nearest_tier_held() {
+    use SkillLevel::{First, Second, Third};
+    use Tier::{Hard, Medium, Simple};
+    let all = tiered(&[Simple, Medium, Hard], 4);
+    // Combinations (V大: a picture that does not split into a few big blocks is not for a
+    // beginner): three or four areas at the first level, five at the second, six or seven at the
+    // third; each of the tier once before any again, and again of the tier, not the next.
+    for (level, tier) in [(First, Simple), (Second, Medium), (Third, Hard)] {
+        assert_eq!(tiers(&all, "combination", level, 6), [tier; 6], "{level:?}");
+        assert_eq!(distinct(&all, "combination", level, 4), 4, "{level:?}");
+    }
+    // Key shifts: any crop at the first level, each once before any again; five areas at the
+    // second, six or seven at the third.
+    assert_eq!(distinct(&all, "key-shift", First, 12), 12);
+    assert_eq!(tiers(&all, "key-shift", Second, 6), [Medium; 6]);
+    assert_eq!(tiers(&all, "key-shift", Third, 6), [Hard; 6]);
+    // Where the packs hold none of a level's tier: the nearest they hold, the easier first.
+    let no_hard = tiered(&[Simple, Medium], 2);
+    let no_medium = tiered(&[Simple, Hard], 2);
+    for key in ["combination", "key-shift"] {
+        assert_eq!(tiers(&no_hard, key, Third, 3), [Medium; 3], "{key}");
+        assert_eq!(tiers(&no_medium, key, Second, 3), [Simple; 3], "{key}");
+    }
+    let hard_only = tiered(&[Hard], 2);
+    assert_eq!(tiers(&hard_only, "combination", First, 3), [Hard; 3]);
 }

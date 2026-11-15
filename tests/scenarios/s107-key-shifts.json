@@ -11,7 +11,8 @@
     "A stroke after Compare takes the comparison away, as on every sheet; Undo takes the stroke back; Compare again shows the marks as before.",
     "Finish: the lesson's end, Key shifts, 1 exercise, its dot; One more names Key shifts again (unit 5 chosen while unit 1 is in hand), not the path's next. One more: a second lesson of Key shifts (what its card named) on the next row of the same sheet, Lesson 2 · Key shifts; the crop that came out Again is laid again first, a tendency of its own, never near the crop's own main hue.",
     "Reopen: Home leaves it under way; Continue (Start while no lesson is under way) on the home reopens it at its key shift.",
-    "Unit 5's key shifts again from the home by their skill's lesson, at the learner's level (the full lesson is gone, S124).",
+    "Unit 5's key shifts again from the home by their skill's lesson, at the learner's level (the full lesson is gone, S124): the third lesson's tendency a warm grey, for every level turns warm and cool, pure and grey (S140, unit 5's plan of 2026-11-06).",
+    "Levels (S140): at level 2 (熟练) a crop of five areas, the blocks, toward a cool violet; at level 3 (稳) a crop of six or seven areas (the test crops hold none: the nearest, the green and purple bands of five), its tendency at least 120 degrees from the crop's main hue, a red-orange against the green: the harder shift, opposite colours greyed and moved a little.",
     "Chinese: s107-key-shifts-zh runs this walk-through on a Chinese tablet: 变调, 倾向色, 看黑白, the card's lines in V大's words.",
     "Not here: the author's hand on the tablet; the checks judged on the official packs' crops (the harness's key-shifts contact sheets)."
   ],
@@ -68,6 +69,12 @@
     { "screenshot": { "name": "key-lesson-reopened" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "skill": "key-shift" } },
-    { "screenshot": { "name": "unit-five-key-shifts" } }
+    { "screenshot": { "name": "unit-five-key-shifts" } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "key-shift", "level": 2 } },
+    { "screenshot": { "name": "key-shift-level-two" } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "key-shift", "level": 3 } },
+    { "screenshot": { "name": "key-shift-level-three" } }
   ]
 }

@@ -1,10 +1,11 @@
 //! Key shifts (V大's 变调, week 5; S107): a crop of a real picture (`crop.rs`, its areas from its
 //! pack) painted again as if its whole key had shifted toward a tendency colour the exercise gives
 //! (倾向色), warm or cool, pure or grey. The tendencies come in turn (`Lean`), each a hue of its
-//! warmth never near the crop's own main hue: a shift toward one's own colour teaches nothing. A
-//! tendency is kept in its kind's variant, so a record's copy is judged against the tendency it
-//! was painted to whatever the pack becomes. How a painter shifts is `key_shift_rule.rs`; what
-//! Compare marks, `key_shift_check.rs`: a key shift has no answer.
+//! warmth never near the crop's own main hue (`AWAY`; far from it at the third level,
+//! `FAR_AWAY`): a shift toward one's own colour teaches nothing. A tendency is kept in its kind's
+//! variant, so a record's copy is judged against the tendency it was painted to whatever the pack
+//! becomes. How a painter shifts is `key_shift_rule.rs`; what Compare marks,
+//! `key_shift_check.rs`: a key shift has no answer.
 
 use crate::colour_areas::main_hue::{HUE_STEP, turn};
 use crate::maths::colour::{Rgb8, in_gamut, most_chroma};
@@ -21,8 +22,11 @@ const BASE_PAST: f64 = 0.4;
 const BASE_HALF: f64 = 0.6;
 /// The lightnesses its disc may be shown at: its hue's most colourful between them.
 const SHOWN: (f64, f64) = (0.55, 0.88);
-/// The least turn between a tendency's hue and the crop's main hue, degrees.
+/// The least turn between a tendency's hue and the crop's main hue, degrees: `AWAY` at the first
+/// two levels, `FAR_AWAY` at the third (S140: toward the crop's opposite, where its colours move
+/// only a little and grey, V大's harder shift), the lean's farthest hues where none lies so far.
 pub const AWAY: f64 = 60.0;
+pub const FAR_AWAY: f64 = 120.0;
 /// Warm hues from magenta-red round to yellow, cool ones from green round to violet-blue (Oklab
 /// hue, degrees, the first to the last in steps of `HUE_STEP`).
 const WARM: (i32, i32) = (-10, 110);
@@ -83,15 +87,18 @@ pub struct Tendency {
 const STEPS: u8 = 36;
 
 impl Tendency {
-    /// A tendency of `lean` picked by `random` among its hues at least `AWAY` from the crop's
-    /// `main` hue (any of them without one).
+    /// A tendency of `lean` picked by `random` among its hues at least `least` degrees from the
+    /// crop's `main` hue (any of them without one), among its farthest where none lies so far
+    /// (`AWAY` always finds some: a lean's hues span 120 degrees and more).
     #[must_use]
-    pub fn chosen(lean: Lean, main: Option<f64>, random: &mut Random) -> Self {
+    pub fn chosen(lean: Lean, main: Option<f64>, least: f64, random: &mut Random) -> Self {
         let all = lean.hues();
-        let away: Vec<u16> = (all.iter().copied())
-            .filter(|hue| main.is_none_or(|main| turn(f64::from(*hue), main).abs() >= AWAY))
+        let off = |hue: u16| main.map_or(180.0, |main| turn(f64::from(hue), main).abs());
+        let farthest = all.iter().map(|hue| off(*hue)).fold(0.0, f64::max);
+        let least = least.min(farthest);
+        let from: Vec<u16> = (all.iter().copied())
+            .filter(|hue| off(*hue) >= least)
             .collect();
-        let from = if away.is_empty() { &all } else { &away };
         let at = ((random.unit() * from.len() as f64) as usize).min(from.len() - 1);
         Self {
             lean,

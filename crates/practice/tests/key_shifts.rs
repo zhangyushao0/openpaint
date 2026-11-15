@@ -1,20 +1,37 @@
 //! Key shifts (S107): tendencies kept in their kind's code, warm or cool and never near the crop's
-//! own hue; the rule a painter shifts by (lightness kept, greys moving most, opposites a little,
-//! the lightest barely, near hues turning the short way, neighbours kept apart); the three checks
-//! on shifts made by rule and made wrong on purpose; a lesson at each level; the How.
+//! own hue (far from it at the third level, S140); the rule a painter shifts by (lightness kept,
+//! greys moving most, opposites a little, the lightest barely, near hues turning the short way,
+//! neighbours kept apart); the three checks on shifts made by rule and made wrong on purpose; a
+//! lesson at each level (its crop's tier: `crops.rs`); the How.
 //! The checks are judged by eye on real crops too: `openpaint-harness key-shifts`.
 
 use std::sync::Arc;
 
 use openpaint_practice::{
-    APART, AWAY, Areas, Arrangement, CELLS, GeneratedAreas, ItemRef, KeyCheck, Kind, LIGHTNESS_OFF,
-    Lean, Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures, Purpose, Random,
-    Rgb8, Sheet, Skill, SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab, main_hue, oklab,
-    oklch, schedule, toward, turn,
+    APART, AWAY, Areas, Arrangement, CELLS, FAR_AWAY, GeneratedAreas, ItemRef, KeyCheck, Kind,
+    LIGHTNESS_OFF, Lean, Learner, MERGED, Metric, Needs, Pack, PackItem, PictureKind, Pictures,
+    Purpose, Random, Rgb8, Sheet, Skill, SkillLevel, Standing, Tendency, Tier, delta_e, from_oklab,
+    main_hue, oklab, oklch, schedule, toward, turn,
 };
 
 fn lab(colour: Rgb8) -> [f64; 3] {
     oklab(colour)
+}
+
+/// `lean`'s hues, as its codes name them.
+fn hues(lean: Lean) -> Vec<u16> {
+    let at = Lean::ALL.iter().position(|l| *l == lean).unwrap() as u8;
+    (0..36)
+        .filter_map(|step| Tendency::of_code(at * 36 + step))
+        .map(|tendency| tendency.hue)
+        .collect()
+}
+
+/// How far `lean`'s farthest hue lies from `main`, degrees.
+fn farthest(lean: Lean, main: f64) -> f64 {
+    (hues(lean).into_iter())
+        .map(|hue| turn(f64::from(hue), main).abs())
+        .fold(0.0, f64::max)
 }
 
 /// Generated combinations of known areas, standing in for crops.
@@ -32,7 +49,7 @@ fn a_tendency_reads_back_from_its_code_and_only_its_lean_s_hues_do() {
     for lean in Lean::ALL {
         let mut random = Random::new(7);
         for _ in 0..40 {
-            let tendency = Tendency::chosen(lean, None, &mut random);
+            let tendency = Tendency::chosen(lean, None, AWAY, &mut random);
             assert_eq!(Tendency::of_code(tendency.code()), Some(tendency));
             assert_eq!(
                 Kind::of_code(19, tendency.code()),
@@ -52,17 +69,48 @@ fn a_tendency_reads_back_from_its_code_and_only_its_lean_s_hues_do() {
 }
 
 #[test]
-fn a_tendency_keeps_away_from_the_crop_s_main_hue() {
+fn a_tendency_keeps_its_least_turn_from_the_crop_s_main_hue_or_takes_the_lean_s_farthest() {
+    let mut fell_back = 0;
     for main in (0..360).step_by(5) {
+        let main = f64::from(main);
         for lean in Lean::ALL {
-            let mut random = Random::new(u64::from(main as u16));
-            for _ in 0..20 {
-                let tendency = Tendency::chosen(lean, Some(f64::from(main)), &mut random);
-                let off = turn(f64::from(tendency.hue), f64::from(main)).abs();
-                assert!(off >= AWAY, "{lean:?} {main}: {tendency:?}");
+            // A lean's hues span 120 degrees and more: `AWAY` always finds one.
+            let farthest = farthest(lean, main);
+            assert!(farthest >= AWAY, "{lean:?} {main}: {farthest}");
+            fell_back += usize::from(farthest < FAR_AWAY);
+            for least in [AWAY, FAR_AWAY] {
+                let mut random = Random::new(main as u64);
+                for _ in 0..20 {
+                    let tendency = Tendency::chosen(lean, Some(main), least, &mut random);
+                    let off = turn(f64::from(tendency.hue), main).abs();
+                    assert_eq!(tendency.lean, lean);
+                    if farthest >= least {
+                        assert!(off >= least, "{lean:?} {main} {least}: {tendency:?}");
+                    } else {
+                        assert_eq!(off, farthest, "{lean:?} {main}: the farthest");
+                    }
+                }
             }
         }
     }
+    // Some crops have no hue of a lean `FAR_AWAY` from theirs: an orange one none of the warm leans'.
+    assert!((1..4 * 72).contains(&fell_back), "{fell_back}");
+    let far = Tendency::chosen(Lean::WarmPure, Some(60.0), FAR_AWAY, &mut Random::new(1));
+    assert_eq!(
+        far.hue, 350,
+        "the warm end farthest from orange: a magenta red"
+    );
+    let cool = Tendency::chosen(Lean::CoolGrey, Some(60.0), FAR_AWAY, &mut Random::new(1));
+    assert!(
+        turn(f64::from(cool.hue), 60.0).abs() >= FAR_AWAY,
+        "{cool:?}"
+    );
+    // Without a main hue any of the lean's hues, however far asked.
+    let mut random = Random::new(5);
+    let any: Vec<u16> = (0..200)
+        .map(|_| Tendency::chosen(Lean::CoolPure, None, FAR_AWAY, &mut random).hue)
+        .collect();
+    assert!(hues(Lean::CoolPure).iter().all(|hue| any.contains(hue)));
     // A crop of rust oranges has an orange main hue; a grey one none.
     let rust = Areas::of_map([2, 1], vec![0, 1], vec![[180, 90, 40], [140, 70, 40]]).unwrap();
     let hue = main_hue(&rust).expect("a main hue");
@@ -107,7 +155,8 @@ fn the_rule_keeps_lightness_and_moves_greys_most_opposites_a_little_the_lightest
 fn shifts_made_by_rule_are_marked_nowhere_and_neighbours_stay_apart() {
     for areas in examples() {
         for (k, lean) in Lean::ALL.into_iter().enumerate() {
-            let tendency = Tendency::chosen(lean, main_hue(&areas), &mut Random::new(k as u64));
+            let random = &mut Random::new(k as u64);
+            let tendency = Tendency::chosen(lean, main_hue(&areas), AWAY, random);
             let shifted: Vec<Option<Rgb8>> =
                 tendency.shifted(&areas).into_iter().map(Some).collect();
             let check = KeyCheck::of(&areas, &shifted, tendency);
@@ -129,7 +178,7 @@ fn shifts_made_by_rule_are_marked_nowhere_and_neighbours_stay_apart() {
 #[test]
 fn a_broken_lightness_an_area_left_behind_and_merged_neighbours_are_each_marked() {
     let areas = &examples()[0];
-    let tendency = Tendency::chosen(Lean::CoolPure, main_hue(areas), &mut Random::new(3));
+    let tendency = Tendency::chosen(Lean::CoolPure, main_hue(areas), AWAY, &mut Random::new(3));
     let shifted = tendency.shifted(areas);
     let middle = (0..areas.count())
         .find(|a| (0.3..0.75).contains(&lab(shifted[*a])[0]))
@@ -220,30 +269,26 @@ fn in_a_row(pictures: &Pictures, level: SkillLevel, count: usize) -> Vec<(Tenden
     laid
 }
 
+/// The second level's first four key shifts on `crops(8)` (tendency code, crop) as 49edc6e laid
+/// them, before S140.
+const PINNED_SECOND: [(u8, &str); 4] = [
+    (11, "crop-3"),
+    (59, "crop-4"),
+    (83, "crop-2"),
+    (131, "crop-5"),
+];
+
 #[test]
-fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue() {
+fn a_key_shift_s_lesson_turns_every_lean_at_every_level_its_hue_far_at_the_third() {
     let pictures = Pictures::of(&[crops(8)]);
     let skill = Skill::of_key("key-shift").expect("the key shifts");
     assert_eq!(skill.needs(), Needs::Crops);
     let main = main_hue(&crops(1).items[0].areas.clone().unwrap()).unwrap();
-    let leans = |level| -> Vec<Lean> {
+    // Every level every lean in turn (the plan of 2026-11-06; S139, the first level S140): warm
+    // and cool every lesson, pure and grey every second, so any three in a row hold both of each.
+    for level in SkillLevel::ALL {
         let laid = in_a_row(&pictures, level, 8);
-        for (tendency, _) in &laid {
-            // The crops' main hue is orange-brown: no tendency lies within `AWAY` of it.
-            assert!(
-                turn(f64::from(tendency.hue), main).abs() >= AWAY,
-                "{level:?}"
-            );
-        }
-        laid.iter().map(|(tendency, _)| tendency.lean).collect()
-    };
-    // The first level as before S122 (the First-prefix rule): warm, pure and grey in turn.
-    let first = leans(SkillLevel::First);
-    assert_eq!(first[..4], [Lean::WarmPure, Lean::WarmGrey].repeat(2));
-    // The second and the third every lean in turn (S139, the plan of 2026-11-06): warm and cool
-    // every lesson, pure and grey every second, so any three lessons in a row hold both of each.
-    for level in [SkillLevel::Second, SkillLevel::Third] {
-        let turned = leans(level);
+        let turned: Vec<Lean> = laid.iter().map(|(tendency, _)| tendency.lean).collect();
         assert_eq!(turned[..4], Lean::ALL, "{level:?}");
         assert_eq!(turned[4..], Lean::ALL, "{level:?}: round again");
         for three in turned.windows(3) {
@@ -254,8 +299,27 @@ fn a_key_shift_s_lesson_is_one_crop_its_tendency_by_level_never_near_its_own_hue
                 "{three:?}"
             );
         }
+        // The crops' main hue is orange-brown: no tendency within `AWAY` of it, none within
+        // `FAR_AWAY` at the third level but the warm leans' farthest.
+        let least = if level == SkillLevel::Third {
+            FAR_AWAY
+        } else {
+            AWAY
+        };
+        for (tendency, _) in &laid {
+            let off = turn(f64::from(tendency.hue), main).abs();
+            let want = least.min(farthest(tendency.lean, main));
+            assert!(off >= want, "{level:?}: {tendency:?}");
+        }
     }
-    // Every level picks its crops alike: none twice while another is left.
+    // Same seed, same exercise: the second level lays what it laid before S140 (its crops of
+    // five areas fall back to these simple ones), every tendency an existing variant.
+    let laid = in_a_row(&pictures, SkillLevel::Second, 4);
+    let second: Vec<(u8, &str)> = (laid.iter())
+        .map(|(tendency, crop)| (tendency.code(), crop.item.as_str()))
+        .collect();
+    assert_eq!(second, PINNED_SECOND);
+    // Every level picks its crops alike here: none twice while another is left.
     let crops_of = |level| -> Vec<ItemRef> {
         let laid = in_a_row(&pictures, level, 8);
         laid.into_iter().map(|(_, crop)| crop).collect()

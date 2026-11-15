@@ -75,7 +75,7 @@ pub use kinds::free_boxes::FreePage;
 pub use kinds::free_boxes::marks::FreeCompared;
 pub use kinds::free_boxes::perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
 pub use kinds::generated_combinations::AREAS_SIDE;
-pub use kinds::key_shifts::key_shift::{AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
+pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{
     APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_AREAS, NEAR_SHARE, toward,
 };

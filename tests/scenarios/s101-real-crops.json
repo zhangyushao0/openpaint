@@ -8,7 +8,8 @@
     "Copy: a dull tone filled, then strokes of Big in a colour of my own, one of them across where two areas meet; Undo takes the last stroke back, Redo returns it.",
     "Compare: the crop over my copy at half strength under Original shown; a chip per area the pack found in the crop (its colour over mine); the chosen area's pair on the wheel and in the colour table, its outline on both frames; where my copy made one of the crop's weak contrasts strong, that edge red. Another chip shows its area. The eyedropper on the crop compares the crop's own colour there with mine.",
     "Finish, That's all for today, and a second lesson of Colour combinations: another crop, none twice while others are left. Home leaves it under way; Start on the home reopens it at its crop.",
-    "Home, and a third lesson of Colour combinations: a third crop.",
+    "Home, and a third lesson of Colour combinations: the first level lays only crops of three or four areas (S140: V大, a picture that does not split into a few big blocks is not for a beginner); the test pack holds two, so the first comes again.",
+    "Levels (S140): back in English, a lesson at level 2 (熟练) lays a crop of five areas, the blocks; at level 3 (稳) one of six or seven, and where the packs hold none, as the test pack does, the nearest they hold: the other crop of five, the bands in green and purple.",
     "Chinese: All tools, Actions, 中文: the tools in Chinese; s101-real-crops-zh runs this walk-through on a Chinese tablet, the card, the chips (色块) and the table in Chinese.",
     "Not here: the real packs' crops (judged on their contact sheets under artifacts/packs/); combinations of my own pictures, their answer made on the device (a candidate); a record of a generated combination from 1.18.1 and before, which keeps its strokes and numbers and shows its picture made again from its seed (the app's and the store's tests)."
   ],
@@ -66,6 +67,17 @@
     { "tap": { "at": "中文" } },
     { "tap": { "at": "Actions" } },
     { "tap": { "at": "All tools" } },
-    { "screenshot": { "name": "stage-two-crop-zh" } }
+    { "screenshot": { "name": "stage-two-crop-zh" } },
+    { "tap": { "at": "All tools" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "English" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "All tools" } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "combination", "level": 2 } },
+    { "screenshot": { "name": "combination-level-two" } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "combination", "level": 3 } },
+    { "screenshot": { "name": "combination-level-three" } }
   ]
 }

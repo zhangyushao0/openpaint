@@ -19,7 +19,7 @@
 use std::path::PathBuf;
 
 use openpaint_practice::{
-    Areas, KeyCheck, LIGHTEST, Lean, PictureKind, Random, Rgb8, Tendency, delta_e, derived,
+    AWAY, Areas, KeyCheck, LIGHTEST, Lean, PictureKind, Random, Rgb8, Tendency, delta_e, derived,
     from_oklab, main_hue, oklab, toward,
 };
 use openpaint_practice_store::open_pack;
@@ -129,7 +129,7 @@ fn judged(index: usize, crop: &Crop) -> Row {
     let areas = &crop.areas;
     let mut random = Random::new(derived(SEED, index as u64));
     let lean = Lean::ALL[index % Lean::ALL.len()];
-    let tendency = Tendency::chosen(lean, main_hue(areas), &mut random);
+    let tendency = Tendency::chosen(lean, main_hue(areas), AWAY, &mut random);
     let shifted = tendency.shifted(areas);
     let size = size_of(crop.size);
     let level = index % 3;

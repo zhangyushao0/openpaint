@@ -7,8 +7,9 @@
 //! picked alike among those not shown in the last ten lessons, one of those only when none other
 //! is left, never one the lesson holds already while another is left; for value masses (S96)
 //! only among those whose masses read (the pack holds them). A crop (S101) is picked by its own
-//! sequence among those no earlier lesson showed, any again once each was, for a
-//! colour combination or a key shift (S107, which also reads its main hue).
+//! sequence among those of its tier (S140, by its areas; the nearest tier held where none, the
+//! easier first) or, untiered, among them all, those no earlier lesson showed first, any again
+//! once each was, for a colour combination or a key shift (S107, which also reads its main hue).
 
 use std::collections::HashSet;
 
@@ -90,13 +91,18 @@ impl Pictures {
         !self.crops.is_empty()
     }
 
-    /// A crop picked by `random` among those not `used` before while any is left (S101), with its
-    /// tier; none without crops.
+    /// A crop of `tier` or of the nearest tier with any (S140), of any tier without one, picked by
+    /// `random` among those not `used` before while any is left (S101), with its tier; none
+    /// without crops.
     pub(crate) fn pick_crop(
         &self,
+        tier: Option<Tier>,
         random: &mut Random,
         used: &HashSet<ItemRef>,
     ) -> Option<(Tier, ItemRef)> {
+        if let Some(tier) = tier {
+            return nearest(&self.crops, tier, |of| chosen(of, random, used));
+        }
         let all: Vec<&ItemRef> = self.crops.iter().map(|(_, item)| item).collect();
         let item = chosen(&all, random, used)?;
         let tier = (self.crops.iter()).find_map(|(tier, held)| (*held == item).then_some(*tier));

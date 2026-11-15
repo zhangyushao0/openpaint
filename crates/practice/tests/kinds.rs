@@ -168,13 +168,13 @@ fn pack(id: &str, kind: PictureKind, tiers: &[Tier]) -> Pack {
     }
 }
 
-/// Shapes of every tier, compositions of the three tiers they come in, crops.
+/// Shapes of every tier, compositions and crops of the three tiers they come in.
 fn every_picture() -> Pictures {
     let composed = [Tier::Simple, Tier::Medium, Tier::Hard];
     Pictures::of(&[
         pack("test-shapes", PictureKind::Shape, &Tier::ALL),
         pack("test-compositions", PictureKind::Composition, &composed),
-        pack("test-crops", PictureKind::Crop, &[Tier::Simple]),
+        pack("test-crops", PictureKind::Crop, &composed),
     ])
 }
 
@@ -266,13 +266,14 @@ fn every_skill_at_every_level_lays_a_few_minutes_that_generate_print_and_compare
         // A lesson of one exercise fills its window over three; others over six.
         let window = if levels[0].len() == 1 { 3 } else { 6 };
         assert_eq!(skill.window(), window, "{}", skill.key());
-        // Each level is another lesson but where the kind has nothing harder to offer (a key
-        // shift's levels differ only in the turn of their tendencies, S139).
+        // Each level is another lesson but where the kind has nothing harder to offer, or offers
+        // it in what its kind does not hold (a key shift's crop by its level, and its third
+        // level's far tendency, which the second may draw too: S140).
         let key = skill.key();
-        if !["combination", "key-shift"].contains(&key) {
+        if key != "key-shift" {
             assert_ne!(levels[0], levels[1], "{key}: the second level");
         }
-        if !["combination", "box", "key-shift"].contains(&key) {
+        if !["box", "key-shift"].contains(&key) {
             assert_ne!(levels[1], levels[2], "{key}: the third level");
         }
     }

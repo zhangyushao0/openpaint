@@ -2,10 +2,11 @@
 //! copy is read (`reading.rs`), the How, the tile and the lessons.
 //!
 //! A lesson holds one key shift (about 6 minutes), a crop none shown before while any is left,
-//! its tendency's hue never near the crop's own main hue: the first level a warm tendency, pure
-//! and grey in turn (the First-prefix rule); the second and the third every lean in turn
-//! (`Lean::ALL`: warm and cool each lesson, pure and grey every second, so no colour habit
-//! forms), their crops picked as the first level's.
+//! its tendency's lean in turn at every level (`Lean::ALL`: warm and cool each lesson, pure and
+//! grey every second, so no colour habit forms; unit 5's plan of 2026-11-06, S140). The levels
+//! differ in their crops and how far the tendency lies from the crop's main hue (S140): the first
+//! any crop, `AWAY`; the second a crop of five areas, `AWAY`; the third one of six or seven,
+//! `FAR_AWAY` (the nearest tier the packs hold where they hold none).
 
 pub(crate) mod demo;
 pub(crate) mod key_shift;
@@ -16,7 +17,7 @@ pub(crate) mod reading;
 
 use std::sync::Arc;
 
-use crate::course::picker::{Picker, in_turn};
+use crate::course::picker::Picker;
 use crate::demos::demo::Demo;
 use crate::kinds::{
     Blank, Described, Facts, Kind, Needs, Original, Picking, SkillLevel, ToolSet, Turn, held,
@@ -27,16 +28,13 @@ use crate::marks::tile::{TileMark, closed, square};
 use crate::maths::random::{Random, derived};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sheets::exercise::Exercise;
-use key_shift::{Lean, Tendency};
+use key_shift::{AWAY, FAR_AWAY, Lean, Tendency};
 
 pub(crate) struct KeyShifts;
 
 const FACTS: [Facts; 1] = [Facts::of("key-shift", ToolSet::PAINTING, 360)
     .picks(Picking::LOCKED)
     .needs(Needs::Crops)];
-/// How many key shifts a lesson's place turns through at the first level (as unit 5's drills
-/// held them before S122), the leans in turn across them.
-const TURNED: usize = 2;
 
 impl Described for KeyShifts {
     fn code(&self) -> u8 {
@@ -73,11 +71,13 @@ impl Described for KeyShifts {
     }
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
-        let lean = match level {
-            SkillLevel::First => in_turn(&Lean::ALL, turn.turn, TURNED)[0],
-            SkillLevel::Second | SkillLevel::Third => Lean::ALL[turn.turn % Lean::ALL.len()],
+        let lean = Lean::ALL[turn.turn % Lean::ALL.len()];
+        let (tier, least) = match level {
+            SkillLevel::First => (None, AWAY),
+            SkillLevel::Second => (Some(Tier::Medium), AWAY),
+            SkillLevel::Third => (Some(Tier::Hard), FAR_AWAY),
         };
-        key_shift(lean, turn).into_iter().collect()
+        key_shift((lean, least), tier, turn).into_iter().collect()
     }
 
     fn window(&self) -> usize {
@@ -133,12 +133,17 @@ impl Original for Shift {
     }
 }
 
-/// A key shift of `lean` on a crop `turn`'s picker picks, its tendency's hue picked by the seed's
-/// own sequence among those away from the crop's main hue; none without crops.
-fn key_shift(lean: Lean, turn: &Turn<'_>) -> Option<(Kind, Option<ItemRef>)> {
+/// A key shift of `lean` on a crop of `tier` (any without one) `turn`'s picker picks, its
+/// tendency's hue picked by the seed's own sequence among those at least `least` degrees from the
+/// crop's main hue; none without crops.
+fn key_shift(
+    (lean, least): (Lean, f64),
+    tier: Option<Tier>,
+    turn: &Turn<'_>,
+) -> Option<(Kind, Option<ItemRef>)> {
     let mut random = Random::new(derived(turn.seed, u64::MAX - 3));
-    let (_, item) = Picker::new(turn, Tier::Simple).picked_crop()?;
+    let (_, item) = Picker::new(turn, Tier::Simple).picked_crop(tier)?;
     let main = turn.pictures.crop_hue(&item);
-    let tendency = Tendency::chosen(lean, main, &mut random);
+    let tendency = Tendency::chosen(lean, main, least, &mut random);
     Some((Kind::KeyShift(tendency), Some(item)))
 }

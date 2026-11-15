@@ -41,7 +41,8 @@ fn what_only_the_eye_judges_says_eye_however_it_was_drawn() {
             (Kind::Crop(tier), Some(&picture)),
         ]);
     }
-    let tendency = Tendency::chosen(Lean::ALL[0], None, &mut openpaint_practice::Random::new(1));
+    let random = &mut openpaint_practice::Random::new(1);
+    let tendency = Tendency::chosen(Lean::ALL[0], None, openpaint_practice::AWAY, random);
     kinds.push((Kind::KeyShift(tendency), Some(&picture)));
     // Lines across the frame and a box's corner, as anyone might draw.
     let drawn = steady(

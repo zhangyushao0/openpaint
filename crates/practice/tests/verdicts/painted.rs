@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Arrangement, Compare, Exercise, GeneratedAreas, Kind, Lean, Lightness, Masses,
+    AWAY, Areas, Arrangement, Compare, Exercise, GeneratedAreas, Kind, Lean, Lightness, Masses,
     MassesShown, PictureFit, Point, Purity, Random, Rgb8, ScaleTone, SheetPicture, Tendency, Tier,
     Tone, Value, ValueMasses, ValueScale, Verdict, from_oklab, main_hue, oklab,
 };
@@ -210,7 +210,8 @@ fn value_masses_are_near_with_a_corner_off_redo_with_half_and_incomplete_half_ba
 fn a_key_shift_is_near_with_one_area_marked_redo_with_two_incomplete_with_one_bare() {
     let areas =
         openpaint_practice::GeneratedAreas::generate(Arrangement::Patches, 0x5EED_0107).areas;
-    let tendency = Tendency::chosen(Lean::CoolPure, main_hue(&areas), &mut Random::new(3));
+    let main = main_hue(&areas);
+    let tendency = Tendency::chosen(Lean::CoolPure, main, AWAY, &mut Random::new(3));
     let picture = SheetPicture {
         item: openpaint_practice::ItemRef::default(),
         size: [SIDE, SIDE],
