@@ -60,7 +60,10 @@ fn before_anything_is_practised_the_path_offers_the_first_lesson() {
     // Unit 8's organic arrows, contours and form intersections (S156) need no pack; it ends with
     // contrast thumbnails (S154), which lack compositions without one.
     let eighth = &path.units[7].skills;
-    assert!(eighth[..3].iter().all(|tile| tile.lacks.is_none()), "{eighth:?}");
+    assert!(
+        eighth[..3].iter().all(|tile| tile.lacks.is_none()),
+        "{eighth:?}"
+    );
     assert!(
         eighth.last().is_some_and(|tile| tile.lacks.is_some()),
         "{eighth:?}"

@@ -19,7 +19,7 @@ pub use fonts::{FontFile, TextFonts};
 pub use icons::{ICON_SIZE, Icon, paint as paint_icon};
 pub use paint::{
     MARK_LINE, Outline, ink_line, paint_divider, paint_mark, paint_pressed, paint_sheet_shadow,
-    panel_frame, surface_frame,
+    panel_frame, sheet_shadow, surface_frame,
 };
 pub use palette::{
     BUTTON_RULE, CHECKER, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL,

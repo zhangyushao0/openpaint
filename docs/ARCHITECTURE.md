@@ -83,12 +83,13 @@ No public mutable setters. Layers come only from `from_storage` (the single full
 pub enum Kind { Line(LineTier), Colour(Tone), Combined(Combination), Shape(Tier),
                 Scale(ScaleTone, u8), Study, Box(BoxView), FreeBoxes(Horizon),
                 Ellipse(Guide), Flat(Estimate), Space(Trick), Solid(Solid),
-                Object(Carve), Division(Tier), WholeCopy(Tier), ValueMasses(Tier), Crop(Tier),
+                Object(Carve), Division(Tier), WholeCopy(Tier), ValueMasses(Massing), Crop(Tier),
                 KeyShift(Tendency), Free, Analysis(Tier), Rotation(Rotation), Observation,
                 GamutMask(Mask), Placement(Placement), Light(Lit), Shadows(Throw),
                 CurvedRotation(CurvedRotation), LitColour(LitColour), Texture(Texture),
-                Thumbnail(Emphasis), ColdWarm(Leans) }
-                // (code 1..=32 but 5, variant)
+                Thumbnail(Emphasis), ColdWarm(Leans), Arrow(Arrow), Contour(Bend),
+                Intersection(Meeting), Ghosted(Ghosted) }
+                // (code 1..=36 but 5, variant); Massing { Three(Tier), Two(Tier) } (Notan, S156)
 pub struct Skill(u8);  pub enum SkillLevel { First, Second, Third }  // a kind's folder (D115)
 pub struct Exercise { kind: Kind, seed: u64, picture: Option<ItemRef> }  // original() -> Arc<dyn Original>
 trait Described { code, facts, variant, topic(Kind), generate(&Exercise), how(Kind, cells), lesson, window, glyph }
@@ -119,9 +120,11 @@ impl Areas { fn found(size, rgba) -> Found; fn read(size, rgba, paper) -> AreasC
 pub fn candidates(size, rgba, Places) -> Vec<Crop>;  pub fn best(Vec<Crop>, count) -> Vec<Crop>;
 impl ValueScale { fn read(size, rgba, paper) -> ScaleCheck }
 pub fn edges(lines: &[&[Point]]) -> Vec<Edge>;  pub fn corrected(earlier, corrections) -> Vec<Edge>;
-// Boxes, free boxes, ellipses, solids, objects, rotations: no check, the answer laid for the eye (D123)
+// Boxes, free boxes, ellipses, solids, objects, rotations, arrows, contours, intersections, ghosted
+// lines: no check, the answer laid for the eye (D123)
 enum Light { Sun(Vector), Lamp(Vector) }  // geometry/light.rs (S153): shadows on a plane, a pin's sun,
-                                          // vanishing points; the objects' Body casts rays and holds balls
+                                          // vanishing points; the objects' Body casts rays and holds
+                                          // balls and capsules (a contour's tube, S156k)
 impl SpacePath { fn through(&[Vector]); fn at(s); fn samples(n, up, &[Turn]) -> Vec<Sample> }  // geometry/space_path/ (S155):
                                           // centripetal Catmull-Rom, even by length, rotation-minimising frames
 ```

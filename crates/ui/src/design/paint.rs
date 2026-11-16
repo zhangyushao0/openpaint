@@ -130,15 +130,20 @@ pub fn ink_line(painter: &egui::Painter, points: &[Pos2], stroke: Stroke) {
 /// The soft shadow of a sheet whose corners are `corners` (a rectangle, turned any way, corners
 /// in order) on the desk: it lies wholly outside the sheet, a little deeper below it.
 pub fn paint_sheet_shadow(painter: &egui::Painter, corners: [Pos2; 4]) {
-    let alpha = f32::from(SHEET_SHADOW);
-    // A tight contact shadow, then a wide soft one dropped a little.
-    for (size, share, drop) in [(2.0, 0.7, 0.0), (3.0 * SPACE, 0.45, SPACE / 2.0)] {
-        let strength = (alpha * share).round() as u8;
-        shadow_ring(painter, corners, size, Vec2::new(0.0, drop), strength);
-    }
+    painter.extend(sheet_shadow(corners));
 }
 
-fn shadow_ring(painter: &egui::Painter, corners: [Pos2; 4], size: f32, drop: Vec2, alpha: u8) {
+/// That shadow's shapes, for a sheet laid behind what it holds once its size is known.
+pub fn sheet_shadow(corners: [Pos2; 4]) -> [Shape; 2] {
+    let alpha = f32::from(SHEET_SHADOW);
+    // A tight contact shadow, then a wide soft one dropped a little.
+    [(2.0, 0.7, 0.0), (3.0 * SPACE, 0.45, SPACE / 2.0)].map(|(size, share, drop)| {
+        let strength = (alpha * share).round() as u8;
+        shadow_ring(corners, size, Vec2::new(0.0, drop), strength)
+    })
+}
+
+fn shadow_ring(corners: [Pos2; 4], size: f32, drop: Vec2, alpha: u8) -> Shape {
     let centre = corners.iter().fold(Vec2::ZERO, |sum, c| sum + c.to_vec2()) / 4.0;
     // The edge from `a` to `b`'s normal, pointing away from the middle.
     let outward = |a: Pos2, b: Pos2| {
@@ -172,5 +177,5 @@ fn shadow_ring(painter: &egui::Painter, corners: [Pos2; 4], size: f32, drop: Vec
         mesh.add_triangle(a, b, d);
         mesh.add_triangle(a, d, c);
     }
-    painter.add(Shape::mesh(mesh));
+    Shape::mesh(mesh)
 }

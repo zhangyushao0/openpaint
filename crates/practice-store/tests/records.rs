@@ -26,7 +26,7 @@ fn artwork() -> Artwork {
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 
-/// Unit 1's three skills in one lesson, the `id`th sheet, seeded `seed`, after the lessons of
+/// Three of unit 1's skills in one lesson, the `id`th sheet, seeded `seed`, after the lessons of
 /// `before`: a line, a group and a colour, then a lesson of each.
 fn mixed_lesson(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
     let standing = Standing {

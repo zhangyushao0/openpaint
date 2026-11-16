@@ -19,6 +19,7 @@ mod pomodoro;
 mod pomodoro_tests;
 #[cfg(test)]
 mod tests;
+mod tiles;
 
 use egui::emath::TSTransform;
 use egui::{Context, Rect, Shape, Ui};

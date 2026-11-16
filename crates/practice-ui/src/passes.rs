@@ -1,6 +1,6 @@
-//! Headless egui passes for the screens' tests: a 1440 by 900 point screen in the theme and a
-//! language, the controls each pass registered and what it drew (its words, its outlines in a
-//! colour), and a tap by a control's name.
+//! Headless egui passes for the screens' tests: a 1440 by 900 point screen (or the tablet's)
+//! in the theme and a language, the controls each pass registered and what it drew (its words,
+//! its outlines in a colour), and a tap by a control's name.
 
 use egui::{Color32, Context, Pos2, Rect, Shape, Ui};
 use openpaint_ui::ControlMap;
@@ -8,8 +8,11 @@ use openpaint_ui::components::{chrome, controls};
 
 use crate::text::{Language, set_language};
 
-/// The screen the passes lay out on, in points.
+/// The screen the passes lay out on, and the tablet's in landscape (2880 by 1800 at 1.75), in
+/// points.
 pub(crate) const SCREEN: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1440.0, 900.0));
+pub(crate) const TABLET: Rect =
+    Rect::from_min_max(Pos2::ZERO, Pos2::new(2880.0 / 1.75, 1800.0 / 1.75));
 
 /// A context in the theme.
 pub(crate) fn context() -> Context {
@@ -28,14 +31,34 @@ pub(crate) fn pass(
     drawn(ctx, at, add).0
 }
 
+/// As `pass` on `screen`.
+pub(crate) fn pass_on(
+    ctx: &Context,
+    screen: Rect,
+    at: (f64, Language, Vec<egui::Event>),
+    add: impl FnMut(&mut Ui),
+) -> ControlMap {
+    drawn_on(ctx, screen, at, add).0
+}
+
 /// As `pass`, with what it drew: each shape, groups flattened.
 pub(crate) fn drawn(
     ctx: &Context,
+    at: (f64, Language, Vec<egui::Event>),
+    add: impl FnMut(&mut Ui),
+) -> (ControlMap, Vec<Shape>) {
+    drawn_on(ctx, SCREEN, at, add)
+}
+
+/// As `drawn` on `screen`.
+fn drawn_on(
+    ctx: &Context,
+    screen: Rect,
     (time, language, events): (f64, Language, Vec<egui::Event>),
     mut add: impl FnMut(&mut Ui),
 ) -> (ControlMap, Vec<Shape>) {
     let input = egui::RawInput {
-        screen_rect: Some(SCREEN),
+        screen_rect: Some(screen),
         time: Some(time),
         events,
         ..Default::default()

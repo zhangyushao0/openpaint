@@ -13,7 +13,7 @@ mod cards;
 
 use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Stroke, TextStyle, UiBuilder, Vec2};
 use openpaint_app::Language;
-use openpaint_practice_app::{PathProjection, Start, UnitShown};
+use openpaint_practice_app::{PathProjection, SkillShown, Start, UnitShown};
 use openpaint_ui::components::chrome::{self, Source};
 use openpaint_ui::components::{
     ISLAND_TOP, Place, UNDER_ISLANDS, controls, island, paper, text_button,
@@ -25,7 +25,7 @@ use openpaint_ui::design::{
 use super::column::{label, next_lesson, review};
 use super::options::Shelf;
 use super::{HomePart, Taps};
-use crate::components::{SkillTile, paint_seal, seal_turn, skill_tile};
+use crate::components::{SkillTile, TileRow, paint_seal, seal_turn, skill_tile};
 use crate::palette::PENCIL;
 use crate::text::{self as t, Words};
 use cards::{homework_card, life_card};
@@ -254,34 +254,7 @@ fn unit_skills(
     column.label(title);
     column.add_space(2.0 * SPACE);
     let skills = shown.map_or(&[][..], |unit| &unit.skills[..]);
-    let next = path.next.map(|offer| offer.skill);
-    let across = ((column.available_width() + 2.0 * SPACE) / (TILE + 2.0 * SPACE))
-        .floor()
-        .max(1.0);
-    let width = ((column.available_width() - 2.0 * SPACE * (across - 1.0)) / across).min(TILE);
-    let mut tapped = None;
-    for row in skills.chunks(across as usize) {
-        column.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::splat(2.0 * SPACE);
-            for skill in row {
-                let name = t::skill_name(skill.skill);
-                let lacks = skill.lacks.map(|needs| Words::from(t::needs(needs)));
-                let tile = SkillTile {
-                    skill: skill.skill,
-                    name: name.into(),
-                    dots: skill.dots,
-                    lacks,
-                    next: next == Some(skill.skill) && !path.first,
-                    small: false,
-                };
-                let response = skill_tile(ui, &tile, width);
-                if response.clicked() {
-                    tapped = Some(Tapped::Start(Start::Skill(skill.skill), response.rect));
-                }
-            }
-        });
-        column.add_space(2.0 * SPACE);
-    }
+    let mut tapped = skill_tiles(&mut column, path, skills);
     if skills.is_empty() {
         label(&mut column, t::UNIT_IN_THE_MAKING);
     }
@@ -298,6 +271,45 @@ fn unit_skills(
         rect.max,
     );
     seals_and_book(ui, foot, path).or(tapped)
+}
+
+/// `skills`' tiles, as many a row as `TILE` wide fit; the tile tapped.
+fn skill_tiles(
+    column: &mut egui::Ui,
+    path: &PathProjection,
+    skills: &[SkillShown],
+) -> Option<Tapped> {
+    let next = path.next.map(|offer| offer.skill);
+    let across = ((column.available_width() + 2.0 * SPACE) / (TILE + 2.0 * SPACE))
+        .floor()
+        .max(1.0);
+    let width = ((column.available_width() - 2.0 * SPACE * (across - 1.0)) / across).min(TILE);
+    let lacks = |skill: &SkillShown| skill.lacks.map(|needs| Words::from(t::needs(needs)));
+    let words = |skill: &SkillShown| (Words::from(t::skill_name(skill.skill)), lacks(skill));
+    let laid = TileRow::of(column, skills.iter().map(words), width);
+    let mut tapped = None;
+    for row in skills.chunks(across as usize) {
+        column.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::splat(2.0 * SPACE);
+            for skill in row {
+                let tile = SkillTile {
+                    skill: skill.skill,
+                    name: t::skill_name(skill.skill).into(),
+                    dots: skill.dots,
+                    lacks: lacks(skill),
+                    next: next == Some(skill.skill) && !path.first,
+                    small: false,
+                    row: laid,
+                };
+                let response = skill_tile(ui, &tile, width);
+                if response.clicked() {
+                    tapped = Some(Tapped::Start(Start::Skill(skill.skill), response.rect));
+                }
+            }
+        });
+        column.add_space(2.0 * SPACE);
+    }
+    tapped
 }
 
 /// The seals earned along `foot`, then Practice book.

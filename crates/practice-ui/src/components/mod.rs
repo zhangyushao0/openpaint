@@ -14,4 +14,4 @@ pub(crate) use copy_card::paint_copy;
 pub(crate) use marks::{DOTS, paint_dots, paint_result};
 pub(crate) use ring::{Ring, paint_ring};
 pub(crate) use seal::{paint_seal, paint_square, seal_turn};
-pub(crate) use skill_tile::{SMALL_TILE_HEIGHT, SkillTile, skill_tile};
+pub(crate) use skill_tile::{NARROWEST_SMALL, SkillTile, TileRow, skill_tile};

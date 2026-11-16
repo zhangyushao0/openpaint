@@ -5,28 +5,29 @@
 //! ("Lines 3/6") and Continue, a unit's start re-test in its place while due (S147); under a rule,
 //! while a redo waits, the review on the side (its skill, two exercises; Review); while a unit's
 //! end re-test is due its row (Re-test); under another the unit in hand's skills as small tiles with
-//! their dots (a tap starts that skill's lesson, as on the path); at the sheet's foot All units
-//! (the path page grows out of it) and Practice book. No counts of days, no quotas. Under the next
-//! lesson the Pomodoro's row, and at the header's right today's seals (`pomodoro.rs`, S124).
+//! their dots, every one (`tiles.rs`; a tap starts that skill's lesson, as on the path); at the
+//! sheet's foot All units (the path page grows out of it) and Practice book. No counts of days, no
+//! quotas. Under the next lesson the Pomodoro's row, and at the header's right today's seals
+//! (`pomodoro.rs`, S124). The sheet is `SHEET` tall where the column allows, longer only while what
+//! it holds needs it (S156), never past the column.
 
-use egui::{Align, Align2, Layout, Rect, RichText, TextStyle, UiBuilder, Vec2};
-use openpaint_practice::Skill;
+use egui::{
+    Align, Align2, Color32, Layout, Rect, RichText, Shape, TextStyle, UiBuilder, Vec2, pos2,
+};
 use openpaint_practice_app::{BlockShown, PathProjection, Start, TimerIntent, TimerShown};
 use openpaint_ui::components::carry::Opening;
-use openpaint_ui::components::{icon_button, paint_sheet, pill_button, text_button};
-use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET};
+use openpaint_ui::components::{icon_button, pill_button, text_button};
+use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, sheet_shadow};
 
 use super::pomodoro::{pomodoro_row, today_seals};
+use super::tiles::unit_tiles;
 use super::{FIRST, HomePart, Taps};
-use crate::components::{SMALL_TILE_HEIGHT, SkillTile, skill_tile};
 use crate::text::{self as t, Text, Words};
 
 /// What the column's sheet holds in from its edges, in points.
 const MARGIN: f32 = 4.0 * SPACE;
-/// The sheet's height at most, in points.
+/// The sheet's height while what it holds fits, in points: the studio beside it keeps the eye.
 const SHEET: f32 = 600.0;
-/// The unit's small tiles in a row.
-const ACROSS: usize = 3;
 
 /// What a tap in the column asks.
 enum Tapped {
@@ -49,15 +50,12 @@ impl HomePart {
         (taps, timed): (Taps<'_>, &mut Vec<TimerIntent>),
     ) -> Rect {
         let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), TOUCH_TARGET));
-        let sheet = Rect::from_min_max(rect.min + Vec2::new(0.0, TOUCH_TARGET + SPACE), rect.max);
-        // No taller than its lessons need: the studio beside it keeps the eye.
-        let sheet = Rect::from_min_size(
-            sheet.min,
-            Vec2::new(sheet.width(), sheet.height().min(SHEET)),
-        );
+        let room = Rect::from_min_max(rect.min + Vec2::new(0.0, TOUCH_TARGET + SPACE), rect.max);
         let options = heading(ui, head, path, (enabled, timer.sealed));
-        paint_sheet(ui.painter(), None, sheet, egui::Color32::WHITE);
-        let inner = sheet.shrink(MARGIN);
+        // The sheet lies behind what it holds, laid once its length is known.
+        let behind = ui.painter().add(Shape::Noop);
+        let inner = room.shrink(MARGIN);
+        let least = inner.bottom().min(room.top() + SHEET - MARGIN);
         let mut page = ui.new_child(
             UiBuilder::new()
                 .id_salt("practice column")
@@ -65,7 +63,7 @@ impl HomePart {
                 .layout(Layout::top_down(Align::Min)),
         );
         page.spacing_mut().item_spacing = Vec2::new(SPACE, SPACE);
-        let (tapped, book) = page
+        let (tapped, book, bottom) = page
             .add_enabled_ui(enabled, |ui| {
                 // While a block is under way the row's Continue opens its lesson.
                 let timed = (timer.block.as_ref()).is_some_and(|block| {
@@ -81,10 +79,15 @@ impl HomePart {
                 let tile = unit_tiles(ui, path, inner.bottom() - TOUCH_TARGET - SPACE);
                 let tile = tile.map(|(skill, from)| Tapped::Start(Start::Skill(skill), from));
                 let tapped = reviewed.or(retested).or(next).or(row).or(tile);
-                let (foot, book) = foot(ui, inner);
-                (foot.or(tapped), book)
+                // The foot under the tiles, at the sheet's least length's foot while they fit.
+                let bottom = (ui.cursor().top() + TOUCH_TARGET).max(least);
+                let under = Rect::from_x_y_ranges(inner.x_range(), bottom - TOUCH_TARGET..=bottom);
+                let (foot, book) = foot(ui, under);
+                (foot.or(tapped), book, bottom)
             })
             .inner;
+        let sheet = Rect::from_min_max(room.min, pos2(room.right(), bottom + MARGIN));
+        ui.painter().set(behind, sheet_shape(sheet));
         if let Some(tapped) = tapped.or(options.then_some(Tapped::Options)) {
             self.column_tap(tapped, rect, path, (taps, timed));
         }
@@ -248,43 +251,20 @@ fn retest_row(ui: &mut egui::Ui, path: &PathProjection) -> Option<Tapped> {
         .then_some(Tapped::Start(start, tapped.rect))
 }
 
-/// The unit in hand's skills as small tiles with their dots, three a row, as many rows as fit
-/// above `foot` (a skill lacking its pictures greyed, no tap); the skill tapped and where.
-fn unit_tiles(ui: &mut egui::Ui, path: &PathProjection, foot: f32) -> Option<(Skill, Rect)> {
-    let unit = path.units.iter().find(|unit| unit.number == path.unit)?;
-    ui.add_space(SPACE);
-    rule(ui);
-    ui.add_space(SPACE);
-    let gap = 2.0 * SPACE;
-    let width = (ui.available_width() - gap * (ACROSS - 1) as f32) / ACROSS as f32;
-    let next = path
-        .next
-        .map(|offer| offer.skill)
-        .filter(|_| path.open.is_none());
-    let mut tapped = None;
-    for row in unit.skills.chunks(ACROSS) {
-        if ui.cursor().top() + SMALL_TILE_HEIGHT > foot {
-            break;
-        }
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::splat(gap);
-            for shown in row {
-                let tile = SkillTile {
-                    skill: shown.skill,
-                    name: t::skill_name(shown.skill).into(),
-                    dots: shown.dots,
-                    lacks: shown.lacks.map(|needs| Words::from(t::needs(needs))),
-                    next: next == Some(shown.skill),
-                    small: true,
-                };
-                let response = skill_tile(ui, &tile, width);
-                if response.clicked() {
-                    tapped = Some((shown.skill, response.rect));
-                }
-            }
-        });
-    }
-    tapped
+/// The sheet's shapes at `sheet`: its shadow on the desk, its paper.
+fn sheet_shape(sheet: Rect) -> Shape {
+    let corners = [
+        sheet.left_top(),
+        sheet.right_top(),
+        sheet.right_bottom(),
+        sheet.left_bottom(),
+    ];
+    let [contact, soft] = sheet_shadow(corners);
+    Shape::Vec(vec![
+        contact,
+        soft,
+        Shape::rect_filled(sheet, 0.0, Color32::WHITE),
+    ])
 }
 
 /// A hairline across the column.
@@ -295,13 +275,9 @@ pub(super) fn rule(ui: &mut egui::Ui) {
         .hline(rect.x_range(), rect.center().y, (1.0, DIVIDER));
 }
 
-/// All units and Practice book at the foot of `inner`; what was tapped, and where Practice book
-/// lies.
-fn foot(ui: &mut egui::Ui, inner: Rect) -> (Option<Tapped>, Rect) {
-    let row = Rect::from_min_max(
-        inner.left_bottom() - Vec2::new(0.0, TOUCH_TARGET),
-        inner.max,
-    );
+/// All units and Practice book in `row`, the sheet's foot; what was tapped, and where Practice
+/// book lies.
+fn foot(ui: &mut egui::Ui, row: Rect) -> (Option<Tapped>, Rect) {
     let mut foot = ui.new_child(
         UiBuilder::new()
             .id_salt("practice column foot")
