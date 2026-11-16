@@ -80,10 +80,11 @@ texts! { PRACTICE_SKILLS;
     ANALYSIS_SKILL = "Abstract analysis", "抽象分析";
     ROTATION_SKILL = "Structure rotation", "结构翻转";
     GAMUT_SKILL = "Gamut masks", "色域遮罩";
+    PLACEMENT_SKILL = "Placement", "摆放";
 }
 
 /// Each skill's name by its key (`Skill::key`).
-const SKILLS: [(&str, Text); 20] = [
+const SKILLS: [(&str, Text); 21] = [
     ("line", LINES_SKILL),
     ("combined", COMBINED_SKILL),
     ("colour", COLOURS_SKILL),
@@ -104,6 +105,7 @@ const SKILLS: [(&str, Text); 20] = [
     ("abstract-analysis", ANALYSIS_SKILL),
     ("structure-rotation", ROTATION_SKILL),
     ("gamut-mask", GAMUT_SKILL),
+    ("placement", PLACEMENT_SKILL),
 ];
 
 /// A skill's name: "Lines", "Points in space".

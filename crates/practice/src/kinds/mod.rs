@@ -28,6 +28,7 @@ pub(crate) mod key_shifts;
 pub(crate) mod lines;
 pub(crate) mod objects;
 pub(crate) mod observation;
+pub(crate) mod placements;
 pub(crate) mod points_in_space;
 pub(crate) mod rotations;
 pub(crate) mod scales;
@@ -52,8 +53,8 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 24, 5 free): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 23] = [
+/// Every kind, by its stored code (1 to 25, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 24] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -77,4 +78,5 @@ pub(crate) const KINDS: [&dyn Described; 23] = [
     &rotations::Rotations,
     &observation::Observation,
     &gamut_masks::GamutMasks,
+    &placements::Placements,
 ];

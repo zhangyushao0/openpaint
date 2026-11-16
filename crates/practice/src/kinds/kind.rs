@@ -18,6 +18,7 @@ use crate::kinds::gamut_masks::mask::Mask;
 use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::lines::line::LineTier;
 use crate::kinds::objects::object_design::Carve;
+use crate::kinds::placements::placement::Placement;
 use crate::kinds::points_in_space::space::Trick;
 use crate::kinds::rotations::rotation::Rotation;
 use crate::kinds::scales::scale::ScaleTone;
@@ -93,6 +94,9 @@ pub enum Kind {
     /// A crop painted again with only the colours inside a gamut mask laid on the hue and chroma
     /// wheel, its lightness kept (Gurney's gamut mask, S153, `gamut_masks/`).
     GamutMask(Mask),
+    /// A few pieces put on a ground in perspective where a plan seen from above says, at their
+    /// heights (V大's 分布, S153, `placements/`).
+    Placement(Placement),
 }
 
 impl Kind {

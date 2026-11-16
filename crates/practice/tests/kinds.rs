@@ -8,9 +8,9 @@ use std::sync::Arc;
 use openpaint_practice::{
     Areas, Asked, BoxView, Carve, Combination, Copied, DrawnCopy, Estimate, Exercise, Facts, Fill,
     Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Mask, MaskShape,
-    Metric, Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, Rotation,
-    ScaleTone, SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick,
-    ValueMasses, schedule,
+    Metric, Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Placement, Point, Purity, Rgb8,
+    Rotation, ScaleTone, SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone,
+    Trick, ValueMasses, schedule,
 };
 
 /// A kind of every variant the stores may hold.
@@ -46,11 +46,12 @@ fn every_kind() -> Vec<Kind> {
     kinds.push(Kind::Free);
     kinds.push(Kind::Observation);
     kinds.extend(MaskShape::ALL.map(|shape| Kind::GamutMask(Mask { shape, hue: 60 })));
+    kinds.extend(Placement::ALL.map(Kind::Placement));
     kinds
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_four_but_five() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_five_but_five() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -59,13 +60,13 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_four_b
     }
     codes.sort_unstable();
     codes.dedup();
-    let expected: Vec<u8> = (1..=24).filter(|code| *code != 5).collect();
+    let expected: Vec<u8> = (1..=25).filter(|code| *code != 5).collect();
     assert_eq!(codes, expected);
     assert_eq!(Kind::of_code(5, 0), None, "code 5 is free");
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
     // A drawing from life (S151) is kind 23; a gamut mask (S153) 24, its shape times 36 and its
-    // hue's step; no kind is 25.
+    // hue's step; a placement (S153) 25; no kind is 26.
     assert_eq!(Kind::Observation.code(), (23, 0));
     let small = Mask {
         shape: MaskShape::Small,
@@ -73,7 +74,7 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_four_b
     };
     assert_eq!(Kind::GamutMask(small).code(), (24, 2 * 36 + 6));
     assert_eq!(Kind::of_code(24, 108), None);
-    assert_eq!(Kind::of_code(25, 0), None);
+    assert_eq!(Kind::of_code(26, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -110,7 +111,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 33);
+    assert_eq!(topics().len(), 34);
 }
 
 #[test]

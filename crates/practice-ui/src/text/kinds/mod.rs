@@ -26,6 +26,7 @@ mod key_shifts;
 mod lines;
 mod objects;
 mod observation;
+mod placements;
 mod points_in_space;
 mod rotations;
 mod scales;
@@ -90,7 +91,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 23] = [
+const KINDS: [&[KindWords]; 24] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -114,6 +115,7 @@ const KINDS: [&[KindWords]; 23] = [
     &rotations::WORDS,
     &observation::WORDS,
     &gamut_masks::WORDS,
+    &placements::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -192,6 +194,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         value_masses::PRACTICE_VALUE_MASSES,
         whole_copies::PRACTICE_WHOLE_COPIES,
         gamut_masks::PRACTICE_GAMUT_MASKS,
+        placements::PRACTICE_PLACEMENTS,
     ]
 }
 

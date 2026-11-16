@@ -31,7 +31,8 @@ pub const UNITS: [Unit; 8] = [
     unit(5, &[Skill(19), Skill(21), Skill(22)]),
     // Gamut masks.
     unit(6, &[Skill(24)]),
-    unit(7, &[]),
+    // Placement.
+    unit(7, &[Skill(25)]),
     unit(8, &[]),
 ];
 

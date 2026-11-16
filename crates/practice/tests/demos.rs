@@ -3,8 +3,8 @@
 
 use openpaint_practice::{
     BoxView, CELLS, Carve, Combination, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind,
-    Lightness, LineTier, Marker, ObjectTask, On, Point, Purity, Rotation, ScaleTone, Solid, Tier,
-    Tone, Trick, distance, meet,
+    Lightness, LineTier, Marker, ObjectTask, On, Placement, Point, Purity, Rotation, ScaleTone,
+    Solid, Tier, Tone, Trick, distance, meet,
 };
 
 const COLOUR: Tone = Tone {
@@ -13,7 +13,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 28] = [
+const STEPS: [(Kind, usize); 29] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -42,6 +42,7 @@ const STEPS: [(Kind, usize); 28] = [
     (Kind::Colour(COLOUR), 5),
     (Kind::Crop(Tier::Simple), 6),
     (Kind::Scale(ScaleTone::Grey, 9), 4),
+    (Kind::Placement(Placement::ALL[0]), 5),
 ];
 
 fn demo(kind: Kind) -> Demo {
