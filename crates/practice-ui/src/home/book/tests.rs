@@ -1,6 +1,8 @@
 //! Headless passes of a day's card in the practice book: a small red seal for each Pomodoro block
 //! completed that day, none on a day without (S124); a day of three sheets, one of six lessons,
-//! lies within the card over progress, each sheet named within its picture's width (S143).
+//! lies within the card over progress, each sheet named within its picture's width (S143); the
+//! Progress page's curves named and dated, a skill with nothing judged named with no date, a day
+//! alone a dot over its date (S147, S149).
 
 use std::sync::Arc;
 
@@ -183,5 +185,73 @@ fn the_progress_page_draws_a_curve_a_skill_named_and_dated_with_no_number() {
             2,
             "only the two dates hold a number: {numbers:?}"
         );
+    }
+}
+
+/// The lines' book (`curved`) with combined lines practised and nothing of them judged, and
+/// colours judged on one day.
+fn practised() -> BookProjection {
+    let shown = curved();
+    let Some(progress) = &shown.progress else {
+        return shown;
+    };
+    let curve = |key, days: Vec<i64>| Curve {
+        skill: Skill::of_key(key).expect("a skill"),
+        ability: vec![0.0; days.len()],
+        band: vec![0.0; days.len()],
+        days,
+        levels: Vec::new(),
+        retest: None,
+    };
+    let mut curves = progress.curves.clone();
+    curves.extend([curve("combined", Vec::new()), curve("colour", vec![20_740])]);
+    BookProjection {
+        progress: Some(Arc::new(Progress { curves })),
+        ..shown
+    }
+}
+
+#[test]
+fn a_skill_with_nothing_judged_is_named_dateless_and_a_lone_day_is_a_dot_over_its_date() {
+    for language in [Language::English, Language::Chinese] {
+        let ctx = context();
+        let shown = practised();
+        let area = layout(SCREEN)[0].union(layout(SCREEN)[1]);
+        let (_, shapes) = settled_drawn(&ctx, (1.0, language), |ui| {
+            super::progress::curves(ui, area, &shown);
+        });
+        let texts: Vec<(String, Rect)> = (shapes.iter())
+            .filter_map(|shape| match shape {
+                Shape::Text(text) => Some((
+                    text.galley.text().to_owned(),
+                    text.galley.rect.translate(text.pos.to_vec2()),
+                )),
+                _ => None,
+            })
+            .collect();
+        for key in ["line", "combined", "colour"] {
+            let name = t::skill_name(Skill::of_key(key).expect("a skill")).get(language);
+            assert!(texts.iter().any(|(text, _)| text == name), "{key}");
+        }
+        let dated = |text: &&(String, Rect)| text.0.chars().any(|c| c.is_ascii_digit());
+        assert_eq!(
+            texts.iter().filter(dated).count(),
+            3,
+            "lines' two, colours' one"
+        );
+        let date = t::copy_date(language, 20_740);
+        let (_, under) = (texts.iter().find(|(text, _)| *text == date)).expect("its date");
+        let lone: Vec<_> = (shapes.iter())
+            .filter_map(|shape| match shape {
+                Shape::Circle(dot) if (dot.radius - 3.5).abs() < 1e-3 => Some(dot.center),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(lone.len(), 1, "one day alone: {lone:?}");
+        assert!(
+            (lone[0].x - under.left()).abs() < 1.0,
+            "{lone:?} over {under:?}"
+        );
+        assert!(lone[0].y < under.top());
     }
 }

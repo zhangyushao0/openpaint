@@ -4,7 +4,8 @@
 //! kind's verdict cuts one kept number in three, as that number (`Described::measured`) held within
 //! its result's band; and every blind pair of two of its copies on their days, halved where one was
 //! drawn the day the pair was asked (a re-test's own copy). The kept counts and shares whose answer
-//! is one of several (49 to 58) and the retired stroke measures (47, 48) are never read.
+//! is one of several (49 to 58) and the retired stroke measures (47, 48) are never read. Whether a
+//! skill was practised at all, judged or not, names it on the book's page before it has a curve.
 
 use crate::kinds::{Skill, SkillLevel};
 use crate::marks::compared::Outcome;
@@ -122,6 +123,16 @@ pub(crate) fn gathered(
         });
     }
     numbered(&raw)
+}
+
+/// Whether `skill` was laid in a lesson of `sheets` but the first one (a colour copy is no lesson),
+/// judged or not.
+pub(crate) fn practised(skill: Skill, sheets: &[Sheet]) -> bool {
+    (sheets.iter().filter(|sheet| !sheet.is_copy()))
+        .flat_map(|sheet| &sheet.lessons)
+        .filter(|lesson| lesson.picked != Picked::First)
+        .flat_map(|lesson| &lesson.exercises)
+        .any(|laid| Skill::of(laid.exercise.kind) == Some(skill))
 }
 
 /// The local day a copy was compared on (its sheet's start where it never was).

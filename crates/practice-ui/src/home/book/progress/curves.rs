@@ -3,7 +3,9 @@
 //! first practice day to its last as an ink line, days in order, a gap of over a week drawn as a
 //! short break; around it a wash one standard deviation wide; a dot on the line where each level
 //! began, the level's three small dots over it filled as the skill's; a pencil baseline with the
-//! first and the last date under its ends. One scale for every chart, so a flat skill reads flat.
+//! first and the last date under its ends, a day alone a dot over its date. A skill practised with
+//! nothing judged yet is named over a bare baseline (S149). One scale for every chart, so a flat
+//! skill reads flat.
 //! A skill whose re-test pair was answered shows its two copies beside its chart, dated, Re-test
 //! (复测) under them. No axis, no number, no legend.
 
@@ -181,7 +183,8 @@ fn drawn(painter: &egui::Painter, curve: &Curve, point: impl Fn(usize, f64) -> P
     }
 }
 
-/// Each day's place across from `left` to `right`, a gap of over a week a break's steps wide.
+/// Each day's place across from `left` to `right`, a gap of over a week a break's steps wide; a day
+/// alone at `left`, over its date.
 fn places(days: &[i64], (left, right): (f32, f32)) -> Vec<f32> {
     let mut steps = vec![0.0_f32];
     for pair in days.windows(2) {
@@ -194,7 +197,7 @@ fn places(days: &[i64], (left, right): (f32, f32)) -> Vec<f32> {
     }
     let span = steps.last().copied().unwrap_or(0.0);
     if span <= 0.0 {
-        return vec![(left + right) / 2.0; days.len()];
+        return vec![left; days.len()];
     }
     steps
         .iter()

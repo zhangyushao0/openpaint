@@ -1,9 +1,11 @@
 //! Progress from the learner's own judgements (S147) on synthetic learners, as the design's
 //! prototype tried it: an improving learner's curve rises clear of its band, a flat one's stays
 //! within it and is seldom called changed, a level rising reads as no fall, an erratic eye widens
-//! the band, a random one seldom calls a fall; and which pair a lesson's end asks.
+//! the band, a random one seldom calls a fall; and which pair a lesson's end asks. A skill
+//! practised with nothing judged is on the page without a day (`practised.rs`, S149).
 
 mod ask;
+mod practised;
 mod sim;
 
 use openpaint_practice::{Change, Curve, Progress, Skill, SkillFit};

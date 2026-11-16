@@ -4,9 +4,10 @@
 //! hold (`observe.rs`); and which two earlier copies a lesson's end asks to compare (`ask.rs`).
 //! Derived whenever asked (the book, a lesson's end), never stored, as the learner is.
 //!
-//! What is shown of it: a curve a skill, its ability less its first day's with one standard
-//! deviation of that as its band, no number (`Curve`); and, at a lesson's end, whether the model is
-//! sure the skill fell over about four weeks (`Change`), which offers an extra drill.
+//! What is shown of it: a curve a skill practised, its ability less its first day's with one
+//! standard deviation of that as its band, no number (`Curve`), none yet where nothing of it was
+//! judged (S149); and, at a lesson's end, whether the model is sure the skill fell over about four
+//! weeks (`Change`), which offers an extra drill.
 
 pub(crate) mod band;
 pub(crate) mod fit;
@@ -34,7 +35,8 @@ const CHANGE_LEAST: i64 = 21;
 const CHANGE_RISE: f64 = 0.5;
 const CHANGE_SURE: f64 = 1.28;
 
-/// Every skill practised, its curve, in the course's order.
+/// Every skill practised (laid in a lesson but the first one, S149), its curve, in the course's
+/// order.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Progress {
     pub curves: Vec<Curve>,
@@ -45,7 +47,7 @@ pub struct Progress {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Curve {
     pub skill: Skill,
-    /// Local days, ascending.
+    /// Local days, ascending; none while nothing of it was judged and no pair holds it.
     pub days: Vec<i64>,
     pub ability: Vec<f64>,
     pub band: Vec<f64>,
@@ -78,11 +80,13 @@ impl Progress {
     pub fn of(sheets: &[Sheet], pairs: &[BlindPair], offset: i32) -> Self {
         let skills = UNITS.iter().flat_map(|unit| unit.skills.iter().copied());
         let curves = skills
-            .filter_map(|skill| SkillFit::of(skill, sheets, pairs, offset))
-            .map(|fitted| {
-                let mut curve = fitted.curve();
-                curve.retest = retested(fitted.skill, sheets, pairs, offset);
-                curve
+            .filter_map(|skill| match SkillFit::of(skill, sheets, pairs, offset) {
+                Some(fitted) => {
+                    let mut curve = fitted.curve();
+                    curve.retest = retested(skill, sheets, pairs, offset);
+                    Some(curve)
+                }
+                None => observe::practised(skill, sheets).then(|| Curve::bare(skill)),
             })
             .collect();
         Self { curves }
@@ -92,6 +96,20 @@ impl Progress {
     #[must_use]
     pub fn curve(&self, skill: Skill) -> Option<&Curve> {
         self.curves.iter().find(|curve| curve.skill == skill)
+    }
+}
+
+impl Curve {
+    /// `skill`'s curve before anything of it was judged: no day.
+    fn bare(skill: Skill) -> Self {
+        Self {
+            skill,
+            days: Vec::new(),
+            ability: Vec::new(),
+            band: Vec::new(),
+            levels: Vec::new(),
+            retest: None,
+        }
     }
 }
 

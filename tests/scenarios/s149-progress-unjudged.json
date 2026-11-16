@@ -1,0 +1,37 @@
+{
+  "walkthrough": [
+    "Goal: see in the practice book every skill I have practised, also one I never judged, and a curve only where there is something to draw it from, as the author found on 16 November: lines practised most, yet missing from Progress.",
+    "Monday 5 October, a lesson of Lines at level 1: the first line copied, Compare, then Next without choosing Accurate, Almost or Again (nothing asks me to), Next to the sixth, Finish, That's all for today. Nothing of Lines is judged.",
+    "Tuesday: a lesson of Colours at level 1: the first colour picked, filled and compared (the app judges it), then Home with the lesson under way.",
+    "Home, Practice book, Progress (进步) at the top right: Lines first, as the course orders them, its name over a bare pencil line, no curve, no date, no words saying why; then Colours, judged on one day only: a single ink dot at the line's left end over its date. Calendar goes back.",
+    "Not here: a curve once Lines are judged (the practice crate's tests), a re-test's pair (s147-progress)."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "start": "home",
+  "steps": [
+    { "lesson": { "skill": "line", "level": 1 } },
+    { "tap": { "at": "Got it" } },
+    { "stroke": { "points": [[1580, 760, 0.8], [1520, 900, 0.9], [1460, 1030, 1.0], [1420, 1110, 0.9], [1390, 1170, 0.7]] } },
+    { "tap": { "at": "Compare" } },
+    { "tap": { "at": "Next" } },
+    { "tap": { "at": "Next" } },
+    { "tap": { "at": "Next" } },
+    { "tap": { "at": "Next" } },
+    { "tap": { "at": "Next" } },
+    { "tap": { "at": "Finish" } },
+    { "tap": { "at": "That's all for today" } },
+    { "later": { "minutes": 1320, "hidden": true } },
+    { "lesson": { "skill": "colour", "level": 1 } },
+    { "tap": { "at": "Got it" } },
+    { "tap": { "at": { "on": "Colour wheel", "fraction": [0.087, 0.65] } } },
+    { "tap": { "at": "Fill frame" } },
+    { "tap": { "at": "Compare" } },
+    { "tap": { "at": "Home" } },
+    { "tap": { "at": "Practice book" } },
+    { "tap": { "at": "Progress" } },
+    { "screenshot": { "name": "book-progress" } },
+    { "tap": { "at": "Calendar" } },
+    { "expect": { "shown": ["Earlier month", "Later month"] } }
+  ]
+}
