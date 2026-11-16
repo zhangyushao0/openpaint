@@ -26,6 +26,7 @@ mod layers;
 mod lesson;
 mod log;
 mod options;
+mod pairs;
 mod path;
 mod pens;
 mod pictures;
@@ -41,11 +42,12 @@ pub use crate::copies::{CopyShown, PictureShown};
 pub use crate::layers::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LAID_SIDE, LINES_LAYER, PICTURE_LAYER,
 };
-pub use crate::lesson::{End, Judged, LessonRow, LessonShown};
-pub use crate::log::PracticeLog;
+pub use crate::lesson::{End, Judged, LessonRow, LessonShown, PairShown};
+pub use crate::log::{PracticeLog, Refit};
 pub use crate::options::{
     MAX_PACK_BYTES, Options, OptionsFile, OptionsIntent, OptionsNotice, OptionsRequest,
 };
+pub use crate::pairs::{CardMark, CardSource, CopyCard, UNDER, stored_card};
 pub use crate::path::{OpenLesson, PathProjection, SkillShown, Start, UnitShown};
 pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};

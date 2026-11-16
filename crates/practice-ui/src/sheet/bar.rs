@@ -140,10 +140,22 @@ impl PracticeBar {
     ) -> Option<egui::Rect> {
         let end = practice.end.as_ref()?;
         let name = lesson_name(practice.lesson, practice.kind);
-        let (tapped, rect) = card(ctx, "practice card", opened, |ui| end_card(ui, end, name));
+        let cards = practice.cards.as_slice();
+        let retest = (practice.lesson)
+            .and_then(|lesson| lesson.row.retest)
+            .map(|(unit, _)| unit);
+        let (tapped, rect) = card(ctx, "practice card", opened, |ui| {
+            end_card(ui, end, (name, retest, cards))
+        });
         match (tapped, taps.lent.viewport) {
             (Some(EndTap::OneMore), Some(viewport)) => {
                 push_once(taps.sheet, PracticeIntent::OneMore(viewport));
+            }
+            (Some(EndTap::Drill), Some(viewport)) => {
+                push_once(taps.sheet, PracticeIntent::Drill(viewport));
+            }
+            (Some(EndTap::Pair(at, answer)), _) => {
+                push_once(taps.sheet, PracticeIntent::Pair(at, answer));
             }
             (Some(EndTap::Enough), _) => {
                 push_once(taps.lent.taps, Intent::Gallery(GalleryIntent::Show));

@@ -67,6 +67,19 @@ impl Pictures {
         pictures
     }
 
+    /// Whether a pack kept holds `item` (S147: a re-test's or a pair's copy shows its picture).
+    #[must_use]
+    pub fn holds(&self, item: &ItemRef) -> bool {
+        [
+            &self.official,
+            &self.personal,
+            &self.compositions,
+            &self.crops,
+        ]
+        .iter()
+        .any(|kept| kept.iter().any(|(_, held)| held == item))
+    }
+
     /// Whether there is no shape picture at all.
     #[must_use]
     pub fn is_empty(&self) -> bool {

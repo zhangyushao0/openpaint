@@ -3,26 +3,30 @@
 //! they took ("5 exercises · 3 min 12 s"); their results in a row of marks (none on the first
 //! lesson, which scores nothing); under a rule the skill's three dots, the one just earned
 //! inking in with the level it reached named ("Up to “Fluent”"), each seal the lesson earned
-//! stamping down beside them; under another rule One more in its pill with what it will be (the
-//! skill, its exercises and minutes) and That's all for today, which goes home. No counts of days,
-//! no quotas. While a Pomodoro's block runs a lesson's end shows only when the lesson chained after
-//! it was rolled back (S124, `bar.rs`); a block's end
-//! (`block_end.rs`) shares its marks and its rule.
+//! stamping down beside them; the blind pairs it asks (`end_pair.rs`, S147); under another rule One
+//! more in its pill with what it will be (the skill, its exercises and minutes), an extra drill's
+//! row where the end offers one, and That's all for today, which goes home. No counts of days, no
+//! quotas, no sentence. While a Pomodoro's block runs a lesson's end shows only when the lesson
+//! chained after it was rolled back (S124, `bar.rs`); a block's end (`block_end.rs`) shares its
+//! marks and its rule.
+
+use std::sync::Arc;
 
 use egui::{Pos2, Sense, Vec2};
-use openpaint_practice::{Outcome, SkillLevel};
-use openpaint_practice_app::End;
+use openpaint_practice::{Answer, Outcome, SkillLevel};
+use openpaint_practice_app::{CopyCard, End};
 
 use openpaint_ui::components::{animate_from, card_text, keep_moving, pill_button, text_button};
 use openpaint_ui::design::motion::OPEN;
 use openpaint_ui::design::{DIVIDER, INK, SPACE};
 
+use super::end_pair;
 use crate::components::{DOTS, paint_dots, paint_result, paint_seal, seal_turn};
 use crate::palette::PENCIL;
 use crate::text::{self as t, Text, Words, language};
 
 /// A result's mark's radius and pitch, a dot's radius and pitch, and a new seal's side, points.
-const MARK: f32 = 7.0;
+pub(super) const MARK: f32 = 7.0;
 const MARK_PITCH: f32 = 4.0 * SPACE;
 pub(super) const DOT: f32 = 7.0;
 pub(super) const DOT_PITCH: f32 = 3.0 * SPACE;
@@ -39,12 +43,24 @@ const STAMP_AFTER: f64 = 0.75;
 pub(crate) enum EndTap {
     OneMore,
     Enough,
+    /// Blind pair `n` answered (S147).
+    Pair(u8, Answer),
+    /// The extra drill started.
+    Drill,
 }
 
-/// The end of the lesson called `name`, `end` as the flow gives it; what was tapped.
-pub(crate) fn end_card(ui: &mut egui::Ui, end: &End, name: Text) -> Option<EndTap> {
+/// The end of the lesson called `name` (a re-test by its unit), `end` as the flow gives it, its
+/// pairs' copies' `cards` as read so far; what was tapped.
+pub(crate) fn end_card(
+    ui: &mut egui::Ui,
+    end: &End,
+    (name, retest, cards): (Text, Option<u8>, &[Arc<CopyCard>]),
+) -> Option<EndTap> {
     let language = language(ui.ctx());
-    ui.heading(Words::from(name).shown(ui.ctx()));
+    match retest {
+        Some(unit) => ui.heading(t::retest_name(language, unit)),
+        None => ui.heading(Words::from(name).shown(ui.ctx())),
+    };
     let took = t::lesson_took(language, (end.exercises, end.seconds));
     card_text(ui, Words::made(&took), true);
     // The first lesson scores nothing: no row of marks.
@@ -57,13 +73,16 @@ pub(crate) fn end_card(ui: &mut egui::Ui, end: &End, name: Text) -> Option<EndTa
         rule(ui);
         progress(ui, end);
     }
+    let mut tapped = end_pair::pairs(ui, end, cards);
     rule(ui);
-    let mut tapped = None;
     if let Some(next) = &end.next {
         if pill_button(ui, t::ONE_MORE, true).clicked() {
             tapped = Some(EndTap::OneMore);
         }
         card_text(ui, Words::made(&t::one_more_line(language, next)), true);
+    }
+    if end_pair::drill(ui, end) {
+        tapped = Some(EndTap::Drill);
     }
     if text_button(ui, t::ENOUGH, true).clicked() {
         tapped = Some(EndTap::Enough);

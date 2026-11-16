@@ -1,7 +1,8 @@
 //! The practice book as one UI frame sees it (S89): the book of the log's records on the device's
-//! clock (`openpaint_practice::Book`: the days, the colour's first picks, the lines
-//! shown, the seals), today's local day, each record's sheet, and what was read of the sheets the
-//! book asked for (`SheetRead`, on the storage worker: the store reads a sheet without writing).
+//! clock (`openpaint_practice::Book`: the days, the lines shown, the seals), today's local day,
+//! each record's sheet, what was read of the sheets the book asked for (`SheetRead`, on the storage
+//! worker: the store reads a sheet without writing), each skill's curve once fitted there and the
+//! cards of its re-test's copies (S147).
 //!
 //! A sheet read keeps what the book shows of it: its strokes and fills as marks for a small
 //! picture of it, each single line's original and first copy (the strokes before its first
@@ -13,10 +14,13 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{Book, Figure, Given, In, Kept, Layout, LinePen, Point, Rgb8, Sheet};
+use openpaint_practice::{
+    Book, CopyRef, Figure, Given, In, Kept, Layout, LinePen, Point, Progress, Rgb8, Sheet,
+};
 
 use crate::copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
 use crate::lesson::LessonRow;
+use crate::pairs::CopyCard;
 use openpaint_app::ProjectId;
 use openpaint_app::Title;
 
@@ -35,6 +39,10 @@ pub struct BookProjection {
     pub records: Arc<[BookRecord]>,
     /// The sheets read so far, by record.
     pub read: Arc<BTreeMap<u64, Arc<SheetRead>>>,
+    /// Each skill's curve (S147), once fitted for the records as they stand.
+    pub progress: Option<Arc<Progress>>,
+    /// The copies' cards read for the re-test pairs beside the curves, by copy.
+    pub cards: Arc<BTreeMap<CopyRef, Arc<CopyCard>>>,
 }
 
 impl BookProjection {

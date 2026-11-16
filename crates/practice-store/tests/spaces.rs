@@ -1,8 +1,10 @@
-//! The Pomodoro's records (S124) in the record space `t`: the settings, the block under way and
-//! each block completed round-trip in their bytes; a block completed and the one under way gone
-//! land in one write, and a write refused leaves the block under way as it was; a record of
-//! another shape, a code unknown or a key not the space's own is refused, never guessed.
+//! Practice's record spaces beside the sheets. The Pomodoro's records (S124) in the space `t`:
+//! the settings, the block under way and each block completed round-trip in their bytes; a block
+//! completed and the one under way gone land in one write, and a write refused leaves the block
+//! under way as it was; a record of another shape, a code unknown or a key not the space's own
+//! is refused, never guessed. The blind pairs (S147) in the space `b`: `pairs/`.
 
+mod pairs;
 mod support;
 #[path = "../../store/tests/common/test_dir.rs"]
 mod test_dir;

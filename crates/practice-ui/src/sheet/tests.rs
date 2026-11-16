@@ -2,8 +2,10 @@
 //! the app judges and where the eye does, a lesson's end and the first lesson's How, their
 //! controls registered by name and on the screen.
 
-use openpaint_practice::{Judge, Offer, Outcome, Seal, Skill, SkillLevel, Verdict};
-use openpaint_practice_app::{End, Judged, PracticeIntent};
+use openpaint_practice::{
+    Answer, CopyRef, Judge, Offer, Outcome, PairAsked, Seal, Skill, SkillLevel, Verdict,
+};
+use openpaint_practice_app::{End, Judged, PairShown, PracticeIntent};
 
 use super::end::{EndTap, end_card};
 use super::first::first_how;
@@ -77,30 +79,93 @@ fn a_lesson_s_end_offers_one_more_and_that_s_all_for_today() {
             minutes: 4,
             redo: false,
         }),
+        pairs: Vec::new(),
+        drill: None,
     };
     let mut tapped = None;
     for (from, language) in [(10.0, Language::English), (30.0, Language::Chinese)] {
         let map = settled(&ctx, (from, language), |ui| {
-            tapped = tapped.or(end_card(ui, &end, t::skill_name(skill)));
+            tapped = tapped.or(end_card(ui, &end, (t::skill_name(skill), None, &[])));
         });
         assert_on_screen(&map, t::ONE_MORE.id());
         assert_on_screen(&map, t::ENOUGH.id());
         let [press, release] = tap(&map, t::ENOUGH.id());
         for (time, events) in [(from + 3.0, press), (from + 3.1, release)] {
             pass(&ctx, (time, language, events), |ui| {
-                tapped = tapped.or(end_card(ui, &end, t::skill_name(skill)));
+                tapped = tapped.or(end_card(ui, &end, (t::skill_name(skill), None, &[])));
             });
         }
         assert_eq!(tapped.take(), Some(EndTap::Enough));
     }
     let last = End { next: None, ..end };
     let map = pass(&ctx, (60.0, Language::English, Vec::new()), |ui| {
-        end_card(ui, &last, t::skill_name(skill));
+        end_card(ui, &last, (t::skill_name(skill), None, &[]));
     });
     assert!(
         map.find(t::ONE_MORE.id()).is_err(),
         "nothing left to practise"
     );
+}
+
+#[test]
+fn a_lesson_s_end_asks_a_blind_pair_once_and_offers_a_drill_on_a_fall() {
+    let ctx = context();
+    let skill = Skill::of_key("shape").expect("shapes");
+    let copy = |sheet, exercise| CopyRef { sheet, exercise };
+    let pair = PairShown {
+        asked: PairAsked {
+            older: copy(3, 1),
+            newer: copy(9, 0),
+        },
+        older_left: false,
+        answer: None,
+        skill: Some(skill),
+    };
+    let offer = Offer {
+        skill,
+        level: SkillLevel::Second,
+        exercises: 4,
+        minutes: 8,
+        redo: false,
+    };
+    let end = End {
+        results: vec![(0, Some(Outcome::Near))],
+        exercises: 1,
+        seconds: 300,
+        skill: Some((skill, 1, 1)),
+        sealed: Vec::new(),
+        next: None,
+        pairs: vec![pair],
+        drill: Some(offer),
+    };
+    let name = t::skill_name(skill);
+    let mut tapped = None;
+    let map = settled(&ctx, (10.0, Language::English), |ui| {
+        tapped = tapped.or(narrow(ui, |ui| end_card(ui, &end, (name, None, &[]))));
+    });
+    for asked in [t::LEFT_BETTER, t::ALIKE, t::RIGHT_BETTER, t::START] {
+        assert_on_screen(&map, asked.id());
+    }
+    let [press, release] = tap(&map, t::LEFT_BETTER.id());
+    for (time, events) in [(13.0, press), (13.1, release)] {
+        pass(&ctx, (time, Language::English, events), |ui| {
+            tapped = tapped.or(narrow(ui, |ui| end_card(ui, &end, (name, None, &[]))));
+        });
+    }
+    assert_eq!(tapped.take(), Some(EndTap::Pair(0, Answer::Left)));
+    let answered = End {
+        pairs: vec![PairShown {
+            answer: Some(Answer::Left),
+            ..pair
+        }],
+        drill: None,
+        ..end
+    };
+    let map = settled(&ctx, (20.0, Language::Chinese), |ui| {
+        narrow(ui, |ui| end_card(ui, &answered, (name, None, &[])));
+    });
+    assert!(map.find(t::LEFT_BETTER.id()).is_err(), "answered once");
+    assert!(map.find(t::START.id()).is_err(), "no drill without a fall");
 }
 
 #[test]
@@ -112,4 +177,9 @@ fn the_first_lesson_s_how_ends_with_got_it() {
         });
         assert_on_screen(&map, t::GOT_IT.id());
     }
+}
+
+/// `add` in a column as wide as a card's.
+fn narrow<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.allocate_ui(egui::Vec2::new(296.0, 860.0), add).inner
 }

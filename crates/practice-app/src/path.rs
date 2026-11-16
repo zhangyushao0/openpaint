@@ -3,14 +3,15 @@
 //! on the side, whether the first lesson is due, the day's lesson left unfinished; and beside
 //! them the packs kept, the long colour copies, the pictures a copy can be begun of and the
 //! practice book. The home's column shows the next lesson
-//! (its skill, level, exercises and minutes; Start), the review while a redo waits (Review), All
+//! (its skill, level, exercises and minutes; Start; a unit's start re-test in its place while due,
+//! S147), the review while a redo waits (Review), a unit's end re-test while due (Re-test), All
 //! units and Practice book; the path page the units, the next lesson and the review. And how a
 //! lesson is started from them (`Start`).
 
 use std::sync::Arc;
 
 use openpaint_app::ProjectId;
-use openpaint_practice::{ItemRef, Needs, Offer, Skill, SkillLevel, Tier};
+use openpaint_practice::{ItemRef, Needs, Offer, Retest, Skill, SkillLevel, Tier};
 
 use crate::book::BookProjection;
 use crate::copies::{CopyShown, PictureShown};
@@ -31,6 +32,8 @@ pub enum Start {
     At(Skill, SkillLevel),
     /// The first lesson, whatever was practised.
     First,
+    /// Unit `n`'s re-test at its start or (true) its end (S147).
+    Retest(u8, bool),
 }
 
 /// The home's practice column, the path page and the practice book.
@@ -48,6 +51,11 @@ pub struct PathProjection {
     pub review: Option<Offer>,
     /// Nothing was practised yet: Start (`Start::Next`) starts the first lesson.
     pub first: bool,
+    /// The unit in hand's re-test at its start, while due (S147): Start starts it in the next
+    /// lesson's place.
+    pub retest: Option<Retest>,
+    /// A unit's re-test at its end, while due: offered beside the next lesson.
+    pub retest_end: Option<Retest>,
     /// The day's lesson left unfinished: Continue opens its sheet on it.
     pub open: Option<OpenLesson>,
     /// The packs kept, the official ones first.

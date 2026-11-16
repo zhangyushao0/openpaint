@@ -1,12 +1,13 @@
 //! What is kept of practice: a sheet's record and its results' numbers, what a sheet's
 //! exercises printed, practice time, the practice book and its seals (D109), the Pomodoro's
-//! blocks (S124).
+//! blocks (S124), the blind pairs answered (S147).
 
 pub(crate) mod blocks;
 pub(crate) mod book;
 pub(crate) mod givens;
 pub(crate) mod lessons;
 pub(crate) mod metric;
+pub(crate) mod pairs;
 pub(crate) mod record;
 pub(crate) mod seals;
 pub(crate) mod sheet;

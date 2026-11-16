@@ -153,6 +153,26 @@ fn the_first_lesson_round_trips_with_its_free_scribble_and_a_result_by_eye() {
 }
 
 #[test]
+fn a_re_test_round_trips_with_its_unit_and_whether_it_is_the_end() {
+    // S147's addition, additive: picked 5, then its unit and its end.
+    let exercises = vec![Exercise::generated(Kind::Space(Trick::Centre), 2)];
+    for end in [false, true] {
+        let picked = Picked::Retest { unit: 3, end };
+        let sheet = Sheet::begun(9, (Purpose::Day, NOON), planned(picked, exercises.clone()));
+        assert_eq!(round_trip(&sheet), Ok(sheet.clone()));
+        let bytes = encode_sheet(&sheet);
+        let at = 1 + 8 + 8 + 1 + 4 + 4 + 8 + 8;
+        assert_eq!(bytes[at..at + 3], [5, 3, u8::from(end)]);
+        let mut damaged = bytes.clone();
+        damaged[at + 2] = 2;
+        assert!(
+            decode_sheet(&sheet_key(9), &damaged).is_err(),
+            "an end neither"
+        );
+    }
+}
+
+#[test]
 fn a_first_compare_s_metric_and_a_result_of_codes_unknown_are_refused() {
     let colour = Exercise::generated(Kind::Colour(Tone::of_code(1).expect("a tone")), 4);
     let picked = Picked::Full {

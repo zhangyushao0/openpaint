@@ -81,6 +81,10 @@ pub(crate) fn options_job(
                 .collect();
             PracticeJob::Read(records)
         }
+        OptionsRequest::Refit => PracticeJob::Refit(log.refit()),
+        OptionsRequest::ReadCards(copies) => {
+            PracticeJob::Cards(log.copies_of(&copies), log.offset())
+        }
     }))
 }
 

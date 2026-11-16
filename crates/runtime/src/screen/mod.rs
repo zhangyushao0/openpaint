@@ -142,7 +142,7 @@ impl Screen {
         (toolbox, core, cache, practice): Answered<'_>,
     ) -> Option<(Start, Purpose)> {
         match done {
-            Done::Started(opened, editor, (sheets, titles, packs, blocks)) => {
+            Done::Started(opened, editor, (sheets, titles, packs, blocks, pairs)) => {
                 if let Some(state) = editor
                     && !toolbox.restore(&state)
                 {
@@ -156,6 +156,7 @@ impl Screen {
                 }
                 *practice = PracticeLog::new(sheets, titles, packs);
                 practice.set_blocks(blocks);
+                practice.set_pairs(pairs);
                 *self = started(opened);
             }
             Done::EditorSaved(result) => {

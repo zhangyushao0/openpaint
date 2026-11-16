@@ -150,3 +150,11 @@ pub(crate) fn named(canvas: &Canvas) -> Start {
         .and_then(|shown| shown.end?.next)
         .map_or(Start::Next, |offer| Start::Skill(offer.skill))
 }
+
+/// The extra drill `canvas`'s sheet's end offers (`End::drill`, S147): its skill's lesson; the next
+/// lesson where it offers none.
+pub(crate) fn drill(canvas: &Canvas) -> Start {
+    (canvas.sheet().map(SheetSession::projection))
+        .and_then(|shown| shown.end?.drill)
+        .map_or(Start::Next, |offer| Start::Skill(offer.skill))
+}

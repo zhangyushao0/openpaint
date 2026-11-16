@@ -14,11 +14,12 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    CardItem, Choices, Exercise, First, Given, Kind, Layout, Original, Outcome, Pack, Pair, Point,
-    Rgb8, Sheet, SheetMark, SheetPicture,
+    Answer, CardItem, Choices, Exercise, First, Given, Kind, Layout, Original, Outcome, Pack, Pair,
+    Point, Rgb8, Sheet, SheetMark, SheetPicture,
 };
 
 use crate::lesson::{End, Judged, LessonRow, LessonShown};
+use crate::pairs::CopyCard;
 use crate::pictures::PictureImage;
 pub use crate::shown::CopyRead;
 use openpaint_app::Availability;
@@ -73,6 +74,10 @@ pub enum PracticeIntent {
     /// The result the user chooses for the shown exercise after Compare, where the eye judges
     /// (S122: `Judged`, `Verdict::Eye`): kept once, with `Judge::Eye`; refused once one is kept.
     Judge(Outcome),
+    /// The end's blind pair `n` answered (S147): kept once, then its dates show.
+    Pair(u8, Answer),
+    /// The extra drill the end offers (`End::drill`, S147), laid as One more lays its lesson.
+    Drill(Viewport),
     /// Closes the notice.
     Dismiss,
 }
@@ -180,6 +185,8 @@ pub struct PracticeProjection {
     pub judged: Option<Judged>,
     /// Once the lesson is done: its end (S122), shown over the rows it used.
     pub end: Option<End>,
+    /// The cards of its blind pairs' copies read so far (S147).
+    pub cards: Vec<Arc<CopyCard>>,
     /// The lesson laid after it (One more, or a Pomodoro's chain) was rolled back, the store not
     /// taking it: the end shows even while a block runs, its One more trying again (S124).
     pub rolled_back: bool,

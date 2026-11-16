@@ -3,8 +3,9 @@
 //! skill's lesson laid at the learner's level and the next lesson chosen from what the records
 //! tell (`course/`); the alignment lays an original line or group onto a copy for Compare's
 //! overlay; colour matches, colour combinations and value scales are measured and judged; records
-//! keep what each lesson (or a long colour copy) did. The app turns the strokes and pixels on a
-//! practice sheet into copies and the store keeps the records.
+//! keep what each lesson (or a long colour copy) did; each skill's progress is fitted from the
+//! results, the measures and the learner's blind pairs (`progress/`). The app turns the strokes
+//! and pixels on a practice sheet into copies and the store keeps the records.
 //!
 //! Pure by rule: no GPU, no UI, no file system, no threads, no clock (`cargo repo-check`).
 #![forbid(unsafe_code)]
@@ -20,6 +21,7 @@ mod marks;
 mod maths;
 mod outlines;
 mod packs;
+mod progress;
 mod records;
 mod sheets;
 
@@ -33,6 +35,8 @@ pub use compositions::levels::{Level, LevelRow};
 pub use compositions::masses::Masses;
 pub use compositions::value_masses::{BLUR, ISLAND, MASSES_SIDE, RIM, Value, ValueMasses};
 pub use course::learner::{DOTS, Learner, Redo};
+pub use course::retest;
+pub use course::retest::Retest;
 pub use course::schedule;
 pub use course::schedule::{Offer, Planned, Standing};
 pub use course::unit::{UNITS, Unit};
@@ -138,11 +142,13 @@ pub use packs::pack::{
     PackProblem, PictureKind, Tier, valid_id,
 };
 pub use packs::pictures::Pictures;
+pub use progress::{Change, Curve, PairAsked, Progress, SkillFit, Within, ask, retest_pairs};
 pub use records::blocks::{BREAK, Block, BlockTally, Blocks, Length, TimerWrite, Timing, UnderWay};
 pub use records::book::{Book, Day, LineShown};
 pub use records::givens::{Given, Givens};
 pub use records::lessons::{OnSheet, lessons, number};
 pub use records::metric::{Metric, Metrics, value};
+pub use records::pairs::{Answer, BlindPair, CopyRef, older_left};
 pub use records::record::{RECENT, recent, used};
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
 pub use records::sheet::{First, Judge, Laid, Lesson, Picked, Purpose, Sheet};

@@ -2,7 +2,7 @@
 //! an exercise's result and a lesson's end; the units' and the skills' names and the three levels
 //! (入门, 熟练, 稳). A skill's name goes by its key (`Skill::key`).
 
-use openpaint_practice::{Needs, Offer, Outcome, Skill, SkillLevel};
+use openpaint_practice::{Needs, Offer, Outcome, Retest, Skill, SkillLevel};
 use openpaint_practice_app::{LessonRow, OpenLesson};
 
 use super::{Language, Text};
@@ -38,6 +38,12 @@ texts! { PRACTICE_COURSE;
         "照着左边的线，在右边的框里画一条。";
     FIRST_STEP_COMPARE = "Tap Compare, see where it is off, then Next.",
         "点“叠图对比”，差在哪，看一眼，再点“下一个”。";
+    RETEST = "Re-test", "复测";
+    WHICH_BETTER = "Which is better", "哪张更好";
+    LEFT_BETTER = "Left better", "左边好";
+    ALIKE = "Same", "差不多";
+    RIGHT_BETTER = "Right better", "右边好";
+    EXTRA_DRILL = "Extra drill", "加练";
 }
 
 texts! { PRACTICE_UNITS;
@@ -201,6 +207,43 @@ pub(crate) fn review_line(language: Language, offer: &Offer) -> String {
     format!("{name} · {}", exercise_count(language, offer.exercises))
 }
 
+/// A unit's re-test (S147): "Re-test · Unit 7", "复测 · 第 7 单元".
+pub(crate) fn retest_name(language: Language, unit: u8) -> String {
+    format!("{} · {}", RETEST.get(language), unit_number(language, unit))
+}
+
+/// A re-test's line: its skills, its exercises and minutes: "Boxes, Ellipses · 2 exercises · about
+/// 4 min", "透视盒子、椭圆 · 2 题 · 约 4 分钟".
+pub(crate) fn retest_line(language: Language, retest: &Retest) -> String {
+    let names: Vec<&str> = (retest.skills.iter())
+        .map(|skill| skill_name(*skill).get(language))
+        .collect();
+    let joined = names.join(if language == Language::Chinese {
+        "、"
+    } else {
+        ", "
+    });
+    let count = u8::try_from(retest.skills.len()).unwrap_or(u8::MAX);
+    format!(
+        "{joined} · {}",
+        exercises_line(language, (count, retest.minutes))
+    )
+}
+
+/// An extra drill's row: "Ellipses · 5 exercises", "椭圆 · 5 题".
+pub(crate) fn drill_line(language: Language, offer: &Offer) -> String {
+    review_line(language, offer)
+}
+
+/// A local day as a copy's date: "12 Nov", "11月12日".
+pub(crate) fn copy_date(language: Language, day: i64) -> String {
+    let date = openpaint_ui::dates::Date::of(day);
+    match language {
+        Language::English => format!("{} {}", date.day, &super::month_name(date.month)[..3]),
+        Language::Chinese => format!("{}月{}日", date.month, date.day),
+    }
+}
+
 /// What One more starts, under it: "Arcs · 5 exercises · about 4 min".
 pub(crate) fn one_more_line(language: Language, offer: &Offer) -> String {
     let name = skill_name(offer.skill).get(language);
@@ -267,6 +310,9 @@ pub(crate) fn row_label(language: Language, row: &LessonRow) -> String {
 /// What a lesson practised, as its label names it after its number: "Lines", "第一课",
 /// "Full lesson, unit 2"; none for a lesson of nothing named.
 pub(crate) fn lesson_kind(language: Language, row: &LessonRow) -> Option<String> {
+    if let Some((unit, _)) = row.retest {
+        return Some(retest_name(language, unit));
+    }
     Some(match (row.first, row.skill, row.unit) {
         (true, _, _) => FIRST_LESSON.get(language).to_owned(),
         (false, Some(skill), _) => skill_name(skill).get(language).to_owned(),
@@ -313,8 +359,21 @@ mod tests {
             skill: Some(line),
             unit: None,
             first: false,
+            retest: None,
         };
         assert_eq!(row_label(Language::Chinese, &row), "第 3 课 · 线条");
+        let retest = LessonRow {
+            retest: Some((3, true)),
+            skill: None,
+            ..row
+        };
+        assert_eq!(
+            row_label(Language::Chinese, &retest),
+            "第 3 课 · 复测 · 第 3 单元"
+        );
+        assert_eq!(drill_line(Language::Chinese, &offer), "线条 · 5 题");
+        assert_eq!(copy_date(Language::Chinese, 20_769), "11月12日");
+        assert_eq!(copy_date(Language::English, 20_769), "12 Nov");
         assert_eq!(
             in_hand(Language::English, FIRST_LESSON, (2, 3)),
             "First lesson 2/3"

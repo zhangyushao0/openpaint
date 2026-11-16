@@ -2,9 +2,12 @@
 //! sheet ("lesson n · skill"), the lesson in hand as the bar names it ("skill 3/5", "First lesson
 //! 2/3"), the result an exercise ends with (the app's verdict, or the three the user chooses from
 //! where the eye judges) and the lesson's end (each exercise's result, the skill's dots, the seals
-//! earned, the lesson One more starts). What the flow fills them with is `sheet/lesson.rs`.
+//! earned, the lesson One more starts, its blind pairs and extra drill, S147). What the flow fills
+//! them with is `sheet/lesson.rs` and `sheet/pairs.rs`.
 
-use openpaint_practice::{Judge, Offer, Outcome, Seal, Sheet, Skill, SkillLevel, Verdict};
+use openpaint_practice::{
+    Answer, CopyRef, Judge, Offer, Outcome, PairAsked, Seal, Sheet, Skill, SkillLevel, Verdict,
+};
 
 /// A lesson on the sheet as its row's label names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +23,8 @@ pub struct LessonRow {
     pub unit: Option<u8>,
     /// It is the first lesson.
     pub first: bool,
+    /// A re-test's unit and whether it is the unit's end (S147).
+    pub retest: Option<(u8, bool)>,
 }
 
 impl LessonRow {
@@ -37,6 +42,7 @@ impl LessonRow {
                 skill: lesson.skill(),
                 unit: lesson.unit(),
                 first: lesson.picked == openpaint_practice::Picked::First,
+                retest: lesson.retest(),
             })
             .collect()
     }
@@ -86,4 +92,31 @@ pub struct End {
     pub sealed: Vec<Seal>,
     /// The lesson One more starts, which its word names; none while nothing can be practised.
     pub next: Option<Offer>,
+    /// The blind pairs it asks (S147): a skill's lesson's one, a unit's end re-test's one a skill,
+    /// each with its answer once given; a finished lesson opened again its answered ones.
+    pub pairs: Vec<PairShown>,
+    /// An extra drill of its skill (S147): offered when its curve is sure the skill fell.
+    pub drill: Option<Offer>,
+}
+
+/// A blind pair as a lesson's end shows it: its two copies, which shows on the left, the answer
+/// once given (then the dates show) and the skill its copies practise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PairShown {
+    pub asked: PairAsked,
+    pub older_left: bool,
+    pub answer: Option<Answer>,
+    pub skill: Option<Skill>,
+}
+
+impl PairShown {
+    /// Its copies left and right.
+    #[must_use]
+    pub const fn sides(&self) -> [CopyRef; 2] {
+        if self.older_left {
+            [self.asked.older, self.asked.newer]
+        } else {
+            [self.asked.newer, self.asked.older]
+        }
+    }
 }

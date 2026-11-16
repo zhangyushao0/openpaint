@@ -1,6 +1,6 @@
-//! The practice book (S89): its name, the calendar's months and weekdays, the days' and the
-//! book's time, the lessons shown, and the seals: what each stamp says (two short lines, stacked
-//! as a seal's characters are).
+//! The practice book (S89): its name, its two pages (Calendar, Progress; S147), the calendar's
+//! months and weekdays, the days' and the book's time, the lessons shown, and the seals: what each
+//! stamp says (two short lines, stacked as a seal's characters are).
 
 use openpaint_practice::Seal;
 use openpaint_practice_app::LessonRow;
@@ -12,6 +12,8 @@ texts! { PRACTICE_BOOK_TABLE;
     PRACTICE_BOOK = "Practice book", "练习簿";
     EARLIER_MONTH = "Earlier month", "上个月";
     LATER_MONTH = "Later month", "下个月";
+    CALENDAR = "Calendar", "日历";
+    PROGRESS = "Progress", "进步";
 }
 
 texts! { PRACTICE_BOOK_WEEKDAYS;
@@ -55,7 +57,7 @@ const DAYS: [&str; 7] = [
 const CHINESE_DAYS: [&str; 7] = ["一", "二", "三", "四", "五", "六", "日"];
 const NUMERALS: [&str; 9] = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 
-fn month_name(month: u32) -> &'static str {
+pub(crate) fn month_name(month: u32) -> &'static str {
     MONTHS[(month.clamp(1, 12) - 1) as usize]
 }
 
@@ -197,6 +199,7 @@ mod tests {
             skill: skill(key),
             unit: None,
             first,
+            retest: None,
         };
         let one = [row(22, false, "key-shift")];
         assert_eq!(sheet_lessons(Language::Chinese, &one), "第 22 课 · 变调");

@@ -1,6 +1,7 @@
 //! The path from the log (S122, `crate::path`): the learner the records tell of, the path made
-//! again as they change (the units with their skills' dots, the lessons offered, the open day's
-//! lesson), a lesson started (`start`), a sheet opened on its lesson in hand (`practising`, with
+//! again as they change (the units with their skills' dots, the lessons offered, a unit's re-tests
+//! due, the open day's lesson), a lesson started (`start`), a sheet opened on its lesson in hand
+//! (`practising`, with
 //! what its lesson is set beside: `beside`) and each lesson's label (`rows`).
 
 use std::collections::HashSet;
@@ -9,7 +10,7 @@ use std::sync::Arc;
 use openpaint_app::{ProjectId, Title};
 use openpaint_practice::{
     Given, Learner, Picked, Pictures, Purpose, Sheet, Standing, Tally, UNITS, lessons, number,
-    schedule,
+    retest, schedule,
 };
 
 use super::PracticeLog;
@@ -17,7 +18,7 @@ use crate::lesson::LessonRow;
 use crate::path::{OpenLesson, PathProjection, SkillShown, Start, UnitShown};
 use crate::pictures::PackShown;
 use crate::projection::SheetView;
-use crate::sheet::{Beside, Practising};
+use crate::sheet::{Beside, Past, Practising};
 
 impl PracticeLog {
     /// The learner the records tell of.
@@ -68,12 +69,17 @@ impl PracticeLog {
             })
             .collect();
         let first = learner.fresh();
+        let sheets = &self.sheets;
+        let start = retest::start_due(&standing);
+        let end = retest::end_due(learner);
         self.path = PathProjection {
             units,
             unit: learner.unit(&pictures),
             next: schedule::next(&standing).filter(|_| !first),
             review: schedule::review(&standing),
             first,
+            retest: start.and_then(|unit| retest::offer(unit, false, sheets, &pictures)),
+            retest_end: end.and_then(|unit| retest::offer(unit, true, sheets, &pictures)),
             open: self.open_lesson(),
             packs: self.packs.iter().map(PackShown::of).collect(),
             copies: self.copies(),
@@ -114,9 +120,15 @@ impl PracticeLog {
             pictures: &pictures,
             learner: &self.learner,
         };
+        let due = retest::start_due(&standing);
         let planned = match start {
             Start::First => schedule::first(seed),
             Start::Next if self.learner.fresh() => schedule::first(seed),
+            Start::Next if due.is_some() => {
+                let unit = due?;
+                retest::retest(unit, false, &self.sheets, &pictures)?
+            }
+            Start::Retest(unit, end) => retest::retest(unit, end, &self.sheets, &pictures)?,
             Start::Next => {
                 let offer = schedule::next(&standing)?;
                 schedule::chosen(offer.skill, seed, &standing)?
@@ -153,10 +165,17 @@ impl PracticeLog {
     /// What `sheet`'s lesson in hand is set beside: what every other lesson adds up to, the
     /// learner every other lesson tells of and the pictures kept.
     pub(crate) fn beside(&self, sheet: &Sheet) -> Beside {
+        let others = self.sheets.iter().filter(|other| other.id != sheet.id);
         Beside {
             others: Tally::beside(&self.sheets, sheet),
             learner: self.learner_beside(sheet),
             pictures: Pictures::of(&self.packs),
+            past: Arc::new(Past {
+                sheets: others.cloned().collect(),
+                pairs: self.pairs.clone(),
+                skipped: self.asked_today(),
+                offset: self.offset,
+            }),
         }
     }
 

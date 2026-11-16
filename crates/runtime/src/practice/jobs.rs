@@ -10,13 +10,17 @@
 //! And the home's list, which leaves the practice sheets out (D112).
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use openpaint_app::{ImageSource, PortError, ProjectId, ProjectStore, ProjectSummary, Title};
 use openpaint_core::Artwork;
-use openpaint_practice::{Given, Givens, ItemRef, Pack, Sheet, Tier, TimerWrite};
-use openpaint_practice_app::{PictureImage, PracticeLog, SheetRead};
+use openpaint_practice::{
+    BlindPair, CopyRef, Given, Givens, ItemRef, Pack, Progress, Sheet, Tier, TimerWrite,
+};
+use openpaint_practice_app::{CopyCard, PictureImage, PracticeLog, Refit, SheetRead, stored_card};
 use openpaint_practice_store::{
-    Packs, append, forget_blocks, printed, remove, save, save_timer, sheets, start, trim,
+    Packs, append, forget_blocks, forget_pairs, printed, put_pair, remove, save, save_timer,
+    sheets, start, trim,
 };
 use openpaint_store::DisplayCache;
 
@@ -71,6 +75,15 @@ pub(crate) enum PracticeJob {
     AddPicture(Box<dyn ImageSource>, Tier),
     /// A pack's picture read for the screen.
     Picture(ItemRef),
+    /// A blind pair answered (S147).
+    Pair(BlindPair),
+    /// The blind pairs asked at these sheets removed (the test chore's end).
+    ForgetPairs(Vec<u64>),
+    /// The cards of these copies read, each with its sheet's record, days on a clock this many
+    /// minutes from UTC (`CopyCard`).
+    Cards(Vec<(CopyRef, Sheet)>, i32),
+    /// Each skill's curve fitted from the records (`Refit`).
+    Refit(Refit),
 }
 
 pub(crate) enum PracticeDone {
@@ -112,6 +125,10 @@ pub(crate) enum PracticeDone {
     PictureAdded(Result<Pack, PortError>),
     /// A pack's picture as read for the screen; none when it could not be (logged).
     Picture(ItemRef, Option<PictureImage>),
+    /// The copies' cards read (one whose sheet could not be read left out, logged).
+    Cards(Vec<Arc<CopyCard>>),
+    /// Each skill's curve, fitted from the records as they stood at the stamp.
+    Fitted(u64, Progress),
 }
 
 pub(crate) fn run(
@@ -162,7 +179,51 @@ pub(crate) fn run(
             let image = files::picture(packs, &item);
             PracticeDone::Picture(item, image)
         }
+        PracticeJob::Pair(pair) => PracticeDone::Saved(put_pair(store, &pair)),
+        PracticeJob::ForgetPairs(sheets) => PracticeDone::Saved(
+            forget_pairs(store, &sheets).map(|gone| log::info!("{gone} test pairs gone")),
+        ),
+        PracticeJob::Cards(copies, offset) => {
+            PracticeDone::Cards(read_cards((store, packs), &copies, offset))
+        }
+        PracticeJob::Refit(refit) => PracticeDone::Fitted(refit.stamp, refit.fitted()),
     })
+}
+
+/// The cards of `copies`, each read from its sheet without writing anything, their pictures as
+/// `packs` hold them; a sheet that cannot be read is left out (logged).
+fn read_cards(
+    (store, packs): (&mut dyn ProjectStore, Option<&Packs>),
+    copies: &[(CopyRef, Sheet)],
+    offset: i32,
+) -> Vec<Arc<CopyCard>> {
+    let kept = packs
+        .and_then(|packs| packs.list().ok())
+        .unwrap_or_default();
+    let mut cards = Vec::with_capacity(copies.len());
+    for (copy, record) in copies {
+        let read = printed(store, record).and_then(|printed| {
+            let artwork = store.artwork(ProjectId::new(record.canvas))?;
+            Ok((artwork, printed))
+        });
+        let (artwork, printed) = match read {
+            Ok(read) => read,
+            Err(error) => {
+                log::warn!(
+                    "the copy {}/{} not read: {error}",
+                    copy.sheet,
+                    copy.exercise
+                );
+                continue;
+            }
+        };
+        let laid = record.laid(usize::from(copy.exercise));
+        let item = laid.and_then(|laid| laid.exercise.picture.clone());
+        let image = item.and_then(|item| files::picture(packs, &item));
+        let card = stored_card((&artwork, record, &printed), (&kept, image), *copy, offset);
+        cards.extend(card.map(Arc::new));
+    }
+    cards
 }
 
 /// A new sheet started: its project and record written in one call, the project the open one.
@@ -290,7 +351,11 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
         PracticeJob::Save(_)
         | PracticeJob::Trim(_)
         | PracticeJob::Timer(_)
-        | PracticeJob::ForgetBlocks(_) => PracticeDone::Saved(Err(error)),
+        | PracticeJob::ForgetBlocks(_)
+        | PracticeJob::Pair(_)
+        | PracticeJob::ForgetPairs(_) => PracticeDone::Saved(Err(error)),
+        PracticeJob::Cards(..) => PracticeDone::Cards(Vec::new()),
+        PracticeJob::Refit(refit) => PracticeDone::Fitted(refit.stamp, Progress::default()),
         PracticeJob::Rename(sheet, title) => {
             PracticeDone::Renamed(*sheet, title.clone(), Err(error))
         }

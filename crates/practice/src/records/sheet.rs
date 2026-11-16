@@ -73,6 +73,9 @@ pub enum Picked {
     Full { unit: u8, warm_up: u8 },
     /// The first lesson (S122): a free scribble, a straight line, an arc. Stored as 4.
     First,
+    /// A unit's re-test (S147, `course/retest.rs`): one exercise of each of its skills, the same
+    /// tasks at its start and, once its seal is earned, at its `end`. Stored as 5.
+    Retest { unit: u8, end: bool },
 }
 
 /// One exercise as it was laid on a sheet.

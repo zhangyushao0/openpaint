@@ -19,6 +19,7 @@ mod demo_marks;
 mod demo_strip;
 mod demo_wheel;
 mod end;
+mod end_pair;
 mod first;
 mod mark_draw;
 mod mark_lines;
@@ -52,6 +53,7 @@ pub(crate) fn lesson_name(lesson: Option<LessonShown>, kind: Option<Kind>) -> Te
     match (lesson, skill, kind) {
         (Some(lesson), _, _) if lesson.warming_up => t::WARM_UP,
         (Some(lesson), _, _) if lesson.row.first => t::FIRST_LESSON,
+        (Some(lesson), _, _) if lesson.row.retest.is_some() => t::RETEST,
         (_, Some(skill), _) => t::skill_name(skill),
         (_, None, Some(kind)) => Skill::of(kind).map_or(t::kind_words(kind).name, t::skill_name),
         (Some(lesson), None, None) if lesson.row.unit.is_some() => t::FULL_LESSON,

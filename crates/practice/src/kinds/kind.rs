@@ -25,6 +25,7 @@ use crate::kinds::solids::solid::Solid;
 use crate::marks::tile::TileMark;
 use crate::packs::pack::{ItemRef, Tier};
 use crate::packs::pictures::Pictures;
+use crate::records::metric::Metrics;
 use crate::sheets::exercise::Exercise;
 
 /// The kind of an exercise, with what varies its look; each variant's folder in `kinds/`. Only
@@ -206,6 +207,12 @@ pub(crate) trait Described: Sync {
     /// tile.
     fn glyph(&self) -> Vec<TileMark> {
         Vec::new()
+    }
+    /// Where its verdict cuts one kept number of the first Compare in three: that number of
+    /// `exercise`'s `metrics` on its result's scale (`progress::scaled`), what the progress fit
+    /// reads in the result's place (S147); none by default, the result read itself.
+    fn measured(&self, _exercise: &Exercise, _metrics: &Metrics) -> Option<f64> {
+        None
     }
 }
 

@@ -18,6 +18,9 @@
 //! variant too) and its picture are laid again in a later lesson, which answers it whatever that
 //! one ends with.
 //!
+//! A re-test (S147) is no practice at the learner's level: its lesson counts and its pictures were
+//! shown, but it fills no window, leaves no redo and takes no skill's turn; it is kept as begun.
+//!
 //! A unit is open when it is the first, or it holds a skill, the unit before it is open and every
 //! skill of that one whose pictures are kept has its first dot; a unit without a skill never is.
 //! Any unit may still be entered.
@@ -46,6 +49,8 @@ pub struct Learner {
     /// Every picture a lesson showed, each once, and the last `RECENT` lessons' pictures.
     used: Vec<ItemRef>,
     recent: Vec<Vec<ItemRef>>,
+    /// The re-tests begun (S147): each unit's, at its start or its end.
+    retests: Vec<(u8, bool)>,
 }
 
 /// A skill as practised so far.
@@ -115,9 +120,17 @@ impl Learner {
         self.lessons += 1;
         let at = self.lessons;
         let (mut met, mut redone, mut pictures) = (Vec::new(), Vec::new(), Vec::new());
+        // A re-test is no practice at the learner's level: no dots, redos or turns (S147).
+        let retest = lesson.retest();
+        if let Some(taken) = retest.filter(|taken| !self.retests.contains(taken)) {
+            self.retests.push(taken);
+        }
         for laid in &lesson.exercises {
             let exercise = &laid.exercise;
             pictures.extend(exercise.picture.clone());
+            if retest.is_some() {
+                continue;
+            }
             let Some(skill) = Skill::of(exercise.kind) else {
                 continue;
             };
@@ -223,6 +236,12 @@ impl Learner {
     /// Every redo waiting with its skill, oldest first.
     pub fn redos(&self) -> impl Iterator<Item = (Skill, &Redo)> {
         self.redos.iter().map(|(skill, redo)| (*skill, redo))
+    }
+
+    /// Whether unit `unit`'s re-test at its start (`end` false) or its end was begun (S147).
+    #[must_use]
+    pub fn retested(&self, unit: u8, end: bool) -> bool {
+        self.retests.contains(&(unit, end))
     }
 
     /// Every picture a lesson showed, each once: what the next lesson picks others than.

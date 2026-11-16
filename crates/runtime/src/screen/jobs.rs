@@ -69,12 +69,27 @@ impl Screen {
                     canvas.picture_read(item, image);
                 }
             }
+            PracticeDone::Cards(cards) => self.cards_read(&cards, practice),
+            PracticeDone::Fitted(stamp, progress) => practice.fitted(stamp, progress),
             PracticeDone::Renamed(.., Err(error))
             | PracticeDone::Removed(_, Err(error))
             | PracticeDone::Pictures(Err(error)) => {
                 log::error!("a practice change failed: {error}");
                 self.gallery_answer(LibraryAnswer::Changed(Err(error)));
             }
+        }
+    }
+
+    /// The copies' cards the store read (S147): the log keeps them for the book, the open sheet
+    /// takes those its end asked for.
+    fn cards_read(
+        &mut self,
+        cards: &[std::sync::Arc<openpaint_practice_app::CopyCard>],
+        practice: &mut PracticeLog,
+    ) {
+        practice.cards_read(cards);
+        if let Some(open) = self.canvas_mut().and_then(sheet) {
+            open.copies_read(cards);
         }
     }
 

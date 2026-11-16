@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use crate::course::picker::Picker;
 use crate::demos::demo::Demo;
+use crate::kinds::colours::judgement::DELTA_SPAN;
 use crate::kinds::{
     Described, Facts, Kind, Needs, Original, Picking, SkillLevel, ToolSet, Turn, held,
 };
@@ -23,7 +24,10 @@ use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed};
 use crate::packs::pack::{ItemRef, Tier};
+use crate::progress::scaled;
+use crate::records::metric::{Metric, Metrics, value};
 use crate::sheets::exercise::Exercise;
+use marks::AREAS_CLEAN;
 
 pub(crate) struct Crops;
 
@@ -73,6 +77,12 @@ impl Described for Crops {
 
     fn window(&self) -> usize {
         3
+    }
+
+    /// The mean difference over the areas painted, cut at the areas' clean and near bands.
+    fn measured(&self, _exercise: &Exercise, metrics: &Metrics) -> Option<f64> {
+        let off = value(metrics, Metric::AreasDelta)?;
+        Some(scaled(off, [AREAS_CLEAN, DELTA_SPAN]))
     }
 
     /// Three bands in a frame, darker downwards.

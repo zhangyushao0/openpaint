@@ -2,8 +2,9 @@
 //! in hand beside it and the practice options' button at its right; under them a sheet of paper
 //! with the next lesson (its skill, its level, exercises and minutes, Start in its pill), for a
 //! fresh learner the first lesson, while today's lesson is unfinished its name and place
-//! ("Lines 3/6") and Continue; under a rule, while a redo waits, the review on the side (its
-//! skill, two exercises; Review); under another the unit in hand's skills as small tiles with
+//! ("Lines 3/6") and Continue, a unit's start re-test in its place while due (S147); under a rule,
+//! while a redo waits, the review on the side (its skill, two exercises; Review); while a unit's
+//! end re-test is due its row (Re-test); under another the unit in hand's skills as small tiles with
 //! their dots (a tap starts that skill's lesson, as on the path); at the sheet's foot All units
 //! (the path page grows out of it) and Practice book. No counts of days, no quotas. Under the next
 //! lesson the Pomodoro's row, and at the header's right today's seals (`pomodoro.rs`, S124).
@@ -76,9 +77,10 @@ impl HomePart {
                 let row = offered.then(|| pomodoro_row(ui, timer)).flatten();
                 let row = row.map(|(intent, from)| Tapped::Timer(intent, from));
                 let reviewed = review(ui, path).map(|from| Tapped::Start(Start::Review, from));
+                let retested = retest_row(ui, path);
                 let tile = unit_tiles(ui, path, inner.bottom() - TOUCH_TARGET - SPACE);
                 let tile = tile.map(|(skill, from)| Tapped::Start(Start::Skill(skill), from));
-                let tapped = reviewed.or(next).or(row).or(tile);
+                let tapped = reviewed.or(retested).or(next).or(row).or(tile);
                 let (foot, book) = foot(ui, inner);
                 (foot.or(tapped), book)
             })
@@ -169,6 +171,16 @@ pub(super) fn next_lesson(ui: &mut egui::Ui, path: &PathProjection, go: bool) ->
             Some(t::exercises_line(language, FIRST)),
             t::START,
         ),
+        // A unit's start re-test in the next lesson's place while due (S147).
+        (None, false, _) if path.retest.is_some() => {
+            let retest = path.retest.as_ref()?;
+            (
+                t::NEXT_LESSON,
+                t::retest_name(language, retest.unit),
+                Some(t::retest_line(language, retest)),
+                t::START,
+            )
+        }
         (None, false, Some(offer)) => (
             t::NEXT_LESSON,
             Words::from(t::skill_name(offer.skill))
@@ -211,6 +223,29 @@ pub(super) fn review(ui: &mut egui::Ui, path: &PathProjection) -> Option<Rect> {
         .inner;
     label(ui, t::REDO_WAITS);
     tapped.clicked().then_some(tapped.rect)
+}
+
+/// A unit's end re-test while due (S147): a rule, its name and line, Re-test; what was tapped.
+fn retest_row(ui: &mut egui::Ui, path: &PathProjection) -> Option<Tapped> {
+    let retest = path.retest_end.as_ref()?;
+    let language = t::language(ui.ctx());
+    ui.add_space(SPACE);
+    rule(ui);
+    let tapped = ui
+        .horizontal(|ui| {
+            ui.label(t::retest_name(language, retest.unit));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                text_button(ui, t::RETEST, true)
+            })
+            .inner
+        })
+        .inner;
+    let line = t::retest_line(language, retest);
+    ui.label(RichText::new(line).small().color(INK_SECONDARY));
+    let start = Start::Retest(retest.unit, true);
+    tapped
+        .clicked()
+        .then_some(Tapped::Start(start, tapped.rect))
 }
 
 /// The unit in hand's skills as small tiles with their dots, three a row, as many rows as fit

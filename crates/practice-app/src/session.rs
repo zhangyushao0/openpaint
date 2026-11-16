@@ -135,6 +135,12 @@ impl SheetSession {
         self.sheet.pen_style(&self.brush).map(|style| style.size())
     }
 
+    /// The copies whose cards the lesson's end needs from the store, once (S147); those of this
+    /// sheet are read off its artwork now.
+    pub fn copies_request(&mut self) -> Option<Vec<openpaint_practice::CopyRef>> {
+        self.sheet.copies_request(self.session.artwork())
+    }
+
     /// The sheet for one UI frame.
     #[must_use]
     pub fn projection(&self) -> PracticeProjection {

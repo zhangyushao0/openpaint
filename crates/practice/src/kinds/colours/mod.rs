@@ -24,8 +24,11 @@ use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, swatch};
 use crate::maths::colour::Rgb8;
 use crate::packs::pack::ItemRef;
+use crate::progress::scaled;
+use crate::records::metric::{Metric, Metrics, value};
 use crate::sheets::exercise::Exercise;
 use colour_match::{Lightness, Purity, Tone};
+use judgement::{NOTICEABLE, PART_SPAN};
 
 pub(crate) struct Colours;
 
@@ -82,6 +85,12 @@ impl Described for Colours {
 
     fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
         Some(demo::colour())
+    }
+
+    /// The difference at the first Compare, cut at a noticeable step and a part's span.
+    fn measured(&self, _exercise: &Exercise, metrics: &Metrics) -> Option<f64> {
+        let off = value(metrics, Metric::FinalDelta)?;
+        Some(scaled(off, [NOTICEABLE, PART_SPAN]))
     }
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {

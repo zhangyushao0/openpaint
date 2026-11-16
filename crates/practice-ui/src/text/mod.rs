@@ -130,6 +130,18 @@ mod tests {
             shown.extend(how_steps(kind, CELLS, language));
         }
         shown.push(one_more_line(language, &offer));
+        let retest = openpaint_practice::Retest {
+            unit: 3,
+            end: true,
+            skills: vec![line],
+            minutes: 6,
+        };
+        shown.extend([
+            retest_name(language, 3),
+            retest_line(language, &retest),
+            drill_line(language, &offer),
+            copy_date(language, 20_769),
+        ]);
         shown.extend([(0, 0), (2, 1)].map(|uses| picture_goes(language, uses)));
         shown.extend((1..=8).map(|unit| unit_title(language, unit)));
         let seals = [Seal::Unit(2), Seal::TenLessons];

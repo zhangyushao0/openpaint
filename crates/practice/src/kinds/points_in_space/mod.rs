@@ -21,11 +21,19 @@ use crate::marks::mark::SheetMark;
 use crate::marks::tile::{FACE, TileMark, boxed};
 use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
+use crate::progress::scaled;
+use crate::records::metric::{Metric, Metrics, value};
 use crate::sheets::exercise::Exercise;
 use space::{SpaceAnswer, SpaceTask, Trick};
+use space_check::NEAR_FACE;
 use std::sync::Arc;
 
 pub(crate) struct PointsInSpace;
+
+/// A point in space off by about a pen's width on a face of 0.4 of its frame, a share of the face:
+/// where the picture's marks begin. The share is a face's, the marks the picture's, so the result
+/// band the progress fit holds the number within keeps it honest whatever the face's size.
+const CLEAN_FACE: f64 = 0.03;
 
 /// Its topics, a trick each in `Trick::ALL`'s order: each has its own instructions.
 const FACTS: [Facts; 5] = [
@@ -94,6 +102,12 @@ impl Described for PointsInSpace {
             SkillLevel::Third => [Trick::Mirror, BESIDE[turn.turn % BESIDE.len()]],
         };
         laid(tricks.map(Kind::Space))
+    }
+
+    /// The copy off the answer as a share of the face, cut at `CLEAN_FACE` and `NEAR_FACE`.
+    fn measured(&self, _exercise: &Exercise, metrics: &Metrics) -> Option<f64> {
+        let off = value(metrics, Metric::SpaceOff)?;
+        Some(scaled(off, [CLEAN_FACE, NEAR_FACE]))
     }
 
     /// The box with its front face shaded, a point on it.

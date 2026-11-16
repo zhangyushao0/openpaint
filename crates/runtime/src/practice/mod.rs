@@ -26,7 +26,7 @@ use openpaint_app::Viewport;
 use openpaint_practice::Purpose;
 use openpaint_practice_app::{
     OptionsNotice, PathProjection, PracticeIntent, PracticeLog, PracticeProjection, PracticeSheet,
-    SheetSession, TimerShown,
+    SheetSession, Start, TimerShown,
 };
 use openpaint_practice_ui::{Hooked, PracticeScreens};
 
@@ -57,10 +57,21 @@ pub(crate) fn sheet(canvas: &mut Canvas) -> Option<&mut PracticeSheet> {
 /// The open sheet's record to the store and into `log`, once it changed since it last went (its
 /// time with it); a record the Pomodoro's End cut goes first, with its givens (S124). The kinds
 /// whose How showed while it was used go into `log` too, so a sheet opened again never tells
-/// them again.
+/// them again; so do the blind pairs its end asked and those answered (S147).
 pub(crate) fn save_record(canvas: &mut Canvas, (log, storage): (&mut PracticeLog, &mut Storage)) {
     if let Some(sheet) = sheet(canvas) {
         log.tell(sheet.seen());
+        // S147: the pairs its end asked (none asked again today), each answer stored once, the
+        // copies' cards read.
+        log.asked(sheet.offered());
+        for pair in sheet.pairs_request() {
+            log.keep_pair(pair);
+            storage.submit(Job::Practice(PracticeJob::Pair(pair)));
+        }
+    }
+    if let Some(copies) = canvas.sheet_mut().and_then(SheetSession::copies_request) {
+        let job = PracticeJob::Cards(log.copies_of(&copies), log.offset());
+        storage.submit(Job::Practice(job));
     }
     if let Some(record) = sheet(canvas).and_then(PracticeSheet::trim_request) {
         log.keep(record.clone());
@@ -85,7 +96,9 @@ pub(crate) fn apply(
     for intent in intents {
         let applied = canvas.practise(|sheet| sheet.practise(intent, now));
         let next = match intent {
-            PracticeIntent::OneMore(viewport) => applied.then_some(viewport),
+            PracticeIntent::OneMore(viewport) | PracticeIntent::Drill(viewport) => {
+                applied.then_some(viewport)
+            }
             PracticeIntent::Next(viewport) => {
                 let chains = canvas.sheet().is_some_and(|open| log.chains(open.sheet()));
                 (applied && chains).then_some(viewport)
@@ -93,31 +106,36 @@ pub(crate) fn apply(
             _ => None,
         };
         if let Some(viewport) = next {
+            // An extra drill (S147) lays its skill's lesson as One more lays the next.
+            let start = match intent {
+                PracticeIntent::Drill(_) => day::drill(canvas),
+                _ => day::named(canvas),
+            };
             lay_next(
                 canvas,
                 (&mut *log, &mut *seeds, &mut *storage),
-                (now, &viewport),
+                (start, now, &viewport),
             );
         }
     }
 }
 
-/// The lesson after the one `canvas`'s sheet just ended (`End::next`, `Start::Next` where it names
-/// none) on the same sheet where it takes it (`day.rs`, the lesson begun from `log` seeded from
-/// `seeds`, written by `storage`), the view gliding to it in `viewport`; else the sheet left for a
-/// new one.
+/// `start`'s lesson after the one `canvas`'s sheet just ended (One more's: `End::next`,
+/// `Start::Next` where it names none; an extra drill's) on the same sheet where it takes it
+/// (`day.rs`, the lesson begun from `log` seeded from `seeds`, written by `storage`), the view
+/// gliding to it in `viewport`; else the sheet left for a new one.
 pub(crate) fn lay_next(
     canvas: &mut Canvas,
     app: (&mut PracticeLog, &mut Seeds, &mut Storage),
-    (now, viewport): (u64, &Viewport),
+    (start, now, viewport): (Start, u64, &Viewport),
 ) {
-    if !day::one_more(canvas, app, (day::named(canvas), now, viewport)) {
+    if !day::one_more(canvas, app, (start, now, viewport)) {
         // A test's sheet left for a new one stays a test's (`practice-test`, debug builds).
         let purpose = (sheet(canvas).map(|sheet| sheet.record().purpose))
             .filter(|purpose| *purpose == Purpose::Test)
             .unwrap_or(Purpose::Day);
         canvas.leaving = Leaving::Waiting;
-        canvas.then = Then::Practice(day::named(canvas), purpose);
+        canvas.then = Then::Practice(start, purpose);
     }
 }
 

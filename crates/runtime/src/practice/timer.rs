@@ -107,10 +107,11 @@ pub(crate) fn timed_on_sheet(
     for intent in intents {
         match log.time(intent, canvas.sheet_mut()) {
             Ok(Timed::OneMore(viewport)) => {
+                let start = super::day::named(canvas);
                 super::lay_next(
                     canvas,
                     (&mut *log, &mut *seeds, &mut *storage),
-                    (now, &viewport),
+                    (start, now, &viewport),
                 );
             }
             Ok(Timed::Done) => {}

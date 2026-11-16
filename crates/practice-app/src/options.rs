@@ -12,7 +12,7 @@ use openpaint_app::{
     AppError, EditorAction, FileProblem, Gallery, HostRequest, ImageSource, PortError, ProjectId,
     Title, problem,
 };
-use openpaint_practice::{ItemRef, Pack, PictureKind, Tier};
+use openpaint_practice::{CopyRef, ItemRef, Pack, PictureKind, Tier};
 
 use crate::path::Start;
 
@@ -46,6 +46,10 @@ pub enum OptionsIntent {
     PictureTier(ItemRef, Tier),
     /// The practice book reads the sheets of these practice records (by id) to show them.
     ReadSheets(Vec<u64>),
+    /// The practice book's progress fits each skill's curve (S147).
+    Refit,
+    /// The practice book reads these copies' cards (a re-test's pair beside its curve).
+    ReadCards(Vec<CopyRef>),
     /// Closes the notice.
     Dismiss,
 }
@@ -67,6 +71,10 @@ pub enum OptionsRequest {
     PictureTier(String, Tier),
     /// The sheets of the practice records given (by id) read for the practice book.
     ReadSheets(Vec<u64>),
+    /// Each skill's curve fitted for the practice book.
+    Refit,
+    /// These copies' cards read for the practice book.
+    ReadCards(Vec<CopyRef>),
 }
 
 impl OptionsRequest {
@@ -139,6 +147,8 @@ impl Options {
                 OptionsRequest::PictureTier(picture.item, tier)
             }
             OptionsIntent::ReadSheets(records) => OptionsRequest::ReadSheets(records),
+            OptionsIntent::Refit => OptionsRequest::Refit,
+            OptionsIntent::ReadCards(copies) => OptionsRequest::ReadCards(copies),
         };
         let availability = gallery.availability();
         if !availability.is_available() {

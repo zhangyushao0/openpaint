@@ -371,7 +371,7 @@ fn misshapen(step: &Step) -> Option<&'static str> {
             Some("an expect step names what is shown or absent")
         }
         Step::Lesson(lesson) if lesson.start().is_err() => {
-            Some("a lesson's skill goes by its key, its level 1 to 3")
+            Some("a lesson's skill goes by its key, its level 1 to 3; a re-test's unit 1 to 8")
         }
         _ => None,
     }

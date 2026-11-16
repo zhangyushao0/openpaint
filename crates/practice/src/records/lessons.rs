@@ -8,12 +8,22 @@ use crate::kinds::Skill;
 use crate::records::sheet::{Lesson, Picked, Sheet};
 
 impl Lesson {
-    /// The unit of a full lesson (S122); none for a skill's lesson, the first lesson or a copy.
+    /// The unit of a full lesson (S122); none for a skill's lesson, the first lesson, a re-test
+    /// or a copy.
     #[must_use]
     pub fn unit(&self) -> Option<u8> {
         match self.picked {
             Picked::Full { unit, .. } => Some(unit),
-            Picked::Chosen | Picked::First => None,
+            Picked::Chosen | Picked::First | Picked::Retest { .. } => None,
+        }
+    }
+
+    /// A re-test's unit and whether it is the unit's end (S147); none for any other lesson.
+    #[must_use]
+    pub const fn retest(&self) -> Option<(u8, bool)> {
+        match self.picked {
+            Picked::Retest { unit, end } => Some((unit, end)),
+            _ => None,
         }
     }
 
@@ -33,7 +43,7 @@ impl Lesson {
     pub fn warm_up(&self) -> usize {
         match self.picked {
             Picked::Full { warm_up, .. } => usize::from(warm_up),
-            Picked::Chosen | Picked::First => 0,
+            Picked::Chosen | Picked::First | Picked::Retest { .. } => 0,
         }
     }
 }

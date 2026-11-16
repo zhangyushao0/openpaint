@@ -12,16 +12,20 @@ pub(crate) mod marks;
 use crate::course::picker::laid;
 use crate::demos::demo::Demo;
 use crate::demos::demo_points::crossed;
+use crate::geometry::heading::ON_ANGLE;
+use crate::geometry::off::PEN_WIDTH;
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, line, square};
-use crate::maths::path::Point;
+use crate::maths::path::{Point, distance};
 use crate::packs::pack::ItemRef;
+use crate::progress::scaled;
+use crate::records::metric::{Metric, Metrics, value};
 use crate::sheets::exercise::Exercise;
-use flat::{Estimate, Flat, FlatAnswer};
+use flat::{Estimate, Flat, FlatAnswer, NEAR_ANGLE, NEAR_OFF};
 use std::sync::Arc;
 
 pub(crate) struct Estimates;
@@ -94,6 +98,30 @@ impl Described for Estimates {
             return None;
         };
         demo::estimate(estimate)
+    }
+
+    /// A point's distance off, a proportion's along its segment (the task made again from its
+    /// seed), each cut at a pen's width and `NEAR_OFF`; an angle's turn cut at `ON_ANGLE` and
+    /// `NEAR_ANGLE`.
+    fn measured(&self, exercise: &Exercise, metrics: &Metrics) -> Option<f64> {
+        let Kind::Flat(estimate) = exercise.kind else {
+            return None;
+        };
+        let near = [PEN_WIDTH, NEAR_OFF];
+        Some(match Flat::generate(estimate, exercise.seed) {
+            Flat::Point { .. } => {
+                let across = value(metrics, Metric::PointAcross)?;
+                scaled(across.hypot(value(metrics, Metric::PointDown)?), near)
+            }
+            Flat::Proportion { copy, .. } => {
+                let along = value(metrics, Metric::ProportionOff)?.abs();
+                scaled(along * distance(copy[0], copy[1]), near)
+            }
+            Flat::Angle { .. } => {
+                let turned = value(metrics, Metric::AngleOff)?.abs();
+                scaled(turned, [ON_ANGLE, NEAR_ANGLE])
+            }
+        })
     }
 
     fn lesson(&self, level: SkillLevel, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {

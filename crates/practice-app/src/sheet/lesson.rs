@@ -5,8 +5,9 @@
 //! how many exercises it held and the seconds they took,
 //! its skill's dots before it (the learner beside it, `PracticeLog::learner_beside`) and after it
 //! (`Learner::with`), the seals it earned and the lesson One more starts (`schedule::next` on the
-//! learner after it; the same skill again after a lesson of a unit past the learner's). The end is kept once the lesson is done (`shown`); a result a painted
-//! copy's reading brings after it makes it again.
+//! learner after it; the same skill again after a lesson of a unit past the learner's), its blind
+//! pairs and extra drill (`pairs.rs`, S147). The end is kept once the lesson is done (`shown`); a
+//! result a painted copy's reading brings after it makes it again.
 
 use openpaint_app::Availability;
 use openpaint_practice::{
@@ -56,17 +57,23 @@ impl PracticeSheet {
         Some(Judged { verdict, result })
     }
 
-    /// The end of the lesson in hand, once it is done; none on a long colour copy's sheet.
+    /// The end of the lesson in hand, once it is done, its pairs as answered so far; none on a
+    /// long colour copy's sheet.
     pub(super) fn end(&self) -> Option<End> {
         let results = self.results()?;
-        match &self.end {
+        let end = match &self.end {
             Some(kept) if kept.results == results => Some(kept.clone()),
             _ => self.ending(),
-        }
+        };
+        end.map(|end| End {
+            pairs: self.pairs_shown(),
+            ..end
+        })
     }
 
-    /// The lesson in hand's end kept, once it is done.
+    /// The lesson in hand's end kept, once it is done, its pairs asked.
     pub(super) fn ended(&mut self) {
+        self.ask_pairs();
         self.end = self.ending();
     }
 
@@ -88,6 +95,8 @@ impl PracticeSheet {
             skill: (lesson.skill()).map(|skill| (skill, before.dots(skill), after.dots(skill))),
             sealed: sealed(&self.beside.others, &self.record),
             next: one_more(lesson, &standing),
+            pairs: self.pairs_shown(),
+            drill: self.drill(&standing),
         })
     }
 

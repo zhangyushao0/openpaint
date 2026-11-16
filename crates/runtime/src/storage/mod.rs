@@ -13,7 +13,7 @@ use openpaint_app::{
     Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::{Blocks, Pack, Sheet};
+use openpaint_practice::{BlindPair, Blocks, Pack, Sheet};
 use openpaint_practice_store::Packs;
 use openpaint_store::DisplayCache;
 
@@ -97,9 +97,15 @@ pub(crate) enum Done {
     Practice(PracticeDone),
 }
 
-/// The practice sheets, their titles, the packs kept and the Pomodoro's records (S124), as
-/// opening read them.
-pub(crate) type Practised = (Vec<Sheet>, Vec<(ProjectId, Title)>, Vec<Pack>, Blocks);
+/// The practice sheets, their titles, the packs kept, the Pomodoro's records (S124) and the blind
+/// pairs (S147), as opening read them.
+pub(crate) type Practised = (
+    Vec<Sheet>,
+    Vec<(ProjectId, Title)>,
+    Vec<Pack>,
+    Blocks,
+    Vec<BlindPair>,
+);
 
 /// What the worker knows between calls.
 #[derive(Debug, Default)]
@@ -228,7 +234,10 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
             let blocks = openpaint_practice_store::blocks(store)
                 .inspect_err(|error| log::warn!("the Pomodoro's records are unread: {error}"))
                 .unwrap_or_default();
-            let practised = (sheets, titles, packs, blocks);
+            let pairs = openpaint_practice_store::pairs(store)
+                .inspect_err(|error| log::warn!("the blind pairs are unread: {error}"))
+                .unwrap_or_default();
+            let practised = (sheets, titles, packs, blocks, pairs);
             Done::Started(opened, editor.map(Box::new), practised)
         }
         Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),

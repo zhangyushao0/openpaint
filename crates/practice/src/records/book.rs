@@ -1,15 +1,14 @@
 //! The practice book (S89, S122) as pure math, all of it from the records: the lessons finished,
-//! the days practised by the device's local day with their time and their records, the colour's
-//! first pick per lesson (the mean of its colours' first ΔE: the eye's own level, before any
-//! correction), the lessons whose first single line shows side by side (the first and the
-//! latest), the seals earned, and how much was done in all. Progress counts what was done, never
-//! days in a row. Lessons are every sheet's but a copy's (`lessons.rs`); days and time are the
-//! sheets', each day with the Pomodoro's blocks completed on it (S124).
+//! the days practised by the device's local day with their time and their records, the lessons
+//! whose first single line shows side by side (the first and the latest), the seals earned, and
+//! how much was done in all. Progress counts what was done, never days in a row; each skill's
+//! curve is `progress/` (S147, the colour's first picks' line before it). Lessons are every
+//! sheet's but a copy's (`lessons.rs`); days and time are the sheets', each day with the
+//! Pomodoro's blocks completed on it (S124).
 
 use crate::kinds::Kept;
 use crate::records::blocks::Block;
 use crate::records::lessons::{OnSheet, lessons, number};
-use crate::records::metric::{Metric, value};
 use crate::records::seals::{Earned, earned};
 use crate::records::sheet::Sheet;
 use crate::records::time::{by_day, seconds};
@@ -23,9 +22,6 @@ pub struct Book {
     pub seconds: u64,
     /// Each local day practised, oldest first.
     pub days: Vec<Day>,
-    /// The colour's first pick of each lesson holding a compared colour, oldest first: the mean
-    /// of its colours' first differences (Oklab units).
-    pub colour: Vec<f64>,
     /// The first lesson with a single line compared, and the latest such one when it is another.
     pub lines: Vec<LineShown>,
     /// The seals earned, in the order they were.
@@ -74,7 +70,6 @@ impl Book {
             lessons: u32::try_from(finished).unwrap_or(u32::MAX),
             seconds: ordered.iter().map(|record| seconds(&record.spans)).sum(),
             days: sealed(days(&ordered, offset), blocks),
-            colour: taken.iter().filter_map(first_pick).collect(),
             lines: lines(records, &taken),
             seals: earned(records),
         }
@@ -126,15 +121,6 @@ fn sealed(mut days: Vec<Day>, blocks: &[Block]) -> Vec<Day> {
     }
     days.sort_by_key(|day| day.day);
     days
-}
-
-/// The mean of `lesson`'s colours' first differences, if it compared any.
-fn first_pick(lesson: &OnSheet<'_>) -> Option<f64> {
-    let picks: Vec<f64> = (lesson.lesson.exercises.iter())
-        .filter(|laid| laid.exercise.kind.facts().kept == Kept::Pick)
-        .filter_map(|laid| value(&laid.first.as_ref()?.metrics, Metric::FirstDelta))
-        .collect();
-    (!picks.is_empty()).then(|| picks.iter().sum::<f64>() / picks.len() as f64)
 }
 
 /// The first lesson's first single line compared, and the latest lesson's when it is another,

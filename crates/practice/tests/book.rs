@@ -233,7 +233,7 @@ fn a_unit_s_seal_is_earned_when_each_of_its_skills_holds_its_first_dot() {
 }
 
 #[test]
-fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
+fn the_book_shows_the_lessons_and_the_first_and_latest_lines() {
     let mut records: Vec<Sheet> = vec![
         done(1, (2, 4), 0.08, 30),
         done(2, (0, 4), 0.06, 30),
@@ -246,11 +246,6 @@ fn the_book_shows_the_lessons_the_first_picks_and_the_first_and_latest_lines() {
     records.push(open);
     let book = Book::of(&records, &[], 0);
     assert_eq!(book.lessons, 3);
-    assert_eq!(
-        book.colour,
-        [0.08, 0.06],
-        "lessons without colours left out"
-    );
     let first_line = of(&records[0], "line", 0);
     assert_eq!(
         book.lines,

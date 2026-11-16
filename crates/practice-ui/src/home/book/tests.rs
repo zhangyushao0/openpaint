@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use egui::{Rect, Shape};
 use openpaint_app::ProjectId;
-use openpaint_practice::{Book, Day, Skill};
+use openpaint_practice::{Book, Curve, Day, Progress, Skill, SkillLevel};
 use openpaint_practice_app::{BookProjection, BookRecord, LessonRow, SheetRead};
 
 use super::day::{day_card, rows};
@@ -55,6 +55,7 @@ fn crowded() -> BookProjection {
         skill: Skill::of_key(key),
         unit: None,
         first: false,
+        retest: None,
     };
     let record = |id, rows| BookRecord {
         id,
@@ -89,6 +90,7 @@ fn crowded() -> BookProjection {
         today: 20_754,
         records: records.into(),
         read: Arc::new(reads.map(|(id, size)| (id, Arc::new(read(size)))).into()),
+        ..BookProjection::default()
     }
 }
 
@@ -133,4 +135,53 @@ fn sheets_fall_into_rows_as_many_as_fit() {
     assert_eq!(rows(&[224.0, 224.0, 224.0], 500.0), vec![0..2, 2..3]);
     assert_eq!(rows(&[600.0, 100.0], 500.0), vec![0..1, 1..2]);
     assert!(rows(&[], 500.0).is_empty());
+}
+
+/// A book whose lines were practised on six days, a ten-day gap before the last two, the second
+/// level begun on the fourth.
+fn curved() -> BookProjection {
+    let curve = Curve {
+        skill: Skill::of_key("line").expect("lines"),
+        days: vec![20_731, 20_732, 20_734, 20_736, 20_746, 20_747],
+        ability: vec![0.0, 0.2, 0.3, 0.5, 0.7, 0.8],
+        band: vec![0.0, 0.3, 0.35, 0.4, 0.5, 0.5],
+        levels: vec![(3, SkillLevel::Second)],
+        retest: None,
+    };
+    BookProjection {
+        progress: Some(Arc::new(Progress {
+            curves: vec![curve],
+        })),
+        today: 20_747,
+        ..BookProjection::default()
+    }
+}
+
+#[test]
+fn the_progress_page_draws_a_curve_a_skill_named_and_dated_with_no_number() {
+    for language in [Language::English, Language::Chinese] {
+        let ctx = context();
+        let shown = curved();
+        let area = layout(SCREEN)[0].union(layout(SCREEN)[1]);
+        let (_, shapes) = settled_drawn(&ctx, (1.0, language), |ui| {
+            super::progress::curves(ui, area, &shown);
+        });
+        let texts: Vec<String> = (shapes.iter())
+            .filter_map(|shape| match shape {
+                Shape::Text(text) => Some(text.galley.text().to_owned()),
+                _ => None,
+            })
+            .collect();
+        let name = t::skill_name(Skill::of_key("line").expect("lines")).get(language);
+        assert!(texts.iter().any(|text| text == name), "{texts:?}");
+        assert!(texts.contains(&t::copy_date(language, 20_731)), "{texts:?}");
+        assert!(texts.contains(&t::copy_date(language, 20_747)), "{texts:?}");
+        let digit = |text: &&String| text.chars().any(|c| c.is_ascii_digit());
+        let numbers: Vec<&String> = texts.iter().filter(digit).collect();
+        assert_eq!(
+            numbers.len(),
+            2,
+            "only the two dates hold a number: {numbers:?}"
+        );
+    }
 }

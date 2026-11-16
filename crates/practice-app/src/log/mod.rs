@@ -6,15 +6,20 @@
 //! dots, the lessons offered, a lesson started), the practice book. Progress counts lessons,
 //! never days; every lesson but a copy's is the learner's, in the order of sheet and lesson
 //! (`lessons`); the day's lessons follow down one sheet (`day.rs`). The Pomodoro's timer and its
-//! blocks are the log's too (S124, `timer.rs`, `crate::pomodoro`).
+//! blocks are the log's too (S124, `timer.rs`, `crate::pomodoro`), and the blind pairs answered,
+//! each skill's curve and the copies' cards (S147, `progress.rs`).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-use openpaint_practice::{Book, Learner, PERSONAL, Pack, Purpose, Sheet, local_day};
+use openpaint_practice::{
+    BlindPair, Book, CopyRef, Learner, PERSONAL, Pack, PairAsked, Progress, Purpose, Sheet,
+    local_day,
+};
 
 use crate::book::{BookProjection, BookRecord, SheetRead};
 use crate::copies::{PictureShown, pictures_shown};
+use crate::pairs::CopyCard;
 use crate::path::PathProjection;
 use crate::pomodoro::Pomodoro;
 use openpaint_app::ProjectId;
@@ -23,7 +28,10 @@ use openpaint_app::Title;
 mod copies;
 mod day;
 mod path;
+mod progress;
 mod timer;
+
+pub use progress::Refit;
 
 /// Every practice sheet the library holds, oldest first, the titles of the copies' sheets, and
 /// the practice packs kept; the practice book made of them on the device's clock, with the
@@ -53,6 +61,16 @@ pub struct PracticeLog {
     told: HashSet<&'static str>,
     /// The Pomodoro's timer and its blocks (S124).
     pomodoro: Pomodoro,
+    /// The blind pairs answered (S147), oldest first; those a lesson's end asked on the local day
+    /// held, which none asks again that day.
+    pairs: Vec<BlindPair>,
+    asked_today: (i64, Vec<PairAsked>),
+    /// Each skill's curve as the storage worker last fitted it for the records as they stand
+    /// (`progress.rs`), and how often the records changed: a fit of older records is dropped.
+    progress: Option<Arc<Progress>>,
+    changes: u64,
+    /// The copies' cards read for the book's re-test pairs, by copy.
+    cards: Arc<BTreeMap<CopyRef, Arc<CopyCard>>>,
 }
 
 impl PracticeLog {
@@ -93,8 +111,11 @@ impl PracticeLog {
         self.pathed();
     }
 
-    /// The learner, the book and the path made again from the records.
+    /// The learner, the book and the path made again from the records; the curves fitted again
+    /// when next asked.
     fn booked(&mut self) {
+        self.progress = None;
+        self.changes += 1;
         self.learner = Learner::of(&self.sheets);
         let blocks = self.pomodoro.done();
         self.book = Arc::new(Book::of(&self.sheets, blocks, self.offset));
@@ -118,6 +139,8 @@ impl PracticeLog {
             today: self.today,
             records: Arc::clone(&self.named),
             read: Arc::clone(&self.read),
+            progress: self.progress.clone(),
+            cards: Arc::clone(&self.cards),
         }
     }
 
@@ -211,6 +234,7 @@ impl PracticeLog {
             self.titles.remove(&canvas);
         }
         self.sheets.retain(|s| s.id != id);
+        self.forget_pairs(id);
         self.shown();
         self.booked();
     }

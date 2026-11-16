@@ -168,3 +168,76 @@ fn the_path_page_shows_the_units_the_skills_and_the_offers() {
     }
     assert!(part.path.covers(), "the page lies over the whole home");
 }
+
+/// A path with unit 2's start re-test due and unit 1's end.
+fn retests_due() -> PathProjection {
+    let (_, going) = paths();
+    let skill = |key| Skill::of_key(key).expect("a skill");
+    let retest = |unit, end, skills: Vec<Skill>| openpaint_practice::Retest {
+        unit,
+        end,
+        skills,
+        minutes: 6,
+    };
+    PathProjection {
+        retest: Some(retest(2, false, vec![skill("box"), skill("ellipse")])),
+        retest_end: Some(retest(1, true, vec![skill("line"), skill("colour")])),
+        ..going
+    }
+}
+
+#[test]
+fn a_unit_s_start_re_test_takes_the_next_lesson_s_place_and_its_end_a_row_of_its_own() {
+    let due = retests_due();
+    let ctx = context();
+    let mut part = HomePart::default();
+    let timer = TimerShown::default();
+    let mut taps = Vec::new();
+    for language in [Language::English, Language::Chinese] {
+        let (map, shapes) = drawn(&ctx, (1.0, language, Vec::new()), |ui| {
+            let (mut asked, mut timed) = (Vec::new(), Vec::new());
+            part.column(
+                ui,
+                COLUMN,
+                (&due, &timer, true),
+                ((&mut taps, &mut asked), &mut timed),
+            );
+        });
+        assert_on_screen(&map, t::START.id());
+        assert_on_screen(&map, t::RETEST.id());
+        let texts: Vec<String> = (shapes.iter())
+            .filter_map(|shape| match shape {
+                egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                _ => None,
+            })
+            .collect();
+        let name = t::retest_name(language, 2);
+        assert!(texts.contains(&name), "{name} in {texts:?}");
+    }
+    let mut asked: Vec<OptionsIntent> = Vec::new();
+    let map = settled(&ctx, (5.0, Language::English), |ui| {
+        let mut timed = Vec::new();
+        part.column(
+            ui,
+            COLUMN,
+            (&due, &timer, true),
+            ((&mut taps, &mut asked), &mut timed),
+        );
+    });
+    let [press, release] = tap(&map, t::RETEST.id());
+    for (time, events) in [(8.0, press), (8.1, release)] {
+        pass(&ctx, (time, Language::English, events), |ui| {
+            let mut timed = Vec::new();
+            part.column(
+                ui,
+                COLUMN,
+                (&due, &timer, true),
+                ((&mut taps, &mut asked), &mut timed),
+            );
+        });
+    }
+    assert!(
+        asked.contains(&OptionsIntent::Lesson(Start::Retest(1, true))),
+        "{asked:?}"
+    );
+}

@@ -4,6 +4,7 @@
 
 mod order;
 mod pictures;
+mod retest;
 
 use openpaint_practice::{
     DOTS, Judge, Kind, Learner, Lesson, LineTier, Needs, Outcome, Picked, Pictures, Planned,

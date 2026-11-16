@@ -171,8 +171,9 @@ impl Runtime {
 
     /// For debug builds only: the test lesson `test` removed from the home, its record and its
     /// sheet, with every other test sheet started since (a Pomodoro's chain left it for a new
-    /// one) and the Pomodoro's blocks begun since (`start_test_pomodoro`'s); the log forgets each
-    /// sheet once the store did (`holds_practice`).
+    /// one), the blind pairs asked at them (S147) and the Pomodoro's blocks begun since
+    /// (`start_test_pomodoro`'s); the log forgets each sheet and its pairs once the store did
+    /// (`holds_practice`).
     ///
     /// # Errors
     /// `NotNow` when the home does not show, or no sheet holds `test`'s name.
@@ -189,12 +190,17 @@ impl Runtime {
         let id = record.id;
         let later = (self.practice.tests_since(test.started).into_iter())
             .filter(|later| later.id != id && later.canvas != 0);
+        let mut removed = Vec::new();
         for sheet in std::iter::once(record).chain(later) {
+            removed.push(sheet.id);
             self.cache
                 .submit(CacheJob::Delete(ProjectId::new(sheet.canvas)));
             self.storage
                 .submit(Job::Practice(PracticeJob::Remove(sheet)));
         }
+        // The blind pairs its lessons' ends asked (S147) go with them.
+        self.storage
+            .submit(Job::Practice(PracticeJob::ForgetPairs(removed)));
         self.practice.forget_blocks(test.started);
         self.storage
             .submit(Job::Practice(PracticeJob::ForgetBlocks(test.started)));

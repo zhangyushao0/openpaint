@@ -1,5 +1,16 @@
 # Archived decisions, 2026-11
 
+## Archived 2026-11-16 (S147: D113 folded into D123, which held its results since S145; and historical fragments, as they stood)
+
+- D97's reason went on: "The rule of 2026-10-23 waited whenever a stroke's frame before was unfinished, and a light stroke's frame is, merely submitted late in its vsync: every stroke at a view tier drew every other vsync (the author's pen on S134's build, 2026-11-15: 301 events in 150 frames, frame work p50 6.1 ms, the GPU's work as at fit)."
+- D96's display cache read "(S128: that copied and read back 73 MB a stroke on a day's sheet, 61 to 68 ms; after a kill …)" and its idle " (S133: a real pen hovers between strokes, so nothing was idle and its strokes took them cold in their frames)".
+- D106's reason began "D103's ground model outlined 60 of 126;".
+- D115's reason ended "Chosen by the main session 2026-11-11, the author's to overrule: dots at zero, a first lesson of three, a redo never first." (STATUS keeps it among the choices made for the author).
+
+## D113 2026-11-09 A result from each kind: clean, near, redo, the eye's, or incomplete (S119)
+- Decision: every comparison gives `Verdict::App(Outcome)`, `Eye` or `Incomplete` through `Compared::verdict`, required and without a fallback. Clean is exactly what Compare marks nothing for; near is a band named as a constant beside each check (`NEAR_*`, `AREAS_CLEAN`); incomplete is a copy that does not yet cover its exercise (each kind's coverage test) or a reading not yet arrived. Who judges: D123 (amended 2026-11-16, S113 and S145). Shown (S122, D115): after Compare a kind the eye judges asks Accurate, Almost or Again once (`PracticeIntent::Judge`, `Laid::judged`; refused before Compare, where the app judges and a second time); Next never asks and leaves none; the app's result is shown ringed; the first lesson scores nothing; every finished lesson's results stay marked under its pairs on the sheet.
+- Reason: the author (2026-11-09): an exercise ends in one result, never a number shown. Consequences: a new kind must give a verdict; the near bands but the colours' rest on one sample or none and are revisited as records gather; a result counts for the dots whoever judged it (`Learner::take`).
+
 ## Archived 2026-11-05 (S105: superseded and historical fragments, as they stood; the decisions themselves unchanged)
 
 - D102's reason ended "; STATUS pending 28, option (c)." (that pending decision was settled and has left STATUS).

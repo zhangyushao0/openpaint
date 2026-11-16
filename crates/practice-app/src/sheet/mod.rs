@@ -7,7 +7,8 @@
 //! next pair at its zoom, its row fitted, `view.rs`; after the last the lesson ends over the rows
 //! used), One more in place (`append.rs`: the next lesson laid from a new row of the day's
 //! sheet), a kind's How (by itself the first time a kind comes up, a warm-up's never), the
-//! result chosen by eye and the lesson's end (`lesson.rs`), the time (`time.rs`) and the
+//! result chosen by eye and the lesson's end (`lesson.rs`; its blind pairs and extra drill,
+//! `pairs.rs`), the time (`time.rs`) and the
 //! notices; what the screen draws (`projected.rs`); the lesson's pictures as the store reads
 //! them. A long colour copy is a sheet of one pair, the full interface always showing (painted
 //! with the toolbox's own brushes, S104) and no Next. The record changes here and goes to the
@@ -42,13 +43,15 @@ pub struct Practising {
 }
 
 /// What the lesson in hand is set beside, from the log: what every other lesson adds up to (the
-/// seals its end stamps), the learner they tell of (its skill's dots before and after it) and the
-/// pictures kept (the lesson its end offers next).
+/// seals its end stamps), the learner they tell of (its skill's dots before and after it), the
+/// pictures kept (the lesson its end offers next) and the records its end's pairs and drill are
+/// read from (S147).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Beside {
     pub(crate) others: Tally,
     pub(crate) learner: Learner,
     pub(crate) pictures: Pictures,
+    pub(crate) past: Arc<Past>,
 }
 
 mod append;
@@ -58,6 +61,7 @@ mod choices;
 mod compare;
 mod lesson;
 mod overlay;
+mod pairs;
 mod pens;
 mod pick;
 mod pictures;
@@ -66,6 +70,7 @@ mod read;
 mod time;
 mod view;
 
+pub(crate) use pairs::Past;
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
 pub use read::ReadJob;
@@ -138,6 +143,8 @@ pub struct PracticeSheet {
     rolled_back: bool,
     /// End cut the record: it goes to the store with its givens, once (`block.rs`).
     trimmed: bool,
+    /// What the lesson's end asked of the eye and read for it (`pairs.rs`, S147).
+    asking: pairs::Asking,
 }
 
 impl PracticeSheet {
@@ -149,7 +156,9 @@ impl PracticeSheet {
             told,
         } = opening;
         let sheet = Arc::new(view);
+        let asking = pairs::Asking::of(&record);
         let mut practice = Self {
+            asking,
             told,
             seen: HashSet::new(),
             all_tools: record.is_copy(),
@@ -345,12 +354,13 @@ impl PracticeSheet {
                 self.all_tools = on;
             }
             PracticeIntent::Next(viewport) => self.next(view, &viewport, now)?,
-            PracticeIntent::OneMore(_) => {
+            PracticeIntent::OneMore(_) | PracticeIntent::Drill(_) => {
                 // A lesson appended waits for the store before another may follow it.
                 if self.current().is_some() || self.appending.is_some() {
                     return Err(unavailable(Availability::Running));
                 }
             }
+            PracticeIntent::Pair(at, answer) => self.answer_pair(usize::from(at), answer, now)?,
             PracticeIntent::Fill(_) => return Err(unavailable(Availability::NothingLeft)),
             PracticeIntent::Judge(outcome) => self.judge(outcome)?,
             PracticeIntent::Dismiss => self.notice = None,
