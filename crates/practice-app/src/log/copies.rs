@@ -1,6 +1,7 @@
-//! The projects in the log (a long colour copy, a drawing from life): one begun of a picture
-//! chosen, numbered among its own and titled "Colour copy n" or "Drawing from life n" until
-//! renamed; the test copy's picture; the projects as the options list them.
+//! The projects in the log (a long colour copy, a drawing from life, a cold-warm copy): one begun
+//! of a picture chosen, numbered among its own and titled "Colour copy n", "Drawing from life n" or
+//! "Cold-warm copy n" until renamed; the test copy's picture; the projects as the options list
+//! them.
 
 use openpaint_practice::{ItemRef, PERSONAL, PictureKind, Random, Sheet, lessons, number};
 
@@ -11,6 +12,7 @@ use openpaint_app::{ProjectId, Title};
 /// The names a project's sheet is titled with until renamed, a number after each.
 const COPY_NAME: &str = "Colour copy";
 const LIFE_NAME: &str = "Drawing from life";
+const COLD_WARM_NAME: &str = "Cold-warm copy";
 
 impl PracticeLog {
     /// A new colour copy of `picture` (the user chose it; none unless a pack kept holds it),
@@ -31,6 +33,21 @@ impl PracticeLog {
         Some(self.titled(record.framed(&self.packs)))
     }
 
+    /// A new cold-warm copy of `picture` (S154: the user chose it; none unless a pack kept holds
+    /// it), its tendencies the pair after the cold-warm copies before it, seeded `seed`, begun at
+    /// `now`, with its sheet's title.
+    #[must_use]
+    pub fn begin_cold_warm(
+        &self,
+        picture: &ItemRef,
+        seed: u64,
+        now: u64,
+    ) -> Option<(Sheet, Title)> {
+        self.found(picture)?;
+        let record = Sheet::cold_warm(self.next_id(), (seed, now), picture.clone(), &self.sheets);
+        Some(self.titled(record.framed(&self.packs)))
+    }
+
     /// Whether a pack kept holds `picture` as a picture to copy.
     fn found(&self, picture: &ItemRef) -> Option<()> {
         let found = self.packs.iter().find_map(|pack| pack.find(picture))?;
@@ -39,7 +56,7 @@ impl PracticeLog {
 
     /// `record`, a project just begun, with its title: the next number among its own.
     fn titled(&self, record: Sheet) -> (Sheet, Title) {
-        let alike = |sheet: &Sheet| sheet.drawn_from_life() == record.drawn_from_life();
+        let alike = |sheet: &Sheet| sheet.project_sort() == record.project_sort();
         let number = (lessons(&self.sheets).iter())
             .filter(|on| on.is_copy() && alike(on.sheet))
             .count()
@@ -94,13 +111,14 @@ impl PracticeLog {
     }
 }
 
-/// The title a new project's sheet takes, its name until renamed: "Colour copy n", "Drawing from
-/// life n".
+/// The title a new project's sheet takes, its name until renamed, by its kind's key: "Colour copy
+/// n", "Drawing from life n", "Cold-warm copy n".
 fn project_title(record: &Sheet, number: u32) -> Title {
-    let name = if record.drawn_from_life() {
-        LIFE_NAME
-    } else {
-        COPY_NAME
+    let key = (record.exercises().next()).map(|laid| laid.exercise.kind.facts().key);
+    let name = match key {
+        Some("observation") => LIFE_NAME,
+        Some("cold-warm") => COLD_WARM_NAME,
+        _ => COPY_NAME,
     };
     Title::new(&format!("{name} {number}")).unwrap_or_else(|_| Title::untitled())
 }

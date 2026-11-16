@@ -261,7 +261,8 @@ impl Drawing<'_> {
     fn line(&self, points: &[[f64; 2]], pen: LinePen, (dashed, clip): (bool, Clip)) {
         let (painter, map, stroke) = (self.painter, self.map, self.pen(pen));
         match (pen, clip) {
-            (LinePen::Level(_), _) => {
+            // A level's pen dashed (a contrast thumbnail's printed rings, S154) runs as a line.
+            (LinePen::Level(_), _) if !dashed => {
                 for part in within(points, self.frame.extent()) {
                     let part: Vec<Pos2> = part.iter().map(|p| map(*p)).collect();
                     for segment in part.windows(2) {

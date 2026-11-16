@@ -63,6 +63,8 @@ pub use kinds::boxes::marks::BoxCompared;
 pub use kinds::cast_shadows::answer::{Corner, Shadows};
 pub use kinds::cast_shadows::marks::ShadowCompared;
 pub use kinds::cast_shadows::scene::{ShadowTask, Throw};
+pub use kinds::cold_warm::leans::Leans;
+pub use kinds::cold_warm::marks::{ShiftCompared, ShiftReading};
 pub use kinds::colours::bands::{DELTA_SPAN, NOTICEABLE, PART_SPAN};
 pub use kinds::colours::colour_match::{
     ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour,
@@ -71,6 +73,11 @@ pub use kinds::colours::marks::ColourCompared;
 pub use kinds::combinations::marks::{AREAS_CLEAN, AreasCompared, AreasRead, NEAR_STRONG};
 pub use kinds::combinations::reading::AreasReading;
 pub use kinds::combined_lines::combined::{Combination, CombinedLines};
+pub use kinds::contrast_thumbnails::marks::{
+    Finding, ThumbnailCompared, ThumbnailRead, ThumbnailReading, WITHIN,
+};
+pub use kinds::contrast_thumbnails::rings::{Emphasis, MOVED_BY, RING, Ring, rings};
+pub use kinds::contrast_thumbnails::steps::{CLEAR_WITHIN, Steps, VEIL_BELOW};
 pub use kinds::curved_rotations::answer::{CurvedAnswer, CurvedLine, Owner};
 pub use kinds::curved_rotations::curved::{CurvedRotation, CurvedTask, Handed};
 pub use kinds::curved_rotations::design::{Attached, Attachment, Design, Segment, SegmentKind};

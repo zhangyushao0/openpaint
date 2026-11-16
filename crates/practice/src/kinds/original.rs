@@ -28,6 +28,12 @@ pub trait Original: Any + Debug + Send + Sync {
     fn givens(&self) -> Vec<SheetMark> {
         Vec::new()
     }
+    /// What it prints in its frames before Compare, its pack's `picture` in hand (none: none
+    /// held): its `givens`, but where they are drawn from the picture (a contrast thumbnail's
+    /// shapes and rings, S154).
+    fn printed(&self, _picture: Option<&SheetPicture>) -> Vec<SheetMark> {
+        self.givens()
+    }
     /// What the card shows while the copy is made, before Compare: the steps it asks and the
     /// choices it takes (abstract analysis's, S112); nothing for most kinds.
     fn task(&self) -> Vec<CardItem> {

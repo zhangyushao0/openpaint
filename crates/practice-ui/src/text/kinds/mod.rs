@@ -14,9 +14,11 @@ use super::{Language, Text};
 mod abstract_analysis;
 mod boxes;
 mod cast_shadows;
+mod cold_warm;
 mod colours;
 mod combinations;
 mod combined_lines;
+mod contrast_thumbnails;
 mod curved_rotations;
 mod divisions;
 mod ellipses;
@@ -45,6 +47,10 @@ pub(crate) use abstract_analysis::{
     ANALYSIS_BY, ANALYSIS_LOOK, ANALYSIS_SECOND, ANALYSIS_SECOND_HOW, ANALYSIS_SPREAD,
     ANALYSIS_STRONGEST, ANALYSIS_STRONGEST_HOW, SECOND_MARK_PEN, STRONG_PEN, WEAK_PEN,
     analysis_chosen, analysis_spread, choice_word,
+};
+pub(crate) use cold_warm::{BIG_HOMEWORK, COLD_WARM_EXERCISE, LIGHTS_TENDENCY, SHADOWS_TENDENCY};
+pub(crate) use contrast_thumbnails::{
+    FOCUS_OUTSIDE, FOCUS_RIVAL, SECOND_STRONG, SECOND_WEAK, THUMBNAIL_BARE,
 };
 #[cfg(test)]
 pub(crate) use gamut_masks::made as outside_mask_made;
@@ -100,7 +106,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 29] = [
+const KINDS: [&[KindWords]; 31] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -130,6 +136,8 @@ const KINDS: [&[KindWords]; 29] = [
     &curved_rotations::WORDS,
     &lit_colours::WORDS,
     &textures::WORDS,
+    &contrast_thumbnails::WORDS,
+    &cold_warm::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -214,6 +222,8 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         curved_rotations::PRACTICE_CURVED_ROTATIONS,
         lit_colours::PRACTICE_LIT_COLOURS,
         textures::PRACTICE_TEXTURES,
+        contrast_thumbnails::PRACTICE_THUMBNAILS,
+        cold_warm::PRACTICE_COLD_WARM,
     ]
 }
 

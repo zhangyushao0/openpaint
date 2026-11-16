@@ -16,9 +16,11 @@
 pub(crate) mod abstract_analysis;
 pub(crate) mod boxes;
 pub(crate) mod cast_shadows;
+pub(crate) mod cold_warm;
 pub(crate) mod colours;
 pub(crate) mod combinations;
 pub(crate) mod combined_lines;
+pub(crate) mod contrast_thumbnails;
 pub(crate) mod curved_rotations;
 pub(crate) mod divisions;
 pub(crate) mod ellipses;
@@ -58,8 +60,8 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{DARKEST, DARKEST_PEN, Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 30, 5 free): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 29] = [
+/// Every kind, by its stored code (1 to 32, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 31] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -89,4 +91,6 @@ pub(crate) const KINDS: [&dyn Described; 29] = [
     &curved_rotations::CurvedRotations,
     &lit_colours::LitColours,
     &textures::Textures,
+    &contrast_thumbnails::ContrastThumbnails,
+    &cold_warm::ColdWarm,
 ];

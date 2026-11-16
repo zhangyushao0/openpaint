@@ -2,9 +2,10 @@
 //! pace, ending on Compare's marks; the constructions it draws land on the exact answers.
 
 use openpaint_practice::{
-    BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn, Estimate, Guide,
-    Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker, ObjectTask, On, Placement, Point,
-    Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier, Tone, Trick, distance, meet,
+    BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn, Emphasis,
+    Estimate, Guide, Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker, ObjectTask, On,
+    Placement, Point, Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier, Tone, Trick,
+    distance, meet,
 };
 
 const COLOUR: Tone = Tone {
@@ -13,7 +14,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 38] = [
+const STEPS: [(Kind, usize); 39] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -52,6 +53,7 @@ const STEPS: [(Kind, usize); 38] = [
     (Kind::LitColour(LitColour::ALL[10]), 6),
     (Kind::Texture(Texture::ALL[0]), 4),
     (Kind::Texture(Texture::ALL[4]), 5),
+    (Kind::Thumbnail(Emphasis::Own), 4),
 ];
 
 fn demo(kind: Kind) -> Demo {

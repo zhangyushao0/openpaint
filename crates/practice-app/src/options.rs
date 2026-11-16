@@ -36,6 +36,9 @@ pub enum OptionsIntent {
     /// A new drawing from life against the photo chosen among the user's own pictures, opened at
     /// once (S151: the path page's card, New copy's Drawing from life).
     FromLife(ItemRef),
+    /// A new cold-warm copy of the picture chosen, opened at once (S154: New copy's choice,
+    /// unit 7's path page).
+    ColdWarm(ItemRef),
     /// A colour copy's name: its sheet's title.
     RenameCopy { sheet: ProjectId, title: Title },
     /// A colour copy removed with its sheet, for good; asked only after the user confirmed it.
@@ -67,6 +70,8 @@ pub enum OptionsRequest {
     Copy(ItemRef),
     /// A new drawing from life against the photo given and its sheet, which becomes the open one.
     FromLife(ItemRef),
+    /// A new cold-warm copy of the picture given and its sheet, which becomes the open one.
+    ColdWarm(ItemRef),
     /// A colour copy's sheet titled anew.
     RenameCopy(ProjectId, Title),
     /// A colour copy removed, its record and its sheet.
@@ -88,7 +93,10 @@ impl OptionsRequest {
     /// gallery until the sheet opens, and failing it is a sheet not made.
     #[must_use]
     pub const fn opens(&self) -> bool {
-        matches!(self, Self::Lesson(_) | Self::Copy(_) | Self::FromLife(_))
+        matches!(
+            self,
+            Self::Lesson(_) | Self::Copy(_) | Self::FromLife(_) | Self::ColdWarm(_)
+        )
     }
 }
 
@@ -147,6 +155,7 @@ impl Options {
             OptionsIntent::Lesson(start) => OptionsRequest::Lesson(start),
             OptionsIntent::Copy(picture) => OptionsRequest::Copy(picture),
             OptionsIntent::FromLife(photo) => OptionsRequest::FromLife(photo),
+            OptionsIntent::ColdWarm(picture) => OptionsRequest::ColdWarm(picture),
             OptionsIntent::RenameCopy { sheet, title } => OptionsRequest::RenameCopy(sheet, title),
             OptionsIntent::RemoveCopy(sheet) => OptionsRequest::RemoveCopy(sheet),
             OptionsIntent::RemovePicture(picture) => OptionsRequest::RemovePicture(picture.item),

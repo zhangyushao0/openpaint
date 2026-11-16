@@ -19,7 +19,7 @@ use openpaint_ui::components::{
 use openpaint_ui::design::{SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
 
-use super::card_disc::{disc, gamut, mixed};
+use super::card_disc::{disc, gamut, leaning, mixed};
 use super::card_items as items;
 use super::demo::{Demonstrations, HowOf};
 use super::lesson_name;
@@ -178,6 +178,23 @@ fn item_of(
             copy,
             size,
         } => pair_on_wheel(ui, (*original, *copy), wheel_side(*size)),
+        CardItem::Disc { .. }
+        | CardItem::Gamut { .. }
+        | CardItem::Mixed { .. }
+        | CardItem::Leaning { .. } => disc_of(ui, item, chosen),
+        CardItem::Bar { original, copy } => items::lightness(ui, *original, *copy),
+        CardItem::Levels(rows) => items::levels(ui, rows),
+        CardItem::Toggles(keys) => items::toggles(ui, keys, (practice.choices, open), taps),
+        CardItem::Shapes(shapes) => items::shapes(ui, shapes, (practice.choices, open), taps),
+        CardItem::Views(keys) => items::views(ui, keys, practice.view, taps),
+    }
+}
+
+/// One of the card's hue and chroma discs: a key shift's, a gamut mask's, the colours given to mix
+/// from and the copy's regions (S154), a point compared beside two tendencies (S154), the `chosen`
+/// area heavier.
+fn disc_of(ui: &mut egui::Ui, item: &CardItem, chosen: usize) {
+    match item {
         CardItem::Disc {
             originals,
             copy,
@@ -195,11 +212,12 @@ fn item_of(
             copy,
             marked,
         } => mixed(ui, given, copy, marked),
-        CardItem::Bar { original, copy } => items::lightness(ui, *original, *copy),
-        CardItem::Levels(rows) => items::levels(ui, rows),
-        CardItem::Toggles(keys) => items::toggles(ui, keys, (practice.choices, open), taps),
-        CardItem::Shapes(shapes) => items::shapes(ui, shapes, (practice.choices, open), taps),
-        CardItem::Views(keys) => items::views(ui, keys, practice.view, taps),
+        CardItem::Leaning {
+            original,
+            copy,
+            tendencies,
+        } => leaning(ui, (*original, *copy), tendencies),
+        _ => {}
     }
 }
 

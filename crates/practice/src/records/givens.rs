@@ -29,7 +29,7 @@ impl Given {
         let original = exercise.original();
         let picture = (exercise.picture.as_ref()).and_then(|item| SheetPicture::of(item, packs));
         Self {
-            marks: original.givens(),
+            marks: original.printed(picture.as_ref()),
             painted: original.painted(picture.as_ref()),
         }
     }

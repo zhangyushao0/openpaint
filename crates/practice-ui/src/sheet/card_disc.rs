@@ -11,6 +11,9 @@
 //! on the card (`gamut`, the areas outside it ringed red), beside its frame on the sheet and under
 //! a How's frames (`masked_disc`). Colour under light's (S154, `mixed`): the colours it gave as
 //! squares, the copy's regions as dots.
+//!
+//! A cold-warm copy's point compared (S154) lies on the same disc unveiled, beside its two
+//! tendencies (`leaning`).
 
 use egui::{Color32, Mesh, Pos2, Sense, Shape, Stroke, Vec2};
 use openpaint_practice::{Point, Rgb8, gamut_span, in_gamut, oklab};
@@ -232,6 +235,34 @@ pub(crate) fn mixed(
             painter.circle_stroke(at(*mine), OUTSIDE_RING, Stroke::new(2.0, CORRECTION));
         }
     }
+}
+
+/// A point compared on the disc (S154, a cold-warm copy's): the original's colour there a small
+/// ring, the copy's a dot in its colour with an arrow from one to the other, and the two
+/// `tendencies` (Oklab `a`, `b`, each with its colour) as larger discs.
+pub(crate) fn leaning(
+    ui: &mut egui::Ui,
+    (original, copy): (Rgb8, Rgb8),
+    tendencies: &[(Point, Rgb8); 2],
+) {
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, SIDE), Sense::hover());
+    let (centre, radius) = (rect.center(), SIDE / 2.0 - 4.0);
+    let painter = ui.painter();
+    painter.add(Shape::mesh(colours_of(centre, radius)));
+    painter.circle_stroke(centre, radius, Stroke::new(1.0, DIVIDER));
+    for (ab, rgb) in tendencies {
+        let at = on_disc((centre, radius), *ab);
+        painter.circle(at, TENDENCY_MARK, colour(*rgb), Stroke::new(1.5, INK));
+    }
+    let at = |rgb: Rgb8| {
+        let [_, a, b] = oklab(rgb);
+        on_disc((centre, radius), [a, b])
+    };
+    let (from, to) = (at(original), at(copy));
+    arrow(painter, from, to, Stroke::new(2.5, INK_SECONDARY));
+    painter.circle(to, MARK, colour(copy), Stroke::new(2.5, INK));
+    painter.circle_stroke(from, MARK, Stroke::new(2.5, INK));
 }
 
 /// A hue and chroma disc at `centre` of `radius` points with a gamut mask: its colours softened,

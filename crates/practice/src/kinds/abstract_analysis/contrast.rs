@@ -321,7 +321,7 @@ fn steepest(fine: &[f64], width: usize, (from, to): (usize, usize)) -> f64 {
 }
 
 /// The cells within `reach` of a cell along `DIRECTIONS` directions, as offsets, each once.
-fn around(reach: usize) -> Vec<[isize; 2]> {
+pub(crate) fn around(reach: usize) -> Vec<[isize; 2]> {
     let mut offsets: Vec<[isize; 2]> = (0..DIRECTIONS)
         .flat_map(|k| {
             let turn = std::f64::consts::TAU * f64::from(k) / f64::from(DIRECTIONS);

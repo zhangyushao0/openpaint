@@ -159,13 +159,16 @@ pub enum Figure {
 pub const BESIDE_SIDE: f64 = 0.07;
 /// The keys a swatch beside a frame may be named by, the UI's words under it (`Figure::Beside`);
 /// stored by their place here, so a key is appended, never moved. Colour under light's (S154): the
-/// local colour, the sun's or a lamp's, the sky's and the ground's.
-pub const BESIDE_NAMES: [&str; 5] = [
+/// local colour, the sun's or a lamp's, the sky's and the ground's; a cold-warm copy's (S154): its
+/// lights' tendency and its shadows'.
+pub const BESIDE_NAMES: [&str; 7] = [
     "local-colour",
     "sunlight",
     "lamplight",
     "skylight",
     "ground",
+    "lights",
+    "shadows",
 ];
 
 /// The canvas point of the point `at` beside `frame`: frame units from its top right corner.

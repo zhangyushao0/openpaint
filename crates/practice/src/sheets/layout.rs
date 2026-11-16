@@ -21,6 +21,9 @@ pub const FRAME: f64 = 400.0;
 pub const STUDY_SIDE: f64 = 1600.0;
 /// Strokes may begin this share of a frame's longer side outside it (and are clipped to it).
 pub const FRAME_REACH: f64 = 0.1;
+/// A project's sheet that gives swatches beside its copy's frame is this share of the frame's
+/// longer side wider on its right (`Facts::beside`, S154): a swatch, its gap and its name.
+const BESIDE_ROOM: f64 = 0.12;
 /// Between the original's frame and the copy's.
 const PAIR_GAP: f64 = 40.0;
 /// Between pairs, across and down, and round the sheet's edge.
@@ -243,9 +246,18 @@ impl Layout {
             let laid = sheet.exercises().next();
             // Painted in the full interface for hours, a colour copy's frames are large; a drawing
             // from life is drawn with the exercise's pens, sized for a lesson's frame (S151).
-            let full = laid.is_some_and(|laid| laid.exercise.kind.facts().tools.full);
-            let side = if full { STUDY_SIDE } else { FRAME };
-            return Self::project(laid.and_then(frame).unwrap_or([1, 1]), side);
+            let facts = laid.map(|laid| laid.exercise.kind.facts());
+            let side = if facts.is_some_and(|facts| facts.tools.full) {
+                STUDY_SIDE
+            } else {
+                FRAME
+            };
+            let mut layout = Self::project(laid.and_then(frame).unwrap_or([1, 1]), side);
+            // Room for what it gives beside its copy's frame (a cold-warm copy's tendencies, S154).
+            if facts.is_some_and(|facts| facts.beside) {
+                layout.size[0] += (BESIDE_ROOM * side).round() as u32;
+            }
+            return layout;
         }
         let pairs = (sheet.exercises())
             .map(|laid| Self::pair_at(usize::from(laid.slot), frame(laid)))

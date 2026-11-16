@@ -33,8 +33,9 @@ const CHROME_ROOM: f32 = 4.0 * TOUCH_TARGET;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Page {
     Main,
-    /// New copy's picker on one of its shelves.
-    Picker(Shelf),
+    /// New copy's picker on one of its shelves, a picture tapped beginning a copy of the sort
+    /// chosen.
+    Picker(Shelf, Copying),
     /// My pictures, one of them, and adding one (its tier first).
     Mine,
     Picture(ItemRef),
@@ -60,6 +61,22 @@ impl Shelf {
             Self::Mine | Self::Life => None,
         }
     }
+
+    /// The first shelf of pictures to copy `path` holds: the easiest tier with pictures, else the
+    /// user's own.
+    pub(super) fn first(path: &PathProjection) -> Self {
+        let first =
+            (Tier::ALL.into_iter()).find(|tier| path.pictures_of(Some(*tier)).next().is_some());
+        first.map_or(Self::Mine, Self::Tier)
+    }
+}
+
+/// What a picture tapped on a tier's or the user's own shelf begins (S154): a long colour copy, or
+/// a cold-warm copy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Copying {
+    Colour,
+    ColdWarm,
 }
 
 /// What waits for the user's answer before it goes for good.
@@ -124,7 +141,13 @@ impl PracticeOptions {
 
     /// Opens them on New copy's Drawing from life, grown from `card` (the path page's card, S151).
     pub(super) fn open_on_life(&mut self, card: Rect) {
-        self.shown = Some((card, Page::Picker(Shelf::Life)));
+        self.shown = Some((card, Page::Picker(Shelf::Life, Copying::Colour)));
+    }
+
+    /// Opens them on New copy's picker at `shelf` beginning cold-warm copies, grown from `card`
+    /// (the path page's card, S154).
+    pub(super) fn open_on_cold_warm(&mut self, card: Rect, shelf: Shelf) {
+        self.shown = Some((card, Page::Picker(shelf, Copying::ColdWarm)));
     }
 
     /// Closes them and any dialog of theirs as Cancel would. Returns whether one was open.
@@ -243,7 +266,9 @@ fn page_of(
             ui.heading(Words::from(t::PRACTICE_OPTIONS).shown(ui.ctx()));
             scrolled(ui, room, |ui| main_page(ui, (path, timer), pictures))
         }
-        Page::Picker(shelf) => super::pictures::picker(ui, (*shelf, room), path, pictures),
+        Page::Picker(shelf, copying) => {
+            super::pictures::picker(ui, (*shelf, *copying, room), path, pictures)
+        }
         Page::Mine => super::pictures::mine(ui, room, path, pictures),
         Page::Picture(item) => super::pictures::picture(ui, item, path, pictures),
         Page::Add => super::pictures::add(ui),

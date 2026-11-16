@@ -88,17 +88,15 @@ pub fn lessons<'a>(sheets: impl IntoIterator<Item = &'a Sheet>) -> Vec<OnSheet<'
 
 /// Lesson `lesson` of `sheet`'s number in `all` (`sheet` among them or not), from 1: its place
 /// among every lesson but a copy's (the learner's lessons: a row's label on the sheet, "lesson n ·
-/// skill"), a colour copy's among the colour copies, a drawing from life's among the drawings
-/// (S151).
+/// skill"), a project's among the projects of its sort (`Sheet::project_sort`): a colour copy's
+/// among the colour copies, a drawing from life's among the drawings (S151), a cold-warm copy's
+/// among the cold-warm copies (S154).
 #[must_use]
 pub fn number(all: &[Sheet], sheet: &Sheet, lesson: usize) -> u32 {
     let Some(this) = OnSheet::of(sheet, lesson) else {
         return 1;
     };
-    let alike = |other: &OnSheet<'_>| {
-        other.is_copy() == this.is_copy()
-            && other.sheet.drawn_from_life() == this.sheet.drawn_from_life()
-    };
+    let alike = |other: &OnSheet<'_>| other.sheet.project_sort() == this.sheet.project_sort();
     let earlier = (lessons(all).iter())
         .filter(|other| other.order() < this.order() && alike(other))
         .count();

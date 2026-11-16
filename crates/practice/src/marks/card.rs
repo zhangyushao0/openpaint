@@ -161,6 +161,15 @@ pub enum CardItem {
     },
     /// The lightness bar: the original's lightness over it, the copy's under it (S107).
     Bar { original: Rgb8, copy: Rgb8 },
+    /// A point compared on the hue and chroma disc (S154): the original's colour there a small
+    /// ring, the copy's a dot in its colour, an arrow between, and the two tendencies the copy
+    /// leans toward, each a disc of its colour where it lies (Oklab `a`, `b`: a cold-warm copy's
+    /// lights' and shadows').
+    Leaning {
+        original: Rgb8,
+        copy: Rgb8,
+        tendencies: [(Point, Rgb8); 2],
+    },
     /// A division's levels, their lines counted and measured (S95).
     Levels([LevelRow; 3]),
     /// A row of chips, each a word's key, those `Choices::chips` holds on; a tap turns one, until

@@ -4,7 +4,7 @@
 //! "Line drawing" and "Colour blocks" layers, abstract analysis's "Picture" layer (S112); and the
 //! official packs, named by their id.
 
-use super::{LIFE_EXERCISE, Language, Names, STUDY_EXERCISE};
+use super::{COLD_WARM_EXERCISE, LIFE_EXERCISE, Language, Names, STUDY_EXERCISE};
 
 texts! { PRACTICE_NAMES;
     PICTURE_NAME = "Picture", "图片";
@@ -19,7 +19,12 @@ texts! { PRACTICE_NAMES;
 
 /// The names practice gives, for the shell (`Shell::set_names`).
 pub const NAMES: Names = Names {
-    numbered: &[PICTURE_NAME, STUDY_EXERCISE, LIFE_EXERCISE],
+    numbered: &[
+        PICTURE_NAME,
+        STUDY_EXERCISE,
+        LIFE_EXERCISE,
+        COLD_WARM_EXERCISE,
+    ],
     fixed: &[
         DIVISION_LAYER_NAME,
         LINES_LAYER_NAME,
@@ -59,6 +64,7 @@ mod tests {
         let zh = |name| shown_name(&ctx, name).into_owned();
         assert_eq!(zh("Colour copy 2"), "色彩临摹 2");
         assert_eq!(zh("Drawing from life 3"), "写生 3");
+        assert_eq!(zh("Cold-warm copy 1"), "冷暖变调临摹 1");
         assert_eq!(zh("Picture 4"), "图片 4");
         assert_eq!(zh("Division"), "画面分割");
         assert_eq!(zh("Line drawing copy"), "线稿 副本");

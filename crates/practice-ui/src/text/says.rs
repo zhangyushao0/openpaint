@@ -44,6 +44,13 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
         "skylight" => plain(super::SKYLIGHT_NAME),
         "ground" => plain(super::GROUND_NAME),
         "one-answer" => plain(super::ONE_ANSWER),
+        "focus-outside" => plain(super::FOCUS_OUTSIDE),
+        "focus-rival" => plain(super::FOCUS_RIVAL),
+        "second-strong" => plain(super::SECOND_STRONG),
+        "second-weak" => plain(super::SECOND_WEAK),
+        "thumbnail-bare" => plain(super::THUMBNAIL_BARE),
+        "lights" => plain(super::LIGHTS_TENDENCY),
+        "shadows" => plain(super::SHADOWS_TENDENCY),
         key => key.to_owned(),
     }
 }

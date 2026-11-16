@@ -181,7 +181,12 @@ impl Sheet {
     }
 
     /// A project of `kind` of `picture`: one exercise on a sheet of its own.
-    fn project(kind: Kind, id: u64, (seed, started): (u64, u64), picture: ItemRef) -> Self {
+    pub(crate) fn project(
+        kind: Kind,
+        id: u64,
+        (seed, started): (u64, u64),
+        picture: ItemRef,
+    ) -> Self {
         let exercise = Exercise {
             picture: Some(picture),
             ..Exercise::generated(kind, seed)
@@ -331,6 +336,15 @@ impl Sheet {
     #[must_use]
     pub fn is_copy(&self) -> bool {
         self.purpose == Purpose::Copy
+    }
+
+    /// Its project's sort, the stored code of its exercise's kind (a long colour copy's, a drawing
+    /// from life's, a cold-warm copy's, S154); none for a day's or a test's sheet. Projects are
+    /// numbered and named among their own sort.
+    #[must_use]
+    pub fn project_sort(&self) -> Option<u8> {
+        let laid = self.exercises().next().filter(|_| self.is_copy())?;
+        Some(laid.exercise.kind.code().0)
     }
 
     /// Whether it is a drawing from life (S151): a project whose picture, the photo, stays out of

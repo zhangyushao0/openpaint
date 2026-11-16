@@ -12,8 +12,10 @@ use crate::demos::demo::Demo;
 use crate::geometry::ellipse::Guide;
 use crate::geometry::perspective::{BoxView, Horizon};
 use crate::kinds::cast_shadows::scene::Throw;
+use crate::kinds::cold_warm::leans::Leans;
 use crate::kinds::colours::colour_match::Tone;
 use crate::kinds::combined_lines::combined::Combination;
+use crate::kinds::contrast_thumbnails::rings::Emphasis;
 use crate::kinds::curved_rotations::curved::CurvedRotation;
 use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::gamut_masks::mask::Mask;
@@ -117,6 +119,12 @@ pub enum Kind {
     /// A strip of small forms on the ground in a low sun, its texture told by their shadows alone
     /// (纹理, S154, `textures/`).
     Texture(Texture),
+    /// A composition's big shapes painted as one's own picture in three greys, its focus where a
+    /// ring is printed (V大's 抽象对比用于创作, S154, `contrast_thumbnails/`).
+    Thumbnail(Emphasis),
+    /// A long colour copy shifted toward two tendencies, its lights warm and its shadows cool
+    /// (V大's 整图变调): a project beside the lessons (S154, `cold_warm/`).
+    ColdWarm(Leans),
 }
 
 impl Kind {

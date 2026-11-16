@@ -1,5 +1,6 @@
 //! The practice options' pictures (S83): New copy's picker (the packs' pictures of a tier, or the
-//! user's own, each with its credit: tapped, a long colour copy of it begins; or the user's own on
+//! user's own, each with its credit: tapped, a long colour copy of it begins, or a cold-warm copy
+//! where that is chosen, S154; or the user's own on
 //! Drawing from life, tapped, a drawing from life against it begins, S151), My pictures (each
 //! with its tier and whether it has an outline; tapped, its page: its tier chosen again, Remove…
 //! asking first and saying what the lessons and copies that used it keep), and adding one (its
@@ -19,7 +20,7 @@ use openpaint_ui::components::{
 };
 use openpaint_ui::design::{Icon, SPACE};
 
-use super::options::{Page, Removal, Shelf, Tapped, note, row_picture, scrolled};
+use super::options::{Copying, Page, Removal, Shelf, Tapped, note, row_picture, scrolled};
 use crate::text::{self as t, Words};
 
 /// A picture page's picture, in points.
@@ -90,17 +91,22 @@ fn title(ctx: &egui::Context, picture: &PictureShown) -> String {
     t::shown_name(ctx, &picture.title).into_owned()
 }
 
-/// New copy's picker: the tiers that hold pictures, My pictures and Drawing from life to choose
-/// from, then the pictures of the one chosen, `room` points of them showing at once: a colour
-/// copy of the one tapped begins, or on Drawing from life a drawing from life against it (S151),
-/// Add my picture… after them there.
+/// New copy's picker: on a tier's or the user's own shelf Colour copy or Cold-warm copy (S154),
+/// then the tiers that hold pictures, My pictures and Drawing from life to choose from, then the
+/// pictures of the one chosen, `room` points of them showing at once: a copy of the sort chosen of
+/// the one tapped begins, or on Drawing from life a drawing from life against it (S151), Add my
+/// picture… after them there.
 pub(super) fn picker(
     ui: &mut egui::Ui,
-    (shelf, room): (Shelf, f32),
+    (shelf, copying, room): (Shelf, Copying, f32),
     path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
     ui.heading(Words::from(t::CHOOSE_PICTURE).shown(ui.ctx()));
+    let sorted = (shelf != Shelf::Life)
+        .then(|| sorts(ui, copying))
+        .flatten()
+        .map(|sort| Tapped::Page(Page::Picker(shelf, sort)));
     let tabs: Vec<Shelf> = (Tier::ALL.into_iter().map(Shelf::Tier))
         .chain([Shelf::Mine])
         .filter(|tab| path.pictures_of(tab.tier()).next().is_some())
@@ -115,21 +121,42 @@ pub(super) fn picker(
         .map(|tab| (word(tab).into(), *tab == shelf, true))
         .collect();
     let chosen = word_columns(ui, "picture tiers", &words, Lead::None)
-        .map(|at| Tapped::Page(Page::Picker(tabs[at])));
+        .map(|at| Tapped::Page(Page::Picker(tabs[at], copying)));
     let rows = scrolled(ui, room - 3.0 * openpaint_ui::design::TOUCH_TARGET, |ui| {
-        let tapped = shelf_rows(ui, shelf, path, pictures);
+        let tapped = shelf_rows(ui, (shelf, copying), path, pictures);
         let add =
             shelf == Shelf::Life && menu_row(ui, t::ADD_PICTURE, Words::EMPTY, true).clicked();
         tapped.or_else(|| add.then_some(Tapped::Page(Page::Add)))
     });
-    rows.or(chosen)
+    rows.or(chosen).or(sorted)
 }
 
-/// The pictures of `shelf` as rows; the one tapped begins a colour copy of it, or on Drawing from
-/// life a drawing from life against it.
+/// Colour copy and Cold-warm copy, `copying` chosen; the other one tapped.
+fn sorts(ui: &mut egui::Ui, copying: Copying) -> Option<Copying> {
+    let mut tapped = None;
+    ui.horizontal(|ui| {
+        ui.add_space(SPACE);
+        choices(ui, "copy sort", |ui, group| {
+            let sorts = [
+                (Copying::Colour, t::STUDY_EXERCISE),
+                (Copying::ColdWarm, t::COLD_WARM_EXERCISE),
+            ];
+            for (sort, word) in sorts {
+                let on = copying == sort;
+                if text_choice(ui, group, word, on).clicked() && !on {
+                    tapped = Some(sort);
+                }
+            }
+        });
+    });
+    tapped
+}
+
+/// The pictures of `shelf` as rows; the one tapped begins a copy of it of the sort `copying`, or
+/// on Drawing from life a drawing from life against it.
 fn shelf_rows(
     ui: &mut egui::Ui,
-    shelf: Shelf,
+    (shelf, copying): (Shelf, Copying),
     path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
@@ -163,10 +190,10 @@ fn shelf_rows(
         pictures.want(ui, &picture.item, row.rect);
         if row.clicked() {
             let item = picture.item.clone();
-            let begun = if life {
-                OptionsIntent::FromLife(item)
-            } else {
-                OptionsIntent::Copy(item)
+            let begun = match (life, copying) {
+                (true, _) => OptionsIntent::FromLife(item),
+                (false, Copying::Colour) => OptionsIntent::Copy(item),
+                (false, Copying::ColdWarm) => OptionsIntent::ColdWarm(item),
             };
             tapped = Some(Tapped::Options(begun, true));
         }

@@ -6,12 +6,12 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Asked, BoxView, Carve, Combination, Copied, CurvedRotation, DrawnCopy, Estimate,
-    Exercise, Facts, Fill, Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness,
-    LineTier, Lit, LitColour, Mask, MaskShape, Metric, Pack, PackItem, Pen, PictureFit,
-    PictureKind, Pictures, Placement, Point, Purity, Rgb8, Rotation, ScaleTone, SheetPicture,
-    Skill, SkillLevel, Solid, Standing, Tendency, Texture, Throw, Tier, Tone, Trick, ValueMasses,
-    schedule,
+    Areas, Asked, BoxView, Carve, Combination, Copied, CurvedRotation, DrawnCopy, Emphasis,
+    Estimate, Exercise, Facts, Fill, Guide, Horizon, ItemRef, Kind, Lean, Leans, Learner, Level,
+    Lightness, LineTier, Lit, LitColour, Mask, MaskShape, MassesShown, Metric, Pack, PackItem, Pen,
+    PictureFit, PictureKind, Pictures, Placement, Point, Purity, Rgb8, Rotation, ScaleTone,
+    SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Texture, Throw, Tier, Tone, Trick,
+    ValueMasses, schedule,
 };
 
 /// A kind of every variant the stores may hold.
@@ -53,6 +53,8 @@ fn every_kind() -> Vec<Kind> {
     kinds.extend(CurvedRotation::ALL.map(Kind::CurvedRotation));
     kinds.extend(LitColour::ALL.map(Kind::LitColour));
     kinds.extend(Texture::ALL.map(Kind::Texture));
+    kinds.extend(Emphasis::ALL.map(Kind::Thumbnail));
+    kinds.extend([0, 7, 100].map(|n| Kind::ColdWarm(Leans::nth(n))));
     kinds
 }
 
@@ -66,14 +68,19 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_eight_
     }
     codes.sort_unstable();
     codes.dedup();
-    let expected: Vec<u8> = (1..=30).filter(|code| *code != 5).collect();
+    let expected: Vec<u8> = (1..=32).filter(|code| *code != 5).collect();
     assert_eq!(codes, expected);
+    assert_eq!(Kind::Thumbnail(Emphasis::Two).code(), (31, 2));
+    let first = Leans::nth(0);
+    assert_eq!(Kind::ColdWarm(first).code().0, 32);
+    assert_eq!(Kind::of_code(32, 195), None, "13 warm hues by 15 cool");
     assert_eq!(Kind::of_code(5, 0), None, "code 5 is free");
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
     // A drawing from life (S151) is kind 23; a gamut mask (S153) 24, its shape times 36 and its
     // hue's step; a placement (S153) 25, light on form 26, cast shadows 27, a curved rotation
-    // (S154f) 28, colour under light 29, texture 30 (S154j); no kind is 31.
+    // (S154f) 28, colour under light 29, texture 30 (S154j), a contrast thumbnail 31, a cold-warm
+    // copy 32 (S154g); no kind is 33.
     assert_eq!(Kind::Observation.code(), (23, 0));
     let small = Mask {
         shape: MaskShape::Small,
@@ -81,7 +88,7 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_eight_
     };
     assert_eq!(Kind::GamutMask(small).code(), (24, 2 * 36 + 6));
     assert_eq!(Kind::of_code(24, 108), None);
-    assert_eq!(Kind::of_code(31, 0), None);
+    assert_eq!(Kind::of_code(33, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -118,7 +125,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 43);
+    assert_eq!(topics().len(), 45);
 }
 
 #[test]
@@ -133,11 +140,12 @@ fn a_topic_s_facts_say_what_it_is() {
         let pens: &[Pen] = match key {
             "division" | "abstract-analysis" => &Pen::DIVIDING,
             "whole-copy" => &Pen::COPYING,
-            "value-masses" | "light-halftone" => &Pen::VALUES,
+            "value-masses" | "light-halftone" | "contrast-thumbnail" => &Pen::VALUES,
             "light-families" => &Pen::TWO_TONES,
             "light-core" => &Pen::FOUR_TONES,
             "texture" | "texture-sparse" => &Pen::SHADOWS,
-            "colour" | "scale" | "combination" | "key-shift" | "study" | "gamut-mask" => &[],
+            "colour" | "scale" | "combination" | "key-shift" | "study" | "gamut-mask"
+            | "cold-warm" => &[],
             "lit-colour" | "lit-colour-bounce" => &[],
             _ => &Pen::DRAWING,
         };
@@ -148,22 +156,22 @@ fn a_topic_s_facts_say_what_it_is() {
         let fill = match key {
             "scale" => Some(Fill::Cell),
             "colour" | "combination" | "key-shift" | "whole-copy" | "value-masses"
-            | "gamut-mask" => Some(Fill::Frame),
+            | "gamut-mask" | "contrast-thumbnail" => Some(Fill::Frame),
             "light-families" | "light-halftone" | "light-core" => Some(Fill::Frame),
             "lit-colour" | "lit-colour-bounce" => Some(Fill::Frame),
             _ => None,
         };
         assert_eq!(tools.fill, fill, "{key}");
-        assert_eq!(
-            (tools.full, tools.layered),
-            (key == "study", key == "whole-copy")
-        );
+        let full = key == "study" || key == "cold-warm";
+        assert_eq!((tools.full, tools.layered), (full, key == "whole-copy"));
+        // Only a cold-warm copy's sheet leaves room beside its frame (S154).
+        assert_eq!(facts.beside, key == "cold-warm", "{key}");
     }
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
     // The twenty built from given parts (light on form's three and cast shadows, S153; colour under
-    // light's two, S154), the free scribble's one frame (S122) and abstract analysis's, its picture
-    // under the marks (S112).
-    assert_eq!(constructed.count(), 22);
+    // light's two, S154), the free scribble's one frame (S122), abstract analysis's, its picture
+    // under the marks (S112), and a contrast thumbnail's, its shapes printed in it (S154).
+    assert_eq!(constructed.count(), 23);
 }
 
 /// A pack of `kind` pictures, four of each of `tiers`, with value masses that read and areas.
@@ -239,19 +247,25 @@ fn lines() -> Vec<Vec<Point>> {
     ]
 }
 
-/// `exercise` generated, printed and compared with a copy held, its picture bare where it has one.
+/// `exercise` generated, printed and compared with a copy held, its picture bare where it has one
+/// but for its value masses (a contrast thumbnail prints from them, S154).
 fn prints_and_compares(exercise: &Exercise) {
     let original = exercise.original();
-    assert!(!original.givens().is_empty(), "{exercise:?}: givens");
+    let masses = ValueMasses::checked([2, 2], vec![0, 1, 2, 1]).map(Arc::new);
     let picture = exercise.picture.clone().map(|item| SheetPicture {
         item,
         size: [400, 300],
         fit: PictureFit::of([400, 300]),
         outline: None,
         credit: None,
-        masses: None,
+        masses: masses.map(|answer| MassesShown {
+            edges: answer.edges(),
+            answer,
+        }),
         areas: None,
     });
+    let printed = original.printed(picture.as_ref());
+    assert!(!printed.is_empty(), "{exercise:?}: givens");
     let asked = Asked {
         exercise,
         original: &*original,

@@ -8,7 +8,7 @@ use openpaint_practice::Purpose;
 use openpaint_practice_app::{Options, OptionsFile, OptionsIntent, OptionsRequest, PracticeLog};
 
 use super::jobs::PracticeJob;
-use super::lesson::{copy_job, lesson_job, life_job};
+use super::lesson::{cold_warm_job, copy_job, lesson_job, life_job};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
@@ -65,6 +65,7 @@ pub(crate) fn options_job(
         }
         OptionsRequest::Copy(picture) => return copy_job(log, &picture, seeds, now),
         OptionsRequest::FromLife(photo) => return life_job(log, &photo, seeds, now),
+        OptionsRequest::ColdWarm(picture) => return cold_warm_job(log, &picture, seeds, now),
         OptionsRequest::RenameCopy(sheet, title) => PracticeJob::Rename(sheet, title),
         OptionsRequest::RemoveCopy(sheet) => {
             let copy = (log.of_canvas(sheet))

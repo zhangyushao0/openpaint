@@ -59,6 +59,7 @@ texts! { PRACTICE_UNITS;
     KEY_SHIFTS_UNIT = "Key shifts", "变调";
     GAMUT_AND_LIGHT_UNIT = "Gamut and light", "色域与明暗";
     CURVES_AND_LIGHT_UNIT = "Curves and coloured light", "曲面与光色";
+    FORM_AND_COMPOSING_UNIT = "Form and composing", "穿插与创作";
 }
 
 texts! { PRACTICE_SKILLS;
@@ -88,10 +89,11 @@ texts! { PRACTICE_SKILLS;
     CURVED_SKILL = "Curved rotation", "曲面翻转";
     LIT_COLOUR_SKILL = "Colour under light", "光色";
     TEXTURE_SKILL = "Texture", "纹理";
+    THUMBNAILS_SKILL = "Contrast thumbnails", "对比小稿";
 }
 
 /// Each skill's name by its key (`Skill::key`).
-const SKILLS: [(&str, Text); 26] = [
+const SKILLS: [(&str, Text); 27] = [
     ("line", LINES_SKILL),
     ("combined", COMBINED_SKILL),
     ("colour", COLOURS_SKILL),
@@ -118,6 +120,7 @@ const SKILLS: [(&str, Text); 26] = [
     ("curved-rotation", CURVED_SKILL),
     ("colour-under-light", LIT_COLOUR_SKILL),
     ("texture", TEXTURE_SKILL),
+    ("contrast-thumbnail", THUMBNAILS_SKILL),
 ];
 
 /// A skill's name: "Lines", "Points in space".
@@ -166,6 +169,7 @@ pub(crate) const fn unit_name(unit: u8) -> Option<Text> {
         5 => Some(KEY_SHIFTS_UNIT),
         6 => Some(GAMUT_AND_LIGHT_UNIT),
         7 => Some(CURVES_AND_LIGHT_UNIT),
+        8 => Some(FORM_AND_COMPOSING_UNIT),
         _ => None,
     }
 }
@@ -328,7 +332,8 @@ mod tests {
             unit_title(Language::English, 7),
             "Unit 7 · Curves and coloured light"
         );
-        assert_eq!(unit_title(Language::English, 8), "Unit 8");
+        assert_eq!(unit_title(Language::Chinese, 8), "第 8 单元 · 穿插与创作");
+        assert_eq!(unit_title(Language::English, 9), "Unit 9");
         let row = LessonRow {
             slot: 0,
             number: 3,

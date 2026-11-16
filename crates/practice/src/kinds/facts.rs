@@ -78,6 +78,9 @@ pub struct Facts {
     /// The shape of the picture its generator draws, which its frames take (a texture's strip, 2
     /// to 1, S154); none: square, or its pack picture's (S99).
     pub shape: Option<[u16; 2]>,
+    /// Whether its project's sheet leaves room right of its copy's frame for what it gives there
+    /// (a cold-warm copy's two tendencies, S154).
+    pub beside: bool,
     pub seconds: u16,
 }
 
@@ -100,6 +103,7 @@ impl Facts {
             under: false,
             hidden: false,
             shape: None,
+            beside: false,
             seconds,
         }
     }
@@ -107,6 +111,13 @@ impl Facts {
     pub(crate) const fn shaped(self, shape: [u16; 2]) -> Self {
         Self {
             shape: Some(shape),
+            ..self
+        }
+    }
+
+    pub(crate) const fn beside(self) -> Self {
+        Self {
+            beside: true,
             ..self
         }
     }

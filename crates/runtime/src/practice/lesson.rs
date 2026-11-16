@@ -4,7 +4,8 @@
 //! one offered, the review, a skill's, a re-test, the first), seeded from the strokes'
 //! seed source, on a sheet for the day or a test, onto today's sheet where that takes it
 //! (`day.rs`); and a project begun the same way on a sheet of its own: a long colour copy of a
-//! picture chosen, a drawing from life against a photo of one's own (S151).
+//! picture chosen, a drawing from life against a photo of one's own (S151), a cold-warm copy of a
+//! picture chosen (S154).
 
 use openpaint_app::{GalleryIntent, Title};
 use openpaint_core::{Artwork, CanvasSize};
@@ -100,6 +101,29 @@ pub(crate) fn life_job(
         .ok_or(RuntimeError::NotNow("a photo of one's own"))?;
     log::info!("drawing from life {} of {}", drawing.id, photo.item);
     started(log, drawing, title)
+}
+
+/// The job that begins a cold-warm copy of `picture` (S154: the user chose it) from the packs of
+/// `log`, seeded from `seeds`, at `now`.
+///
+/// # Errors
+/// `NotNow` when no pack kept holds the picture.
+pub(crate) fn cold_warm_job(
+    log: &PracticeLog,
+    picture: &ItemRef,
+    seeds: &mut Seeds,
+    now: u64,
+) -> Result<Job, RuntimeError> {
+    let seed = seed(seeds);
+    let (copy, title) = (log.begin_cold_warm(picture, seed, now))
+        .ok_or(RuntimeError::NotNow("a picture to copy"))?;
+    log::info!(
+        "cold-warm copy {} of {}/{}",
+        copy.id,
+        picture.pack,
+        picture.item
+    );
+    started(log, copy, title)
 }
 
 /// A seed for a new sheet from the strokes' seed source.

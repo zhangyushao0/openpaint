@@ -7,7 +7,6 @@
 
 use egui::{Rect, Vec2};
 use openpaint_app::{GalleryIntent, MAX_TITLE_CHARS, ProjectId, Title};
-use openpaint_practice::Tier;
 use openpaint_practice_app::{CopyShown, OptionsIntent, PathProjection};
 
 use openpaint_ui::components::{
@@ -16,7 +15,7 @@ use openpaint_ui::components::{
 use openpaint_ui::design::Icon;
 
 use super::HomePart;
-use super::options::{Page, Removal, Shelf, Tapped, note, row_picture};
+use super::options::{Copying, Page, Removal, Shelf, Tapped, note, row_picture};
 use super::pictures::OptionsPictures;
 use crate::text::{self as t, Words};
 
@@ -124,8 +123,9 @@ impl HomePart {
         self.practice.show(after);
     }
 }
-/// The long colour copies, each with its picture and name (tapped, it opens; its options button
-/// shows its page), and New copy… while there are pictures; returns what was tapped.
+/// The long colour copies and the cold-warm copies (S154), each with its picture and name (tapped,
+/// it opens; its options button shows its page), and New copy… while there are pictures; returns
+/// what was tapped.
 pub(super) fn copies(
     ui: &mut egui::Ui,
     path: &PathProjection,
@@ -138,11 +138,8 @@ pub(super) fn copies(
     }
     let any = !path.pictures.is_empty();
     if menu_row(ui, t::NEW_COPY, Words::EMPTY, any).clicked() {
-        let first =
-            (Tier::ALL.into_iter()).find(|tier| path.pictures_of(Some(*tier)).next().is_some());
-        chosen = Some(Tapped::Page(Page::Picker(
-            first.map_or(Shelf::Mine, Shelf::Tier),
-        )));
+        let shelf = Shelf::first(path);
+        chosen = Some(Tapped::Page(Page::Picker(shelf, Copying::Colour)));
     }
     chosen
 }

@@ -4,7 +4,7 @@
 //! gamut mask's corners, picked whole by the eyedropper).
 
 use egui::{Align2, FontId, Pos2, Shape, Stroke};
-use openpaint_practice::{BESIDE_SIDE, Frame, Point, Rgb8, Say, beside};
+use openpaint_practice::{BESIDE_SIDE, FRAME, Frame, Point, Rgb8, Say, beside};
 
 use openpaint_ui::design::{INK, INK_SECONDARY};
 
@@ -13,8 +13,8 @@ use super::mark_lines::At;
 use super::marks::colour;
 use crate::text::{self as t, language};
 
-/// A name's size and its gap under its swatch, canvas pixels of a lesson's frame; the least size
-/// it shows at, in points.
+/// A name's size and its gap under its swatch, canvas pixels of a lesson's frame (a project's
+/// grown with its frame); the least size it shows at, in points.
 const NAME_SIZE: f32 = 11.0;
 const NAME_GAP: f32 = 4.0;
 const LEAST_NAME: f32 = 6.0;
@@ -53,7 +53,12 @@ pub(crate) fn swatch(
         return;
     };
     let words = t::said(language(painter.ctx()), &Say::plain(key));
-    let below = Pos2::new(at.of(beside(frame, centre)).x, bottom + NAME_GAP * scale);
-    let font = FontId::proportional((NAME_SIZE * scale).max(LEAST_NAME));
+    // In step with the frame: a project's frame is four times a lesson's (S154).
+    let grown = (frame.unit() / FRAME) as f32;
+    let below = Pos2::new(
+        at.of(beside(frame, centre)).x,
+        bottom + NAME_GAP * scale * grown,
+    );
+    let font = FontId::proportional((NAME_SIZE * scale * grown).max(LEAST_NAME));
     painter.text(below, Align2::CENTER_TOP, words, font, INK_SECONDARY);
 }
