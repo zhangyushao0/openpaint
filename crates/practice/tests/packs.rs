@@ -60,6 +60,10 @@ fn codes_and_names_are_fixed_and_round_trip() {
             (5, "CC BY 3.0"),
             (6, "CC BY 2.5"),
             (7, "CC BY 2.0"),
+            (8, "CC BY-SA 4.0"),
+            (9, "CC BY-SA 3.0"),
+            (10, "CC BY-SA 2.5"),
+            (11, "CC BY-SA 2.0"),
         ]
     );
     for licence in Licence::ALL {
@@ -68,6 +72,10 @@ fn codes_and_names_are_fixed_and_round_trip() {
         assert_eq!(
             licence.requires_attribution(),
             licence.name().starts_with("CC BY")
+        );
+        assert_eq!(
+            licence.share_alike(),
+            licence.name().starts_with("CC BY-SA")
         );
     }
     let tiers: Vec<(u8, &str)> = Tier::ALL.iter().map(|t| (t.code(), t.name())).collect();
@@ -90,9 +98,9 @@ fn codes_and_names_are_fixed_and_round_trip() {
     assert_eq!(PictureKind::of_code(4), None);
     assert_eq!(Licence::of_code(0), None);
     assert_eq!(
-        Licence::of_name("CC BY-SA 4.0"),
+        Licence::of_name("CC BY-NC 4.0"),
         None,
-        "share-alike is no pack's"
+        "non-commercial is no pack's"
     );
     assert_eq!(Tier::of_code(5), None);
 }

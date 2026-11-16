@@ -19,9 +19,10 @@ use openpaint_practice_store::{PackPicture, pack_picture};
 
 use super::crops::{Cropped, crops_of};
 use super::fetch::{Fetcher, cache_name};
-use super::full::full_picture;
+use super::full::{FullPicture, full_picture};
 use super::list::{Listed, SourceList, cropping};
 use super::sources::{Found, Sources, Stated};
+use super::trim::{trimmed, trimmed_file};
 use crate::error::PackError;
 
 /// What became of an item's outline.
@@ -126,7 +127,11 @@ fn listed_into(
     let Some(cropping) = cropping(kind) else {
         return Ok(());
     };
-    let full = full_picture(listed, &found, sources.fetcher())?;
+    let mut full = full_picture(listed, &found, sources.fetcher())?;
+    if let Some(trim) = listed.trim {
+        let (size, rgba) = trimmed(full.size, std::mem::take(&mut full.rgba), trim);
+        full = FullPicture { size, rgba };
+    }
     for (cropped, kept) in crops_of(listed, (&found, &full), cropping)? {
         if let Some((item, file)) = kept {
             built.pack.items.push(item);
@@ -158,7 +163,13 @@ fn looked_up(listed: &Listed, sources: &Sources<'_>) -> Result<Found, PackError>
 /// `listed`'s picture (as `found` describes it) downloaded and made as a pack holds it.
 fn packed(listed: &Listed, found: &Found, sources: &Sources<'_>) -> Result<PackPicture, PackError> {
     let name = cache_name(listed.source.name(), &listed.key(), "img");
-    let original = (sources.fetcher()).get_with(&name, &found.picture, found.headers)?;
+    let mut original = (sources.fetcher()).get_with(&name, &found.picture, found.headers)?;
+    if let Some(trim) = listed.trim {
+        original = trimmed_file(&original, trim).map_err(|detail| PackError::Fetch {
+            url: found.picture.clone(),
+            detail: format!("the picture trimmed: {detail}"),
+        })?;
+    }
     pack_picture(&original).map_err(|error| PackError::Fetch {
         url: found.picture.clone(),
         detail: format!("the picture: {error}"),
@@ -263,9 +274,15 @@ pub fn attribution(found: &Found, licence: Licence) -> String {
     } else {
         format!("{creator} ({credit})")
     };
+    // A ShareAlike picture's crop or resizing is shared under its own licence.
+    let same = if licence.share_alike() {
+        ", under the same licence"
+    } else {
+        ""
+    };
     match (licence, licence.deed()) {
         (licence, Some(deed)) if licence.requires_attribution() => format!(
-            "“{title}” by {by}, {collection} ({page}), licensed {} ({deed}); {changes}.",
+            "“{title}” by {by}, {collection} ({page}), licensed {} ({deed}); {changes}{same}.",
             licence.name()
         ),
         (_, Some(deed)) => format!("“{title}”, {creator}. {collection} ({page}), CC0 ({deed})."),

@@ -36,6 +36,7 @@ mod tests_crops;
 mod tests_libraries;
 #[cfg(test)]
 mod tests_sources;
+mod trim;
 
 use std::fs;
 use std::path::{Path, PathBuf};

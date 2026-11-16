@@ -832,3 +832,38 @@ object = "File:Whistler-Nocturne in black and gold.jpg"
 licence = "PD-old"
 reason = "Whistler's Nocturne in Black and Gold: darks and sparks of gold"
 
+
+# More pictures for the medium and hard tiers (S158p, 2026-11-16: 11 hard crops before;
+# ShareAlike allowed since, D101). Of 37 tried, these give crops: Commons' smaller scans of
+# busy abstract paintings give none of 768 pixels, the most saturated no weak contrast; of the
+# photographs the author asked for (peeling paint, water's reflections, out-of-focus leaves and
+# lights, polished agate, fordite) most give two areas or speckle, and a crop showing a pipe, a
+# leaf or a twig is listed out.
+
+[[item]]
+id = "kandinsky-impression-iii"
+source = "commons"
+object = "File:Wassily Kandinsky - Impression III (Concert) - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Impression III: a yellow field against black and soft greys"
+
+[[item]]
+id = "peeling-paint-oil-tank"
+source = "commons"
+object = "File:Peeling paint on an oil tank at Hatfield Broad Oak, Essex, England.jpg"
+licence = "CC BY-SA 4.0"
+reason = "paint peeling from an oil tank: pinks, creams and rust in torn patches"
+
+[[item]]
+id = "abstract-bokeh-lights"
+source = "commons"
+object = "File:Abstract bokeh lights (22142580635).jpg"
+licence = "CC BY-SA 2.0"
+reason = "soft overlapping discs of green light"
+
+[[item]]
+id = "autumn-bokeh-alnarp"
+source = "commons"
+object = "File:Alnarp (Sweden) - Autumn bokeh (22782529612).jpg"
+licence = "CC BY-SA 2.0"
+reason = "autumn leaves out of focus: warm patches without edges"

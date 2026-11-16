@@ -27,6 +27,8 @@
 //! - `no_crop.<n>` (a composition's or a crop list's, S101): why its crop `n` is left out, the
 //!   crop looked at beside its areas on the crops' sheet and judged no colour combination (an
 //!   object recognisable, areas that do not read); one line, `no_crop.2 = "a bolt's head"`.
+//! - `trim` (where a scan shows its frame or the canvas's edge, S158p): the shares of the picture
+//!   cut from its top, right, bottom and left before anything is made of it (`trim.rs`).
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -34,6 +36,7 @@ use openpaint_practice::{Licence, PictureKind, Places, Tier, valid_id};
 use serde::Deserialize;
 
 use crate::error::PackError;
+use crate::trim::{self, Trim};
 
 /// Where an item's picture comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +110,8 @@ struct WrittenItem {
     no_masses: Option<String>,
     #[serde(default)]
     no_crop: BTreeMap<String, String>,
+    #[serde(default)]
+    trim: Option<Trim>,
 }
 
 /// A source list, read and checked.
@@ -137,6 +142,8 @@ pub struct Listed {
     /// Its crops left out, by number (from 1, as the crops' sheet numbers them within the item),
     /// each with why (S101).
     pub no_crop: BTreeMap<usize, String>,
+    /// The shares of its picture cut from each side (S158p).
+    pub trim: Option<Trim>,
 }
 
 impl Listed {
@@ -215,6 +222,11 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, PackError> {
         return Err(wrong("its tier is not one its kind takes"));
     }
     let no_crop = no_crop(kind, &item.no_crop).map_err(|what| wrong(&what))?;
+    if item.trim.is_some_and(|trim| !trim::valid(trim)) {
+        return Err(wrong(
+            "its trim: each side a share from 0 to a fifth, one above 0",
+        ));
+    }
     let source = Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?;
     let library = matches!(source, Source::AmbientCg | Source::PolyHaven);
     if library && kind != PictureKind::Crop {
@@ -236,6 +248,7 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, PackError> {
         no_outline: item.no_outline,
         no_masses: item.no_masses,
         no_crop,
+        trim: item.trim,
     })
 }
 

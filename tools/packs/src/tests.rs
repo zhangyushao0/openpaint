@@ -248,7 +248,7 @@ fn commons_states_a_licence_only_by_its_own_fields() {
         licence("pd", &["Template:PD-self"]),
         Stated::Other(_)
     ));
-    assert!(matches!(licence("cc-by-sa-4.0", &[]), Stated::Other(_)));
+    assert!(matches!(licence("cc-by-nc-4.0", &[]), Stated::Other(_)));
     assert!(
         matches!(licence("", &nasa), Stated::Other(_)),
         "no code, no licence"
@@ -278,6 +278,17 @@ fn an_attribution_names_the_creator_and_the_credit_asked_for() {
         "“Twemoji12 1f47b” by Twitter (Copyright 2019 Twitter, Inc and other contributors), \
          Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Twemoji12_1f47b.svg), \
          licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); resized."
+    );
+    assert!(
+        attribution(&found, Licence::CcBySa3).ends_with(
+            "licensed CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/); \
+             resized, under the same licence."
+        ),
+        "a ShareAlike picture's change shared under its licence"
+    );
+    assert_eq!(
+        stated("cc-by-sa-4.0", "short", &[]),
+        Stated::Licence(Licence::CcBySa4)
     );
     let museum = Found {
         title: "Teapot".to_owned(),

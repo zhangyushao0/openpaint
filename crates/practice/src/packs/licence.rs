@@ -1,6 +1,8 @@
 //! The licences a practice pack's picture may come under: only ones that let the app's users
-//! copy, show and share the picture, with at most an attribution (no share-alike, no
-//! non-commercial clause). A licence's name is how the source lists write it; its code is how a
+//! copy, show, adapt and share the picture, with at most an attribution and, for a ShareAlike one,
+//! a crop or other adaptation shared under the same licence (D101, the author 2026-11-16: no kind
+//! of picture left out of the training for its licence); never a non-commercial or
+//! no-derivatives clause. A licence's name is how the source lists write it; its code is how a
 //! pack stores it, for good.
 
 /// The terms a picture of a pack is used under.
@@ -21,10 +23,18 @@ pub enum Licence {
     CcBy25,
     /// Creative Commons Attribution 2.0.
     CcBy2,
+    /// Creative Commons Attribution-ShareAlike 4.0.
+    CcBySa4,
+    /// Creative Commons Attribution-ShareAlike 3.0.
+    CcBySa3,
+    /// Creative Commons Attribution-ShareAlike 2.5.
+    CcBySa25,
+    /// Creative Commons Attribution-ShareAlike 2.0.
+    CcBySa2,
 }
 
 impl Licence {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 11] = [
         Self::Cc0,
         Self::PdUsGov,
         Self::PdOld,
@@ -32,6 +42,10 @@ impl Licence {
         Self::CcBy3,
         Self::CcBy25,
         Self::CcBy2,
+        Self::CcBySa4,
+        Self::CcBySa3,
+        Self::CcBySa25,
+        Self::CcBySa2,
     ];
 
     /// As stored in a pack; a code names one licence for good.
@@ -45,6 +59,10 @@ impl Licence {
             Self::CcBy3 => 5,
             Self::CcBy25 => 6,
             Self::CcBy2 => 7,
+            Self::CcBySa4 => 8,
+            Self::CcBySa3 => 9,
+            Self::CcBySa25 => 10,
+            Self::CcBySa2 => 11,
         }
     }
 
@@ -64,6 +82,10 @@ impl Licence {
             Self::CcBy3 => "CC BY 3.0",
             Self::CcBy25 => "CC BY 2.5",
             Self::CcBy2 => "CC BY 2.0",
+            Self::CcBySa4 => "CC BY-SA 4.0",
+            Self::CcBySa3 => "CC BY-SA 3.0",
+            Self::CcBySa25 => "CC BY-SA 2.5",
+            Self::CcBySa2 => "CC BY-SA 2.0",
         }
     }
 
@@ -75,7 +97,16 @@ impl Licence {
     /// Whether whoever shows the picture must credit its creator (the Attribution licences).
     #[must_use]
     pub const fn requires_attribution(self) -> bool {
-        matches!(self, Self::CcBy4 | Self::CcBy3 | Self::CcBy25 | Self::CcBy2)
+        !matches!(self, Self::Cc0 | Self::PdUsGov | Self::PdOld)
+    }
+
+    /// Whether a crop or other adaptation of the picture is shared under the same licence.
+    #[must_use]
+    pub const fn share_alike(self) -> bool {
+        matches!(
+            self,
+            Self::CcBySa4 | Self::CcBySa3 | Self::CcBySa25 | Self::CcBySa2
+        )
     }
 
     /// The page stating the licence's terms; none for the public domain by law or age.
@@ -88,6 +119,10 @@ impl Licence {
             Self::CcBy3 => Some("https://creativecommons.org/licenses/by/3.0/"),
             Self::CcBy25 => Some("https://creativecommons.org/licenses/by/2.5/"),
             Self::CcBy2 => Some("https://creativecommons.org/licenses/by/2.0/"),
+            Self::CcBySa4 => Some("https://creativecommons.org/licenses/by-sa/4.0/"),
+            Self::CcBySa3 => Some("https://creativecommons.org/licenses/by-sa/3.0/"),
+            Self::CcBySa25 => Some("https://creativecommons.org/licenses/by-sa/2.5/"),
+            Self::CcBySa2 => Some("https://creativecommons.org/licenses/by-sa/2.0/"),
         }
     }
 }

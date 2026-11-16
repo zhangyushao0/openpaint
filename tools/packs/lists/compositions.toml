@@ -45,6 +45,10 @@
 # the source's full pixels (at most 4,096; the Art Institute's 3,000) and is at least 768 pixels
 # long, so the films released 1,920 pixels wide and the smaller scans give none (2026-11-06).
 
+# Trims (S158p, 2026-11-16): ten scans hold a band of their frame, the canvas's edge or the
+# museum's black margin, which a value masses' answer kept as a strip and abstract analysis read
+# as a lightness band; each such item's `trim` cuts it, the shares measured on the scan's edges.
+
 id = "openpaint-compositions"
 title = "Compositions"
 kind = "composition"
@@ -79,6 +83,7 @@ no_crop.1 = "the girl's head and shoulder"
 
 [[item]]
 id = "bingham-fur-traders"
+trim = [0.016, 0.012, 0.016, 0.016]
 tier = "simple"
 source = "met"
 object = "10159"
@@ -95,12 +100,13 @@ reason = "a black sky over a pale shore and dark still water, a white sail as th
 
 [[item]]
 id = "homer-northeaster"
+trim = [0.008, 0.008, 0.008, 0.008]
 tier = "simple"
 source = "met"
 object = "11130"
 licence = "CC0"
 reason = "a white breaking wave against dark rocks and a grey sky: three masses on a diagonal, the strongest contrast at the crest"
-no_crop.1 = "the breaking wave, and the scan's dark edge along its top and side"
+no_crop.1 = "the breaking wave"
 
 [[item]]
 id = "rembrandt-the-mill"
@@ -146,13 +152,13 @@ reason = "white magnolias on a deep blue velvet cloth: a still life of one light
 
 [[item]]
 id = "ruisdael-windmill"
+trim = [0.032, 0.022, 0.032, 0.016]
 tier = "simple"
 source = "rijks"
 object = "SK-C-211"
 licence = "PD-old"
 reason = "one dark mill against a towering cloudy sky over a low horizon: a single vertical accent dividing sky and water"
-no_masses = "the scan holds a band of its frame along the bottom, thicker than the rim left out: the answer keeps it as a middle strip under the dark foreground"
-no_crop.1 = "the frame's gilt edge along its top and side"
+no_crop.1 = "clouds over a dark rise: a sky one recognises"
 
 [[item]]
 id = "asselijn-threatened-swan"
@@ -172,6 +178,7 @@ reason = "a lit clump of trees under a storm-dark sky: one light focal mass in a
 
 [[item]]
 id = "mauve-morning-ride"
+trim = [0.01, 0.0, 0.017, 0.006]
 tier = "simple"
 source = "rijks"
 object = "SK-A-3602"
@@ -181,6 +188,7 @@ no_crop.1 = "the canvas's unpainted edge, the frame and a figure"
 
 [[item]]
 id = "coorte-asparagus"
+trim = [0.024, 0.022, 0.004, 0.006]
 tier = "simple"
 source = "rijks"
 object = "SK-A-2099"
@@ -282,6 +290,7 @@ no_crop.1 = "the print's blank margin"
 
 [[item]]
 id = "eakins-single-scull"
+trim = [0.018, 0.012, 0.016, 0.015]
 tier = "medium"
 source = "met"
 object = "10819"
@@ -377,6 +386,7 @@ no_crop.1 = "the church's columns and arch"
 
 [[item]]
 id = "heda-gilt-cup"
+trim = [0.012, 0.015, 0.008, 0.01]
 tier = "medium"
 source = "rijks"
 object = "SK-A-4830"
@@ -469,6 +479,7 @@ no_crop.1 = "a sailing boat, a tower and trees"
 
 [[item]]
 id = "cole-oxbow"
+trim = [0.014, 0.013, 0.017, 0.01]
 tier = "hard"
 source = "met"
 object = "10497"
@@ -477,6 +488,7 @@ reason = "a storm over a wooded hill and a sunlit river bend: a diagonal divisio
 
 [[item]]
 id = "bruegel-harvesters"
+trim = [0.009, 0.008, 0.008, 0.01]
 tier = "hard"
 source = "met"
 object = "435809"
@@ -486,6 +498,7 @@ no_crop.1 = "fields, trees and a haystack"
 
 [[item]]
 id = "pissarro-tuileries-winter"
+trim = [0.015, 0.01, 0.012, 0.014]
 tier = "hard"
 source = "met"
 object = "437314"
