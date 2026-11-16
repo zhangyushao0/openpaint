@@ -12,6 +12,7 @@ use openpaint_practice::Kind;
 use super::{Language, Text};
 
 mod abstract_analysis;
+mod arrows;
 mod boxes;
 mod cast_shadows;
 mod cold_warm;
@@ -106,7 +107,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 31] = [
+const KINDS: [&[KindWords]; 32] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -138,6 +139,7 @@ const KINDS: [&[KindWords]; 31] = [
     &textures::WORDS,
     &contrast_thumbnails::WORDS,
     &cold_warm::WORDS,
+    &arrows::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -224,6 +226,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         textures::PRACTICE_TEXTURES,
         contrast_thumbnails::PRACTICE_THUMBNAILS,
         cold_warm::PRACTICE_COLD_WARM,
+        arrows::PRACTICE_ARROWS,
     ]
 }
 

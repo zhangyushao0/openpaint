@@ -178,7 +178,8 @@ fn the_earlier_variants_and_the_first_level_lay_what_they_laid_before_s142() {
 
 /// S142's levels: boxes at 熟练 a three-point box and a long one, at 稳 one drawn through beside a
 /// long or a three-point one; free boxes at 熟练 a page looking down or up with its guides, at 稳
-/// the same bare, one page a lesson; ellipses at 稳 two in turned frames. Lesson by lesson.
+/// the same bare by turns with a path page (S156l), one page a lesson; ellipses at 稳 one in a
+/// turned frame and a funnel (S156l). Lesson by lesson.
 #[test]
 fn boxes_pages_and_ellipses_lay_their_harder_variants_at_the_upper_levels() {
     use BoxView::{Long, ThreePoint, Through};
@@ -214,10 +215,14 @@ fn boxes_pages_and_ellipses_lay_their_harder_variants_at_the_upper_levels() {
     };
     let guided = pages([Horizon::HighDown, Horizon::LowUp]);
     assert_eq!(kinds("free-boxes", SkillLevel::Second, 3), guided);
-    let bare = pages([Horizon::HighDownBare, Horizon::LowUpBare]);
+    // At 稳 the bare pages by turns with a path page (S156l), the third lesson's page as before.
+    let bare: Vec<Vec<Kind>> = [Horizon::LowUpBare, Horizon::Path, Horizon::HighDownBare]
+        .map(|horizon| vec![Kind::FreeBoxes(horizon)])
+        .to_vec();
     assert_eq!(kinds("free-boxes", SkillLevel::Third, 3), bare);
     let (plane, turned) = (Kind::Ellipse(Guide::Plane), Kind::Ellipse(Guide::Turned));
-    let third = vec![plane, turned, plane, turned, plane];
+    let funnel = Kind::Ellipse(Guide::Funnel);
+    let third = vec![plane, turned, funnel, plane];
     assert_eq!(
         kinds("ellipse", SkillLevel::Third, 2),
         [third.clone(), third]

@@ -5,8 +5,8 @@
 mod lessons;
 
 use openpaint_practice::{
-    BoxView, Carve, Combination, CurvedRotation, Emphasis, Estimate, Facts, Fill, Guide, Horizon,
-    Kind, Lean, Leans, Lightness, LineTier, Lit, LitColour, Mask, MaskShape, Metric, Pen,
+    Arrow, BoxView, Carve, Combination, CurvedRotation, Emphasis, Estimate, Facts, Fill, Guide,
+    Horizon, Kind, Lean, Leans, Lightness, LineTier, Lit, LitColour, Mask, MaskShape, Metric, Pen,
     Placement, Purity, Rotation, ScaleTone, Solid, Tendency, Texture, Throw, Tier, Tone, Trick,
 };
 
@@ -51,11 +51,12 @@ fn every_kind() -> Vec<Kind> {
     kinds.extend(Texture::ALL.map(Kind::Texture));
     kinds.extend(Emphasis::ALL.map(Kind::Thumbnail));
     kinds.extend([0, 7, 100].map(|n| Kind::ColdWarm(Leans::nth(n))));
+    kinds.extend(Arrow::ALL.map(Kind::Arrow));
     kinds
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_two_but_five() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_three_but_five() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -64,7 +65,7 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_two_bu
     }
     codes.sort_unstable();
     codes.dedup();
-    let expected: Vec<u8> = (1..=32).filter(|code| *code != 5).collect();
+    let expected: Vec<u8> = (1..=33).filter(|code| *code != 5).collect();
     assert_eq!(codes, expected);
     assert_eq!(Kind::Thumbnail(Emphasis::Two).code(), (31, 2));
     let first = Leans::nth(0);
@@ -76,15 +77,17 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_two_bu
     // A drawing from life (S151) is kind 23; a gamut mask (S153) 24, its shape times 36 and its
     // hue's step; a placement (S153) 25, light on form 26, cast shadows 27, a curved rotation
     // (S154f) 28, colour under light 29, texture 30 (S154j), a contrast thumbnail 31, a cold-warm
-    // copy 32 (S154g); no kind is 33.
+    // copy 32 (S154g), an organic arrow 33 (S156l); no kind is 34.
     assert_eq!(Kind::Observation.code(), (23, 0));
+    assert_eq!(Kind::Arrow(Arrow::Turning).code(), (33, 2));
+    assert_eq!(Kind::of_code(33, 3), None);
     let small = Mask {
         shape: MaskShape::Small,
         hue: 60,
     };
     assert_eq!(Kind::GamutMask(small).code(), (24, 2 * 36 + 6));
     assert_eq!(Kind::of_code(24, 108), None);
-    assert_eq!(Kind::of_code(33, 0), None);
+    assert_eq!(Kind::of_code(34, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -120,8 +123,9 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
             .filter(|k| k.facts().key == facts.key);
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
-    // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 45);
+    // Free boxes looking down and up are topics of their own (S142), a path page and a funnel too
+    // (S156l).
+    assert_eq!(topics().len(), 48);
 }
 
 #[test]
@@ -166,6 +170,7 @@ fn a_topic_s_facts_say_what_it_is() {
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
     // The twenty built from given parts (light on form's three and cast shadows, S153; colour under
     // light's two, S154), the free scribble's one frame (S122), abstract analysis's, its picture
-    // under the marks (S112), and a contrast thumbnail's, its shapes printed in it (S154).
-    assert_eq!(constructed.count(), 23);
+    // under the marks (S112), and a contrast thumbnail's, its shapes printed in it (S154); an
+    // organic arrow's, a funnel's and a path page's (S156l).
+    assert_eq!(constructed.count(), 26);
 }

@@ -255,8 +255,8 @@ fn a_code_past_a_kind_s_variants_reads_as_none() {
     assert_eq!(Kind::of_code(5, 3), None);
     assert_eq!(Kind::of_code(6, 2), None);
     assert_eq!(Kind::of_code(7, 1), None);
-    assert_eq!(Kind::of_code(9, 7), None);
-    assert_eq!(Kind::of_code(10, 3), None);
+    assert_eq!(Kind::of_code(9, 8), None);
+    assert_eq!(Kind::of_code(10, 4), None);
     assert_eq!(Kind::of_code(11, 3), None);
     assert_eq!(Kind::of_code(12, 5), None);
     assert_eq!(Kind::of_code(13, 3), None);
@@ -271,6 +271,9 @@ fn a_code_past_a_kind_s_variants_reads_as_none() {
     assert_eq!(Kind::Box(BoxView::Through).code(), (8, 3));
     assert_eq!(Kind::FreeBoxes(Horizon::LowUpBare).code(), (9, 6));
     assert_eq!(Kind::Ellipse(Guide::Turned).code(), (10, 2));
+    // S156l's: a path page, a funnel.
+    assert_eq!(Kind::FreeBoxes(Horizon::Path).code(), (9, 7));
+    assert_eq!(Kind::Ellipse(Guide::Funnel).code(), (10, 3));
 }
 
 /// The kinds of the `turn`th lesson of the skill keyed `key` at `level` (each lesson before it

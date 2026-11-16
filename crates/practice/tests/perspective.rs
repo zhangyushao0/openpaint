@@ -151,7 +151,7 @@ fn a_free_page_s_example_box_lies_on_its_horizon() {
                 Horizon::High | Horizon::HighDown | Horizon::HighDownBare => {
                     assert!(!above, "{label}");
                 }
-                Horizon::Middle => {}
+                Horizon::Middle | Horizon::Path => {}
             }
         }
     }
@@ -167,7 +167,9 @@ fn a_guided_page_s_guides_lead_to_its_third_point_and_a_bare_page_has_none() {
             let page = FreePage(PerspectiveBox::on_horizon(horizon, seed), horizon);
             let given = Exercise::generated(Kind::FreeBoxes(horizon), seed).original();
             let guided = horizon.look() != Look::Level && horizon.guided();
-            assert_eq!(given.givens().len(), if guided { 3 } else { 1 }, "{label}");
+            // The horizon; a guided page's two guides, a path page's two edges (S156l).
+            let lined = guided || horizon == Horizon::Path;
+            assert_eq!(given.givens().len(), if lined { 3 } else { 1 }, "{label}");
             let Some(third) = page.given_third() else {
                 assert!(!guided, "{label}");
                 continue;
@@ -295,11 +297,12 @@ fn the_exercises_carry_their_boxes_and_their_codes() {
         (Kind::FreeBoxes(Horizon::LowUp), (9, 4)),
         (Kind::FreeBoxes(Horizon::HighDownBare), (9, 5)),
         (Kind::FreeBoxes(Horizon::LowUpBare), (9, 6)),
+        (Kind::FreeBoxes(Horizon::Path), (9, 7)),
     ];
     for (kind, code) in codes {
         assert_eq!(kind.code(), code);
         assert_eq!(Kind::of_code(code.0, code.1), Some(kind));
     }
-    assert_eq!((Kind::of_code(8, 4), Kind::of_code(9, 7)), (None, None));
+    assert_eq!((Kind::of_code(8, 4), Kind::of_code(9, 8)), (None, None));
     assert_eq!(EDGES.len(), 12);
 }

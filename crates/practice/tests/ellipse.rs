@@ -14,7 +14,8 @@ fn level(e: &Ellipse, p: Point) -> f64 {
 
 #[test]
 fn every_guide_s_exact_ellipse_touches_each_side_at_its_middle() {
-    for guide in Guide::ALL {
+    // A funnel lays three ellipses, no one guide (`funnels.rs`).
+    for guide in Guide::ALL.into_iter().filter(|g| *g != Guide::Funnel) {
         for seed in 0..500 {
             let label = format!("{guide:?} {seed}");
             let g = EllipseGuide::generate(guide, seed);

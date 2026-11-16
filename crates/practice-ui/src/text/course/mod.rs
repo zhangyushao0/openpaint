@@ -90,10 +90,11 @@ texts! { PRACTICE_SKILLS;
     LIT_COLOUR_SKILL = "Colour under light", "光色";
     TEXTURE_SKILL = "Texture", "纹理";
     THUMBNAILS_SKILL = "Contrast thumbnails", "对比小稿";
+    ARROWS_SKILL = "Organic arrows", "有机箭头";
 }
 
 /// Each skill's name by its key (`Skill::key`).
-const SKILLS: [(&str, Text); 27] = [
+const SKILLS: [(&str, Text); 28] = [
     ("line", LINES_SKILL),
     ("combined", COMBINED_SKILL),
     ("colour", COLOURS_SKILL),
@@ -121,6 +122,7 @@ const SKILLS: [(&str, Text); 27] = [
     ("colour-under-light", LIT_COLOUR_SKILL),
     ("texture", TEXTURE_SKILL),
     ("contrast-thumbnail", THUMBNAILS_SKILL),
+    ("organic-arrow", ARROWS_SKILL),
 ];
 
 /// A skill's name: "Lines", "Points in space".

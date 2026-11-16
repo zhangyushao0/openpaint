@@ -64,9 +64,16 @@ fn a_unit_s_re_test_lays_the_same_tasks_at_its_start_and_its_end() {
     assert_eq!(tasks(&end), tasks(&start), "the start's own tasks");
     let unstarted = retest::retest(3, true, &[], &pictures).expect("an end without a start");
     assert_eq!(tasks(&unstarted), tasks(&start), "the same set without one");
+    // Unit 8 holds a skill needing no pack since its organic arrows (S156l); no unit is 9.
     assert!(
-        retest::retest(8, false, &[], &pictures).is_none(),
+        retest::retest(9, false, &[], &pictures).is_none(),
         "a unit without a skill"
+    );
+    let arrows = retest::retest(8, false, &[], &pictures).expect("unit 8's re-test");
+    let first = arrows.exercises.first().map(|(e, _)| e.kind);
+    assert_eq!(
+        first.and_then(openpaint_practice::Skill::of),
+        Some(skill("organic-arrow"))
     );
 }
 

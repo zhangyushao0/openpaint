@@ -5,7 +5,7 @@
 mod examples;
 
 use openpaint_practice::{
-    BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn, Emphasis,
+    Arrow, BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn, Emphasis,
     Estimate, Guide, Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker, Placement, Point,
     Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier, Tone, Trick, distance,
 };
@@ -16,7 +16,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 39] = [
+const STEPS: [(Kind, usize); 44] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -56,6 +56,11 @@ const STEPS: [(Kind, usize); 39] = [
     (Kind::Texture(Texture::ALL[0]), 4),
     (Kind::Texture(Texture::ALL[4]), 5),
     (Kind::Thumbnail(Emphasis::Own), 4),
+    (Kind::Arrow(Arrow::Gentle), 4),
+    (Kind::Arrow(Arrow::Crossing), 4),
+    (Kind::Arrow(Arrow::Turning), 4),
+    (Kind::Ellipse(Guide::Funnel), 4),
+    (Kind::FreeBoxes(Horizon::Path), 4),
 ];
 
 fn demo(kind: Kind) -> Demo {

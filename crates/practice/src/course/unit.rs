@@ -33,8 +33,8 @@ pub const UNITS: [Unit; 8] = [
     unit(6, &[Skill(24), Skill(26), Skill(27)]),
     // Curved rotation, placement, colour under light, texture.
     unit(7, &[Skill(28), Skill(25), Skill(29), Skill(30)]),
-    // Contrast thumbnails.
-    unit(8, &[Skill(31)]),
+    // Organic arrows, contrast thumbnails.
+    unit(8, &[Skill(33), Skill(31)]),
 ];
 
 const fn unit(number: u8, skills: &'static [Skill]) -> Unit {

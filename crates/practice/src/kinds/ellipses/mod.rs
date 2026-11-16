@@ -3,11 +3,13 @@
 //! `geometry/ellipse.rs`; its How `demo.rs`.
 //!
 //! A lesson (an ellipse about a minute): the first level four, in a plain frame and in a square
-//! in perspective by turns, the second five, three of them in perspective, the third five, three
-//! in perspective, whose tilt and roundness the plane sets, and two in a plain frame turned
-//! (S142), so the ellipse's axes are not the hand's habit.
+//! in perspective by turns, the second five, three of them in perspective, the third (S142,
+//! S156l) two in perspective, whose tilt and roundness the plane sets, one in a plain frame
+//! turned, so the ellipse's axes are not the hand's habit, and a funnel of three on one axis
+//! (`funnel.rs`, a topic of its own with its How).
 
 pub(crate) mod demo;
+pub(crate) mod funnel;
 pub(crate) mod marks;
 
 use crate::course::picker::{laid, turned};
@@ -20,13 +22,19 @@ use crate::marks::asked::{Asked, Compare};
 use crate::marks::compared::Comparison;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, curve, line};
+use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
+use funnel::Funnel;
 use std::sync::Arc;
 
 pub(crate) struct Ellipses;
 
-const FACTS: [Facts; 1] = [Facts::of("ellipse", ToolSet::DRAWING, 60).constructed()];
+/// Its topics: an ellipse, a funnel of three.
+const FACTS: [Facts; 2] = [
+    Facts::of("ellipse", ToolSet::DRAWING, 60).constructed(),
+    Facts::of("funnel", ToolSet::DRAWING, 120).constructed(),
+];
 /// The guides the first level turns through (`Guide::ALL` before S142), and how many it lays; the
 /// others' ellipses.
 const FIRST_GUIDES: [Guide; 2] = [Guide::Frame, Guide::Plane];
@@ -38,13 +46,7 @@ const SECOND: [Guide; 5] = [
     Guide::Frame,
     Guide::Plane,
 ];
-const THIRD: [Guide; 5] = [
-    Guide::Plane,
-    Guide::Turned,
-    Guide::Plane,
-    Guide::Turned,
-    Guide::Plane,
-];
+const THIRD: [Guide; 4] = [Guide::Plane, Guide::Turned, Guide::Funnel, Guide::Plane];
 
 impl Described for Ellipses {
     fn code(&self) -> u8 {
@@ -68,15 +70,26 @@ impl Described for Ellipses {
             .map(|g| Kind::Ellipse(*g))
     }
 
-    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
-        let Kind::Ellipse(guide) = exercise.kind else {
-            return held(Blank);
-        };
-        held(EllipseGuide::generate(guide, exercise.seed))
+    fn topic(&self, kind: Kind) -> &'static Facts {
+        match kind {
+            Kind::Ellipse(Guide::Funnel) => &FACTS[1],
+            _ => &FACTS[0],
+        }
     }
 
-    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
-        Some(demo::ellipse())
+    fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
+        match exercise.kind {
+            Kind::Ellipse(Guide::Funnel) => held(Funnel::generate(exercise.seed)),
+            Kind::Ellipse(guide) => held(EllipseGuide::generate(guide, exercise.seed)),
+            _ => held(Blank),
+        }
+    }
+
+    fn how(&self, kind: Kind, _cells: usize) -> Option<Demo> {
+        match kind {
+            Kind::Ellipse(Guide::Funnel) => Some(demo::funnel()),
+            _ => Some(demo::ellipse()),
+        }
     }
 
     fn lesson(&self, level: SkillLevel, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
@@ -115,5 +128,26 @@ impl Original for EllipseGuide {
     fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
         let compared = || marks::EllipseCompared { guide: *self };
         (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
+    }
+}
+
+/// A funnel's sides, axis and marks, and its three exact ellipses.
+impl Original for Funnel {
+    fn givens(&self) -> Vec<SheetMark> {
+        marks::funnel_givens(self)
+    }
+
+    /// Once anything lies in the copy's frame, the three exact ellipses laid over it for the eye;
+    /// the copy's strokes are never read or fitted (D123).
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        let compared = || marks::FunnelCompared { funnel: *self };
+        (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
+    }
+
+    /// Once round each ellipse.
+    fn answer(&self) -> Vec<Vec<Point>> {
+        (self.rings.iter())
+            .map(|ring| ring.exact.outline(marks::PIECES))
+            .collect()
     }
 }

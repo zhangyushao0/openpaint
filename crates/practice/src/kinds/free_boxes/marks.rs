@@ -1,9 +1,11 @@
 //! Free boxes' marks (S84, S114, S142, S145): the horizon in their one frame, and on a guided
-//! three-point page two faint guides leading to its third point. Compared, the page's horizon run
-//! on across the sheet, faint, so the learner sees where their own edges, run on in pencil, meet.
-//! A free page has no answer and nothing is read from its strokes (D123): the eye judges it.
+//! three-point page two faint guides leading to its third point; on a path page (S156l) the path's
+//! two edges printed grey. Compared, the page's horizon run on across the sheet, faint, so the
+//! learner sees where their own edges, run on in pencil, meet. A free page has no answer and
+//! nothing is read from its strokes (D123): the eye judges it.
 
 use crate::kinds::free_boxes::FreePage;
+use crate::kinds::free_boxes::path::PathPage;
 use crate::marks::card::CardItem;
 use crate::marks::compared::{Compared, Seen, Verdict};
 use crate::marks::drawing::{run_on, segment};
@@ -24,6 +26,14 @@ pub(crate) fn givens(page: &FreePage) -> Vec<SheetMark> {
         let guided = guides(horizon, third).map(|guide| segment(In::Copy, guide, LinePen::Faint));
         marks.extend(guided);
     }
+    marks
+}
+
+/// A path page's horizon in the one frame, and its path's two edges printed grey.
+pub(crate) fn path_givens(page: &PathPage) -> Vec<SheetMark> {
+    let mut marks = vec![SheetMark::cut(In::Copy, Figure::Horizon(page.horizon))];
+    let edges = page.edges.iter();
+    marks.extend(edges.map(|edge| SheetMark::line(In::Copy, edge.clone(), LinePen::Printed)));
     marks
 }
 

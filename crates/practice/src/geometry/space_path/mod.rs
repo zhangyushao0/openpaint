@@ -17,14 +17,6 @@
 //!
 //! The world: y up, z away from the eye (`maths/vector.rs`); `s` is a share of the length, 0 to 1.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "S155: laid before the contours and the organic arrows that build on it"
-    )
-)]
-
 use crate::maths::vector::{Vector, across, add, cross, dot, norm, sub, times, unit};
 
 /// Points closer than this are one.
@@ -124,6 +116,13 @@ impl SpacePath {
     }
 
     /// The point at `s` (held to 0 to 1).
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "S155: its tests measure the path by it; no kind needs it yet"
+        )
+    )]
     pub(crate) fn at(&self, s: f64) -> Vector {
         self.place(s)
             .map_or(self.start, |(cubic, u)| point(cubic, u))

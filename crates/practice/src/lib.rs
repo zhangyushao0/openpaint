@@ -59,6 +59,10 @@ pub use kinds::abstract_analysis::contrast::{
 pub use kinds::abstract_analysis::marks::{
     AnalysisCompared, AnalysisReading, CONTRASTS, DISTRIBUTIONS, VIEWS,
 };
+pub use kinds::arrows::answer::ArrowAnswer;
+pub use kinds::arrows::marks::ArrowCompared;
+pub use kinds::arrows::ribbon::Arrow;
+pub use kinds::arrows::task::ArrowTask;
 pub use kinds::boxes::marks::BoxCompared;
 pub use kinds::cast_shadows::answer::{Corner, Shadows};
 pub use kinds::cast_shadows::marks::ShadowCompared;
@@ -88,11 +92,13 @@ pub use kinds::divisions::division::{
     DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, MOST_MAIN, joined,
 };
 pub use kinds::divisions::marks::DivisionCompared;
-pub use kinds::ellipses::marks::EllipseCompared;
+pub use kinds::ellipses::funnel::Funnel;
+pub use kinds::ellipses::marks::{EllipseCompared, FunnelCompared};
 pub use kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck, NEAR_ANGLE, NEAR_OFF};
 pub use kinds::estimates::marks::FlatCompared;
 pub use kinds::free_boxes::FreePage;
 pub use kinds::free_boxes::marks::{FreeCompared, guides};
+pub use kinds::free_boxes::path::PathPage;
 pub use kinds::gamut_masks::check::{MaskCheck, NEAR_FINDINGS, way};
 pub use kinds::gamut_masks::marks::{MaskCompared, MaskRead};
 pub use kinds::gamut_masks::mask::{

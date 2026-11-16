@@ -14,6 +14,7 @@
 //! whose points are found by the tricks' projection (`geometry/space_projection.rs`).
 
 pub(crate) mod abstract_analysis;
+pub(crate) mod arrows;
 pub(crate) mod boxes;
 pub(crate) mod cast_shadows;
 pub(crate) mod cold_warm;
@@ -60,8 +61,8 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{DARKEST, DARKEST_PEN, Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 32, 5 free): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 31] = [
+/// Every kind, by its stored code (1 to 33, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 32] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -93,4 +94,5 @@ pub(crate) const KINDS: [&dyn Described; 31] = [
     &textures::Textures,
     &contrast_thumbnails::ContrastThumbnails,
     &cold_warm::ColdWarm,
+    &arrows::Arrows,
 ];

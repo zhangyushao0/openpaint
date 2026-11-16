@@ -158,10 +158,13 @@ pub enum Guide {
     /// A plain frame turned 15 to 75 degrees either way, so the ellipse's axes are not the
     /// hand's habit (S142).
     Turned,
+    /// A funnel: three ellipses on one axis at any angle, each touching its two sides (S156l,
+    /// Drawabox's funnels); its original is the ellipses folder's `Funnel`, no one guide.
+    Funnel,
 }
 
 impl Guide {
-    pub const ALL: [Self; 3] = [Self::Frame, Self::Plane, Self::Turned];
+    pub const ALL: [Self; 4] = [Self::Frame, Self::Plane, Self::Turned, Self::Funnel];
 }
 
 /// A guide and the ellipse that fits it: its four corners round it, the exact ellipse and where
@@ -174,7 +177,7 @@ pub struct EllipseGuide {
 }
 
 impl EllipseGuide {
-    /// The guide `guide` and `seed` make.
+    /// The guide `guide` and `seed` make; a funnel, which lays no one guide, the last resort's.
     #[must_use]
     pub fn generate(guide: Guide, seed: u64) -> Self {
         let mut random = Random::new(seed);
@@ -184,6 +187,7 @@ impl EllipseGuide {
                 Guide::Frame => Some(frame(&mut random)),
                 Guide::Plane => plane(&mut random),
                 Guide::Turned => Some(turned(&mut random)),
+                Guide::Funnel => break,
             };
             if let Some(laid) = laid {
                 if laid.keeps() {

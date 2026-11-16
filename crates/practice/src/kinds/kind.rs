@@ -11,6 +11,7 @@ use super::skill::SkillLevel;
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::Guide;
 use crate::geometry::perspective::{BoxView, Horizon};
+use crate::kinds::arrows::ribbon::Arrow;
 use crate::kinds::cast_shadows::scene::Throw;
 use crate::kinds::cold_warm::leans::Leans;
 use crate::kinds::colours::colour_match::Tone;
@@ -125,6 +126,9 @@ pub enum Kind {
     /// A long colour copy shifted toward two tendencies, its lights warm and its shadows cool
     /// (V大's 整图变调): a project beside the lessons (S154, `cold_warm/`).
     ColdWarm(Leans),
+    /// A flat ribbon flowing back through space along a path, narrowing, hiding itself where it
+    /// crosses, turning over (Drawabox's arrows, 有机箭头, S156l, `arrows/`).
+    Arrow(Arrow),
 }
 
 impl Kind {
@@ -135,7 +139,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its description's (1 to 32, 5
+    /// The kind and its variant as stored: each kind's code is its description's (1 to 33, 5
     /// free), its variant its description's (`Described::variant`). A code names one generator for
     /// good; a changed generator is a new code.
     #[must_use]

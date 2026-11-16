@@ -153,7 +153,8 @@ fn a_thumbnail_is_printed_painted_in_three_greys_and_waits_for_the_eye_once_read
 #[test]
 fn unit_8_teaches_contrast_thumbnails_laid_once_a_pack_holds_masses() {
     let skill = Skill::of_key("contrast-thumbnail").expect("its skill");
-    assert_eq!(UNITS[7].skills, [skill]);
+    // Unit 8's last skill, after the organic arrows (S156l).
+    assert_eq!(UNITS[7].skills.last(), Some(&skill));
     let log = PracticeLog::new(Vec::new(), Vec::new(), vec![compositions()]);
     for (level, emphasis) in [
         (SkillLevel::First, Emphasis::Own),

@@ -6,7 +6,9 @@ use crate::maths::random::Random;
 
 /// Where a free-boxes page's horizon lies (V大: a low horizon sees the boxes from below, a high
 /// one from above), and on a three-point page (S142) the eye looking down from a high horizon or
-/// up from a low one, its third point given by two faint guides or found from the boxes drawn.
+/// up from a low one, its third point given by two faint guides or found from the boxes drawn; a
+/// page with a path on the ground winding back to a horizon a little above the middle, the boxes
+/// sent back along it (S156l, Drawabox's organic perspective).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Horizon {
     Low,
@@ -16,6 +18,7 @@ pub enum Horizon {
     LowUp,
     HighDownBare,
     LowUpBare,
+    Path,
 }
 
 /// Which way a page's eye looks: level (its boxes two-point), down or up (three-point).
@@ -27,7 +30,7 @@ pub enum Look {
 }
 
 impl Horizon {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Low,
         Self::Middle,
         Self::High,
@@ -35,6 +38,7 @@ impl Horizon {
         Self::LowUp,
         Self::HighDownBare,
         Self::LowUpBare,
+        Self::Path,
     ];
 
     /// Its height in the frame, down from the top.
@@ -43,6 +47,7 @@ impl Horizon {
         match self {
             Self::Low | Self::LowUp | Self::LowUpBare => 0.72,
             Self::Middle => 0.5,
+            Self::Path => 0.4,
             Self::High | Self::HighDown | Self::HighDownBare => 0.28,
         }
     }
@@ -51,7 +56,7 @@ impl Horizon {
     #[must_use]
     pub const fn look(self) -> Look {
         match self {
-            Self::Low | Self::Middle | Self::High => Look::Level,
+            Self::Low | Self::Middle | Self::High | Self::Path => Look::Level,
             Self::HighDown | Self::HighDownBare => Look::Down,
             Self::LowUp | Self::LowUpBare => Look::Up,
         }
@@ -76,7 +81,9 @@ pub(crate) enum Place {
 pub(crate) fn place(roll: f64, page: Option<Horizon>) -> Place {
     let [below, across] = match page {
         None => [0.45, 0.75],
-        Some(Horizon::High | Horizon::HighDown | Horizon::HighDownBare) => [0.7, 1.0],
+        Some(Horizon::High | Horizon::HighDown | Horizon::HighDownBare | Horizon::Path) => {
+            [0.7, 1.0]
+        }
         Some(Horizon::Low | Horizon::LowUp | Horizon::LowUpBare) => [0.0, 0.3],
         Some(Horizon::Middle) => [0.4, 0.6],
     };
