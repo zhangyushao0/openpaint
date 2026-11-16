@@ -81,7 +81,7 @@ pub fn offer(unit: u8, end: bool, sheets: &[Sheet], pictures: &Pictures) -> Opti
         .filter_map(|(exercise, _)| Skill::of(exercise.kind))
         .collect();
     let seconds: u32 = (planned.exercises.iter())
-        .map(|(exercise, _)| u32::from(exercise.kind.facts().seconds))
+        .map(|(exercise, _)| u32::from(exercise.kind.seconds()))
         .sum();
     Some(Retest {
         unit,

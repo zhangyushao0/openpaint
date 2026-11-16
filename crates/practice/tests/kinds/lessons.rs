@@ -127,7 +127,7 @@ fn every_skill_at_every_level_lays_a_few_minutes_that_generate_print_and_compare
             let held = planned.exercises.len();
             assert!((1..=6).contains(&held), "{}: {level:?} {held}", skill.key());
             let seconds: u32 = (planned.exercises.iter())
-                .map(|(e, _)| u32::from(e.kind.facts().seconds))
+                .map(|(e, _)| u32::from(e.kind.seconds()))
                 .sum();
             assert!(
                 (180..=480).contains(&seconds),

@@ -1,11 +1,11 @@
 //! Combined lines (`Kind::Combined`): two to six lines copied as one shape, in six arrangements;
 //! given, compared and fitted as a single line's lines are (`lines/marks.rs`).
 //!
-//! A lesson (a group about 2 minutes) holds three: the first level joined, crossing and branched
-//! lines (the First-prefix rule), the second near lines (whose gaps are the proportions to keep),
-//! lines inside a closed shape (whose empty shapes are) and branched ones, in turn by the lesson;
-//! the third two larger groups (S141), a cluster and lines inside a closed shape, their order in
-//! turn, so the lesson keeps its minutes.
+//! A lesson holds three groups (one of two to four lines about 2 minutes, a larger one of four to
+//! six about 2.5, S158): the first level joined, crossing and branched lines (the First-prefix
+//! rule), the second near lines (whose gaps are the proportions to keep), lines inside a closed
+//! shape (whose empty shapes are) and branched ones, in turn by the lesson; the third two larger
+//! groups (S141), a cluster and lines inside a closed shape, their order in turn.
 
 pub(crate) mod combined;
 pub(crate) mod demo;
@@ -28,6 +28,8 @@ pub(crate) struct CombinedLines;
 const FACTS: [Facts; 1] = [Facts::of("combined", ToolSet::DRAWING, 120)
     .aligned()
     .counted(Counted::Line)];
+/// About how long a larger group takes (lines inside a closed shape, a cluster: four to six lines).
+const LARGER: u16 = 150;
 /// Each level's arrangements: the first's in order, the others' in turn from the lesson's place,
 /// all of them a lesson.
 const FIRST: [Combination; 3] = [
@@ -60,6 +62,14 @@ impl Described for CombinedLines {
 
     fn of_variant(&self, variant: u8) -> Option<Kind> {
         (Combination::ALL.get(usize::from(variant))).map(|c| Kind::Combined(*c))
+    }
+
+    /// A larger group longer than the others.
+    fn seconds(&self, kind: Kind) -> u16 {
+        match kind {
+            Kind::Combined(Combination::Enclosed | Combination::Cluster) => LARGER,
+            _ => FACTS[0].seconds,
+        }
     }
 
     /// A group's lines, given and compared as a single line's (combined lines are lines copied

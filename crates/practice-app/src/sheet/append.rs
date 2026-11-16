@@ -3,11 +3,13 @@
 //! on its canvas hold it, and the view glides to its first pair. Its record and what it prints go
 //! to the store in one write; until the store answers the record waits (`save_request`), and a
 //! write that failed rolls the lesson back: the sheet, the end and the view as they were, the
+//! artwork as One more found it (what was drawn in the lesson's frames goes with it, S158), the
 //! notice a failed save shows, and the end shown even while a Pomodoro's block runs (the chain's
 //! lesson rolled back leaves One more to try again, S124).
 
 use std::sync::Arc;
 
+use openpaint_core::Artwork;
 use openpaint_practice::{Given, Givens, Layout, Lesson, Purpose, Sheet};
 
 use super::{Beside, Painting, PracticeSheet};
@@ -21,6 +23,7 @@ pub(super) struct Appending {
     sheet: Arc<SheetView>,
     beside: Beside,
     view: CanvasView,
+    artwork: Artwork,
 }
 
 impl PracticeSheet {
@@ -39,20 +42,21 @@ impl PracticeSheet {
     }
 
     /// `lesson` (as begun on a sheet of its own) and `givens`, what it prints, appended from the
-    /// row after the last one used, the view `view` gliding to its first pair in `viewport`; its
-    /// row's label and what it is set beside from `log`. Returns the record and the givens, moved
-    /// to their slots, for the store.
+    /// row after the last one used of the sheet's `artwork`, the view `view` gliding to its first
+    /// pair in `viewport`; its row's label and what it is set beside from `log`. Returns the
+    /// record and the givens, moved to their slots, for the store.
     pub(crate) fn append(
         &mut self,
         (lesson, givens): (Lesson, Givens),
         log: &PracticeLog,
-        (view, viewport): (&mut CanvasView, &Viewport),
+        (artwork, view, viewport): (&Artwork, &mut CanvasView, &Viewport),
     ) -> (Sheet, Givens) {
         let moved = self.record.append(lesson, givens);
         let kept = Appending {
             sheet: Arc::clone(&self.sheet),
             beside: std::mem::replace(&mut self.beside, log.beside(&self.record)),
             view: *view,
+            artwork: artwork.clone(),
         };
         let printed: Vec<Given> = (self.record.lessons.last().into_iter())
             .flat_map(|lesson| lesson.exercises.iter())
@@ -69,18 +73,22 @@ impl PracticeSheet {
     }
 
     /// The store wrote sheet `id`'s lesson appended (`stored`), or did not: then the lesson goes,
-    /// the sheet and `view` as they were before One more, the notice a failed save shows.
-    pub(crate) fn appended(&mut self, id: u64, stored: bool, view: &mut CanvasView) {
+    /// the sheet and `view` as they were before One more, the notice a failed save shows. Returns
+    /// the artwork as One more found it when the lesson goes, for the session to put back.
+    pub(crate) fn appended(
+        &mut self,
+        id: u64,
+        stored: bool,
+        view: &mut CanvasView,
+    ) -> Option<Artwork> {
         if id != self.record.id {
-            return;
+            return None;
         }
-        let Some(kept) = self.appending.take() else {
-            return;
-        };
+        let kept = self.appending.take()?;
         // Whatever changed while it waited goes now (or the record as it was again).
         self.changed = true;
         if stored {
-            return;
+            return None;
         }
         self.record.lessons.pop();
         self.sheet = kept.sheet;
@@ -89,6 +97,7 @@ impl PracticeSheet {
         self.anew();
         self.notice = Some(PracticeNotice::NotSaved);
         self.rolled_back = true;
+        Some(kept.artwork)
     }
 
     /// The lesson in hand shown afresh, as a sheet opening on it shows it.

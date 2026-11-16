@@ -1,11 +1,12 @@
 //! The schedule (S122): the First-prefix rule against the earlier product's drills (a kind's run
 //! of exercises before S122), what the first level and the earlier variants lay kept through the
-//! harder variants appended (S142), the next lesson's order, a lesson chosen with its redo.
+//! harder variants appended (S142), the next lesson's order, a lesson's minutes by the variants it
+//! lays (S158), a lesson chosen with its redo.
 
 use openpaint_practice::{
     BoxView, Carve, Combination, EllipseGuide, Exercise, Guide, Horizon, Kind, Learner, Lightness,
-    LineTier, Outcome, PerspectiveBox, Pictures, Purity, ScaleTone, SkillLevel, Standing, Tone,
-    derived, schedule,
+    LineTier, Outcome, PerspectiveBox, Pictures, Purity, ScaleTone, SkillLevel, Standing, Tier,
+    Tone, derived, schedule,
 };
 
 use crate::{CLEAN, after, ended, skill};
@@ -282,6 +283,35 @@ fn the_next_lesson_is_the_fewest_dots_then_the_longest_unpractised_then_the_cour
     }
     assert_eq!(learner.unit(&pictures), 2);
     assert_eq!(next(&learner), Some("scale"));
+}
+
+/// S158: a lesson's minutes follow the variants it lays, the first level's as before: combined
+/// lines' larger groups (熟练's lines inside a closed shape, 稳's two) longer than the first
+/// level's, a shape by its picture's tier.
+#[test]
+fn a_lesson_s_minutes_follow_the_variants_it_lays() {
+    use Combination::{Branched, Cluster, Crossing, Enclosed, Joined, Near};
+    use SkillLevel::{First, Second, Third};
+    let seconds = |kinds: &[Kind]| -> Vec<u16> { kinds.iter().map(|k| k.seconds()).collect() };
+    let groups = [Joined, Branched, Crossing, Near, Enclosed, Cluster].map(Kind::Combined);
+    assert_eq!(seconds(&groups), [120, 120, 120, 120, 150, 150]);
+    assert_eq!(seconds(&Tier::ALL.map(Kind::Shape)), [240, 240, 270, 330]);
+    let pictures = Pictures::default();
+    let mut learner = Learner::default();
+    let mut offered = Vec::new();
+    for _ in 0..3 {
+        let standing = Standing {
+            pictures: &pictures,
+            learner: &learner,
+        };
+        let offer = schedule::offer(skill("combined"), &standing).expect("an offer");
+        offered.push((offer.level, offer.exercises, offer.minutes));
+        // Two lessons fill the window: a dot, the next level.
+        for _ in 0..2 {
+            learner = after(&learner, "combined", offer.level, &CLEAN);
+        }
+    }
+    assert_eq!(offered, [(First, 3, 6), (Second, 3, 7), (Third, 2, 5)]);
 }
 
 #[test]

@@ -13,7 +13,7 @@
 //! in the frame from it on is a correction) and the numbers its comparison keeps (a painted copy's
 //! when its pixels arrive), which judge the eye before the answer was seen, and its outcome where
 //! the app judges it (a painted copy's with its numbers); every later one counts. A drawn exercise's pen turns blue. Anything laid in the frame afterwards takes the
-//! comparison away: corrections are made by eye.
+//! comparison away, an undo or redo of the copy too (S158): corrections are made by eye.
 
 use std::sync::Arc;
 
@@ -266,7 +266,8 @@ impl PracticeSheet {
         region.ok_or(unavailable(Availability::NothingLeft))
     }
 
-    /// Something was laid in the frame (a fill): the comparison goes.
+    /// Something was laid in the frame (a fill), or an undo or redo changed the copy: the
+    /// comparison goes; the record (its first Compare, the result chosen) stays.
     pub(crate) fn laid(&mut self) {
         (self.compared, self.fit_job) = (None, None);
     }

@@ -3,7 +3,8 @@
 //! shape is picked by the lesson's seed among those of its tier not shown in an earlier lesson,
 //! all of them again once each was; a tier with none falls back to the nearest tier that has
 //! some, the easier first. The user's own pictures take their place in a shape's lesson, once
-//! the lesson's tiers reach theirs (S83: the tier the user chose for each). A composition is
+//! the lesson's tiers reach theirs (S83: the tier the user chose for each), but for the photos a
+//! drawing from life was drawn against (S158: set aside, still held). A composition is
 //! picked alike among those not shown in the last ten lessons, one of those only when none other
 //! is left, never one the lesson holds already while another is left; for value masses (S96)
 //! only among those whose masses read (the pack holds them). A crop (S101) is picked by its own
@@ -22,8 +23,9 @@ use crate::packs::pack::{ItemRef, Pack, PictureKind, Tier};
 pub struct Pictures {
     /// The official packs' shape items with their tiers, by pack and the pack's order.
     official: Vec<(Tier, ItemRef)>,
-    /// The user's own with the tiers chosen for them, oldest first.
+    /// The user's own with the tiers chosen for them, oldest first; the photos set aside apart.
     personal: Vec<(Tier, ItemRef)>,
+    photos: Vec<ItemRef>,
     /// The packs' compositions with their tiers (S95), and those whose value masses read (S96).
     compositions: Vec<(Tier, ItemRef)>,
     massed: Vec<(Tier, ItemRef)>,
@@ -67,6 +69,19 @@ impl Pictures {
         pictures
     }
 
+    /// The user's own pictures among `photos` (those drawings from life were drawn against, S151)
+    /// set aside: no shape lesson picks one (a photo of one's table is no outline to copy), though
+    /// a pack still holds it.
+    #[must_use]
+    pub fn photos_aside<'a>(mut self, photos: impl IntoIterator<Item = &'a ItemRef>) -> Self {
+        let photos: HashSet<&ItemRef> = photos.into_iter().collect();
+        let (aside, own): (Vec<_>, Vec<_>) =
+            (self.personal.into_iter()).partition(|(_, item)| photos.contains(item));
+        self.personal = own;
+        self.photos.extend(aside.into_iter().map(|(_, item)| item));
+        self
+    }
+
     /// Whether a pack kept holds `item` (S147: a re-test's or a pair's copy shows its picture).
     #[must_use]
     pub fn holds(&self, item: &ItemRef) -> bool {
@@ -78,9 +93,10 @@ impl Pictures {
         ]
         .iter()
         .any(|kept| kept.iter().any(|(_, held)| held == item))
+            || self.photos.contains(item)
     }
 
-    /// Whether there is no shape picture at all.
+    /// Whether there is no shape picture to practise on (the photos set aside none).
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.official.is_empty() && self.personal.is_empty()

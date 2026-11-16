@@ -1,8 +1,9 @@
 //! What only the eye judges says `Eye` whatever was drawn: lines, groups, single shapes (the
 //! overlay is the feedback), free boxes (no answer), boxes, ellipses, solids, objects and
-//! structure rotation (their exact answer laid, the copy never read: S145, D123), divisions, whole
-//! copies and long colour copies (no answer), and a painted kind whose areas or masses no pack
-//! holds now. Value masses and key shifts read with their answers: `painted.rs`.
+//! structure rotation (their exact answer laid, the copy never read: S145, D123), divisions and
+//! whole copies (no answer), and a painted kind whose areas or masses no pack holds now; a long
+//! colour copy, a project, says `Nobody` (S158). Value masses and key shifts read with their
+//! answers: `painted.rs`.
 
 use openpaint_practice::{
     Asked, BoxView, Carve, Combination, Compare, Copied, DrawnCopy, Estimate, Exercise, Ghosted,
@@ -32,7 +33,6 @@ fn what_only_the_eye_judges_says_eye_however_it_was_drawn() {
         (Kind::Line(LineTier::ALL[1]), None),
         (Kind::Combined(Combination::ALL[2]), None),
         (Kind::FreeBoxes(Horizon::ALL[0]), None),
-        (Kind::Study, Some(&picture)),
     ];
     // The drawn kinds whose exact answer Compare lays for the eye (S145).
     kinds.extend(BoxView::ALL.map(|view| (Kind::Box(view), None)));
@@ -85,6 +85,25 @@ fn what_only_the_eye_judges_says_eye_however_it_was_drawn() {
         );
         assert!(!laid_over || compared.metrics().is_empty(), "{kind:?}");
     }
+}
+
+/// A long colour copy, a project, laid over by its picture as a whole copy is: the eye looks,
+/// nothing is asked or kept (S158), as a drawing from life's and a cold-warm copy's.
+#[test]
+fn a_long_colour_copy_asks_no_result() {
+    let picture = bare_picture([400, 300]);
+    let study = Exercise {
+        kind: Kind::Study,
+        seed: 5,
+        picture: Some(picture.item.clone()),
+    };
+    let laid = Laid {
+        lines: steady(vec![vec![[0.2, 0.3], [0.8, 0.35]]], 3),
+        ..Laid::default()
+    };
+    let compared = compare(&study, Some(&picture), &laid).map(shown);
+    let compared = compared.expect("a long colour copy compared");
+    assert_eq!(compared.verdict(), Verdict::Nobody);
 }
 
 /// A copy that holds something but must never be read.

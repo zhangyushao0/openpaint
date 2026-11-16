@@ -2,10 +2,11 @@
 //! its ground faded in the original's frame (S99, `ground.rs`); compared by the picture and its
 //! outline laid over the copy, fitted for Aligned (`marks.rs`).
 //!
-//! A lesson holds one shape (about 3.5 minutes an easy one, 5.5 a hard one): the first level the
-//! easiest of three tiers in turn (entry mostly), the second a medium
-//! picture, the third a hard one; at those two every second lesson the user's own of that tier
-//! or an easier one, when they have some.
+//! A lesson holds one shape (about 4 minutes an easy one, 4.5 a medium, 5.5 a hard one, S158):
+//! the first level the easiest of three tiers in turn (entry mostly), the second a
+//! medium picture, the third a hard one; at those two every second lesson the user's own of that
+//! tier or an easier one, when they have some (never a photo a drawing from life was drawn
+//! against, S158).
 
 pub(crate) mod demo;
 pub(crate) mod ground;
@@ -63,6 +64,15 @@ impl Described for Shapes {
 
     fn of_variant(&self, variant: u8) -> Option<Kind> {
         Tier::of_code(variant).map(Kind::Shape)
+    }
+
+    /// A harder picture's outline longer to copy.
+    fn seconds(&self, kind: Kind) -> u16 {
+        match kind {
+            Kind::Shape(Tier::Medium) => 270,
+            Kind::Shape(Tier::Hard) => 330,
+            _ => FACTS[0].seconds,
+        }
     }
 
     fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {

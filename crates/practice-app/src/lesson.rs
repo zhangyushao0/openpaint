@@ -64,7 +64,8 @@ pub struct LessonShown {
 /// `Verdict::App`: `result` holds the app's outcome, shown ringed among the three.
 /// `Verdict::Eye` with no result yet: the three show as buttons (`PracticeIntent::Judge`); with
 /// one, the user's choice shows ringed. `Verdict::Incomplete`: nothing to show yet;
-/// `Verdict::Nobody`: nothing ever (a drawing from life, S151). Never on the first lesson, where
+/// `Verdict::Nobody`: nothing ever (a project: a drawing from life, a cold-warm or long colour
+/// copy; S151, S154, S158). Never on the first lesson, where
 /// nothing is scored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Judged {

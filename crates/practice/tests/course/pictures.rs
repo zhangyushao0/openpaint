@@ -1,5 +1,6 @@
 //! How a lesson's pictures turn (S122): a single shape none twice in its tier while another is
-//! left, the user's own every second lesson from the second level on; a composition others than
+//! left, the user's own every second lesson from the second level on, never a photo set aside
+//! (S158); a composition others than
 //! the recent lessons', so a tier's every picture (an upright one too) comes in turn; a review of a
 //! kind whose lesson holds one exercise is its redo alone.
 
@@ -101,6 +102,33 @@ fn from_the_second_level_the_user_s_own_shape_comes_every_second_lesson() {
     let packs: Vec<&str> = shown.iter().map(|(pack, _)| pack.as_str()).collect();
     assert_eq!(packs, ["shapes", PERSONAL, "shapes"], "{shown:?}");
     assert_eq!(shown[1].1, "mine");
+}
+
+/// S158: a photo a drawing from life was drawn against, set aside, is never a shape lesson's,
+/// though a pack still holds it.
+#[test]
+fn a_photo_set_aside_never_comes_in_a_shape_lesson_but_is_still_held() {
+    let official = [("lamp", Tier::Medium), ("jug", Tier::Medium)];
+    let packs = [
+        pack("shapes", PictureKind::Shape, &official),
+        pack(PERSONAL, PictureKind::Shape, &[("photo", Tier::Simple)]),
+    ];
+    let photo = ItemRef {
+        pack: PERSONAL.to_owned(),
+        item: "photo".to_owned(),
+    };
+    let pictures = Pictures::of(&packs).photos_aside([&photo]);
+    assert!(pictures.holds(&photo) && !pictures.has_personal(Tier::Hard));
+    let mut learner = Learner::default();
+    for level in [SkillLevel::First, SkillLevel::Second, SkillLevel::Second] {
+        let planned = laid(&learner, &pictures, "shape", level);
+        let picture = planned.exercises[0].0.picture.clone().expect("a picture");
+        assert_eq!(picture.pack, "shapes", "{level:?}");
+        learner = learner.with(&ended(planned, &[]));
+    }
+    // A photo alone: no shape to practise on.
+    let alone = Pictures::of(&packs[1..]).photos_aside([&photo]);
+    assert!(alone.is_empty() && alone.holds(&photo));
 }
 
 #[test]

@@ -71,6 +71,10 @@ pub struct PictureCompared {
     pub corners: [Point; 4],
     /// Its numbers: a whole copy keeps its own division's.
     pub metrics: Metrics,
+    /// Who judges it: the eye, where no answer but the picture itself is held (a whole copy, a
+    /// painted kind whose areas or masses no pack holds now); nobody on a long colour copy, a
+    /// project no result is kept for (S158).
+    pub verdict: Verdict,
 }
 
 impl Compared for PictureCompared {
@@ -97,20 +101,31 @@ impl Compared for PictureCompared {
         self.metrics.clone()
     }
 
-    /// No answer but the picture itself (a colour copy, a whole copy, a painted kind whose areas
-    /// or masses no pack holds now): the eye judges.
     fn verdict(&self) -> Verdict {
-        Verdict::Eye
+        self.verdict
     }
 }
 
 /// `asked`'s copy compared by its pack picture laid over it as strongly as the user sets, with
-/// `metrics` (a colour copy's none, a whole copy's its division's); none without its picture.
+/// `metrics` (a whole copy's its division's, else none), the eye judging; none without its
+/// picture.
 pub(crate) fn picture_laid(asked: &Asked<'_>, metrics: Metrics) -> Option<Compare> {
+    laid_over(asked, metrics, Verdict::Eye)
+}
+
+/// A long colour copy compared by its picture laid over it as `picture_laid` lays it, no result
+/// asked or kept, as a drawing from life's and a cold-warm copy's (S158: nothing reads a
+/// project's result).
+pub(crate) fn project_laid(asked: &Asked<'_>) -> Option<Compare> {
+    laid_over(asked, Metrics::new(), Verdict::Nobody)
+}
+
+fn laid_over(asked: &Asked<'_>, metrics: Metrics, verdict: Verdict) -> Option<Compare> {
     let corners = asked.corners()?;
     Some(Compare::Made(Comparison::of(PictureCompared {
         corners,
         metrics,
+        verdict,
     })))
 }
 

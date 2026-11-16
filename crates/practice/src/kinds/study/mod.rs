@@ -1,17 +1,16 @@
 //! Long colour copies (`Kind::Study`, V大's 色彩临摹): a project beside the lessons, one pair of
 //! frames of its picture's shape, painted in the full interface with the toolbox's brushes (S104);
 //! compared by its picture laid over the copy as strongly as the user sets, the eyedropper
-//! comparing a point. No How.
+//! comparing a point; no result asked or kept (`Verdict::Nobody`, S158). No How.
 
 use std::sync::Arc;
 
 use crate::kinds::{Described, Facts, Kind, Original, Picking, ToolSet, held};
 use crate::marks::asked::{Asked, Compare};
-use crate::marks::drawing::picture_laid;
+use crate::marks::drawing::project_laid;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, swatch};
 use crate::packs::pack::ItemRef;
-use crate::records::metric::Metrics;
 use crate::sheets::exercise::Exercise;
 
 pub(crate) struct Study;
@@ -58,7 +57,7 @@ impl Original for Copied {
         if !asked.held() {
             return None;
         }
-        picture_laid(asked, Metrics::new())
+        project_laid(asked)
     }
 
     fn picture(&self) -> Option<&ItemRef> {

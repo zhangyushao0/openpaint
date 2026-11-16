@@ -4,7 +4,8 @@
 //! empty frame draws nothing, every stroke and fill stays inside it (or a value scale's cell, the
 //! session's bounds); a line or a painted exercise shown with its own tools is drawn with the
 //! practice pen chosen instead of the toolbox's brush; a whole copy's layers follow its pen and
-//! Compare, amended into the version shown; a fill beginning takes the comparison away. Its own
+//! Compare, amended into the version shown; a fill beginning, and an undo or redo that changes the
+//! artwork, take the comparison away as a new mark does (S158). Its own
 //! intents (`practise`) end what any edit ends first: the colour beside a colour's frame (a
 //! combination's, a value scale's cell) fills it in one step, Next cuts the history to the
 //! exercise shown. After each of them, and after a pen landing, the session's bounds, pen and
@@ -82,7 +83,8 @@ impl SheetSession {
     }
 
     /// One painting intent of the frame's: a pen landing the sheet refuses draws nothing; a fill
-    /// beginning takes the comparison away; the sheet's layers are amended after.
+    /// beginning takes the comparison away, so does an undo or redo that changes the artwork (the
+    /// copy in hand: they reach no other exercise); the sheet's layers are amended after.
     ///
     /// # Errors
     /// As `Session::dispatch`.
@@ -101,7 +103,12 @@ impl SheetSession {
         } else if matches!(intent, Intent::Fill(_)) {
             self.sheet.laid();
         }
+        let stepped = matches!(intent, Intent::History(_)).then(|| self.session.artwork().clone());
         let result = self.session.dispatch(intent);
+        // The copy is no longer what was compared: corrected by eye, as after a new mark.
+        if stepped.is_some_and(|before| !before.same_version(self.session.artwork())) {
+            self.sheet.laid();
+        }
         self.keep_layers();
         result
     }
@@ -161,7 +168,8 @@ impl SheetSession {
         let today = log.is_today(self.sheet.record());
         self.session.make_way_for_step();
         let appended = self.sheet.takes(lesson.exercises.len(), today).then(|| {
-            let view = (self.session.view_mut(), viewport);
+            let artwork = self.session.artwork().clone();
+            let view = (&artwork, self.session.view_mut(), viewport);
             let appended = self.sheet.append((lesson, givens), log, view);
             self.session.keep_only_current();
             appended
@@ -171,10 +179,17 @@ impl SheetSession {
     }
 
     /// The store wrote the lesson appended to sheet `id` (`stored`), or did not: then the sheet
-    /// rolls it back (`PracticeSheet::appended`).
+    /// rolls it back (`PracticeSheet::appended`) and the artwork goes back to the version One
+    /// more found, what was drawn in the lesson's frames (a stroke under way too) gone with it,
+    /// no undo reaching it.
     pub fn append_stored(&mut self, id: u64, stored: bool) {
         self.session.make_way_for_step();
-        self.sheet.appended(id, stored, self.session.view_mut());
+        if let Some(artwork) = self.sheet.appended(id, stored, self.session.view_mut()) {
+            // A stroke under way ends in the lesson rolled back; the pen's later events draw none.
+            self.session.end_stroke().ok();
+            self.session.record(artwork);
+            self.session.keep_only_current();
+        }
         self.held();
     }
 

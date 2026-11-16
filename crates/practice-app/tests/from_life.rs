@@ -3,7 +3,7 @@
 //! with the drawing pens; Compare showing the photo and laying it over the drawing in place and
 //! Aligned at the slider's strength, no result asked or kept; no lesson, dot or seal counting it,
 //! the options listing it apart from the colour copies, the practice book keeping it with the
-//! first lesson's drawing as its "before".
+//! first lesson's drawing as its "before"; its photo no shape lesson's picture (S158).
 
 mod support;
 
@@ -16,12 +16,12 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
     CardItem, Exercise, Figure, Given, ItemRef, Kind, Layout, LineShown, ObservedCompared, Outcome,
-    Outline, PERSONAL, Pack, PackItem, PictureKind, Place, Purpose, Seal, Sheet, Span, Tier,
-    Verdict, schedule,
+    Outline, PERSONAL, Pack, PackItem, PictureKind, Place, Purpose, Seal, Sheet, Skill, SkillLevel,
+    Span, Tier, Verdict, schedule,
 };
 use openpaint_practice_app::{
     Pen, PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, SHOWN, SheetRead,
-    SheetSession,
+    SheetSession, Start,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -289,6 +289,39 @@ fn no_lesson_dot_or_seal_counts_it_and_the_book_keeps_it_after_the_first_lesson_
         .begin_copy(&official, 4, NOON + 5000)
         .expect("a colour copy");
     assert_eq!(copy.as_str(), "Colour copy 1", "numbered among its own");
+}
+
+/// S158: the photo a drawing from life was drawn against is no shape lesson's picture (a photo of
+/// one's table is no outline to copy); it stays one of My pictures, and a picture of one's own
+/// never drawn from life still comes up.
+#[test]
+fn a_photo_drawn_from_life_is_never_a_shape_lesson_s_picture() {
+    let start = Start::At(Skill::of_key("shape").expect("shapes"), SkillLevel::First);
+    let picture = |sheet: &Sheet| sheet.laid(0).and_then(|laid| laid.exercise.picture.clone());
+    let only = PracticeLog::new(Vec::new(), Vec::new(), vec![pack(PERSONAL, "mine-1")]);
+    let (lesson, _) = only.start(start, 3, NOON).expect("my picture to copy");
+    assert_eq!(picture(&lesson), Some(photo()));
+    let (drawing, _) = only.begin_from_life(&photo(), 9, NOON).expect("a photo");
+    let drawn = PracticeLog::new(
+        vec![drawing.clone()],
+        Vec::new(),
+        vec![pack(PERSONAL, "mine-1")],
+    );
+    assert!(drawn.start(start, 3, NOON).is_none(), "no shape to copy");
+    let shapes = (drawn.path().units.iter())
+        .flat_map(|unit| unit.skills.clone())
+        .find(|shown| shown.skill.key() == "shape");
+    assert!(shapes.is_some_and(|shown| shown.lacks.is_some()));
+    assert!(drawn.begin_copy(&photo(), 4, NOON).is_some(), "still mine");
+    // Another picture of mine is a shape lesson's still.
+    let mut mine = pack(PERSONAL, "mine-1");
+    mine.items.extend(pack(PERSONAL, "mine-2").items);
+    let both = PracticeLog::new(vec![drawing], Vec::new(), vec![mine]);
+    let (lesson, _) = both.start(start, 3, NOON).expect("the other to copy");
+    assert_eq!(
+        picture(&lesson).map(|item| item.item),
+        Some("mine-2".to_owned())
+    );
 }
 
 #[test]

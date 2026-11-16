@@ -1,7 +1,7 @@
 //! Week 2's colour work on a sheet (S82): a value scale painted a cell at a time and read against
 //! an even scale (the first Compare's numbers kept); and a long colour copy beside the lessons,
-//! opened with every tool, compared in place as asked and never ended by Next. Colour
-//! combinations of real crops: `crops.rs`.
+//! opened with every tool, compared in place as asked, no result asked or kept (S158), and never
+//! ended by Next. Colour combinations of real crops: `crops.rs`.
 
 mod support;
 
@@ -13,8 +13,9 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Compared, Exercise, Figure, ItemRef, Kind, Layout, Metric, Pack, PackItem, Pair, Picked,
-    PictureCompared, PictureKind, ScaleCompared, ScaleTone, Sheet, Tier, ValueScale, value,
+    Compared, Exercise, Figure, ItemRef, Kind, Layout, Metric, Outcome, Pack, PackItem, Pair,
+    Picked, PictureCompared, PictureKind, ScaleCompared, ScaleTone, Sheet, Tier, ValueScale,
+    Verdict, value,
 };
 use openpaint_practice_app::{
     PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
@@ -259,6 +260,11 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
     let Some(PictureCompared { corners, .. }) = compared(&session) else {
         panic!("the picture over the copy")
     };
+    // The eye looks; no Accurate, Almost or Again (S158: nothing reads a project's result).
+    let judged = session.projection().judged.map(|judged| judged.verdict);
+    assert_eq!(judged, Some(Verdict::Nobody));
+    let judging = session.practise(PracticeIntent::Judge(Outcome::Clean), 3);
+    assert!(judging.is_err(), "no result to choose");
     assert!((seen(&session).0 - 0.5).abs() < 1e-6);
     let corner = pair.copy.to_canvas([1.0, 0.75]).map(|v| v as f32);
     assert_eq!(pair.copy.to_canvas(corners[2]).map(|v| v as f32), corner);
@@ -286,8 +292,8 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
     assert!(next.is_err(), "never ended by Next");
     let saved = session.sheet_mut().save_request().expect("changed");
     let first = saved.first(0).map(|first| first.metrics.len());
-    let compares = saved.laid(0).map(|l| l.compares);
-    assert_eq!((compares, first), (Some(1), Some(0)));
+    let compares = saved.laid(0).map(|l| (l.compares, l.result));
+    assert_eq!((compares, first), (Some((1, None)), Some(0)));
 }
 
 #[test]

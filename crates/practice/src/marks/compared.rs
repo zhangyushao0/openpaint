@@ -131,14 +131,14 @@ impl Outcome {
 pub enum Verdict {
     /// The app judged the copy against its answer.
     App(Outcome),
-    /// The user chooses the outcome: lines, shapes, free boxes, divisions, whole and colour copies,
-    /// a painted kind whose answer no pack holds now.
+    /// The user chooses the outcome: lines, shapes, free boxes, divisions, whole copies, a painted
+    /// kind whose answer no pack holds now.
     Eye,
     /// No verdict is honest yet: the copy does not cover what the exercise asks, or its pixels
     /// are still being read.
     Incomplete,
-    /// No result at all, asked or kept: a drawing from life, which the eye looks at against its
-    /// photo (S151).
+    /// No result at all, asked or kept: the projects, which the eye looks at against their
+    /// pictures: a drawing from life (S151), a cold-warm copy (S154), a long colour copy (S158).
     Nobody,
 }
 

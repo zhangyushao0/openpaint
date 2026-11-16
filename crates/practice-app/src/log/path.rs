@@ -49,7 +49,7 @@ impl PracticeLog {
 
     /// The path made again from the records, the packs and the clock.
     pub(super) fn pathed(&mut self) {
-        let pictures = Pictures::of(&self.packs);
+        let pictures = self.pictures();
         let learner = &self.learner;
         let standing = Standing {
             pictures: &pictures,
@@ -115,7 +115,7 @@ impl PracticeLog {
     /// pictures are not kept.
     #[must_use]
     pub fn start(&self, start: Start, seed: u64, now: u64) -> Option<(Sheet, Title)> {
-        let pictures = Pictures::of(&self.packs);
+        let pictures = self.pictures();
         let standing = Standing {
             pictures: &pictures,
             learner: &self.learner,
@@ -163,13 +163,13 @@ impl PracticeLog {
     }
 
     /// What `sheet`'s lesson in hand is set beside: what every other lesson adds up to, the
-    /// learner every other lesson tells of and the pictures kept.
+    /// learner every other lesson tells of and the pictures kept (`pictures`).
     pub(crate) fn beside(&self, sheet: &Sheet) -> Beside {
         let others = self.sheets.iter().filter(|other| other.id != sheet.id);
         Beside {
             others: Tally::beside(&self.sheets, sheet),
             learner: self.learner_beside(sheet),
-            pictures: Pictures::of(&self.packs),
+            pictures: self.pictures(),
             past: Arc::new(Past {
                 sheets: others.cloned().collect(),
                 pairs: self.pairs.clone(),
@@ -177,6 +177,15 @@ impl PracticeLog {
                 offset: self.offset,
             }),
         }
+    }
+
+    /// The pictures kept as lessons pick from them: the packs', the photos drawings from life were
+    /// drawn against set aside (S158: never a shape lesson's).
+    fn pictures(&self) -> Pictures {
+        let photos = (self.sheets.iter())
+            .filter(|sheet| sheet.drawn_from_life())
+            .filter_map(|sheet| sheet.laid(0)?.exercise.picture.as_ref());
+        Pictures::of(&self.packs).photos_aside(photos)
     }
 
     /// Each lesson of `sheet` as its row's label names it, numbered among the learner's lessons

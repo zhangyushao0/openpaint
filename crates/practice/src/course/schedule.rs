@@ -87,11 +87,13 @@ pub fn review(standing: &Standing<'_>) -> Option<Offer> {
 }
 
 /// A lesson of `skill` as tapped on the path, at the learner's level: its exercises and about how
-/// many minutes they take (each kind's `Facts::seconds`); none while its pictures are not kept.
+/// many minutes they take, counted from what `chosen` lays (its redo first, each exercise's
+/// `Kind::seconds`), so the home, the path and One more name the minutes of the lesson Start lays
+/// (S158); none while its pictures are not kept.
 #[must_use]
 pub fn offer(skill: Skill, standing: &Standing<'_>) -> Option<Offer> {
     let level = standing.learner.level(skill);
-    let (exercises, minutes) = timed(&lesson(skill, level, 0, standing)?);
+    let (exercises, minutes) = timed(&chosen(skill, 0, standing)?);
     Some(Offer {
         skill,
         level,
@@ -105,7 +107,7 @@ pub fn offer(skill: Skill, standing: &Standing<'_>) -> Option<Offer> {
 fn timed(planned: &Planned) -> (u8, u8) {
     let exercises = u8::try_from(planned.exercises.len()).unwrap_or(u8::MAX);
     let seconds: u32 = (planned.exercises.iter())
-        .map(|(exercise, _)| u32::from(exercise.kind.facts().seconds))
+        .map(|(exercise, _)| u32::from(exercise.kind.seconds()))
         .sum();
     let minutes = u8::try_from(seconds.div_ceil(60).max(1)).unwrap_or(u8::MAX);
     (exercises, minutes)

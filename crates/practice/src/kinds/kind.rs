@@ -182,6 +182,14 @@ impl Kind {
     pub fn how(self, cells: usize) -> Option<Demo> {
         self.described().how(self, cells)
     }
+
+    /// About how many seconds one exercise of it takes: its variant's where its folder says they
+    /// differ (a larger group, a harder picture, S158), else its topic's (`Facts::seconds`). What
+    /// a lesson's minutes are counted from.
+    #[must_use]
+    pub fn seconds(self) -> u16 {
+        self.described().seconds(self)
+    }
 }
 
 /// A lesson's place among its skill's (from 0), its seed, the pictures kept, those every earlier
@@ -224,6 +232,11 @@ pub(crate) trait Described: Sync {
     /// `kind`'s topic's facts (one of its own): its first by default.
     fn topic(&self, _kind: Kind) -> &'static Facts {
         &self.facts()[0]
+    }
+    /// About how many seconds one exercise of `kind` takes (`Kind::seconds`): its topic's by
+    /// default, its variant's where the variants differ.
+    fn seconds(&self, kind: Kind) -> u16 {
+        self.topic(kind).seconds
     }
     /// `exercise`'s original, the same for the same kind and seed (and picture).
     fn generate(&self, exercise: &Exercise) -> Arc<dyn Original>;

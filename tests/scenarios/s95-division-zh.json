@@ -9,7 +9,7 @@
     "Lines drawn after Compare are part of the division (the pen stays a level's, no Correct): I add four more main lines, one ending in a small hook turned back and one running on past my frame's bottom edge; the comparison goes as my pen lands; Compare again: the overlay laid anew as strongly as I left it, the hook round with no spike, the long line stopping at my frame's edge as its ink does, nothing over the frame or the card (pinched in on the two, the hook's end round, the long line cut at the frame); Main 6 in red on the card (V大: at most five). Undo and Redo as any stroke.",
     "Finish: the lesson's end, Divisions, 1 exercise, its dot, the FIRST STEP seal. That's all for today.",
     "Whole copy: a lesson of Whole copies at level 1, on the next row of the same sheet; its How first. Title: Copy a whole picture; Weeks 3 and 4 · a division continued into a copy of the whole picture, big shapes right, no details. The example: the division drawn red and green, then Draw: the division dims and the line drawing goes over it in ink; Compare: the picture laid over my copy, the division gone. Steps: 1 Divide it: red, then green, 2 Draw: the big shapes over it, no details, 3 Compare.",
-    "The exercise: a picture not shown in the division lesson (none from the last lessons while others are left). The tools: Main, Second, Third, Draw, Undo, Redo. I divide it in red and green (the ridge and the field's edge, the tree's and the house's frames); I choose Draw: my division dims under it; I draw the big shapes' lines in ink over it, the ridge's peak a little too high. Compare: the picture in place over my copy as strongly as the slider Original shown sets (half at first), my division hidden; the card its title and the slider; at most of the way the picture nearly covers my lines, the peak's error plain. Undo takes back my last line only, the division still hidden while compared.",
+    "The exercise: a picture not shown in the division lesson (none from the last lessons while others are left). The tools: Main, Second, Third, Draw, Undo, Redo. I divide it in red and green (the ridge and the field's edge, the tree's and the house's frames); I choose Draw: my division dims under it; I draw the big shapes' lines in ink over it, the ridge's peak a little too high. Compare: the picture in place over my copy as strongly as the slider Original shown sets (half at first), my division hidden; the card its title and the slider; at most of the way the picture nearly covers my lines, the peak's error plain. Undo takes back my last line only and the comparison with it, as a new line would (S158): the picture goes, my division shows again dimmed under Draw.",
     "Finish: the lesson's end, Whole copies, 1 exercise; That's all for today: the home.",
     "In Chinese (this file, s95-division run as on a Chinese tablet): 画面分割, 整图复制; the pens 主分割, 次分割, 三级分割, 勾线笔; the table's 条数 and 平均长度; the steps and the canvas's hashes are s95-division's.",
     "Not here: the author's hand on the tablet; Notan and colour blocks (the next slice)."
@@ -101,7 +101,7 @@
     { "tap": { "at": { "on": "Original shown", "fraction": [0.85, 0.5] } } },
     { "screenshot": { "name": "whole-copy-compared-most" } },
     { "tap": { "at": "Undo" } },
-    { "checkpoint": { "name": "whole-copy-undone", "canvas": "6d58492946da3155" } },
+    { "checkpoint": { "name": "whole-copy-undone", "canvas": "7056070204f9a181" } },
     { "tap": { "at": "Redo" } },
     { "tap": { "at": "Finish" } },
     { "screenshot": { "name": "whole-copy-lesson-done" } },

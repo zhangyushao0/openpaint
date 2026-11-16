@@ -52,7 +52,8 @@ pub enum Counted {
 /// eyedropper reads, what a lesson needs, what the book keeps and the seals count, whether its
 /// picture's ground shows faded in its original's frame (a single shape's, S99) and about how many
 /// seconds one exercise of it takes, looked at, drawn or painted, compared and corrected once (the
-/// estimates of S75 to S107): what a lesson's minutes are counted from (`schedule::offer`).
+/// estimates of S75 to S107): what a lesson's minutes are counted from (`schedule::offer`), unless
+/// its folder gives its variants their own (`Kind::seconds`, S158).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Facts {
     pub key: &'static str,

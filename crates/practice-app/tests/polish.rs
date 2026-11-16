@@ -1,8 +1,10 @@
 //! S83's practice polish in the app: undo and redo on a sheet reach only the exercise shown (a
-//! Compare's record is never undone from a later exercise); a painted copy's reading that arrives
-//! after its exercise was left is dropped; a colour copy whose picture was removed keeps its
-//! frames and strokes and offers no Compare; the log keeps a copy's name, forgets it with the
-//! copy, and the user's own pictures as their pack now holds them.
+//! Compare's record is never undone from a later exercise), and one that changes the copy takes
+//! its comparison away, its record kept (S158); a lesson rolled back after a failed write takes
+//! what was drawn in it with it (S158); a painted copy's reading that arrives after its exercise
+//! was left is dropped; a colour copy whose picture was removed keeps its frames and strokes and
+//! offers no Compare; the log keeps a copy's name, forgets it with the copy, and the user's own
+//! pictures as their pack now holds them.
 
 mod support;
 
@@ -14,10 +16,12 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, ScaleTone, Sheet,
-    Tier,
+    Exercise, Givens, ItemRef, Kind, Layout, LineTier, Outcome, PERSONAL, Pack, PackItem,
+    PictureKind, ScaleTone, Sheet, Tier,
 };
-use openpaint_practice_app::{PracticeIntent, PracticeLog, PracticePens, SheetSession};
+use openpaint_practice_app::{
+    Pen, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, SheetSession,
+};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -130,6 +134,108 @@ fn undo_and_redo_reach_only_the_exercise_shown() {
         .expect("next");
     let redo = session.dispatch(Intent::History(HistoryIntent::Redo));
     assert!(redo.is_err(), "nothing redone across exercises");
+}
+
+#[test]
+fn an_undo_or_redo_after_compare_takes_the_comparison_away_and_keeps_its_record() {
+    let record = lines(2);
+    let size = Layout::of_sheet(&record).size;
+    let mut session = opened(record, &[], size);
+    line_in_frame(&mut session);
+    line_in_frame(&mut session);
+    let practise = |session: &mut SheetSession, intent| session.practise(intent, NOW);
+    practise(&mut session, PracticeIntent::Compare(true)).expect("compared");
+    practise(&mut session, PracticeIntent::Judge(Outcome::Near)).expect("judged");
+    let kept = session.sheet().record().laid(0).cloned();
+    let step = |session: &mut SheetSession, step| session.dispatch(Intent::History(step));
+    step(&mut session, HistoryIntent::Undo).expect("undone");
+    let shown = session.projection();
+    assert_eq!(strokes(&session), 1);
+    assert!(
+        shown.compared.is_none() && shown.overlay.is_none(),
+        "gone with the mark"
+    );
+    // The first Compare, the result chosen and the blue pen stay; Compare is offered again.
+    assert_eq!(session.sheet().record().laid(0).cloned(), kept);
+    assert_eq!(shown.pen.map(|(pen, _)| pen), Some(Pen::Correct));
+    assert!(shown.compare.is_offered());
+    practise(&mut session, PracticeIntent::Compare(true)).expect("compared again");
+    step(&mut session, HistoryIntent::Redo).expect("redone");
+    assert!(session.projection().compared.is_none(), "a redo too");
+    let laid = session.sheet().record().laid(0).cloned().expect("laid");
+    assert_eq!(
+        (laid.compares, laid.result),
+        (2, kept.and_then(|k| k.result))
+    );
+}
+
+/// A pen contact of `phase` at `at` (canvas pixels).
+fn pen(phase: ContactPhase, at: [f32; 2]) -> Intent {
+    let samples = vec![InputSample {
+        position: at,
+        pressure: 0.8,
+        tilt: 0.2,
+        azimuth: 0.0,
+        time_ms: 2000,
+    }];
+    let device = Device::Pen;
+    Intent::Stroke(StrokeIntent::Contact(Contact {
+        id: 9,
+        device,
+        phase,
+        samples,
+    }))
+}
+
+#[test]
+fn a_lesson_rolled_back_after_a_failed_write_takes_what_was_drawn_in_it_with_it() {
+    let record = Sheet {
+        started: NOW,
+        ..lines(2)
+    };
+    let mut log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
+    log.set_clock(NOW + 600, 0);
+    let mut session = opened(record.clone(), &[], Layout::laid_ahead(&record));
+    line_in_frame(&mut session);
+    while session.projection().current.is_some() {
+        let next = session.practise(PracticeIntent::Next(VIEWPORT), NOW + 60);
+        next.expect("next");
+    }
+    log.keep(session.sheet().record().clone());
+    let next = lines(2).lessons.remove(0);
+    let givens = Givens::of_lesson(&next, &[]);
+    let appended = session.append_lesson((next, givens), &log, &VIEWPORT);
+    let (appended, _) = appended.expect("in place");
+    // Drawn in its first frame while the store writes it, and a stroke under way.
+    line_in_frame(&mut session);
+    let shown = session.projection();
+    let frame = shown.sheet.pairs[shown.current.expect("its first")].copy;
+    let at = frame.to_canvas([0.5, 0.5]).map(|v| v as f32);
+    session.dispatch(pen(ContactPhase::Down, at)).expect("down");
+    session
+        .dispatch(pen(ContactPhase::Move, [at[0] + 40.0, at[1]]))
+        .expect("moved");
+    assert_eq!(strokes(&session), 2);
+    session.append_stored(appended.id, false);
+    session
+        .dispatch(pen(ContactPhase::Up, [at[0] + 80.0, at[1]]))
+        .ok();
+    let shown = session.projection();
+    assert_eq!(
+        (shown.current, shown.notice),
+        (None, Some(PracticeNotice::NotSaved))
+    );
+    assert_eq!(
+        strokes(&session),
+        1,
+        "the first lesson's alone, as its records say"
+    );
+    assert!(
+        session
+            .dispatch(Intent::History(HistoryIntent::Undo))
+            .is_err(),
+        "none undone back"
+    );
 }
 
 #[test]
