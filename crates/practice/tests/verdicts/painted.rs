@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use openpaint_practice::{
     AWAY, Areas, Arrangement, Compare, Exercise, GeneratedAreas, Kind, Lean, Lightness, Masses,
-    MassesShown, PictureFit, Point, Purity, Random, Rgb8, ScaleTone, SheetPicture, Tendency, Tier,
-    Tone, Value, ValueMasses, ValueScale, Verdict, from_oklab, main_hue, oklab,
+    MassesShown, Massing, PictureFit, Point, Purity, Random, Rgb8, ScaleTone, SheetPicture,
+    Tendency, Tier, Tone, Value, ValueMasses, ValueScale, Verdict, from_oklab, main_hue, oklab,
 };
 
 use crate::{Clean, Laid, Near, Redo, compare};
@@ -186,7 +186,7 @@ fn value_masses_are_the_eye_s_once_painted_hatched_where_off_and_incomplete_half
         }),
         areas: None,
     };
-    let exercise = Exercise::generated(Kind::ValueMasses(Tier::ALL[0]), 1);
+    let exercise = Exercise::generated(Kind::ValueMasses(Massing::Three(Tier::ALL[0])), 1);
     let other = |value: Value| match value {
         Value::Light => Value::Dark,
         _ => Value::Light,

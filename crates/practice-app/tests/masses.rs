@@ -6,7 +6,8 @@
 //! answer's value kept), the learner's eye judging it (S145); a whole copy painted in colour
 //! blocks on a layer under its division, the
 //! division dimmed over them, a point of the blocks compared by the eyedropper; a lesson of value
-//! masses as the path starts it, only once a pack holds a composition whose masses read.
+//! masses as the path starts it, only once a pack holds a composition whose masses read; Notan
+//! (S156) in two greys, read against the merge of the answer it matches better.
 
 mod support;
 
@@ -15,8 +16,9 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, ItemRef, Judge, Kind, Masses, MassesCompared, MassesReading, Metric, Needs, Outcome,
-    Pack, PackItem, PictureKind, Skill, SkillLevel, Tier, Value, ValueMasses, Verdict, value,
+    Exercise, ItemRef, Judge, Kind, Masses, MassesCompared, MassesReading, Massing, Metric, Needs,
+    NotanCompared, NotanReading, Outcome, Pack, PackItem, PictureKind, Skill, SkillLevel, Tier,
+    Value, ValueMasses, Verdict, value,
 };
 use openpaint_practice_app::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Judged, Pen, PictureImage, PracticeIntent,
@@ -109,9 +111,10 @@ fn painted(masses: &ValueMasses, [origin, size]: [[f64; 2]; 2], frame: [u32; 2])
 
 #[test]
 fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
-    let mut session = opened(Kind::ValueMasses(Tier::Simple));
+    let kind = Kind::ValueMasses(Massing::Three(Tier::Simple));
+    let mut session = opened(kind);
     let practice = session.projection();
-    assert_eq!(practice.kind, Some(Kind::ValueMasses(Tier::Simple)));
+    assert_eq!(practice.kind, Some(kind));
     // Middle first: Fill frame lays the overall tone before Dark and Light (S100).
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Middle));
     assert!(practice.sheet.painted[0].is_some(), "the answer's greys");
@@ -170,6 +173,72 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     let record = session.sheet_mut().save_request().expect("compared");
     let first = record.first(0).expect("compared");
     let kept = value(&first.metrics, Metric::MassesMatched);
+    assert!(kept.is_some_and(|share| share > 0.99), "{kept:?}");
+}
+
+#[test]
+fn notan_is_painted_in_two_greys_and_read_against_the_merge_it_matches_better() {
+    let kind = Kind::ValueMasses(Massing::Two(Tier::Simple));
+    let mut session = opened(kind);
+    let practice = session.projection();
+    assert_eq!(practice.kind, Some(kind));
+    // Light first: Fill frame lays it, then the dark masses (S156); no middle grey.
+    assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Light));
+    assert!(
+        practice.sheet.painted[0].is_none(),
+        "its answer is the reading's"
+    );
+    for refused in [Pen::Middle, Pen::Draw, Pen::Big] {
+        assert!(session.practise(PracticeIntent::Pen(refused), NOW).is_err());
+    }
+    practise(&mut session, PracticeIntent::Fill(Color::BLACK));
+    let fill = (session.session().artwork().layers().iter())
+        .flat_map(|layer| layer.edits().iter())
+        .find_map(|edit| edit.fill())
+        .expect("a fill");
+    assert_eq!(fill.color(), value_colour(Value::Light).expect("a grey"));
+    // Compare reads the copy against the answer's two merges on the worker.
+    practise(&mut session, PracticeIntent::Compare(true));
+    let job = session.sheet_mut().read_request().expect("asked for");
+    let Some(NotanReading { answer, place, .. }) = job.reading.downcast::<NotanReading>() else {
+        panic!("{:?}", job.reading);
+    };
+    let (answer, place) = (Arc::clone(answer), *place);
+    // A copy painted with the middle merged into the dark.
+    let middle = Value::Middle.index();
+    let values = (answer.values.iter())
+        .map(|v| {
+            if *v == middle {
+                Value::Dark.index()
+            } else {
+                *v
+            }
+        })
+        .collect();
+    let two = ValueMasses::checked(answer.size, values).expect("a map");
+    let read = job.run(&painted(&two, place, job.size)).expect("read");
+    let compared = read.comparison.downcast::<NotanCompared>();
+    let Some(NotanCompared {
+        merged: Some(Value::Dark),
+        check: Some(check),
+        ..
+    }) = compared
+    else {
+        panic!("{read:?}");
+    };
+    assert!(check.hatching.is_empty() && check.matched > 0.99);
+    assert_eq!(
+        read.pictures.len(),
+        1,
+        "the merge's greys, laid under the slider"
+    );
+    session.sheet_mut().read(job.sequence, Some(read.clone()));
+    judged_once(&mut session);
+    let record = session.sheet_mut().save_request().expect("compared");
+    let kept = value(
+        &record.first(0).expect("compared").metrics,
+        Metric::MassesMatched,
+    );
     assert!(kept.is_some_and(|share| share > 0.99), "{kept:?}");
 }
 

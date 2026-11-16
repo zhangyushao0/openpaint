@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Asked, Copied, DrawnCopy, Exercise, ItemRef, Kind, Learner, Level, MassesShown, Pack,
-    PackItem, PictureFit, PictureKind, Pictures, Point, Rgb8, SheetPicture, Skill, SkillLevel,
-    Standing, Tier, ValueMasses, schedule,
+    Areas, Asked, Copied, DrawnCopy, Exercise, ItemRef, Kind, Learner, Level, MassesShown, Massing,
+    Pack, PackItem, PictureFit, PictureKind, Pictures, Point, Rgb8, SheetPicture, Skill,
+    SkillLevel, Standing, Tier, ValueMasses, schedule,
 };
 
 /// A pack of `kind` pictures, four of each of `tiers`, with value masses that read and areas.
@@ -200,7 +200,7 @@ fn compositions_and_shapes_get_harder_with_the_level_and_need_their_pictures() {
             Kind::Shape(t)
             | Kind::Division(t)
             | Kind::WholeCopy(t)
-            | Kind::ValueMasses(t)
+            | Kind::ValueMasses(Massing::Three(t) | Massing::Two(t))
             | Kind::Analysis(t) => t,
             other => panic!("{other:?}"),
         };

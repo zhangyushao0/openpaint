@@ -53,8 +53,10 @@ fn before_anything_is_practised_the_path_offers_the_first_lesson() {
     let first: Vec<(Skill, u8)> = (path.units[0].skills.iter())
         .map(|skill| (skill.skill, skill.dots))
         .collect();
-    assert_eq!(first.len(), 3);
-    assert_eq!(first[0], (lines(), 0));
+    // Ghosted lines open unit 1 (S156), lines after them.
+    assert_eq!(first.len(), 4);
+    let ghosted = Skill::of_key("ghosted-lines").expect("ghosted lines");
+    assert_eq!((first[0], first[1]), ((ghosted, 0), (lines(), 0)));
     // Unit 8's organic arrows, contours and form intersections (S156) need no pack; it ends with
     // contrast thumbnails (S154), which lack compositions without one.
     let eighth = &path.units[7].skills;
@@ -248,7 +250,8 @@ fn a_skill_tapped_lays_its_redo_waiting_first() {
         (waiting.kind, &waiting.picture),
         (redone.kind, &redone.picture)
     );
-    assert!(log.path().units[0].skills[0].redo, "its tile says so");
+    // Its tile (second in unit 1, after ghosted lines, S156) says so.
+    assert!(log.path().units[0].skills[1].redo, "its tile says so");
     // Tapped again (A's real `schedule::chosen`): the redo first, the same kind and picture.
     let (again, _) = log
         .start(Start::Skill(lines()), 9, NOON + 600)

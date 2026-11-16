@@ -41,11 +41,11 @@ fn after(learner: &Learner, key: &str, level: SkillLevel, outcomes: &[Outcome]) 
 }
 
 #[test]
-fn the_units_hold_thirty_skills_each_once_under_a_key_of_its_own() {
+fn the_units_hold_thirty_one_skills_each_once_under_a_key_of_its_own() {
     let skills: Vec<Skill> = Skill::all().collect();
-    assert_eq!(skills.len(), 30);
+    assert_eq!(skills.len(), 31);
     let held: usize = UNITS.iter().map(|unit| unit.skills.len()).sum();
-    assert_eq!(held, 30);
+    assert_eq!(held, 31);
     let mut keys: Vec<&str> = skills.iter().map(|skill| skill.key()).collect();
     for (skill, key) in skills.iter().zip(&keys) {
         assert_eq!(Skill::of_key(key), Some(*skill), "{key}");
@@ -54,14 +54,16 @@ fn the_units_hold_thirty_skills_each_once_under_a_key_of_its_own() {
     }
     keys.sort_unstable();
     keys.dedup();
-    assert_eq!(keys.len(), 30);
+    assert_eq!(keys.len(), 31);
     // A kind is its folder's skill; a long colour copy and the free scribble are none.
     assert_eq!(Skill::of(Kind::Line(LineTier::Hook)), Some(skill("line")));
     assert_eq!(
         (Skill::of(Kind::Study), Skill::of(Kind::Free)),
         (None, None)
     );
-    assert_eq!(UNITS[0].skills.first(), Some(&skill("line")));
+    // Unit 1 opens with ghosted lines (S156), then lines, combined lines and colours.
+    let first: Vec<&str> = UNITS[0].skills.iter().map(|skill| skill.key()).collect();
+    assert_eq!(first, ["ghosted-lines", "line", "combined", "colour"]);
     assert_eq!(skill("estimates").needs(), Needs::Nothing);
     // Without a pack a single shape lacks its pictures: never offered.
     let (pictures, learner) = (Pictures::default(), Learner::default());
@@ -190,15 +192,25 @@ fn the_first_lesson_is_a_scribble_a_straight_line_and_an_arc() {
         (learner.lessons(), learner.lessons_of(skill("line"))),
         (1, 1)
     );
-    // It leaves its lines unpractised: the next lesson is the course's first skill, Lines.
+    // It leaves its lines unpractised: the next lesson is the course's first skill, ghosted lines
+    // (S156), then lines, never practised either, before the skills practised since.
     assert_eq!(learner.practised(skill("line")), None);
     let pictures = Pictures::default();
-    let standing = Standing {
-        pictures: &pictures,
-        learner: &learner,
+    let next = |learner: &Learner| {
+        let standing = Standing {
+            pictures: &pictures,
+            learner,
+        };
+        schedule::next(&standing).map(|offer| offer.skill)
     };
-    let next = schedule::next(&standing).map(|offer| offer.skill);
-    assert_eq!(next, Some(skill("line")));
+    assert_eq!(next(&learner), Some(skill("ghosted-lines")));
+    let ghosted = after(
+        &learner,
+        "ghosted-lines",
+        SkillLevel::First,
+        &[Outcome::Near; 3],
+    );
+    assert_eq!(next(&ghosted), Some(skill("line")));
 }
 
 #[test]
@@ -207,7 +219,7 @@ fn a_unit_opens_by_the_first_dots_of_the_unit_before_it() {
     let mut learner = Learner::default();
     assert!(learner.open(1, &pictures) && !learner.open(2, &pictures));
     assert_eq!(learner.unit(&pictures), 1);
-    for key in ["line", "combined", "colour"] {
+    for key in ["ghosted-lines", "line", "combined", "colour"] {
         // A lesson of fewer than six fills the window over two.
         for _ in 0..2 {
             let level = learner.level(skill(key));

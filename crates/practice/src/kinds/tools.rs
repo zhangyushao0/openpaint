@@ -59,6 +59,8 @@ impl Pen {
     pub const FOUR_TONES: [Self; 4] = [Self::Darkest, Self::Dark, Self::Middle, Self::Light];
     /// The darkest alone (S154: texture told by its shadows, no line pen).
     pub const SHADOWS: [Self; 1] = [Self::Darkest];
+    /// Draw alone (S156: ghosted lines, one sure stroke each, nothing sketched or corrected).
+    pub const INK: [Self; 1] = [Self::Draw];
 
     /// Whether it paints in the colour picked.
     #[must_use]
@@ -200,6 +202,12 @@ impl ToolSet {
     /// The darkest alone, Undo and Redo, no Fill (texture, S154).
     pub(crate) const SHADOWS: Self = Self {
         pens: &Pen::SHADOWS,
+        history: true,
+        ..Self::NONE
+    };
+    /// Draw alone, Undo and Redo (ghosted lines, S156).
+    pub(crate) const INK: Self = Self {
+        pens: &Pen::INK,
         history: true,
         ..Self::NONE
     };

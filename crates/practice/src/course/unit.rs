@@ -16,8 +16,8 @@ pub struct Unit {
 
 /// The eight units.
 pub const UNITS: [Unit; 8] = [
-    // Lines, combined lines, colours.
-    unit(1, &[Skill(1), Skill(3), Skill(2)]),
+    // Ghosted lines (S156: first, as the plan's stage 1 lists them), lines, combined lines, colours.
+    unit(1, &[Skill(36), Skill(1), Skill(3), Skill(2)]),
     // Single shapes, colour combinations, value scales, boxes, free boxes, ellipses.
     unit(
         2,

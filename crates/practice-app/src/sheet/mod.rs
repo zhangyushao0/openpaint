@@ -272,12 +272,13 @@ impl PracticeSheet {
         let kind = current.and_then(|index| self.kind(index));
         // The pen last chosen of the kind its tools' pens are: greys (the lightest where its greys
         // lack the one last chosen, S153, S154), a division's levels, the painting pens where it
-        // has no others, else the drawing pens (blue once compared).
+        // has no others, Draw where alone (S156), else the drawing pens (blue once compared).
         self.pen = match kind.map(|kind| &kind.facts().tools) {
             Some(tools) if tools.greys() && !tools.pens.contains(&self.valuing) => tools.lightest(),
             Some(tools) if tools.greys() => self.valuing,
             Some(tools) if tools.pens.is_empty() => self.painting,
             Some(tools) if tools.levels() => self.dividing,
+            Some(tools) if tools.pens == [Pen::Draw] => Pen::Draw,
             _ if compared => Pen::Correct,
             _ => self.drawing,
         };

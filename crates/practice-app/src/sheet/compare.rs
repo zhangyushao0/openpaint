@@ -123,7 +123,10 @@ impl PracticeSheet {
             laid.result = judged(shown.verdict()).filter(|_| scored);
         }
         self.changed = true;
-        if matches!(compared, Compared::Drawn(..) | Compared::Checked(_)) {
+        // Corrected in blue where its tools offer the blue pen (ghosted lines draw on, S156).
+        let corrects =
+            (self.facts(index)).is_some_and(|facts| facts.tools.offers(Pen::Correct, true));
+        if corrects && matches!(compared, Compared::Drawn(..) | Compared::Checked(_)) {
             self.pen = Pen::Correct;
         }
         self.compared = Some(compared);

@@ -1,6 +1,6 @@
 use openpaint_practice::{
-    BoxView, Carve, Estimate, Guide, Horizon, ItemRef, Lean, LineTier, Planned, ScaleTone, Skill,
-    SkillLevel, Solid, Tendency, Tier, Tone, Trick,
+    BoxView, Carve, Estimate, Ghosted, Guide, Horizon, ItemRef, Lean, LineTier, Massing, Planned,
+    ScaleTone, Skill, SkillLevel, Solid, Tendency, Tier, Tone, Trick,
 };
 
 use super::*;
@@ -117,7 +117,7 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     }
     // The first exercise: its kind after the lesson's exercise in hand and count.
     let kind = picked + 1 + 2 + 4;
-    for code in [5, 34] {
+    for code in [5, 37] {
         let mut unknown = bytes.clone();
         unknown[kind] = code;
         assert!(
@@ -213,6 +213,8 @@ fn many_kinds() -> Vec<Exercise> {
         Kind::FreeBoxes(Horizon::Low),
         Kind::Ellipse(Guide::Plane),
         Kind::Scale(ScaleTone::Hue, 9),
+        Kind::Ghosted(Ghosted::Superimposed),
+        Kind::Ghosted(Ghosted::Plane),
     ]
     .into_iter()
     .map(|kind| Exercise::generated(kind, 8))
@@ -230,7 +232,8 @@ fn many_kinds() -> Vec<Exercise> {
     exercises.extend([
         pictured(Kind::Division(Tier::Simple), "harbour"),
         pictured(Kind::WholeCopy(Tier::Medium), "hills"),
-        pictured(Kind::ValueMasses(Tier::Medium), "valley"),
+        pictured(Kind::ValueMasses(Massing::Three(Tier::Medium)), "valley"),
+        pictured(Kind::ValueMasses(Massing::Two(Tier::Hard)), "valley"),
         pictured(
             Kind::KeyShift(Tendency {
                 lean: Lean::WarmPure,

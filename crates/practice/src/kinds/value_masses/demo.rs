@@ -4,11 +4,13 @@
 //! (S100: Fill frame before the pens), then the darkest big masses painted in their grey, then the
 //! light ones; Compare lays the answer's greys faint over the copy, its mass edges red, and hatches
 //! in the answer's grey where the hand's copy strayed over more than the grey pen's width (the dark
-//! masses painted wide on their right).
+//! masses painted wide on their right). Notan's (S156) on the same landscape in two values: the
+//! frame filled with the light, then the dark masses, Compare alike.
 
 use crate::compositions::masses::Masses;
 use crate::compositions::value_masses::{Value, ValueMasses};
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script};
+use crate::kinds::value_masses::notan::merged;
 use crate::kinds::value_masses::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
 use crate::maths::path::Point;
 use crate::sheets::layout::PictureFit;
@@ -26,28 +28,52 @@ pub(crate) fn value_masses() -> Demo {
     let masses = Masses::generate(SEED, ASPECT);
     let (size, pixels) = masses.picture(WIDTH);
     let answer = ValueMasses::of(size, &pixels);
+    // Fill frame with the middle, the overall tone; then the darkest masses, then the light.
+    let painted = [[true, false, false], [true, false, true]];
+    shown_painted(masses, (size, answer), (Value::Middle, &painted))
+}
+
+/// Notan (S156): the same landscape's masses in two values, the middle merged into the dark; the
+/// frame filled with the light first, then the dark masses decided and painted.
+pub(crate) fn notan() -> Demo {
+    let masses = Masses::generate(SEED, ASPECT);
+    let (size, pixels) = masses.picture(WIDTH);
+    let answer = merged(&ValueMasses::of(size, &pixels), Value::Dark);
+    shown_painted(
+        masses,
+        (size, answer),
+        (Value::Light, &[[true, false, false]]),
+    )
+}
+
+/// The example `masses` beside its copy: the frame filled with `fill`, then the copy's values
+/// `painted` shows a step each; Compare against `answer`.
+fn shown_painted(
+    masses: Masses,
+    (size, answer): ([u32; 2], ValueMasses),
+    (fill, painted): (Value, &[[bool; 3]]),
+) -> Demo {
     let copy = strayed(&answer);
     let rect = [[0.0, 0.0], PictureFit::of(size).size];
     let mut script = Script::new();
     script.given(On::Original, Marker::Given, Drawn::Masses(rect));
-    // Fill frame with the middle, the overall tone; then the darkest masses, then the light.
     let [[left, top], [right, bottom]] = rect;
     let frame = vec![
         [[left, top], [right, top]],
         [[left, bottom], [right, bottom]],
     ];
-    let middle = Drawn::Band {
+    let filled = Drawn::Band {
         rows: frame,
-        colour: Some(Value::Middle.grey()),
+        colour: Some(fill.grey()),
     };
     script.step();
-    script.draw(On::Copy, Marker::Ink, middle);
-    for shown in [[true, false, false], [true, false, true]] {
+    script.draw(On::Copy, Marker::Ink, filled);
+    for shown in painted {
         script.step();
         let values = Drawn::Values {
             rect,
             copy: true,
-            shown,
+            shown: *shown,
         };
         script.draw(On::Copy, Marker::Ink, values);
     }

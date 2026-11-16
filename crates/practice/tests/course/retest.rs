@@ -25,7 +25,7 @@ fn dotted(learner: &Learner, key: &str) -> Learner {
 fn past_unit_one() -> Learner {
     let first = ended(openpaint_practice::schedule::first(1), &[]);
     let learner = Learner::default().with(&first);
-    ["line", "combined", "colour"]
+    ["ghosted-lines", "line", "combined", "colour"]
         .iter()
         .fold(learner, |learner, key| dotted(&learner, key))
 }
@@ -133,7 +133,9 @@ fn the_end_is_due_once_the_unit_s_seal_is_earned_until_begun() {
     let past = past_unit_one();
     assert_eq!(retest::end_due(&past), Some(1));
     let offer = retest::offer(1, true, &[], &pictures).expect("unit 1's end");
-    assert_eq!(offer.skills, ["line", "combined", "colour"].map(skill));
+    // Ghosted lines open unit 1 (S156): its re-test lays a superimposed line first.
+    let skills = ["ghosted-lines", "line", "combined", "colour"];
+    assert_eq!(offer.skills, skills.map(skill));
     assert!(offer.minutes > 0);
     let planned = retest::retest(1, true, &[], &pictures).expect("unit 1's end");
     let begun = past.with(&ended(planned, &[]));

@@ -107,13 +107,16 @@ impl PracticeSheet {
         Ok(())
     }
 
-    /// The colour a fill of the shown exercise takes when `asked` is the colour picked: value
-    /// masses' grey chosen (S96), else `asked`.
+    /// The colour a fill of the shown exercise takes when `asked` is the colour picked: the grey in
+    /// hand (S96; the lightest where its greys lack the one last chosen, as Notan's two, S156),
+    /// else `asked`.
     pub(crate) fn fill_colour(&self, asked: Color) -> Color {
         let greys = (self.shown_facts()).is_some_and(|facts| facts.tools.greys());
-        (greys.then(|| self.valuing.grey()).flatten())
-            .and_then(|grey| grey_colour(grey).ok())
-            .unwrap_or(asked)
+        (greys
+            .then(|| self.pen.grey().or(self.valuing.grey()))
+            .flatten())
+        .and_then(|grey| grey_colour(grey).ok())
+        .unwrap_or(asked)
     }
 
     /// What a sheet holding a whole copy wants of its layers now; none on another sheet, or while

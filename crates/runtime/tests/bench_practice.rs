@@ -53,7 +53,7 @@ fn the_book_and_practice_benchmarks_run_on_the_home_and_on_sheets() {
     until(runtime, hand, |runtime| gallery(runtime).is_some());
     let book = bench(hand, runtime, "book");
     assert_eq!(book.len(), 6, "{book:?}");
-    started(runtime, hand, 1);
+    started(runtime, hand, "line");
     let lines = bench(hand, runtime, "practice");
     eprintln!("{}", lines.join("\n"));
     for motion in [
@@ -79,11 +79,12 @@ fn the_book_and_practice_benchmarks_run_on_the_home_and_on_sheets() {
     unit_three(runtime, hand);
 }
 
-/// A lesson of unit `unit`'s first skill started from the home (`Runtime::start_lesson`, as a
-/// scenario's `lesson` step starts it), once its sheet shows and its motion settled; the bench
-/// lays the unit's later skills after it (`runtime/src/bench/practice_chain.rs`).
-fn started(runtime: &mut Runtime, hand: &mut Hand, unit: u8) {
-    let skill = openpaint_practice::UNITS[usize::from(unit) - 1].skills[0];
+/// A lesson of the skill keyed `key` started from the home (`Runtime::start_lesson`, as a
+/// scenario's `lesson` step starts it: unit 1's lines, second since ghosted lines, S156; unit 3's
+/// first), once its sheet shows and its motion settled; the bench lays the unit's later skills
+/// after it (`runtime/src/bench/practice_chain.rs`).
+fn started(runtime: &mut Runtime, hand: &mut Hand, key: &str) {
+    let skill = openpaint_practice::Skill::of_key(key).expect("a skill");
     runtime.start_lesson(Start::Skill(skill)).expect("started");
     until(runtime, hand, |runtime| {
         let lesson = runtime.practice().and_then(|practice| practice.lesson);
@@ -97,7 +98,7 @@ fn started(runtime: &mut Runtime, hand: &mut Hand, unit: u8) {
 fn unit_three(runtime: &mut Runtime, hand: &mut Hand) {
     hand.tap(runtime, "Home");
     until(runtime, hand, |runtime| gallery(runtime).is_some());
-    started(runtime, hand, 3);
+    started(runtime, hand, "estimates");
     let lines = bench(hand, runtime, "practice");
     eprintln!("{}", lines.join("\n"));
     for motion in [

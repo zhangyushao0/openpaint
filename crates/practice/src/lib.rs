@@ -109,6 +109,9 @@ pub use kinds::gamut_masks::mask::{
     span as gamut_span,
 };
 pub use kinds::gamut_masks::reading::MaskReading;
+pub use kinds::ghosted_lines::ghosted::{Ghosted, GhostedTask};
+pub use kinds::ghosted_lines::marks::GhostedCompared;
+pub use kinds::ghosted_lines::plane::Plane;
 pub use kinds::intersections::marks::IntersectionCompared;
 pub use kinds::intersections::meeting::{IntersectionTask, Meeting, Way};
 pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
@@ -163,6 +166,8 @@ pub use kinds::textures::marks::{TextureCompared, TextureReading};
 pub use kinds::textures::read::TextureCheck;
 pub use kinds::textures::shadows::{TextureShadows, TextureTask};
 pub use kinds::value_masses::marks::{MassesCompared, MassesReading};
+pub use kinds::value_masses::massing::Massing;
+pub use kinds::value_masses::notan::{NotanCompared, NotanReading};
 pub use kinds::value_masses::value_masses_read::{BARE_LEFT, HATCH_GAP, MassesCheck, VALUE_PEN};
 pub use kinds::{
     Counted, DARKEST, DARKEST_PEN, DrawnCopy, Facts, Fill, Kept, Kind, Needs, Original, Pen,

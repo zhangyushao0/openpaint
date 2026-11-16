@@ -6,9 +6,9 @@ mod examples;
 
 use openpaint_practice::{
     Arrow, Bend, BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn,
-    Emphasis, Estimate, Guide, Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker, Meeting,
-    Placement, Point, Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier, Tone, Trick,
-    distance,
+    Emphasis, Estimate, Ghosted, Guide, Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker,
+    Massing, Meeting, Placement, Point, Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier,
+    Tone, Trick, distance,
 };
 
 const COLOUR: Tone = Tone {
@@ -17,7 +17,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 46] = [
+const STEPS: [(Kind, usize); 50] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -41,7 +41,8 @@ const STEPS: [(Kind, usize); 46] = [
     (Kind::Rotation(Rotation::ALL[1]), 5),
     (Kind::Division(Tier::Simple), 4),
     (Kind::WholeCopy(Tier::Simple), 3),
-    (Kind::ValueMasses(Tier::Simple), 4),
+    (Kind::ValueMasses(Massing::Three(Tier::Simple)), 4),
+    (Kind::ValueMasses(Massing::Two(Tier::Medium)), 3),
     (Kind::Analysis(Tier::Simple), 3),
     (Kind::Colour(COLOUR), 5),
     (Kind::Crop(Tier::Simple), 6),
@@ -64,6 +65,9 @@ const STEPS: [(Kind, usize); 46] = [
     (Kind::FreeBoxes(Horizon::Path), 4),
     (Kind::Contour(Bend::Gentle), 4),
     (Kind::Intersection(Meeting::Edge), 4),
+    (Kind::Ghosted(Ghosted::Superimposed), 3),
+    (Kind::Ghosted(Ghosted::Pairs), 4),
+    (Kind::Ghosted(Ghosted::Plane), 4),
 ];
 
 fn demo(kind: Kind) -> Demo {
@@ -89,6 +93,7 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
             "division",
             "whole-copy",
             "value-masses",
+            "notan",
             "texture",
             "texture-sparse",
         ];

@@ -11,8 +11,8 @@ use std::time::Instant;
 use openpaint_app::{BrushLibrary, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Answer, BlindPair, CopyRef, Exercise, First, Given, Judge, Kind, Layout, LineTier, Outcome,
-    Picked, Planned, Progress, Purpose, Sheet, Skill, SkillFit, SkillLevel, older_left,
+    Answer, BlindPair, CopyRef, Exercise, First, Ghosted, Given, Judge, Kind, Layout, LineTier,
+    Outcome, Picked, Planned, Progress, Purpose, Sheet, Skill, SkillFit, SkillLevel, older_left,
 };
 use openpaint_practice_app::{
     OneMore, PracticeIntent, PracticeLog, PracticePens, SheetSession, Start,
@@ -209,7 +209,7 @@ fn a_unit_s_end_re_test_is_offered_once_its_seal_is_earned_and_laid_as_its_set()
     let log = log_of(unit_one_sealed(), Vec::new(), 3);
     let path = log.path();
     let end = path.retest_end.expect("unit 1's end re-test");
-    assert_eq!((end.unit, end.end, end.skills.len()), (1, true, 3));
+    assert_eq!((end.unit, end.end, end.skills.len()), (1, true, 4));
     let start = path.retest.expect("unit 2's start re-test");
     assert_eq!((start.unit, start.end), (2, false));
     let (next, _) = log
@@ -240,7 +240,8 @@ fn a_unit_s_end_re_test_is_offered_once_its_seal_is_earned_and_laid_as_its_set()
     assert_eq!(laid, planned);
 }
 
-/// Unit 1 sealed by day 2 (the first lesson, then six clean exercises of each of its skills):
+/// Unit 1 sealed by day 2 (the first lesson, then six clean exercises of each of its skills, ghosted
+/// lines' last):
 /// unit 2 in hand, its start re-test due.
 fn unit_one_sealed() -> Vec<Sheet> {
     let clean = [Outcome::Clean; 6];
@@ -255,6 +256,8 @@ fn unit_one_sealed() -> Vec<Sheet> {
         past(2, 1, &clean),
         past_of(combined, (3, 1), &clean),
         past_of(colour, (4, 2), &clean),
+        // Ghosted lines open unit 1 (S156).
+        past_of(Kind::Ghosted(Ghosted::Superimposed), (50, 2), &clean),
     ]
 }
 

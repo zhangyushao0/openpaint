@@ -5,7 +5,7 @@
 //! `value_masses_hatching.rs`.
 
 use openpaint_practice::{
-    CELLS, Drawn, ISLAND, Kind, MASSES_SIDE, Marker, Masses, RIM, Tier, Value, ValueMasses,
+    CELLS, Drawn, ISLAND, Kind, MASSES_SIDE, Marker, Masses, Massing, RIM, Tier, Value, ValueMasses,
 };
 
 /// How near the answer's mass edges lie to the landscape's known ones, frame units (5 canvas
@@ -16,7 +16,7 @@ const ACCURACY: f64 = 0.0125;
 #[test]
 fn the_demonstration_fills_the_middle_then_paints_dark_then_light_and_is_compared_with_its_hatching()
  {
-    let demo = Kind::ValueMasses(Tier::Simple)
+    let demo = Kind::ValueMasses(Massing::Three(Tier::Simple))
         .how(CELLS)
         .expect("a demonstration");
     let [answer, copy] = demo.values.as_deref().expect("its value masses").clone();

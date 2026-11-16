@@ -15,15 +15,15 @@ const DAY: u64 = 86_400;
 /// The device's offset in Beijing, minutes.
 const BEIJING: i32 = 8 * 60;
 
-/// Unit 1's three skills in one lesson, for a learner who has practised nothing: a line, a group
-/// and a colour, then a lesson of each skill.
+/// Unit 1's four skills in one lesson, for a learner who has practised nothing: a superimposed
+/// line (S156), a line, a group and a colour, then a lesson of each skill.
 fn mixed_lesson(id: u64, started: u64) -> Sheet {
     let (pictures, learner) = (Pictures::default(), Learner::default());
     let standing = Standing {
         pictures: &pictures,
         learner: &learner,
     };
-    let lessons: Vec<Planned> = (["line", "combined", "colour"].iter())
+    let lessons: Vec<Planned> = (["ghosted-lines", "line", "combined", "colour"].iter())
         .map(|key| {
             let skill = Skill::of_key(key).expect("a skill of unit 1");
             let seed = 0x5EED_0045 + id;

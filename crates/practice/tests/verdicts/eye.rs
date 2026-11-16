@@ -5,9 +5,9 @@
 //! holds now. Value masses and key shifts read with their answers: `painted.rs`.
 
 use openpaint_practice::{
-    Asked, BoxView, Carve, Combination, Compare, Copied, DrawnCopy, Estimate, Exercise, Guide,
-    Horizon, ItemRef, Kind, Lean, Level, LineTier, PictureFit, Point, Rgb8, Rotation, ScaleTone,
-    SheetPicture, Solid, Tendency, Tier, Trick, Verdict,
+    Asked, BoxView, Carve, Combination, Compare, Copied, DrawnCopy, Estimate, Exercise, Ghosted,
+    Guide, Horizon, ItemRef, Kind, Lean, Level, LineTier, Massing, PictureFit, Point, Rgb8,
+    Rotation, ScaleTone, SheetPicture, Solid, Tendency, Tier, Trick, Verdict,
 };
 
 use crate::{Laid, compare, shown, steady};
@@ -40,13 +40,15 @@ fn what_only_the_eye_judges_says_eye_however_it_was_drawn() {
     kinds.extend(Solid::ALL.map(|solid| (Kind::Solid(solid), None)));
     kinds.extend(Carve::ALL.map(|carve| (Kind::Object(carve), None)));
     kinds.push((Kind::Rotation(Rotation::ALL[0]), None));
+    kinds.extend(Ghosted::ALL.map(|ghosted| (Kind::Ghosted(ghosted), None)));
     for tier in [Tier::ALL[0], Tier::ALL[3]] {
         kinds.extend([
             (Kind::Shape(tier), Some(&picture)),
             (Kind::Division(tier), Some(&picture)),
             (Kind::WholeCopy(tier), Some(&picture)),
             // Painted kinds whose picture holds no masses or areas: laid over the copy.
-            (Kind::ValueMasses(tier), Some(&picture)),
+            (Kind::ValueMasses(Massing::Three(tier)), Some(&picture)),
+            (Kind::ValueMasses(Massing::Two(tier)), Some(&picture)),
             (Kind::Crop(tier), Some(&picture)),
         ]);
     }

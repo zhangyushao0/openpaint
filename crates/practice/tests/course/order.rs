@@ -243,15 +243,27 @@ fn the_next_lesson_is_the_fewest_dots_then_the_longest_unpractised_then_the_cour
         schedule::next(&standing).map(|offer| offer.skill.key())
     };
     let fresh = Learner::default();
-    assert_eq!(next(&fresh), Some("line"), "the course's order");
-    // Lines practised: the skills never practised come first, in the course's order.
-    let lined = after(&fresh, "line", SkillLevel::First, &[Near; 4]);
+    assert_eq!(
+        next(&fresh),
+        Some("ghosted-lines"),
+        "the course's order (S156)"
+    );
+    // Ghosted lines practised: the skills never practised come first, in the course's order.
+    let ghosted = after(&fresh, "ghosted-lines", SkillLevel::First, &[Near; 3]);
+    assert_eq!(next(&ghosted), Some("line"));
+    let lined = after(&ghosted, "line", SkillLevel::First, &[Near; 4]);
     assert_eq!(next(&lined), Some("combined"));
     let grouped = after(&lined, "combined", SkillLevel::First, &[Near; 3]);
     let coloured = after(&grouped, "colour", SkillLevel::First, &[Near; 3]);
-    assert_eq!(next(&coloured), Some("line"), "the longest unpractised");
+    assert_eq!(
+        next(&coloured),
+        Some("ghosted-lines"),
+        "the longest unpractised"
+    );
+    let again = after(&coloured, "ghosted-lines", SkillLevel::First, &[Near; 3]);
+    assert_eq!(next(&again), Some("line"));
     // A dot puts a skill behind the others.
-    let dotted = after(&coloured, "line", SkillLevel::First, &CLEAN);
+    let dotted = after(&again, "line", SkillLevel::First, &CLEAN);
     assert_eq!(dotted.dots(skill("line")), 1);
     assert_eq!(next(&dotted), Some("combined"));
     let standing = Standing {
@@ -263,7 +275,7 @@ fn the_next_lesson_is_the_fewest_dots_then_the_longest_unpractised_then_the_cour
     assert_eq!(shown, (SkillLevel::Second, 6, 5));
     // Without a pack, unit 2's first skill it can practise is a value scale.
     let mut learner = dotted;
-    for key in ["combined", "colour"] {
+    for key in ["ghosted-lines", "combined", "colour"] {
         for _ in 0..2 {
             learner = after(&learner, key, SkillLevel::First, &CLEAN);
         }

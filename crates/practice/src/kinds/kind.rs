@@ -21,6 +21,7 @@ use crate::kinds::contrast_thumbnails::rings::Emphasis;
 use crate::kinds::curved_rotations::curved::CurvedRotation;
 use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::gamut_masks::mask::Mask;
+use crate::kinds::ghosted_lines::ghosted::Ghosted;
 use crate::kinds::intersections::meeting::Meeting;
 use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::light_on_form::scene::Lit;
@@ -33,6 +34,7 @@ use crate::kinds::rotations::rotation::Rotation;
 use crate::kinds::scales::scale::ScaleTone;
 use crate::kinds::solids::solid::Solid;
 use crate::kinds::textures::field::Texture;
+use crate::kinds::value_masses::massing::Massing;
 use crate::marks::tile::TileMark;
 use crate::packs::pack::{ItemRef, Tier};
 use crate::packs::pictures::Pictures;
@@ -83,8 +85,9 @@ pub enum Kind {
     /// colour blocks, S96) over its division dimmed (V大's 整图复制, S95, `whole_copies/`).
     WholeCopy(Tier),
     /// A composition's picture of a tier painted as its few big masses in three greys, grouped by
-    /// value (V大's 黑白灰 and colour blocks by attribute, S96, `value_masses/`).
-    ValueMasses(Tier),
+    /// value (V大's 黑白灰 and colour blocks by attribute, S96), or in two (Notan, S156)
+    /// (`value_masses/`).
+    ValueMasses(Massing),
     /// A crop painted again shifted toward a tendency the exercise gives (V大's 变调, S107,
     /// `key_shifts/`).
     KeyShift(Tendency),
@@ -137,6 +140,10 @@ pub enum Kind {
     /// Two forms passing into each other, the line where they meet drawn: its pierce points
     /// first, then the line between them (穿插, S156k, `intersections/`).
     Intersection(Meeting),
+    /// A confident stroke between given points: lines over a printed line, pairs of points, a
+    /// plane's corners (Drawabox's superimposed and ghosted lines and planes, S156,
+    /// `ghosted_lines/`).
+    Ghosted(Ghosted),
 }
 
 impl Kind {
@@ -147,7 +154,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its description's (1 to 35, 5
+    /// The kind and its variant as stored: each kind's code is its description's (1 to 36, 5
     /// free), its variant its description's (`Described::variant`). A code names one generator for
     /// good; a changed generator is a new code.
     #[must_use]

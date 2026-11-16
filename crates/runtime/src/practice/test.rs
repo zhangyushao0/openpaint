@@ -28,9 +28,9 @@ use crate::storage::Job;
 
 /// What a skill is named (`practice-test start lesson <skill>`, a scenario's `lesson` step: its
 /// key, `Skill::key`), as the refusal of another name says it.
-const SKILLS: &str = "a skill of line, combined, colour, shape, combination, scale, box, \
-                      free-boxes, ellipse, estimates, points-in-space, solids, objects, division, \
-                      value-masses, whole-copy, key-shift, abstract-analysis, \
+const SKILLS: &str = "a skill of ghosted-lines, line, combined, colour, shape, combination, \
+                      scale, box, free-boxes, ellipse, estimates, points-in-space, solids, \
+                      objects, division, value-masses, whole-copy, key-shift, abstract-analysis, \
                       structure-rotation, gamut-mask, light-on-form, cast-shadows, \
                       curved-rotation, placement, colour-under-light, texture, \
                       organic-arrow, contours, intersections or contrast-thumbnail, at level 1, \

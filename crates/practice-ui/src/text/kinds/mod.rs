@@ -28,6 +28,7 @@ mod estimates;
 mod free;
 mod free_boxes;
 mod gamut_masks;
+mod ghosted_lines;
 mod intersections;
 mod key_shifts;
 mod light_on_form;
@@ -109,7 +110,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 34] = [
+const KINDS: [&[KindWords]; 35] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -144,6 +145,7 @@ const KINDS: [&[KindWords]; 34] = [
     &arrows::WORDS,
     &contours::WORDS,
     &intersections::WORDS,
+    &ghosted_lines::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -233,6 +235,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         arrows::PRACTICE_ARROWS,
         contours::PRACTICE_CONTOURS,
         intersections::PRACTICE_INTERSECTIONS,
+        ghosted_lines::PRACTICE_GHOSTED_LINES,
     ]
 }
 
