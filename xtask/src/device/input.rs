@@ -92,7 +92,20 @@ pub fn input(args: &[String]) -> Result<()> {
 /// Runs the gesture instrumentation once with `extras`; its output, once it says the gesture
 /// was injected or the question answered.
 pub(super) fn instrument(adb: &Adb, extras: &[(&'static str, String)]) -> Result<String> {
-    let mut words = vec!["am", "instrument", "-w", "--no-restart"];
+    instrumented(adb, extras, true)
+}
+
+/// As `instrument`, in a process of its own started for it: the app stopped (S152's clear;
+/// `--no-restart` needs the app's process alive, else the system refuses it).
+pub(super) fn instrument_alone(adb: &Adb, extras: &[(&'static str, String)]) -> Result<String> {
+    instrumented(adb, extras, false)
+}
+
+fn instrumented(adb: &Adb, extras: &[(&'static str, String)], attach: bool) -> Result<String> {
+    let mut words = vec!["am", "instrument", "-w"];
+    if attach {
+        words.push("--no-restart");
+    }
     for (key, value) in extras {
         words.extend(["-e", key, value.as_str()]);
     }

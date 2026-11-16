@@ -15,7 +15,7 @@ use std::time::SystemTime;
 
 use super::adb::{Adb, DeviceError, PACKAGE, Result};
 use super::artifacts;
-use super::input::{answer, instrument};
+use super::input::{answer, instrument_alone};
 use super::library::stop_app;
 use super::practice_test::to_home;
 use super::reset::{day_of, todays_backup};
@@ -34,7 +34,7 @@ pub fn practice_clear(args: &[String]) -> Result<()> {
         to_home(&adb)?;
     }
     stop_app(&adb)?;
-    let output = instrument(&adb, &[("practice-clear", "1".to_owned())])?;
+    let output = instrument_alone(&adb, &[("practice-clear", "1".to_owned())])?;
     let said = answer(&output, "practice-clear").unwrap_or("no answer");
     let Some(counts) = cleared(said) else {
         return Err(DeviceError::Failed {
