@@ -5,8 +5,8 @@
 //! end (S148) among its lessons' skills, or its end re-test's own pairs.
 
 use openpaint_practice::{
-    Answer, BlindPair, CopyRef, Exercise, Judge, Kind, LineTier, Outcome, PairAsked, Pictures,
-    Purpose, Sheet, Skill, SkillFit, Within, ask, block_pairs,
+    Answer, BlindPair, CopyRef, Exercise, Kind, LineTier, Outcome, PairAsked, Pictures, Purpose,
+    Sheet, Skill, SkillFit, Within, ask, block_pairs,
 };
 
 use super::lines;
@@ -89,7 +89,7 @@ fn a_pair_is_two_earlier_copies_of_the_skill_weeks_apart_the_least_sure() {
             "the lesson's skill"
         );
         assert_eq!(laid.level, 0);
-        assert_eq!(laid.result.map(|(_, judge)| judge), Some(Judge::Eye));
+        assert!(laid.first.is_some(), "a compared copy");
     }
     // The largest posterior variance among every pair the rules allow.
     let fit = SkillFit::of(lines(), &sheets, &[], 0).expect("a fit");
@@ -103,6 +103,39 @@ fn a_pair_is_two_earlier_copies_of_the_skill_weeks_apart_the_least_sure() {
     }
     let chosen = fit.spread(ZERO + older, ZERO + newer).expect("practised");
     assert!((chosen - best).abs() < 1e-12, "{chosen} of {best}");
+}
+
+/// The author's shape (S150): copies compared and never judged, the older in a unit's full lesson
+/// of before S124, still make a pair; no fit is needed to choose it.
+#[test]
+fn copies_never_judged_and_a_full_lesson_s_copies_still_pair() {
+    let mut sheets = records();
+    for laid in (sheets.iter_mut()).flat_map(|sheet| {
+        sheet
+            .lessons
+            .iter_mut()
+            .flat_map(|l| l.exercises.iter_mut())
+    }) {
+        laid.result = None;
+    }
+    sheets[0].lessons[0].picked = openpaint_practice::Picked::Full {
+        unit: 1,
+        warm_up: 0,
+    };
+    let pictures = Pictures::default();
+    let asked = ask(
+        &[lines()],
+        (&sheets, &[]),
+        (ZERO + 52, 0),
+        &within(&pictures, &[], false),
+    )
+    .expect("a pair of copies never judged");
+    for copy in [asked.older, asked.newer] {
+        let (_, laid) = copy.find(&sheets).expect("a copy");
+        assert!(laid.first.is_some() && laid.result.is_none());
+    }
+    let newer = copy_day(&sheets, asked.newer);
+    assert!((38..=51).contains(&newer), "the newer drawn on day {newer}");
 }
 
 #[test]

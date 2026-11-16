@@ -2,8 +2,8 @@
 //!
 //! - A lesson of a skill the eye judges asks at most one pair, both copies earlier than the lesson
 //!   (never the copy just drawn: it is known at a glance, and knowing which is newer bends the
-//!   answer), of the same skill and level, each compared and judged by the learner's eye, its
-//!   picture still kept: the newer drawn 1 to 14 days before today and never yet in a pair, the
+//!   answer), of the same skill and level, each compared (judged or not: a copy the learner never
+//!   judged is still their drawing, and the pair is its judgement, S150), its picture still kept: the newer drawn 1 to 14 days before today and never yet in a pair, the
 //!   older 21 to 42 days before the newer and in at most one pair. Re-tests' copies are paired at
 //!   their own end; a test sheet's only at a test lesson's end; a copy of a pair asked today (one
 //!   skipped among them) not again that day.
@@ -23,7 +23,7 @@ use crate::progress::SkillFit;
 use crate::progress::observe::copy_day;
 use crate::records::lessons::{OnSheet, lessons};
 use crate::records::pairs::{BlindPair, CopyRef};
-use crate::records::sheet::{Judge, Laid, Picked, Purpose, Sheet};
+use crate::records::sheet::{Laid, Picked, Purpose, Sheet};
 
 /// The newer copy's days before today, the older's before the newer, the pairs the older may be
 /// in already, and the days a change is read over.
@@ -171,21 +171,23 @@ fn ord(asked: PairAsked) -> (std::cmp::Reverse<CopyRef>, std::cmp::Reverse<CopyR
     )
 }
 
-/// Every copy of `skill` that may be asked: in a skill's lesson (no first lesson, re-test or colour
-/// copy), compared and judged by eye, its picture kept, a test sheet's only for a test.
+/// Every copy of `skill` that may be asked: in a skill's lesson or a unit's full one of before S124
+/// (no first lesson, re-test or colour copy), compared, judged or not, its picture kept, a test
+/// sheet's only for a test.
 fn candidates(skill: Skill, sheets: &[Sheet], offset: i32, within: &Within<'_>) -> Vec<Candidate> {
     let mut all = Vec::new();
     for on in lessons(sheets) {
         let test = on.sheet.purpose == Purpose::Test;
-        if on.is_copy() || on.lesson.picked != Picked::Chosen || (test && !within.test) {
+        let practice = matches!(on.lesson.picked, Picked::Chosen | Picked::Full { .. });
+        if on.is_copy() || !practice || (test && !within.test) {
             continue;
         }
         let first = on.first_exercise();
         for (at, laid) in on.lesson.exercises.iter().enumerate() {
-            let judged = matches!(laid.result, Some((_, Judge::Eye))) && laid.first.is_some();
+            let compared = laid.first.is_some();
             let kept =
                 (laid.exercise.picture.as_ref()).is_none_or(|item| within.pictures.holds(item));
-            if judged && kept && Skill::of(laid.exercise.kind) == Some(skill) {
+            if compared && kept && Skill::of(laid.exercise.kind) == Some(skill) {
                 all.push(Candidate {
                     copy: CopyRef::of(&on, first + at),
                     day: copy_day(on.sheet, laid, offset),
