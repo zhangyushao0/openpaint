@@ -1,33 +1,48 @@
 # The colour combinations pack (S101, named so in S101c): pictures only ever cropped, every crop
 # of colour combinations but the composition pack's corners. V大's 色彩组合 copies a corner of an
-# abstract oil painting or of a rusted old thing, never a concrete object: each picture gives its
-# best two crops of three to seven areas of distinct colour, some low in saturation, at least one
-# weak contrast between neighbours (`openpaint_practice::crop`), each crop an item of the pack
-# with its areas, cut from the picture's full pixels (at most 4,096) and 768 to 1,024 pixels long.
-# Built by `cargo practice-pack build apps/harness/packs/combinations.toml --sheet`; the crops are
-# judged on the crops' sheets (`openpaint-combinations-crops-<n>.png`, each beside its areas, its
-# weak contrasts red), and one that shows a recognisable object or whose areas do not read is
-# listed out on its picture's item with why: `no_crop.2 = "a bolt's head"`. The format is in
-# apps/harness/src/pack/list.rs. No picture is kept here: each item names its object at its
-# source, which states its licence (Commons' `License`, the museums' public-domain fields), or
-# dedicates every asset to CC0 (the texture libraries, `libraries.rs`).
+# abstract oil painting or of a rusted old thing, never a concrete object: each picture gives
+# every crop that keeps the rules, six at most (S159), of three to seven areas of distinct colour,
+# some low in saturation, at least one weak contrast between neighbours
+# (`openpaint_practice::crop`): three sizes and three shapes tried at five places by five, best
+# first, none overlapping a better one by more than a quarter, and a crop whose answer breaks a
+# rule once packed makes way for the next best. Each crop is an item of the pack with its areas,
+# cut from the picture's full pixels (at most 4,096) and 768 to 1,024 pixels long.
 #
-# Four sources:
-# - CC0 photographs on Commons (S101): rust, peeling paint and torn posters, from Commons' CC0
-#   texture series; of 87 tried, these give crops. A photograph under about 1,400 pixels on its
-#   shorter side gives none (S101b). Left out: objects (rivets, bolts, gears, ropes, house fronts
-#   and eaves, numbers and signs); one flat colour or an even pattern over the whole photograph;
-#   photographs whose every crop breaks a rule (lichen and rock read as specks, vivid paint without
-#   a grey, rust shading from one colour into another).
-# - Colour maps of CC0 texture libraries at 4K (S101c): ambientCG's and Poly Haven's rusted and
-#   painted metal, peeling paint, plaster and painted wood, never their normal, roughness or height
-#   maps; materials of one flat colour or a printed sign left out. Of 43 maps, 11 give a crop that
-#   keeps the rules: a colour map is even, most crops of it one or two areas.
-# - Public-domain paintings whose corners read abstract (S101c), from open-access collections at
-#   their full size (the Art Institute's at 3,000 pixels): late Turner, Monet's water lilies and
-#   London, Whistler's nocturnes, Kandinsky, Klee, Marc, Delaunay. Cropped like the photographs,
-#   never compositions; a crop showing a figure, a boat, a building, a signature or the canvas's or
-#   frame's edge is listed out. Left out: a Whistler etching on Commons (a print, its plate's edge).
+# Built by `cargo practice-pack build tools/packs/lists/combinations.toml --sheet`; `--from <item
+# id>` builds that item and those after it into artifacts/packs/curate/, for judging a new batch.
+# The crops are judged on the crops' sheets (`openpaint-combinations-crops-<n>.png`, each beside
+# its areas, its weak contrasts red); one that shows a recognisable object, a figure, a signature
+# or script, the canvas's, frame's or scan's edge, or whose areas do not read is listed out on its
+# picture's item with why: `no_crop.2 = "a bolt's head"`; a picture none of whose crops is kept is
+# left out of the list. The format is in tools/packs/src/list.rs. No picture is kept here: each
+# item names its object at its source, which states its licence (Commons' `License`, the museums'
+# public-domain fields, Openverse's `license` and `license_version`), or dedicates every asset to
+# CC0 (the texture libraries, `libraries.rs`).
+#
+# 194 pictures give 454 crops: 255 simple, 118 medium, 81 hard (S159, 2026-11-16; 62 crops, 13 of
+# them hard, before). By source, the pictures listed before S159 or tried in it, those kept, and
+# their crops:
+# - Commons, 106 / 77 / 202: CC0 photographs of rust, peeling paint and torn posters (S101; a
+#   photograph under about 1,400 pixels on its shorter side gives none), peeling paint 3,500
+#   pixels wide or more (S159), and public-domain paintings whose corners read abstract (S101c,
+#   S158p) or of many flat areas (S159: Kandinsky, Delaunay, Klee, Kliun, Popova, Macke, Exter).
+#   Left out: scans too large to decode or not served (Jawlensky, af Klint, Malevich, three
+#   Kandinskys); busy abstracts whose colours are all saturated (no weak contrast) or whose best
+#   crop is past seven areas; paintings whose every crop shows a signature, script, a vase or a
+#   jug, or the canvas's edge.
+# - The Art Institute of Chicago, 61 / 36 / 70, and the National Gallery of Art, 49 / 29 / 70 (both
+#   CC0; S101c, S159): Monet's water lilies, London and haystacks, Turner, Kandinsky, Twachtman,
+#   Hassam, Sisley, Renoir, Pissarro, Courbet, Moran, Daubigny, Gauguin, Jawlensky. Left out:
+#   pictures whose every crop shows a haystack, a house, a bridge, a boat, trees against the sky
+#   or a figure, or gives fewer than three areas (most of the Inness and Sisley tried).
+# - Texture Ninja, 74 / 37 / 74 (CC0, S159): rusted and flaking paint and damaged plaster. Left
+#   out: one or two areas, speckle, or every crop showing a bolt, a bracket, a pipe, a panel's
+#   edge or a sprayed scrawl.
+# - Openverse, 10 / 6 / 16 (S159): CC0 photographs of the WordPress Photo Directory at their full
+#   size; Flickr's through Openverse are at most 1,024 pixels and give none.
+# - ambientCG, 27 / 8 / 19, and Poly Haven, 16 / 1 / 3 (CC0 colour maps at 4K, S101c): rusted and
+#   painted metal, plaster and wood, never their normal, roughness or height maps; a colour map is
+#   even, most crops of it one or two areas.
 
 id = "openpaint-combinations"
 title = "Colour combinations"
@@ -56,13 +71,8 @@ object = "File:Texture - Juin 2015 13.JPG"
 licence = "CC0"
 reason = "pink paint over rust with pale patches: a dull orange, a pink and a cream"
 no_crop.2 = "a bolt's head in its corner"
-
-[[item]]
-id = "dark-rust-ochre"
-source = "commons"
-object = "File:Texture - Juin 2015 09.JPG"
-licence = "CC0"
-reason = "dark rust with ochre blooms: warm darks close together"
+no_crop.3 = "a bolt's head"
+no_crop.4 = "a bolt's head at its foot"
 
 [[item]]
 id = "blue-paint-rust-spots"
@@ -70,7 +80,6 @@ source = "commons"
 object = "File:Texture 2017 10.jpg"
 licence = "CC0"
 reason = "pale blue paint weathered over grey, rust and dark flecks: cool greys close together and a warm accent"
-no_crop.1 = "the black fleck patch is not an area"
 
 [[item]]
 id = "rust-over-grey"
@@ -102,6 +111,7 @@ object = "File:Textures 2015 01.jpg"
 licence = "CC0"
 reason = "grey sheet metal along a rusted edge: close blue-greys and an ochre"
 no_crop.1 = "a seam's weld and its ledge: an object's edge"
+no_crop.3 = "a seam's ledges across it"
 
 [[item]]
 id = "blue-paint-rust"
@@ -127,28 +137,7 @@ object = "File:Textures 2015 05.jpg"
 licence = "CC0"
 reason = "navy scraps of a torn poster over grey paper"
 
-# ambientCG: colour maps of rusted metal
-
-[[item]]
-id = "acg-rust-on-steel"
-source = "ambientcg"
-object = "Metal018"
-licence = "CC0"
-reason = "rust over steel in broad patches: warm browns beside greys"
-
-[[item]]
-id = "acg-silver-rust"
-source = "ambientcg"
-object = "Metal020"
-licence = "CC0"
-reason = "pale steel streaked with rust: cool greys and an orange"
-
-[[item]]
-id = "acg-blue-grey-steel"
-source = "ambientcg"
-object = "Metal021"
-licence = "CC0"
-reason = "blue-grey steel stained dark and pale: close cool greys"
+# ambientCG: colour maps of rusted and painted metal, painted plaster and wood
 
 [[item]]
 id = "acg-rust-blue-steel"
@@ -156,29 +145,6 @@ source = "ambientcg"
 object = "Metal022"
 licence = "CC0"
 reason = "rust eating into blue-grey steel: warm and cool side by side"
-no_crop.1 = "rust speckle over grey: a texture, not areas"
-
-[[item]]
-id = "acg-rust-grey-steel"
-source = "ambientcg"
-object = "Metal023"
-licence = "CC0"
-reason = "rust and grey steel in patches: dull warm and cool"
-no_crop.1 = "near-identical to the rust on blue-grey steel's crop"
-
-[[item]]
-id = "acg-grey-steel-stains"
-source = "ambientcg"
-object = "Metal024"
-licence = "CC0"
-reason = "grey steel with darker stains and pale wear: greys close in value"
-
-[[item]]
-id = "acg-dark-rust"
-source = "ambientcg"
-object = "Metal025"
-licence = "CC0"
-reason = "dark rust with grey showing through: warm darks"
 
 [[item]]
 id = "acg-rust-grey-patches"
@@ -195,57 +161,13 @@ licence = "CC0"
 reason = "pale scratched steel streaked with rust"
 
 [[item]]
-id = "acg-rusted-plate"
-source = "ambientcg"
-object = "Metal041C"
-licence = "CC0"
-reason = "a rusted plate, orange and brown with grey left"
-
-# ambientCG: painted metal, rusting
-
-[[item]]
-id = "acg-teal-paint-rust"
-source = "ambientcg"
-object = "PaintedMetal006"
-licence = "CC0"
-reason = "teal paint flaking off rust in islands: two hues in a strong contrast"
-no_crop.1 = "the rust islands read as one olive area: the answer is wrong"
-
-[[item]]
-id = "acg-blue-paint-rust"
-source = "ambientcg"
-object = "PaintedMetal007"
-licence = "CC0"
-reason = "deep blue paint with rust coming through"
-
-[[item]]
-id = "acg-orange-paint-rust"
-source = "ambientcg"
-object = "PaintedMetal008"
-licence = "CC0"
-reason = "orange paint with rust coming through in patches"
-
-[[item]]
-id = "acg-yellow-paint-rust"
-source = "ambientcg"
-object = "PaintedMetal009"
-licence = "CC0"
-reason = "pale yellow paint flaking off rust"
-
-[[item]]
 id = "acg-white-paint-rust"
 source = "ambientcg"
 object = "PaintedMetal010"
 licence = "CC0"
 reason = "white paint with rust islands: a pale ground and warm darks"
-no_crop.1 = "plain: white with one rust edge"
-
-[[item]]
-id = "acg-cream-paint-rust"
-source = "ambientcg"
-object = "PaintedMetal011"
-licence = "CC0"
-reason = "cream paint worn through to rust in large patches"
+no_crop.2 = "the rust patches are not areas"
+no_crop.3 = "the rust patch reads pale: the answer is wrong"
 
 [[item]]
 id = "acg-white-paint-dark-rust"
@@ -255,20 +177,11 @@ licence = "CC0"
 reason = "white paint with dark rust and black chips"
 
 [[item]]
-id = "acg-grey-paint-rust"
-source = "ambientcg"
-object = "PaintedMetal013"
-licence = "CC0"
-reason = "grey and white paint over dark rust: greys and warm darks"
-
-[[item]]
 id = "acg-mint-paint-rust"
 source = "ambientcg"
 object = "PaintedMetal014"
 licence = "CC0"
 reason = "pale mint paint with rust spreading through it"
-
-# ambientCG: painted plaster and wood
 
 [[item]]
 id = "acg-yellow-plaster"
@@ -278,149 +191,13 @@ licence = "CC0"
 reason = "yellow paint peeling off grey plaster"
 
 [[item]]
-id = "acg-blue-plaster"
-source = "ambientcg"
-object = "PaintedPlaster008"
-licence = "CC0"
-reason = "faded blue paint peeling off plaster"
-no_crop.1 = "bricks showing through"
-
-[[item]]
-id = "acg-green-grey-plaster"
-source = "ambientcg"
-object = "PaintedPlaster009"
-licence = "CC0"
-reason = "greyish green paint worn off plaster: close greys"
-
-[[item]]
-id = "acg-white-plaster"
-source = "ambientcg"
-object = "PaintedPlaster014"
-licence = "CC0"
-reason = "white paint peeling off a buff plaster"
-
-[[item]]
-id = "acg-cream-plaster"
-source = "ambientcg"
-object = "PaintedPlaster018"
-licence = "CC0"
-reason = "cream and yellow paint peeling off grey plaster"
-
-[[item]]
 id = "acg-navy-wood"
 source = "ambientcg"
 object = "PaintedWood007B"
 licence = "CC0"
 reason = "navy paint worn off pale wood in streaks"
 
-[[item]]
-id = "acg-blue-grey-wood"
-source = "ambientcg"
-object = "PaintedWood008B"
-licence = "CC0"
-reason = "pale blue paint worn off brown wood"
-
-[[item]]
-id = "acg-green-wood"
-source = "ambientcg"
-object = "PaintedWood009B"
-licence = "CC0"
-reason = "green paint worn off pale wood"
-
 # Poly Haven: colour maps
-
-[[item]]
-id = "ph-teal-plaster"
-source = "polyhaven"
-object = "blue_plaster_weathered"
-licence = "CC0"
-reason = "weathered teal plaster: close greyed greens"
-
-[[item]]
-id = "ph-damaged-plaster"
-source = "polyhaven"
-object = "damaged_plaster"
-licence = "CC0"
-reason = "pale plaster broken to a warm ground"
-no_crop.1 = "bricks showing through"
-no_crop.2 = "bricks showing through"
-
-[[item]]
-id = "ph-lichen-rock"
-source = "polyhaven"
-object = "lichen_rock"
-licence = "CC0"
-reason = "dark rock spotted with pale lichen"
-
-[[item]]
-id = "ph-peeling-pink-wall"
-source = "polyhaven"
-object = "peeling_painted_wall"
-licence = "CC0"
-reason = "pink paint cracking and peeling off a grey wall"
-
-[[item]]
-id = "ph-coarse-rust"
-source = "polyhaven"
-object = "rust_coarse_01"
-licence = "CC0"
-reason = "coarse rust in browns close together"
-
-[[item]]
-id = "ph-white-rust-spots"
-source = "polyhaven"
-object = "rusty_metal_02"
-licence = "CC0"
-reason = "white paint speckled with rust"
-
-[[item]]
-id = "ph-yellow-rust"
-source = "polyhaven"
-object = "rusty_metal_03"
-licence = "CC0"
-reason = "yellow paint eaten by dark rust"
-
-[[item]]
-id = "ph-brown-grey-rust"
-source = "polyhaven"
-object = "rusty_metal_04"
-licence = "CC0"
-reason = "dark brown rust with grey paint left in streaks"
-
-[[item]]
-id = "ph-rust-blue-grey"
-source = "polyhaven"
-object = "rusty_metal_05"
-licence = "CC0"
-reason = "rust over blue-grey paint"
-
-[[item]]
-id = "ph-rusty-sheet"
-source = "polyhaven"
-object = "rusty_metal_sheet"
-licence = "CC0"
-reason = "a grey sheet stained ochre with rust"
-
-[[item]]
-id = "ph-peeling-timber"
-source = "polyhaven"
-object = "weathered_peeling_timber"
-licence = "CC0"
-reason = "green and white paint peeling off brown timber"
-
-[[item]]
-id = "ph-black-paint-wood"
-source = "polyhaven"
-object = "wood_peeling_paint_weathered"
-licence = "CC0"
-reason = "black paint peeling off orange wood"
-
-[[item]]
-id = "ph-mossy-plaster"
-source = "polyhaven"
-object = "worn_mossy_plasterwall"
-licence = "CC0"
-reason = "a pale plaster wall stained grey and green"
 
 [[item]]
 id = "ph-worn-plaster"
@@ -428,20 +205,6 @@ source = "polyhaven"
 object = "worn_plaster_wall"
 licence = "CC0"
 reason = "grey plaster with brown patches showing through"
-
-[[item]]
-id = "ph-distressed-planks"
-source = "polyhaven"
-object = "distressed_painted_planks"
-licence = "CC0"
-reason = "pale green paint worn off planks, a red showing"
-
-[[item]]
-id = "ph-red-plaster"
-source = "polyhaven"
-object = "red_plaster_weathered"
-licence = "CC0"
-reason = "weathered red plaster in close warm values"
 
 # Paintings whose corners read abstract (the Art Institute, CC0)
 
@@ -452,6 +215,7 @@ object = "8991"
 licence = "CC0"
 reason = "Kandinsky's Improvisation No. 30 (Cannons): patches of colour without objects"
 no_crop.1 = "the painter's signature"
+no_crop.2 = "a house at its top right"
 
 [[item]]
 id = "kandinsky-green-centre"
@@ -466,14 +230,7 @@ source = "aic"
 object = "8983"
 licence = "CC0"
 reason = "Kandinsky's Painting with Troika: broad strokes of colour"
-no_crop.1 = "the frame's edge along its top"
-
-[[item]]
-id = "marc-bewitched-mill"
-source = "aic"
-object = "9021"
-licence = "CC0"
-reason = "Marc's The Bewitched Mill: prismatic planes of colour"
+no_crop.2 = "the frame's edge along its top"
 
 [[item]]
 id = "monet-water-lilies-1906"
@@ -497,35 +254,12 @@ licence = "CC0"
 reason = "Monet's Water Lily Pond: greens and blues in close values"
 
 [[item]]
-id = "monet-irises"
-source = "aic"
-object = "4887"
-licence = "CC0"
-reason = "Monet's late Irises: loose strokes of violets and greens"
-
-[[item]]
-id = "monet-parliament-aic"
-source = "aic"
-object = "16584"
-licence = "CC0"
-reason = "Monet's Houses of Parliament: mist and water in close hues"
-no_crop.1 = "the Parliament's tower at its edge"
-
-[[item]]
 id = "monet-waterloo-grey"
 source = "aic"
 object = "103139"
 licence = "CC0"
 reason = "Monet's Waterloo Bridge, Gray Weather: fog in close greys and blues"
-no_crop.2 = "the bridge's arch"
-
-[[item]]
-id = "whistler-southampton"
-source = "aic"
-object = "56905"
-licence = "CC0"
-reason = "Whistler's Nocturne: Blue and Gold: a night of close blues"
-no_crop.1 = "plain: a dark night with nothing to read"
+no_crop.1 = "the bridge's arch"
 
 [[item]]
 id = "whistler-deep-sea"
@@ -535,20 +269,15 @@ licence = "CC0"
 reason = "Whistler's Violet and Silver: The Deep Sea: sea and sky in bands of close colour"
 
 [[item]]
-id = "whistler-trouville"
-source = "aic"
-object = "81572"
-licence = "CC0"
-reason = "Whistler's Trouville (Grey and Green, the Silver Sea): bands of grey and green"
-no_crop.2 = "a sailing boat"
-
-[[item]]
 id = "turner-fishing-boats"
 source = "aic"
 object = "4796"
 licence = "CC0"
 reason = "Turner's Fishing Boats with Hucksters: a sky and sea of warm and cool greys"
-no_crop.2 = "a boat and its crew"
+no_crop.1 = "a sail"
+no_crop.3 = "a boat and its crew"
+no_crop.4 = "a sail and a pennant"
+no_crop.6 = "a boat and its crew"
 
 [[item]]
 id = "turner-aosta"
@@ -560,27 +289,15 @@ reason = "Turner's Valley of Aosta: a storm dissolved into swirls of colour"
 # Paintings whose corners read abstract (the National Gallery of Art, CC0)
 
 [[item]]
-id = "turner-deluge"
-source = "nga"
-object = "46064"
-licence = "CC0"
-reason = "Turner's The Evening of the Deluge: a vortex of warm and cool"
-
-[[item]]
 id = "turner-approach-venice"
 source = "nga"
 object = "117"
 licence = "CC0"
 reason = "Turner's Approach to Venice: light dissolving sky and water"
-
-[[item]]
-id = "turner-dogana-1843"
-source = "nga"
-object = "46089"
-licence = "CC0"
-reason = "Turner's The Dogana and Santa Maria della Salute: a pale sky and water"
-no_crop.1 = "boats and a dome"
-no_crop.2 = "a building in the haze"
+no_crop.1 = "a boat of figures"
+no_crop.2 = "a city in the haze"
+no_crop.3 = "a boat of figures"
+no_crop.4 = "a boat and figures"
 
 [[item]]
 id = "monet-japanese-footbridge"
@@ -588,7 +305,9 @@ source = "nga"
 object = "74796"
 licence = "CC0"
 reason = "Monet's The Japanese Footbridge: water lilies in close greens"
-no_crop.2 = "the footbridge's rail"
+no_crop.3 = "the footbridge's rail"
+no_crop.4 = "the footbridge's rail"
+no_crop.5 = "the footbridge's rail"
 
 [[item]]
 id = "monet-parliament-sunset"
@@ -598,20 +317,9 @@ licence = "CC0"
 reason = "Monet's The Houses of Parliament, Sunset: violet and orange in mist"
 no_crop.1 = "the Parliament's tower"
 no_crop.2 = "the Parliament's towers"
-
-[[item]]
-id = "monet-waterloo-grey-day"
-source = "nga"
-object = "46658"
-licence = "CC0"
-reason = "Monet's Waterloo Bridge, Gray Day: close greys and violets"
-
-[[item]]
-id = "monet-waterloo-dusk"
-source = "nga"
-object = "61377"
-licence = "CC0"
-reason = "Monet's Waterloo Bridge at Dusk: blues and violets in fog"
+no_crop.3 = "the Parliament's towers"
+no_crop.4 = "the Parliament's tower at its edge"
+no_crop.5 = "the Parliament's towers"
 
 [[item]]
 id = "delaunay-political-drama"
@@ -619,14 +327,10 @@ source = "nga"
 object = "52397"
 licence = "CC0"
 reason = "Delaunay's Political Drama: discs and planes of colour"
-
-[[item]]
-id = "whistler-battersea-reach"
-source = "nga"
-object = "82416"
-licence = "CC0"
-reason = "Whistler's Battersea Reach: a river at dusk in close greys"
-no_crop.1 = "masts and roofs"
+no_crop.1 = "the picture's round edge and the bare board beyond it"
+no_crop.2 = "the picture's round edge and the bare board beyond it"
+no_crop.5 = "the painter's signature"
+no_crop.6 = "the painter's signature"
 
 # Paintings whose corners read abstract (public domain by age, on Commons)
 
@@ -643,7 +347,8 @@ source = "commons"
 object = "File:Wassily Kandinsky Composition VIII.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Composition VIII: flat planes and circles on a pale ground"
-no_crop.2 = "its purple circle and yellow triangle are not areas: the answer misses its subject"
+no_crop.3 = "its purple circle and yellow triangle are not areas: the answer misses its subject"
+no_crop.4 = "its circles and triangle are not areas: the answer misses its subject"
 
 [[item]]
 id = "kandinsky-composition-9"
@@ -651,6 +356,7 @@ source = "commons"
 object = "File:Vassily Kandinsky, 1936 - Composition 9.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Composition IX: diagonal bands of colour"
+no_crop.3 = "a row of rings that reads as numbers, and the canvas's edge"
 
 [[item]]
 id = "kandinsky-composition-j"
@@ -658,7 +364,6 @@ source = "commons"
 object = "File:Composition J, Kandinsky (1916).jpg"
 licence = "PD-old"
 reason = "Kandinsky's Composition J: patches of colour in a loose weave"
-no_crop.1 = "the painter's monogram"
 
 [[item]]
 id = "kandinsky-improvisation-18"
@@ -674,6 +379,7 @@ object = "File:Kandinsky - Improvisation 19 PA291208.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Improvisation 19: blue and violet fields"
 no_crop.1 = "the canvas's dark edge along its side"
+no_crop.3 = "the canvas's dark edge along its side"
 
 [[item]]
 id = "kandinsky-improvisation-21a"
@@ -681,7 +387,7 @@ source = "commons"
 object = "File:Kandinsky - Improvisation 21A PA291203.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Improvisation 21A: colour fields and black lines"
-no_crop.2 = "strokes that read as handwriting"
+no_crop.5 = "strokes that read as handwriting"
 
 [[item]]
 id = "kandinsky-improvisation-35"
@@ -696,6 +402,7 @@ source = "commons"
 object = "File:Kandinsky - Little Painting with Yellow (Improvisation), 1914.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Little Painting with Yellow: patches of colour around a yellow"
+no_crop.3 = "the canvas's unpainted edge"
 
 [[item]]
 id = "kandinsky-swan"
@@ -703,21 +410,6 @@ source = "commons"
 object = "File:Kandinsky - Improvisation No. 29 (The Swan), 1912, 1950-134-102.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Improvisation No. 29: patches of colour"
-
-[[item]]
-id = "marc-tirol"
-source = "commons"
-object = "File:Franz Marc - Tirol 1914.jpg"
-licence = "PD-old"
-reason = "Marc's Tirol: prismatic planes of colour"
-
-[[item]]
-id = "klee-kristall-stufung"
-source = "commons"
-object = "File:Kristall-Stufung, Paul Klee (1921).jpg"
-licence = "PD-old"
-reason = "Klee's Kristall-Stufung: graded blocks of colour"
-no_crop.1 = "the mount's handwritten title"
 
 [[item]]
 id = "klee-polyphony"
@@ -732,6 +424,8 @@ source = "commons"
 object = "File:Static-Dynamic Gradation, 1923 - Paul Klee, MET DP-817-001.jpg"
 licence = "PD-old"
 reason = "Klee's Static-Dynamic Gradation: blocks of colour in steps of value"
+no_crop.5 = "the painter's signature and the picture's edge"
+no_crop.6 = "the picture's dark border along its side"
 
 [[item]]
 id = "delaunay-rythme-1934"
@@ -739,6 +433,7 @@ source = "commons"
 object = "File:Robert Delaunay Rythme 1934.jpg"
 licence = "PD-old"
 reason = "Delaunay's Rythme: discs and arcs of colour"
+no_crop.5 = "the painter's signature"
 
 [[item]]
 id = "delaunay-formes-circulaires"
@@ -746,6 +441,8 @@ source = "commons"
 object = "File:Delaunay, Robert - Formes circulaires; lune no. 1 - Google Art Project.jpg"
 licence = "PD-old"
 reason = "Delaunay's Formes circulaires: rings of colour"
+no_crop.5 = "the canvas's edge along its side"
+no_crop.6 = "the painter's signature"
 
 [[item]]
 id = "turner-red-rigi"
@@ -753,8 +450,11 @@ source = "commons"
 object = "File:J. M. W. Turner - The Red Rigi - Google Art Project.jpg"
 licence = "PD-old"
 reason = "Turner's The Red Rigi: a lake and sky in washes of warm colour"
-no_crop.1 = "mountains over a lake"
-no_crop.2 = "a boat of figures"
+no_crop.1 = "a boat of figures"
+no_crop.2 = "mountains over a lake"
+no_crop.4 = "boats of figures"
+no_crop.5 = "a mountain over a lake"
+no_crop.6 = "a boat and its rower"
 
 [[item]]
 id = "turner-049"
@@ -763,7 +463,8 @@ object = "File:Joseph Mallord William Turner 049.jpg"
 licence = "PD-old"
 reason = "a late Turner: sea and sky dissolved in light"
 no_crop.1 = "ships and figures on the shore"
-no_crop.2 = "a sail and figures"
+no_crop.2 = "figures on a pier"
+no_crop.3 = "sailing boats and their crew"
 
 [[item]]
 id = "turner-norham"
@@ -771,14 +472,6 @@ source = "commons"
 object = "File:Joseph Mallord William Turner 063.jpg"
 licence = "PD-old"
 reason = "Turner's Norham Castle, Sunrise: pale washes of blue and gold"
-
-[[item]]
-id = "monet-blue-water-lilies"
-source = "commons"
-object = "File:Claude Monet - Blue Water Lilies - Google Art Project.jpg"
-licence = "PD-old"
-reason = "Monet's Blue Water Lilies: blues and greens in loose strokes"
-no_crop.1 = "the canvas's unpainted edge"
 
 [[item]]
 id = "monet-bassin-nympheas"
@@ -793,6 +486,9 @@ source = "commons"
 object = "File:Claude Monet - Water Lilies - Google Art Project.jpg"
 licence = "PD-old"
 reason = "Monet's Water Lilies: a pond's surface in soft colour"
+no_crop.2 = "the canvas's edge along its foot"
+no_crop.3 = "the canvas's edge along its side"
+no_crop.5 = "the canvas's edge along its side"
 
 [[item]]
 id = "monet-water-lilies-square"
@@ -808,7 +504,9 @@ source = "commons"
 object = "File:Monet - Water-Lilies, Setting Sun.jpg"
 licence = "PD-old"
 reason = "Monet's Water-Lilies, Setting Sun: blues and golds in broad strokes"
-no_crop.2 = "the canvas's edge along its side and foot"
+no_crop.2 = "the canvas's edge along its foot"
+no_crop.3 = "the canvas's edge along its side and foot"
+no_crop.6 = "the canvas's edge along its side"
 
 [[item]]
 id = "whistler-lagoon-venice"
@@ -817,6 +515,7 @@ object = "File:James Abbott McNeill Whistler - Nocturne in Blue and Silver- The 
 licence = "PD-old"
 reason = "Whistler's Nocturne in Blue and Silver, the Lagoon: close blues"
 no_crop.1 = "a campanile"
+no_crop.5 = "gondolas"
 
 [[item]]
 id = "whistler-blue-silver"
@@ -824,14 +523,6 @@ source = "commons"
 object = "File:James McNeill Whistler - Nocturne in Blue and Silver - Google Art Project.jpg"
 licence = "PD-old"
 reason = "Whistler's Nocturne in Blue and Silver: close blue-greens"
-
-[[item]]
-id = "whistler-black-gold"
-source = "commons"
-object = "File:Whistler-Nocturne in black and gold.jpg"
-licence = "PD-old"
-reason = "Whistler's Nocturne in Black and Gold: darks and sparks of gold"
-
 
 # More pictures for the medium and hard tiers (S158p, 2026-11-16: 11 hard crops before;
 # ShareAlike allowed since, D101). Of 37 tried, these give crops: Commons' smaller scans of
@@ -846,6 +537,8 @@ source = "commons"
 object = "File:Wassily Kandinsky - Impression III (Concert) - Google Art Project.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Impression III: a yellow field against black and soft greys"
+no_crop.5 = "the canvas's edge along its foot"
+no_crop.6 = "the painter's signature"
 
 [[item]]
 id = "peeling-paint-oil-tank"
@@ -867,3 +560,1075 @@ source = "commons"
 object = "File:Alnarp (Sweden) - Autumn bokeh (22782529612).jpg"
 licence = "CC BY-SA 2.0"
 reason = "autumn leaves out of focus: warm patches without edges"
+no_crop.2 = "a leaf in focus"
+no_crop.3 = "leaves at its edges"
+
+# S159: paintings whose skies, water, fields and foliage read abstract (the Art Institute, CC0)
+
+[[item]]
+id = "monet-seine-mist"
+source = "aic"
+object = "16564"
+licence = "CC0"
+reason = "Monet's Branch of the Seine near Giverny (Mist): violet and pink haze over water"
+
+[[item]]
+id = "monet-stacks-sunset-snow"
+source = "aic"
+object = "81545"
+licence = "CC0"
+reason = "Monet's Stacks of Wheat (Sunset, Snow Effect): snow and sky in violets and oranges"
+no_crop.2 = "a haystack"
+no_crop.3 = "a haystack"
+no_crop.4 = "a haystack"
+no_crop.6 = "haystacks"
+
+[[item]]
+id = "monet-stacks-autumn"
+source = "aic"
+object = "14624"
+licence = "CC0"
+reason = "Monet's Stacks of Wheat (End of Day, Autumn): a field and sky in warm and cool"
+no_crop.1 = "a haystack"
+no_crop.2 = "a haystack"
+no_crop.3 = "a haystack's edge"
+
+[[item]]
+id = "monet-stack-thaw"
+source = "aic"
+object = "100191"
+licence = "CC0"
+reason = "Monet's Stack of Wheat (Thaw, Sunset): a field and hills at dusk"
+no_crop.1 = "a haystack"
+no_crop.5 = "haystacks"
+no_crop.6 = "a haystack"
+
+[[item]]
+id = "monet-stack-1891"
+source = "aic"
+object = "111318"
+licence = "CC0"
+reason = "Monet's Stack of Wheat: snow and hills in close blues and pinks"
+no_crop.1 = "a row of poplars"
+no_crop.2 = "a haystack and trees"
+no_crop.4 = "a haystack"
+
+[[item]]
+id = "monet-petite-creuse"
+source = "aic"
+object = "81546"
+licence = "CC0"
+reason = "Monet's The Petite Creuse River: a valley's slope and water in close blues"
+
+[[item]]
+id = "monet-vetheuil-pink"
+source = "aic"
+object = "16579"
+licence = "CC0"
+reason = "Monet's Vétheuil: a village and its reflection in pinks at sunset"
+no_crop.1 = "houses at its foot"
+no_crop.2 = "the church"
+
+[[item]]
+id = "monet-poppy-field"
+source = "aic"
+object = "4783"
+licence = "CC0"
+reason = "Monet's Poppy Field (Giverny): a sky and a field of reds and greens"
+no_crop.1 = "a tree"
+no_crop.2 = "a poplar"
+no_crop.3 = "poplars over the field"
+no_crop.4 = "a row of trees"
+no_crop.6 = "trees over the field"
+
+[[item]]
+id = "monet-port-goulphar"
+source = "aic"
+object = "20545"
+licence = "CC0"
+reason = "Monet's Rocks at Port-Goulphar: sea and rock in strokes of blue and violet"
+
+[[item]]
+id = "monet-etretat-beach"
+source = "aic"
+object = "20535"
+licence = "CC0"
+reason = "Monet's Étretat, the Beach and the Falaise d'Amont: sea, sand and cliff"
+no_crop.1 = "the cliff and boats on the beach"
+no_crop.2 = "boats on the beach"
+no_crop.3 = "the cliff's arch"
+
+[[item]]
+id = "monet-varengeville"
+source = "aic"
+object = "16542"
+licence = "CC0"
+reason = "Monet's The Customs House at Varengeville: sea and cliff in close blues and pinks"
+no_crop.1 = "a hedge along the cliff"
+no_crop.2 = "the customs house's roof"
+no_crop.4 = "the house's roof"
+no_crop.5 = "the customs house"
+
+[[item]]
+id = "chase-wind-swept-sands"
+source = "aic"
+object = "120296"
+licence = "CC0"
+reason = "Chase's Wind-Swept Sands: dunes and sky in pale greys"
+
+[[item]]
+id = "twachtman-white-bridge"
+source = "aic"
+object = "25872"
+licence = "CC0"
+reason = "Twachtman's The White Bridge: spring greens in soft strokes"
+no_crop.2 = "the white bridge's railing"
+
+[[item]]
+id = "twachtman-icebound"
+source = "aic"
+object = "72801"
+licence = "CC0"
+reason = "Twachtman's Icebound: snow and dark water in close whites"
+
+[[item]]
+id = "hassam-little-pond"
+source = "aic"
+object = "105462"
+licence = "CC0"
+reason = "Hassam's The Little Pond, Appledore: water, rocks and sky in pale colour"
+no_crop.5 = "the painter's signature"
+
+[[item]]
+id = "hassam-baileys-beach"
+source = "aic"
+object = "107862"
+licence = "CC0"
+reason = "Hassam's Bailey's Beach, Newport: sea, rocks and grass in broken strokes"
+no_crop.1 = "small figures on the cliff path"
+no_crop.2 = "bathers and houses on the beach"
+
+[[item]]
+id = "symons-winter-sun"
+source = "aic"
+object = "64476"
+licence = "CC0"
+reason = "Symons's The Winter Sun: snow and a river in warm and cool"
+no_crop.2 = "the painter's signature"
+
+[[item]]
+id = "carlsen-nantasket"
+source = "aic"
+object = "39691"
+licence = "CC0"
+reason = "Carlsen's Nantasket Beach: sky, sea and sand in bands"
+no_crop.1 = "a wrecked boat and the painter's signature"
+no_crop.2 = "a wreck's timbers"
+no_crop.4 = "figures on the beach"
+
+[[item]]
+id = "martin-on-the-seine"
+source = "aic"
+object = "46321"
+licence = "CC0"
+reason = "Martin's On the Seine: a grey river under a grey sky"
+no_crop.2 = "a church spire and a sailing boat"
+
+[[item]]
+id = "pissarro-marne-winter"
+source = "aic"
+object = "6005"
+licence = "CC0"
+reason = "Pissarro's The Banks of the Marne in Winter: a grey sky over a dark hill"
+no_crop.1 = "a house under the hill"
+
+[[item]]
+id = "renoir-seascape"
+source = "aic"
+object = "81557"
+licence = "CC0"
+reason = "Renoir's Seascape: sea and sky in loose strokes"
+
+[[item]]
+id = "dupre-barks-storm"
+source = "aic"
+object = "889"
+licence = "CC0"
+reason = "Dupré's Barks Fleeing Before the Storm: a stormy sky over a dark sea"
+
+[[item]]
+id = "dupre-stormy-sky"
+source = "aic"
+object = "891"
+licence = "CC0"
+reason = "Dupré's The Cottage by the Roadside, Stormy Sky: a dark sky over a field"
+
+[[item]]
+id = "hampstead-stormy-sky"
+source = "aic"
+object = "47582"
+licence = "CC0"
+reason = "Hampstead, Stormy Sky (style of Constable): a sky of storm clouds"
+
+[[item]]
+id = "courbet-puits-noir"
+source = "aic"
+object = "3546"
+licence = "CC0"
+reason = "Courbet's The Valley of Les Puits-Noir: rock and foliage in greens and greys"
+
+[[item]]
+id = "courbet-hautepierre"
+source = "aic"
+object = "27027"
+licence = "CC0"
+reason = "Courbet's The Rock of Hautepierre: a rock face and sky in close greys"
+no_crop.1 = "a cliff over a lake and mountains"
+no_crop.3 = "houses under the cliff"
+
+# S159: paintings whose skies, water, fields and foliage read abstract (the National Gallery of
+# Art, CC0, at up to 4,096 pixels)
+
+[[item]]
+id = "monet-seine-giverny"
+source = "nga"
+object = "46655"
+licence = "CC0"
+reason = "Monet's The Seine at Giverny: morning haze over the river"
+
+[[item]]
+id = "monet-willows"
+source = "nga"
+object = "178254"
+licence = "CC0"
+reason = "Monet's The Willows: willows and sky in broken strokes"
+no_crop.3 = "houses and a tree's trunk"
+no_crop.4 = "houses and a tree's trunk"
+no_crop.5 = "a tree and the painter's signature"
+
+[[item]]
+id = "monet-banks-vetheuil"
+source = "nga"
+object = "46652"
+licence = "CC0"
+reason = "Monet's Banks of the Seine, Vétheuil: flowers, water and sky"
+no_crop.1 = "a row of poplars"
+no_crop.2 = "trees on the far bank"
+
+[[item]]
+id = "monet-cliffs-pourville"
+source = "nga"
+object = "66425"
+licence = "CC0"
+reason = "Monet's Cliffs at Pourville: sea and cliff in pale strokes"
+no_crop.3 = "sailing boats"
+no_crop.5 = "two women and sails"
+
+[[item]]
+id = "sisley-meadow"
+source = "nga"
+object = "52227"
+licence = "CC0"
+reason = "Sisley's Meadow: a field and sky in pale greens and blues"
+no_crop.2 = "a fence and trees"
+
+[[item]]
+id = "sisley-road-woods"
+source = "nga"
+object = "46690"
+licence = "CC0"
+reason = "Sisley's The Road in the Woods: foliage and shade in greens"
+
+[[item]]
+id = "sisley-banks-oise"
+source = "nga"
+object = "46689"
+licence = "CC0"
+reason = "Sisley's The Banks of the Oise: a river and a cloudy sky"
+
+[[item]]
+id = "pissarro-orchard"
+source = "nga"
+object = "52195"
+licence = "CC0"
+reason = "Pissarro's Orchard in Bloom, Louveciennes: blossom and sky"
+no_crop.6 = "a figure in the orchard"
+
+[[item]]
+id = "pissarro-hampton-court"
+source = "nga"
+object = "52197"
+licence = "CC0"
+reason = "Pissarro's Hampton Court Green: trees, lawn and a cloudy sky"
+
+[[item]]
+id = "renoir-landscape-vetheuil"
+source = "nga"
+object = "52216"
+licence = "CC0"
+reason = "Renoir's Landscape at Vétheuil: hills and foliage in loose strokes"
+no_crop.1 = "a church spire and a tree"
+
+[[item]]
+id = "renoir-between-storms"
+source = "nga"
+object = "52209"
+licence = "CC0"
+reason = "Renoir's Landscape between Storms: a stormy sky over fields"
+
+[[item]]
+id = "renoir-blue-river"
+source = "nga"
+object = "52219"
+licence = "CC0"
+reason = "Renoir's The Blue River: water and foliage in soft blues and greens"
+no_crop.2 = "a sail"
+no_crop.4 = "the canvas's unpainted edge"
+no_crop.5 = "the canvas's edge"
+
+[[item]]
+id = "constable-cloud-study"
+source = "nga"
+object = "104243"
+licence = "CC0"
+reason = "Constable's Cloud Study, Stormy Sunset: clouds in warm and cool greys"
+
+[[item]]
+id = "homer-sunset"
+source = "nga"
+object = "47184"
+licence = "CC0"
+reason = "Homer's Sunset: a sky and sea at dusk"
+
+[[item]]
+id = "moran-resounding-sea"
+source = "nga"
+object = "50729"
+licence = "CC0"
+reason = "Moran's The Much Resounding Sea: waves breaking in greens and whites"
+
+[[item]]
+id = "moran-juniata"
+source = "nga"
+object = "153202"
+licence = "CC0"
+reason = "Moran's The Juniata, Evening: a river at dusk"
+no_crop.1 = "mountains over a valley"
+no_crop.3 = "hills and trees"
+
+[[item]]
+id = "boudin-scheveningen"
+source = "nga"
+object = "231681"
+licence = "CC0"
+reason = "Boudin's Low Tide at Scheveningen: a cloudy sky over sand"
+no_crop.2 = "a sailing boat"
+no_crop.4 = "a figure and boats"
+no_crop.5 = "boats on the beach"
+
+[[item]]
+id = "daubigny-sunset-river"
+source = "nga"
+object = "195142"
+licence = "CC0"
+reason = "Daubigny's Sunset on the River: a pale sky over water"
+
+[[item]]
+id = "daubigny-distant-village"
+source = "nga"
+object = "177919"
+licence = "CC0"
+reason = "Daubigny's Landscape, Distant Village: fields under a wide sky"
+no_crop.1 = "a house and a tree"
+no_crop.3 = "a cart on a road under trees"
+
+[[item]]
+id = "gauguin-le-pouldu"
+source = "nga"
+object = "61370"
+licence = "CC0"
+reason = "Gauguin's Landscape at Le Pouldu: fields in flat colour"
+no_crop.1 = "houses and a cow"
+no_crop.2 = "the painter's signature"
+no_crop.3 = "houses"
+no_crop.6 = "a man on the path"
+
+[[item]]
+id = "gauguin-brittany"
+source = "nga"
+object = "46623"
+licence = "CC0"
+reason = "Gauguin's Brittany Landscape: fields and trees in flat colour"
+no_crop.5 = "the painter's signature"
+no_crop.6 = "tree trunks"
+
+[[item]]
+id = "van-gogh-green-wheat"
+source = "nga"
+object = "163323"
+licence = "CC0"
+reason = "Van Gogh's Green Wheat Fields, Auvers: fields in rhythmic strokes"
+
+[[item]]
+id = "sargent-simplon"
+source = "nga"
+object = "166471"
+licence = "CC0"
+reason = "Sargent's Simplon Pass: mountain and snow in quick strokes"
+
+# S159: Texture Ninja's photographs of rusted paint, flaking paint and damaged plaster (CC0)
+
+[[item]]
+id = "tn-teal-rust-streaks"
+source = "textureninja"
+object = "paint_rust_7653.jpg"
+licence = "CC0"
+reason = "teal paint streaked with rust"
+
+[[item]]
+id = "tn-white-green-peel"
+source = "textureninja"
+object = "Rust-5115.jpg"
+licence = "CC0"
+reason = "white paint peeling off green"
+
+[[item]]
+id = "tn-white-rust"
+source = "textureninja"
+object = "paint_rust_2223.jpg"
+licence = "CC0"
+reason = "white paint with rust breaking through"
+
+[[item]]
+id = "tn-blue-grey-rust-spots"
+source = "textureninja"
+object = "PaintRusted-3721.jpg"
+licence = "CC0"
+reason = "blue-grey paint with rust spots"
+
+[[item]]
+id = "tn-yellow-violet"
+source = "textureninja"
+object = "paint_rust_2204.jpg"
+licence = "CC0"
+reason = "yellow paint over violet-brown rust"
+
+[[item]]
+id = "tn-red-grey-peel"
+source = "textureninja"
+object = "Paint_Damaged-3089.jpg"
+licence = "CC0"
+reason = "red paint peeling to grey"
+no_crop.1 = "a door's edge"
+no_crop.4 = "a bolt hole"
+
+[[item]]
+id = "tn-red-grey-wall"
+source = "textureninja"
+object = "Paint_Damaged-3216.jpg"
+licence = "CC0"
+reason = "red paint worn to a grey wall"
+
+[[item]]
+id = "tn-grey-green-wall"
+source = "textureninja"
+object = "Paint_Damaged-4686.jpg"
+licence = "CC0"
+reason = "grey paint worn over green"
+no_crop.2 = "a plank's edge and screws"
+
+[[item]]
+id = "tn-cream-plaster-cracks"
+source = "textureninja"
+object = "PaintFlaking-7029.jpg"
+licence = "CC0"
+reason = "cream paint cracking off plaster"
+
+[[item]]
+id = "tn-grey-blue-patches"
+source = "textureninja"
+object = "paint_4421.jpg"
+licence = "CC0"
+reason = "grey paint with blue patches showing"
+
+[[item]]
+id = "tn-blue-rust-green"
+source = "textureninja"
+object = "Paint_Damaged-3625.jpg"
+licence = "CC0"
+reason = "blue paint with rust and a green edge"
+no_crop.1 = "a green panel and a seam"
+no_crop.2 = "a green panel's edge"
+no_crop.3 = "a green edge along its foot"
+
+[[item]]
+id = "tn-blue-ochre"
+source = "textureninja"
+object = "Paint-1064.jpg"
+licence = "CC0"
+reason = "blue paint worn to ochre"
+
+[[item]]
+id = "tn-green-white"
+source = "textureninja"
+object = "Paint-1015.jpg"
+licence = "CC0"
+reason = "green paint and white in torn patches"
+no_crop.2 = "the box's foot"
+
+[[item]]
+id = "tn-yellow-blue-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-3888.jpg"
+licence = "CC0"
+reason = "yellow plaster peeling to blue-grey"
+
+[[item]]
+id = "tn-grey-band-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-4795.jpg"
+licence = "CC0"
+reason = "grey and white plaster with a dark band"
+no_crop.1 = "two wall brackets"
+no_crop.2 = "a wall bracket"
+no_crop.4 = "a brick ledge along its top"
+
+[[item]]
+id = "tn-dark-stained-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-0626.jpg"
+licence = "CC0"
+reason = "dark grey plaster stained and worn"
+
+[[item]]
+id = "tn-grey-dark-patches"
+source = "textureninja"
+object = "Plaster_damaged-4797.jpg"
+licence = "CC0"
+reason = "grey plaster with dark patches"
+
+[[item]]
+id = "tn-beige-cracked"
+source = "textureninja"
+object = "PlasterDamaged--2.jpg"
+licence = "CC0"
+reason = "beige plaster cracked and stained"
+
+[[item]]
+id = "tn-teal-grey-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-3664.jpg"
+licence = "CC0"
+reason = "teal paint worn off grey plaster"
+
+[[item]]
+id = "tn-cream-ochre-plaster"
+source = "textureninja"
+object = "PlasterDamaged--4.jpg"
+licence = "CC0"
+reason = "cream plaster with ochre patches"
+
+[[item]]
+id = "tn-ochre-grey-plaster"
+source = "textureninja"
+object = "Plaster_damaged-3904.jpg"
+licence = "CC0"
+reason = "ochre plaster broken to grey patches"
+no_crop.1 = "a sprayed scrawl"
+
+[[item]]
+id = "tn-beige-peel-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-4119.jpg"
+licence = "CC0"
+reason = "beige plaster peeling to a darker ground"
+
+[[item]]
+id = "tn-green-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-2941.jpg"
+licence = "CC0"
+reason = "green plaster worn to pale"
+
+[[item]]
+id = "tn-dark-grey-band"
+source = "textureninja"
+object = "Plaster_Damaged-0627.jpg"
+licence = "CC0"
+reason = "a dark grey band of damp plaster"
+no_crop.1 = "a hole in the wall"
+
+[[item]]
+id = "tn-cream-grey-green-plaster"
+source = "textureninja"
+object = "PlasterDamaged-.jpg"
+licence = "CC0"
+reason = "cream plaster stained grey and green"
+
+[[item]]
+id = "tn-tan-grey-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-4115.jpg"
+licence = "CC0"
+reason = "tan plaster with grey patches"
+
+[[item]]
+id = "tn-grey-cream-dark-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-5085.jpg"
+licence = "CC0"
+reason = "grey and cream plaster with dark stains"
+no_crop.1 = "a pipe along its side"
+
+[[item]]
+id = "tn-cream-ochre-band"
+source = "textureninja"
+object = "PlasterDamaged--3.jpg"
+licence = "CC0"
+reason = "cream plaster over an ochre band"
+
+[[item]]
+id = "tn-pale-blue-patches"
+source = "textureninja"
+object = "Plaster_Damaged-4548.jpg"
+licence = "CC0"
+reason = "pale blue paint with grey patches"
+
+[[item]]
+id = "tn-grey-plaster-peel"
+source = "textureninja"
+object = "Plaster_Damaged-4035.jpg"
+licence = "CC0"
+reason = "grey plaster peeling in layers"
+
+[[item]]
+id = "tn-blue-plaster-hole"
+source = "textureninja"
+object = "Plaster_Damaged-4829.jpg"
+licence = "CC0"
+reason = "blue plaster broken through to grey"
+
+[[item]]
+id = "tn-cream-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-3887.jpg"
+licence = "CC0"
+reason = "cream plaster worn to grey patches"
+
+[[item]]
+id = "tn-cream-plaster-tall"
+source = "textureninja"
+object = "Plaster_Damaged-4118.jpg"
+licence = "CC0"
+reason = "cream plaster peeling to brown"
+
+[[item]]
+id = "tn-navy-plaster-flaking"
+source = "textureninja"
+object = "Plaster_damaged-4699.jpg"
+licence = "CC0"
+reason = "navy paint flaking off pale plaster"
+
+[[item]]
+id = "tn-yellow-red-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-2909.jpg"
+licence = "CC0"
+reason = "yellow plaster with a red-brown patch"
+no_crop.1 = "a perforated panel"
+no_crop.4 = "the wall's foot"
+
+[[item]]
+id = "tn-red-patches-plaster"
+source = "textureninja"
+object = "Plaster_Damage-3105.jpg"
+licence = "CC0"
+reason = "pale plaster with red patches"
+
+[[item]]
+id = "tn-green-pink-plaster"
+source = "textureninja"
+object = "Plaster_Damaged-4904.jpg"
+licence = "CC0"
+reason = "green paint worn to pink plaster"
+
+# S159: photographs from Openverse (the WordPress Photo Directory, CC0, at their full size)
+
+[[item]]
+id = "ov-blue-sand"
+source = "openverse"
+object = "66d3412f-b72a-4d20-9ff2-0174f7aa5f23"
+licence = "CC0"
+reason = "sand left by a flood in grey and blue"
+
+[[item]]
+id = "ov-sunset-shore"
+source = "openverse"
+object = "47e785fb-438e-4286-8b9f-cbb4ba5e7fad"
+licence = "CC0"
+reason = "a sunset over a calm shore in bands of orange and blue"
+no_crop.4 = "two figures on the shore"
+
+[[item]]
+id = "ov-reflected-clouds"
+source = "openverse"
+object = "7b85582d-d93c-468f-8106-eeaf9b33beee"
+licence = "CC0"
+reason = "clouds reflected in calm water"
+no_crop.1 = "trees and a hut on the bank"
+no_crop.3 = "palm trees"
+
+[[item]]
+id = "ov-storm-reflection"
+source = "openverse"
+object = "b6a100de-2b9b-4457-9e3b-6b4249c15c59"
+licence = "CC0"
+reason = "a dramatic sky reflected in a lake"
+
+[[item]]
+id = "ov-trees-reflection"
+source = "openverse"
+object = "13f174fa-45d7-4e04-9bee-e8ee3c0a6be1"
+licence = "CC0"
+reason = "green trees reflected in still water"
+no_crop.3 = "trees on the bank"
+
+[[item]]
+id = "ov-murky-water"
+source = "openverse"
+object = "4c9d5fa8-52c1-4ccf-a811-a5de50108dfa"
+licence = "CC0"
+reason = "murky brown water reflecting a green bank"
+
+# S159: photographs of peeling paint on Commons, 3,500 pixels wide or more
+
+[[item]]
+id = "olive-paint-blue-patch"
+source = "commons"
+object = "File:Peeling paint 1.jpg"
+licence = "CC BY-SA 4.0"
+reason = "olive paint peeling to a blue-grey patch"
+
+[[item]]
+id = "st-ives-boat-paint"
+source = "commons"
+object = "File:St Ives boat peeling paint texture - free to use - Flickr - Carolyn Saxby.jpg"
+licence = "CC BY 2.0"
+reason = "a boat's blue, white and ochre paint peeling in bands"
+
+[[item]]
+id = "riotinto-rust-pink"
+source = "commons"
+object = "File:Minas de Riotinto, Zarandas 16.jpg"
+licence = "CC BY-SA 4.0"
+reason = "orange rust with pink paint flaking off it"
+
+[[item]]
+id = "ohringen-wood-paint"
+source = "commons"
+object = "File:Öhringen - Altstadt - Martersgässle - Holzstruktur mit abblätternder Farbe (RQCD5048).jpg"
+licence = "CC BY-SA 4.0"
+reason = "weathered wood with blue, green and ochre paint flaking"
+
+# S159: early abstract and Expressionist paintings of many flat areas, for the hard tier (public
+# domain by age on Commons; three of the National Gallery's, CC0)
+
+[[item]]
+id = "kandinsky-jaune-rouge-bleu"
+source = "commons"
+object = "File:Kandinsky - Jaune Rouge Bleu.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Yellow-Red-Blue: flat planes and rings of colour"
+no_crop.1 = "the canvas's edge along its side"
+
+[[item]]
+id = "kandinsky-inner-alliance"
+source = "commons"
+object = "File:Wassily Kandinsky - Inner Alliance - 1929.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Inner Alliance: planes of yellow, red and black"
+no_crop.3 = "its lines are not areas: the answer misses its subject"
+
+[[item]]
+id = "kandinsky-oriental"
+source = "commons"
+object = "File:Kandinsky Oriental PA291007.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Oriental: patches of saturated colour beside greys"
+
+[[item]]
+id = "kandinsky-klamm"
+source = "commons"
+object = "File:Kandinsky - Improvisation Klamm PA291186.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation Gorge: patches of colour in a loose weave"
+
+[[item]]
+id = "kandinsky-truber-aufstieg"
+source = "commons"
+object = "File:Wassily Kandinsky - Trüber Aufstieg.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Dull Ascent: flat shapes on a pale ground"
+
+[[item]]
+id = "kandinsky-romantic-landscape"
+source = "commons"
+object = "File:Kandinsky - Romantic Landscape PA291120.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Romantic Landscape: loose patches of colour on white"
+
+[[item]]
+id = "macke-formenkomposition"
+source = "commons"
+object = "File:August Macke - Farbige Formenkomposition.jpeg"
+licence = "PD-old"
+reason = "Macke's Coloured Composition of Forms: interlocking planes of colour"
+
+[[item]]
+id = "macke-garten-thunersee"
+source = "commons"
+object = "File:August Macke - Garten am Thunersee.jpeg"
+licence = "PD-old"
+reason = "Macke's Garden on Lake Thun: prismatic planes of colour"
+
+[[item]]
+id = "macke-sandgrube"
+source = "commons"
+object = "File:August Macke Sandgrube 1911.jpg"
+licence = "PD-old"
+reason = "Macke's Sand Pit: bands of ochre, rose and green"
+no_crop.2 = "trees and a fence"
+
+[[item]]
+id = "macke-tegernsee"
+source = "commons"
+object = "File:August Macke - Tegernseer Landschaft.jpg"
+licence = "PD-old"
+reason = "Macke's Tegernsee Landscape: hills, water and bushes in flat greens"
+no_crop.2 = "the painter's signature"
+
+[[item]]
+id = "jawlensky-variation-tenderness"
+source = "commons"
+object = "File:Alexej von Jawlensky - Variation, Zärtlichkeit (1918) - Museum Wiesbaden.jpg"
+licence = "PD-old"
+reason = "Jawlensky's Variation, Tenderness: soft blots of colour on pale"
+no_crop.1 = "the canvas's edge along its top"
+no_crop.3 = "the canvas's edge along its side"
+no_crop.4 = "the canvas's edge along its top"
+no_crop.5 = "the canvas's edge along its side"
+
+[[item]]
+id = "jawlensky-red-evening"
+source = "commons"
+object = "File:Alexej von Jawlensky - Roter Abend - Blaue Berge.jpg"
+licence = "PD-old"
+reason = "Jawlensky's Red Evening, Blue Mountains: bands of strong colour"
+
+[[item]]
+id = "jawlensky-dark-trees"
+source = "commons"
+object = "File:Alexej von Jawlensky - Dunkle Bäume über grünem Hang.jpg"
+licence = "PD-old"
+reason = "Jawlensky's Dark Trees above a Green Slope: flat masses of green and blue"
+no_crop.3 = "two dark trees"
+no_crop.5 = "trees against the sky"
+
+[[item]]
+id = "jawlensky-cool-spring"
+source = "commons"
+object = "File:Alexej von Jawlensky Variation Kühler Frühling 1916.jpg"
+licence = "PD-old"
+reason = "Jawlensky's Variation, Cool Spring: blots of green, blue and violet"
+
+[[item]]
+id = "jawlensky-olive-tree"
+source = "commons"
+object = "File:Alexej von Jawlensky - Olive tree, wall, wind.jpg"
+licence = "PD-old"
+reason = "Jawlensky's Olive Tree, Wall, Wind: greyed greens and violets in strokes"
+no_crop.1 = "the scan's white margin"
+no_crop.2 = "the scan's white margin"
+no_crop.3 = "the painter's signature and the canvas's edge"
+
+[[item]]
+id = "jawlensky-murnau"
+source = "nga"
+object = "54131"
+licence = "CC0"
+reason = "Jawlensky's Murnau: flat fields of saturated colour"
+no_crop.4 = "a tree and a house's wall"
+
+[[item]]
+id = "jawlensky-frosty-day"
+source = "nga"
+object = "130843"
+licence = "CC0"
+reason = "Jawlensky's Frosty Day: blots of blue, rose and white"
+no_crop.2 = "the canvas's edge along its foot"
+no_crop.3 = "the canvas's edge along its side and foot"
+no_crop.4 = "the canvas's edge along its side and top"
+
+[[item]]
+id = "klee-red-green-architecture"
+source = "commons"
+object = "File:Red and Green Architecture (1922) by Paul Klee - Yale University Art Gallery.jpg"
+licence = "PD-old"
+reason = "Klee's Red and Green Architecture: a grid of graded blocks"
+no_crop.1 = "the picture's border along its foot"
+no_crop.2 = "the picture's border and mount along its side"
+no_crop.3 = "the picture's border along its top"
+no_crop.4 = "the mount along its side and top"
+no_crop.5 = "the mount along its side"
+
+[[item]]
+id = "klee-mountain-landscape"
+source = "commons"
+object = "File:Heitere Gebirgslandschaft by Paul Klee 1929.jpeg"
+licence = "PD-old"
+reason = "Klee's Serene Mountain Landscape: bands and blocks of soft colour"
+no_crop.1 = "the painter's signature"
+
+[[item]]
+id = "klee-may-picture"
+source = "commons"
+object = "File:May Picture, 1925 - Paul Klee, MET DP-824-001.jpg"
+licence = "PD-old"
+reason = "Klee's May Picture: a grid of small coloured squares"
+no_crop.2 = "the frame along its top"
+no_crop.3 = "the frame's corner"
+no_crop.6 = "the frame along its side"
+
+[[item]]
+id = "af-klint-ten-largest-3"
+source = "commons"
+object = "File:Hilma af Klint — The Ten Largest — Number 3 Youth.jpg"
+licence = "PD-old"
+reason = "af Klint's The Ten Largest, No. 3, Youth: flat rounded shapes of colour"
+no_crop.2 = "script in the rings"
+no_crop.4 = "script in the rings"
+
+[[item]]
+id = "af-klint-ten-largest-4"
+source = "commons"
+object = "File:Hilma af Klint — The Ten Largest — Number 4 Youth.jpg"
+licence = "PD-old"
+reason = "af Klint's The Ten Largest, No. 4, Youth: petals and rings of colour"
+no_crop.4 = "a flower"
+
+[[item]]
+id = "af-klint-ten-largest-6"
+source = "commons"
+object = "File:Hilma af Klint — The Ten Largest — Number 6 Adulthood.jpg"
+licence = "PD-old"
+reason = "af Klint's The Ten Largest, No. 6, Adulthood: flat forms on an ochre ground"
+no_crop.2 = "script"
+no_crop.3 = "script"
+no_crop.5 = "script"
+no_crop.6 = "script"
+
+[[item]]
+id = "af-klint-ten-largest-7"
+source = "commons"
+object = "File:Hilma af Klint — The Ten Largest — Number 7 Adulthood.jpg"
+licence = "PD-old"
+reason = "af Klint's The Ten Largest, No. 7, Adulthood: flat forms of colour"
+no_crop.1 = "a letter"
+no_crop.3 = "a numeral"
+no_crop.5 = "a numeral"
+no_crop.6 = "a numeral"
+
+[[item]]
+id = "malevich-18th-construction"
+source = "commons"
+object = "File:Malevich - Suprematism, 18th Construction, lot.18.jpg"
+licence = "PD-old"
+reason = "Malevich's Suprematism, 18th Construction: overlapping flat shapes"
+
+[[item]]
+id = "malevich-colour-masses"
+source = "commons"
+object = "File:Painterly Realism of a Football Player – Color Masses in the 4th Dimension (Malevich, 1915) - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Malevich's Colour Masses in the Fourth Dimension: flat blocks of colour"
+
+[[item]]
+id = "kliun-suprematism-1915"
+source = "commons"
+object = "File:Suprematism (Kliun, 1915, 16).jpg"
+licence = "PD-old"
+reason = "Kliun's Suprematism of 1915: flat planes of colour"
+no_crop.3 = "the page's edge along its side"
+
+[[item]]
+id = "kandinsky-improvisation-14"
+source = "commons"
+object = "File:Improvisation XIV.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation XIV: patches of colour in a loose weave"
+
+[[item]]
+id = "kandinsky-improvisation-10"
+source = "commons"
+object = "File:Kandinsky - Improvisation 10, 1910, Inv.55.1.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation 10: patches of colour"
+
+[[item]]
+id = "kandinsky-study-composition-vii"
+source = "commons"
+object = "File:Kandinsky, 1913, Sans titre (Etude pour Composition VII, Première abstraction).jpg"
+licence = "PD-old"
+reason = "Kandinsky's study for Composition VII: patches and lines of colour"
+no_crop.5 = "the painter's signature"
+
+[[item]]
+id = "delaunay-window-on-the-city"
+source = "commons"
+object = "File:Delaunay - Fenétre Sur La Ville PA291181.jpg"
+licence = "PD-old"
+reason = "Delaunay's Window on the City: a grid of prismatic colour"
+
+[[item]]
+id = "delaunay-homage-bleriot"
+source = "commons"
+object = "File:Robert Delaunay, Hommage à Blériot, 1914.jpg"
+licence = "PD-old"
+reason = "Delaunay's Homage to Blériot: rings and discs of colour"
+no_crop.1 = "a building's windows at its left"
+no_crop.3 = "the painter's inscription"
+
+[[item]]
+id = "popova-architectonic-orange"
+source = "commons"
+object = "File:Painterly Architectonic - 1918.jpg"
+licence = "PD-old"
+reason = "Popova's Painterly Architectonic of 1918: an orange plane over blue ones"
+
+[[item]]
+id = "popova-architectonic-dark"
+source = "commons"
+object = "File:Painterly Architectonic (1918).jpg"
+licence = "PD-old"
+reason = "Popova's Painterly Architectonic of 1918: dark planes on light ones"
+
+[[item]]
+id = "popova-architectonic-red"
+source = "commons"
+object = "File:Painterly Architectonic - Lyubov Popova.jpg"
+licence = "PD-old"
+reason = "Popova's Painterly Architectonic: overlapping planes of red, brown and black"
+
+[[item]]
+id = "macke-coloured-forms-i"
+source = "commons"
+object = "File:Macke farbige-formen-i.jpg"
+licence = "PD-old"
+reason = "Macke's Coloured Forms I: interlocking flat shapes of colour"
+
+[[item]]
+id = "exter-non-objective-1917"
+source = "commons"
+object = "File:Non-Objective Composition (Alexandra Exter, 1917).jpg"
+licence = "PD-old"
+reason = "Exter's Non-Objective Composition of 1917: dark planes and arcs"

@@ -143,7 +143,7 @@ fn a_library_s_map_is_only_ever_cropped() {
 }
 
 /// The official list in `tools/packs/lists/combinations.toml`: a list of crops, every item with
-/// its reason, its photographs, texture libraries and paintings all there.
+/// its reason, its photographs (Commons', Openverse's), texture libraries and paintings all there.
 #[test]
 fn the_official_combinations_list_reads() {
     let path = repo_root().join("tools/packs/lists/combinations.toml");
@@ -153,7 +153,15 @@ fn the_official_combinations_list_reads() {
         ("openpaint-combinations", PictureKind::Crop)
     );
     assert!(list.items.iter().all(|item| item.reason.len() >= 12));
-    for source in ["commons", "ambientcg", "polyhaven", "aic", "nga"] {
+    for source in [
+        "commons",
+        "ambientcg",
+        "polyhaven",
+        "textureninja",
+        "openverse",
+        "aic",
+        "nga",
+    ] {
         assert!(
             list.items.iter().any(|item| item.source.name() == source),
             "{source}"

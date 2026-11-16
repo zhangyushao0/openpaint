@@ -3,8 +3,8 @@
 # lines, then the secondary and tertiary ones), Notan in two or three values, whole-picture
 # copies in line or colour blocks, colour copies and abstract analysis (the focal point, the
 # contrasts and how they are spread). Built by
-# `cargo practice-pack build apps/harness/packs/compositions.toml --sheet`; the format is in
-# apps/harness/src/pack/list.rs. No picture is kept here: each item names its object at its
+# `cargo practice-pack build tools/packs/lists/compositions.toml --sheet`; the format is in
+# tools/packs/src/list.rs. No picture is kept here: each item names its object at its
 # source, the licence the source must state, and why it is in its tier.
 #
 # Value masses (S96): each picture's three-value answer is made as the pack is built and drawn
@@ -38,12 +38,23 @@
 # Commons), Tears of Steel (actors), Glass Half (picture frames), Singularity (no ground).
 # No outline: a composition is compared by its picture in place.
 #
-# Crops (S101): each painting's best corner holding a colour combination is cut as a crop
-# (`openpaint_practice::crop`) and judged on `openpaint-compositions-crops-<n>.png`; a corner
-# showing a recognisable object, a figure or the scan's edge is listed out with why
-# (`no_crop.1`, 2026-11-05), the composition itself unchanged. Since S101b a corner is cut from
-# the source's full pixels (at most 4,096; the Art Institute's 3,000) and is at least 768 pixels
-# long, so the films released 1,920 pixels wide and the smaller scans give none (2026-11-06).
+# Crops (S101): each painting's best corners holding a colour combination, two at most since
+# S159, are cut as crops (`openpaint_practice::crop`) and judged on
+# `openpaint-compositions-crops-<n>.png`; a corner showing a recognisable object, a figure, a
+# signature or the scan's edge is listed out with why (`no_crop.<n>`, judged again 2026-11-16
+# for S159), the composition itself unchanged. Since S101b a corner is cut from the source's full
+# pixels (at most 4,096; the Art Institute's 3,000) and is at least 768 pixels long, so the films
+# released 1,920 pixels wide and the smaller scans give none (2026-11-06). Most corners of a
+# composition hold its subject: of 76 cut, 15 keep.
+#
+# More medium and hard (S159, 2026-11-16): 13 medium and 23 hard paintings of the Art Institute
+# (searched by `practice-pack search aic`) and the National Gallery (its open data's paintings),
+# looked at on the tier sheets beside their value masses: crowds on beaches and in harbours,
+# gardens, river scenes, mountain passes, city squares from above. Of 36 tried all kept, one
+# without value masses (Monet's Palazzo da Mula); left out before trying: bathers and nudes
+# (Cross, Gauguin), hunts (Homer, Bierstadt's Last of the Buffalo) and pictures already looked at
+# and left out (Pissarro's Louvre in rain, Homer's Breezing Up). The pack holds 97 since: 21
+# simple, 35 medium, 41 hard, 91 with value masses.
 
 # Trims (S158p, 2026-11-16): ten scans hold a band of their frame, the canvas's edge or the
 # museum's black margin, which a value masses' answer kept as a strip and abstract analysis read
@@ -80,6 +91,7 @@ object = "94841"
 licence = "CC0"
 reason = "one standing figure against a flat dark field, the low red sun beside her: a vertical against horizontals, the focal point at the face"
 no_crop.1 = "the girl's head and shoulder"
+no_crop.2 = "the girl's arm and the sun over haystacks"
 
 [[item]]
 id = "bingham-fur-traders"
@@ -158,7 +170,7 @@ source = "rijks"
 object = "SK-C-211"
 licence = "PD-old"
 reason = "one dark mill against a towering cloudy sky over a low horizon: a single vertical accent dividing sky and water"
-no_crop.1 = "clouds over a dark rise: a sky one recognises"
+no_crop.1 = "plain: a dark grey sky with little to read"
 
 [[item]]
 id = "asselijn-threatened-swan"
@@ -175,6 +187,7 @@ source = "rijks"
 object = "SK-A-1935"
 licence = "PD-old"
 reason = "a lit clump of trees under a storm-dark sky: one light focal mass in a dark field, a Notan of two values"
+no_crop.2 = "a church spire on the horizon"
 
 [[item]]
 id = "mauve-morning-ride"
@@ -184,7 +197,7 @@ source = "rijks"
 object = "SK-A-3602"
 licence = "PD-old"
 reason = "three riders on a pale beach under a grey sky: dark accents on a light ground, quiet low-saturation colour"
-no_crop.1 = "the canvas's unpainted edge, the frame and a figure"
+no_crop.1 = "a rider at its corner"
 
 [[item]]
 id = "coorte-asparagus"
@@ -194,7 +207,6 @@ source = "rijks"
 object = "SK-A-2099"
 licence = "PD-old"
 reason = "a bundle of asparagus on a stone ledge before a dark ground: a still life of one light mass and one edge"
-no_crop.1 = "all but black, and the scan's edge along its top and side"
 
 [[item]]
 id = "spring-cliff-above-clouds"
@@ -262,6 +274,7 @@ licence = "CC0"
 reason = "a small room in flat bright colour: bed, chairs, table and window as five masses in a steep perspective"
 no_masses = "carried by colour at close values: the answer makes the yellow bed and the blue walls one dark mass, which squinting does not show"
 no_crop.1 = "the bed's foot, the floor and the door"
+no_crop.2 = "the bed and the pictures on the wall"
 
 [[item]]
 id = "cezanne-basket-of-apples"
@@ -270,6 +283,8 @@ source = "aic"
 object = "111436"
 licence = "CC0"
 reason = "a basket, a bottle, a plate and a white cloth on a tilted table: a still life of several masses, the cloth the strongest light"
+no_crop.1 = "the basket of apples"
+no_crop.2 = "the painter's signature and an apple"
 
 [[item]]
 id = "cezanne-bay-of-marseille"
@@ -278,6 +293,7 @@ source = "aic"
 object = "16487"
 licence = "CC0"
 reason = "roofs, the bay and the hills in three bands: picture division by horizontals, warm against cool, the village in many small planes"
+no_crop.2 = "houses and a chimney"
 
 [[item]]
 id = "hokusai-great-wave"
@@ -287,6 +303,7 @@ object = "24645"
 licence = "CC0"
 reason = "a wave's claw arching over boats, a small mountain in the hollow: one curved main division and a clear focal point, few colours (a small title panel)"
 no_crop.1 = "the print's blank margin"
+no_crop.2 = "the print's title and the wave"
 
 [[item]]
 id = "eakins-single-scull"
@@ -338,6 +355,7 @@ source = "nga"
 object = "46428"
 licence = "CC0"
 reason = "a woman walking down a narrow street, two men watching: a deep recession in close browns and greys"
+no_crop.1 = "a doorway's edge and a shutter"
 
 [[item]]
 id = "cassatt-boating-party"
@@ -356,6 +374,7 @@ object = "SK-A-2344"
 licence = "PD-old"
 reason = "a woman pouring milk by a window: one figure as a vertical mass before a lit wall, blue against yellow"
 no_crop.1 = "the milkmaid herself"
+no_crop.2 = "the window's panes"
 
 [[item]]
 id = "vermeer-little-street"
@@ -365,6 +384,7 @@ object = "SK-A-2860"
 licence = "PD-old"
 reason = "a house front with two doorways and a strip of sky: rectangles of brick, whitewash and window, two small figures"
 no_crop.1 = "a roof and a chimney in its corner"
+no_crop.2 = "a house's doorway"
 
 [[item]]
 id = "van-de-velde-cannon-shot"
@@ -383,6 +403,7 @@ object = "SK-A-851"
 licence = "PD-old"
 reason = "a nave seen along its arches to the choir: architecture in light greys and ochres, a weak-contrast perspective"
 no_crop.1 = "the church's columns and arch"
+no_crop.2 = "columns and figures"
 
 [[item]]
 id = "heda-gilt-cup"
@@ -392,7 +413,6 @@ source = "rijks"
 object = "SK-A-4830"
 licence = "PD-old"
 reason = "a gilt cup, a green glass, a pewter jug and plates on a white cloth: a still life in close greys with one gold accent"
-no_crop.1 = "a lemon's peel on black, and the scan's edge"
 
 [[item]]
 id = "sprite-fright-forest-path"
@@ -458,6 +478,7 @@ object = "20684"
 licence = "CC0"
 reason = "a rainy crossroads in deep perspective, a lamp post dividing it in two: figures at several distances, close greys"
 no_crop.1 = "houses and an umbrella"
+no_crop.2 = "walkers' legs and the painter's signature"
 
 [[item]]
 id = "toulouse-lautrec-moulin-rouge"
@@ -467,6 +488,7 @@ object = "61128"
 licence = "CC0"
 reason = "figures round a table behind a sharp diagonal rail, a lit face cut by the edge: many overlapping masses, strange colour"
 no_crop.1 = "the figures and a face"
+no_crop.2 = "the rail and a carafe"
 
 [[item]]
 id = "seurat-grande-jatte"
@@ -494,7 +516,7 @@ source = "met"
 object = "435809"
 licence = "CC0"
 reason = "harvesters resting under a tree, wheat to a far horizon: a gold mass against green, many figures at several depths"
-no_crop.1 = "fields, trees and a haystack"
+no_crop.1 = "far fields and a tree's twigs"
 
 [[item]]
 id = "pissarro-tuileries-winter"
@@ -504,6 +526,7 @@ source = "met"
 object = "437314"
 licence = "CC0"
 reason = "a garden seen from above, paths, lawns and bare trees under a winter sky: many small masses in close greys"
+no_crop.2 = "trees and people in the park"
 
 [[item]]
 id = "bierstadt-rocky-mountains"
@@ -513,6 +536,7 @@ object = "10154"
 licence = "CC0"
 reason = "peaks, a waterfall, a lake and a camp: layered planes from a dark foreground to a pale distance"
 no_crop.1 = "a mountain range"
+no_crop.2 = "mountain peaks"
 
 [[item]]
 id = "pissarro-boulevard-des-italiens"
@@ -530,6 +554,7 @@ object = "32588"
 licence = "CC0"
 reason = "a square in perspective with the basilica, the palace and the flagpoles: architecture and many small figures under a light sky"
 no_crop.1 = "the basilica and its flagpole"
+no_crop.2 = "the flagpole and a palace's top"
 
 [[item]]
 id = "de-hooch-dutch-courtyard"
@@ -555,6 +580,7 @@ object = "SK-C-1191"
 licence = "PD-old"
 reason = "two women at a cupboard, rooms opening behind them: interiors in depth, a tiled floor, light through doors"
 no_masses = "the cupboard's carved panels come out as light masses beside the women; a squinting eye sees one dark cupboard and the light only on the women and the far door"
+no_crop.1 = "the cupboard and a bowl"
 
 [[item]]
 id = "avercamp-skaters"
@@ -600,3 +626,318 @@ object = "File:Elephants Dream (2006).webm"
 at = 510
 licence = "CC BY 2.5"
 reason = "a small figure in a golden hall of machines: a tangle of warm forms round one standing figure in green"
+
+# S159: more medium and hard compositions (the Art Institute and the National Gallery, CC0)
+
+# Medium
+
+[[item]]
+id = "caillebotte-skiffs"
+tier = "medium"
+source = "nga"
+object = "66404"
+licence = "CC0"
+reason = "three skiffs on a sunlit river before a dark wooded bank: light boats and oars against a dark band, strong diagonals"
+no_crop.1 = "a skiff's side"
+
+[[item]]
+id = "monet-palazzo-da-mula"
+tier = "medium"
+source = "nga"
+object = "46657"
+licence = "CC0"
+reason = "a palace front over the canal, its reflection below: a dark band of building over broken water, close blues and violets"
+no_masses = "close blues throughout: the answer cuts the façade into windows and pillars where a squinting eye sees one band of building over the water"
+
+[[item]]
+id = "monet-sainte-adresse-nga"
+tier = "medium"
+source = "nga"
+object = "71550"
+licence = "CC0"
+reason = "a beach with boats and figures under a big sky: a curved shore dividing sea from sand, small dark accents"
+
+[[item]]
+id = "constable-wivenhoe-park"
+tier = "medium"
+source = "nga"
+object = "1147"
+licence = "CC0"
+reason = "a lake, a lawn with cattle and a house under a wide sky: horizontal bands of light and shade, the house as the focal point"
+
+[[item]]
+id = "constable-yarmouth-jetty"
+tier = "medium"
+source = "nga"
+object = "93667"
+licence = "CC0"
+reason = "a jetty running out into a choppy sea under a cloudy sky: one long dark line against greys, boats as accents"
+
+[[item]]
+id = "lane-lumber-schooners"
+tier = "medium"
+source = "nga"
+object = "57611"
+licence = "CC0"
+reason = "two schooners on a still bay at dusk, their reflections below: dark sails against a glowing sky, close warm values"
+
+[[item]]
+id = "van-gogh-farmhouse-provence"
+tier = "medium"
+source = "nga"
+object = "52178"
+licence = "CC0"
+reason = "a farmhouse behind a field and a gate under a green sky: bands of field, wall and sky in strong colour"
+
+[[item]]
+id = "morisot-hanging-laundry"
+tier = "medium"
+source = "nga"
+object = "66426"
+licence = "CC0"
+reason = "laundry drying in a yard before a row of houses: light patches on a green field, quiet low-saturation colour"
+no_crop.1 = "a house"
+
+[[item]]
+id = "morisot-harbor-lorient"
+tier = "medium"
+source = "nga"
+object = "52192"
+licence = "CC0"
+reason = "a harbour's quay with a seated figure and boats across the water: a diagonal wall dividing pale water from shore"
+no_crop.1 = "the woman's white dress"
+no_crop.2 = "houses and a church on the far shore"
+
+[[item]]
+id = "cole-sunrise-catskills"
+tier = "medium"
+source = "nga"
+object = "71025"
+licence = "CC0"
+reason = "dark mountain ridges in a misty dawn, a lit gap between them: overlapping planes of value, one light focal point"
+
+[[item]]
+id = "sargent-pavement-cairo"
+tier = "medium"
+source = "nga"
+object = "129288"
+licence = "CC0"
+reason = "a stone pavement before a lit wall in Cairo: big planes of warm light and cool shadow, a doorway as the accent"
+no_crop.1 = "a doorway's arch"
+
+[[item]]
+id = "turner-dogana-san-giorgio"
+tier = "medium"
+source = "nga"
+object = "1224"
+licence = "CC0"
+reason = "Venice's customs house and a church across the lagoon, boats in front: pale buildings on a band of water under a big sky"
+
+[[item]]
+id = "gauguin-haystacks-brittany"
+tier = "medium"
+source = "nga"
+object = "53129"
+licence = "CC0"
+reason = "haystacks, fields and a figure with cows in flat colour: interlocking flat masses, warm against cool"
+no_crop.1 = "a cow"
+
+# Hard
+
+[[item]]
+id = "manet-races-longchamp"
+tier = "hard"
+source = "aic"
+object = "81533"
+licence = "CC0"
+reason = "horses racing straight at the viewer between two crowds: a burst of dark masses down the middle, many small figures"
+
+[[item]]
+id = "bellows-love-of-winter"
+tier = "hard"
+source = "aic"
+object = "109780"
+licence = "CC0"
+reason = "skaters on a frozen pond under dark hills: figures as bright accents across a white field, strong darks and lights"
+
+[[item]]
+id = "chase-city-park"
+tier = "hard"
+source = "aic"
+object = "28849"
+licence = "CC0"
+reason = "a sunlit park path between lawns and trees, small figures on it: a deep diagonal recession, many soft greens"
+
+[[item]]
+id = "boudin-bathing-deauville"
+tier = "hard"
+source = "nga"
+object = "61358"
+licence = "CC0"
+reason = "a crowd on the beach under a vast sky: a thin band of many small dark figures held under a pale sky"
+no_crop.1 = "figures and bathing huts"
+no_crop.2 = "a couple and sails"
+
+[[item]]
+id = "boudin-festival-honfleur"
+tier = "hard"
+source = "nga"
+object = "61360"
+licence = "CC0"
+reason = "a harbour crowded with flagged ships and people: many masts and small masses round a strip of water"
+
+[[item]]
+id = "boudin-concert-deauville"
+tier = "hard"
+source = "nga"
+object = "66401"
+licence = "CC0"
+reason = "an audience seated on a beach terrace before the sea: a crowd as one dark band, a pale sky above it"
+no_crop.1 = "the pavilion's column"
+
+[[item]]
+id = "boudin-fair-brittany"
+tier = "hard"
+source = "nga"
+object = "178080"
+licence = "CC0"
+reason = "a village fair, figures and stalls under trees: many small masses in close earth colours, a pale sky"
+
+[[item]]
+id = "monet-garden-vetheuil"
+tier = "hard"
+source = "nga"
+object = "52189"
+licence = "CC0"
+reason = "sunflowers either side of steps to a house, a child on the path: a tall frame of foliage round a light path, many masses"
+no_crop.1 = "sunflowers and a roof"
+no_crop.2 = "boats on the water"
+
+[[item]]
+id = "monet-garden-argenteuil"
+tier = "hard"
+source = "nga"
+object = "72138"
+licence = "CC0"
+reason = "a bank of dahlias with figures and houses behind: dense flowers against a pale sky, the figures small"
+
+[[item]]
+id = "monet-argenteuil-nga"
+tier = "hard"
+source = "nga"
+object = "52186"
+licence = "CC0"
+reason = "a riverside promenade with trees, figures and sails: dark trees against bright water, many small accents"
+no_crop.2 = "the painter's signature"
+
+[[item]]
+id = "renoir-pont-neuf"
+tier = "hard"
+source = "nga"
+object = "52202"
+licence = "CC0"
+reason = "a bridge thronged with people and carriages seen from above: countless small figures in sun, held by the bridge's diagonal"
+no_crop.2 = "the painter's signature and a figure's legs"
+
+[[item]]
+id = "renoir-regatta-argenteuil"
+tier = "hard"
+source = "nga"
+object = "52203"
+licence = "CC0"
+reason = "sailing boats and figures on a bright river: broken strokes of many hues, white sails as the lights"
+no_crop.1 = "figures at its top"
+
+[[item]]
+id = "renoir-mussel-harvest"
+tier = "hard"
+source = "nga"
+object = "42935"
+licence = "CC0"
+reason = "mussel gatherers with baskets on a rocky shore: several figures at two depths, close greys and blues"
+
+[[item]]
+id = "pissarro-place-carrousel"
+tier = "hard"
+source = "nga"
+object = "52199"
+licence = "CC0"
+reason = "a square of paths, lawns and bare trees seen from above, the Louvre beyond: many small masses in close greys and greens"
+no_crop.1 = "a palace's roof and chimneys"
+
+[[item]]
+id = "vuillard-repast-garden"
+tier = "hard"
+source = "nga"
+object = "46704"
+licence = "CC0"
+reason = "a family at a table in a garden: figures and foliage woven into one pattern of close muted colour"
+no_crop.1 = "a house's wall and shutter"
+
+[[item]]
+id = "cole-the-departure"
+tier = "hard"
+source = "nga"
+object = "166439"
+licence = "CC0"
+reason = "knights riding out from a castle on a crag at dawn: a lit castle over a dark valley, many small figures"
+no_crop.1 = "a tree"
+
+[[item]]
+id = "cole-crawford-notch"
+tier = "hard"
+source = "nga"
+object = "50727"
+licence = "CC0"
+reason = "a mountain pass with an inn, a rider and storm clouds: layered planes of autumn colour, light and shadow across them"
+no_crop.1 = "a dead tree on a hillside"
+
+[[item]]
+id = "lane-new-york-harbor"
+tier = "hard"
+source = "nga"
+object = "84783"
+licence = "CC0"
+reason = "a harbour crowded with ships under a sunset sky: many sails and hulls in close warm values against the light"
+
+[[item]]
+id = "bierstadt-buffalo-trail"
+tier = "hard"
+source = "nga"
+object = "166427"
+licence = "CC0"
+reason = "a herd crossing a river under a storm: a dark sky over a lit plain, many small animals as one mass"
+no_crop.1 = "a rock peak and a tree"
+
+[[item]]
+id = "sargent-setting-out-to-fish"
+tier = "hard"
+source = "nga"
+object = "166472"
+licence = "CC0"
+reason = "fisherfolk walking down a wet beach in grey light: figures and their reflections in close silvery greys"
+
+[[item]]
+id = "whistler-wapping"
+tier = "hard"
+source = "nga"
+object = "61254"
+licence = "CC0"
+reason = "three figures on a balcony before a river crowded with ships: a dense web of masts behind a dark foreground"
+no_crop.1 = "two men's faces"
+
+[[item]]
+id = "turner-boats-anchors"
+tier = "hard"
+source = "nga"
+object = "166478"
+licence = "CC0"
+reason = "small boats in a heavy sea before warships under a storm sky: dark sails against light breaking through cloud"
+
+[[item]]
+id = "constable-white-horse"
+tier = "hard"
+source = "nga"
+object = "1146"
+licence = "CC0"
+reason = "a barge carrying a white horse on a river by a farm under trees: dark foliage masses round one bright accent, much detail"

@@ -320,23 +320,22 @@ fn a_composition_list_refuses_an_outline_mark_entry_and_frames_off_commons() {
     assert!(why.contains("its frame's second"), "{why}");
 }
 
-/// The official list in `tools/packs/lists/compositions.toml`: about 60 items in three tiers,
-/// every one with its reason.
+/// The official list in `tools/packs/lists/compositions.toml`: about 100 items in three tiers,
+/// the harder ones the most (S159), every one with its reason.
 #[test]
-fn the_official_compositions_list_holds_about_60_items_in_three_tiers() {
+fn the_official_compositions_list_holds_about_100_items_in_three_tiers() {
     let path = repo_root().join("tools/packs/lists/compositions.toml");
     let list = SourceList::parse(&fs::read_to_string(&path).expect("the list")).expect("reads");
     assert_eq!(list.kind, PictureKind::Composition);
-    for tier in PictureKind::Composition.tiers() {
-        let count = list
-            .items
-            .iter()
-            .filter(|item| item.tier == Some(*tier))
-            .count();
-        assert!((15..=25).contains(&count), "{}: {count} items", tier.name());
-    }
+    let count = |tier: Tier| {
+        let of = |item: &&super::list::Listed| item.tier == Some(tier);
+        list.items.iter().filter(of).count()
+    };
+    let counts = [Tier::Simple, Tier::Medium, Tier::Hard].map(count);
+    assert!(counts.iter().all(|c| *c >= 20), "{counts:?}");
+    assert!(counts[0] < counts[1] && counts[1] < counts[2], "{counts:?}");
     assert!(
-        (55..=65).contains(&list.items.len()),
+        (90..=110).contains(&list.items.len()),
         "{} items",
         list.items.len()
     );
