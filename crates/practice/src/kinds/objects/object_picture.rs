@@ -119,8 +119,18 @@ impl ObjectTask {
 /// middle's surface, and where a neighbour's differs, the mean of `SAMPLES` x `SAMPLES` samples
 /// across it: the edges antialiased, the paper's share left clear.
 pub(crate) fn lit_picture(
-    (side, [low, high], tint): (u32, [Point; 2], [f64; 3]),
+    (side, bounds, tint): (u32, [Point; 2], [f64; 3]),
     surface: impl Fn(Point) -> Option<(u32, f64)>,
+) -> Vec<u8> {
+    let coloured = |p: Point| surface(p).map(|(id, shade)| (id, [shade; 3]));
+    coloured_picture((side, bounds, tint), coloured)
+}
+
+/// The lit picture in colour (S154: colour under light's render): as `lit_picture`, `surface`
+/// giving each frame point's colour (linear 0 to 1 a channel, as a shade is) instead of a shade.
+pub(crate) fn coloured_picture(
+    (side, [low, high], tint): (u32, [Point; 2], [f64; 3]),
+    surface: impl Fn(Point) -> Option<(u32, [f64; 3])>,
 ) -> Vec<u8> {
     let side = side.max(1) as usize;
     let pixel = 1.0 / side as f64;
@@ -130,7 +140,7 @@ pub(crate) fn lit_picture(
         let to = ((high[k] / pixel).ceil().max(0.0) as usize + 2).min(side);
         from..to
     };
-    let mut middles: Vec<Option<(u32, f64)>> = vec![None; side * side];
+    let mut middles: Vec<Option<(u32, [f64; 3])>> = vec![None; side * side];
     for y in range(1) {
         for x in range(0) {
             middles[y * side + x] = surface(centre(x, y));
@@ -151,11 +161,11 @@ pub(crate) fn lit_picture(
             let (shade, cover) = if edge {
                 across(&surface, centre(x, y), pixel)
             } else {
-                middles[y * side + x].map_or((0.0, 0.0), |(_, shade)| (shade, 1.0))
+                middles[y * side + x].map_or(([0.0; 3], 0.0), |(_, shade)| (shade, 1.0))
             };
             let at = (y * side + x) * 4;
             for k in 0..3 {
-                pixels[at + k] = (shade * tint[k] * 255.0).round().clamp(0.0, 255.0) as u8;
+                pixels[at + k] = (shade[k] * tint[k] * 255.0).round().clamp(0.0, 255.0) as u8;
             }
             pixels[at + 3] = (cover * 255.0).round() as u8;
         }
@@ -163,19 +173,26 @@ pub(crate) fn lit_picture(
     pixels
 }
 
-/// The mean shade of `surface`'s samples across the pixel `pixel` wide about `centre`, and the
-/// share of them on a surface.
-fn across(surface: &impl Fn(Point) -> Option<(u32, f64)>, centre: Point, pixel: f64) -> (f64, f64) {
-    let (mut sum, mut count) = (0.0, 0usize);
+/// The mean colour of `surface`'s samples across the pixel `pixel` wide about `centre`, channel by
+/// channel, and the share of them on a surface.
+fn across(
+    surface: &impl Fn(Point) -> Option<(u32, [f64; 3])>,
+    centre: Point,
+    pixel: f64,
+) -> ([f64; 3], f64) {
+    let (mut sum, mut count) = ([0.0; 3], 0usize);
     for j in 0..SAMPLES {
         for i in 0..SAMPLES {
             let at = |k: usize| ((k as f64 + 0.5) / SAMPLES as f64 - 0.5) * pixel;
             if let Some((_, shade)) = surface([centre[0] + at(i), centre[1] + at(j)]) {
-                sum += shade;
+                for k in 0..3 {
+                    sum[k] += shade[k];
+                }
                 count += 1;
             }
         }
     }
     let cover = count as f64 / (SAMPLES * SAMPLES) as f64;
-    (if count > 0 { sum / count as f64 } else { 0.0 }, cover)
+    let mean = sum.map(|s| if count > 0 { s / count as f64 } else { 0.0 });
+    (mean, cover)
 }

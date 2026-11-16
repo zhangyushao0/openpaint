@@ -20,12 +20,14 @@ use crate::kinds::gamut_masks::mask::Mask;
 use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::light_on_form::scene::Lit;
 use crate::kinds::lines::line::LineTier;
+use crate::kinds::lit_colours::scene::LitColour;
 use crate::kinds::objects::object_design::Carve;
 use crate::kinds::placements::placement::Placement;
 use crate::kinds::points_in_space::space::Trick;
 use crate::kinds::rotations::rotation::Rotation;
 use crate::kinds::scales::scale::ScaleTone;
 use crate::kinds::solids::solid::Solid;
+use crate::kinds::textures::field::Texture;
 use crate::marks::tile::TileMark;
 use crate::packs::pack::{ItemRef, Tier};
 use crate::packs::pictures::Pictures;
@@ -109,6 +111,12 @@ pub enum Kind {
     /// A curved object of hemispheres, cylinders and cones shown one way, drawn another, each
     /// joint's section placed in its box (V大's 曲面翻转, S154f, `curved_rotations/`).
     CurvedRotation(CurvedRotation),
+    /// A form on the ground in a coloured light and a sky, painted as the light colours it (光色,
+    /// S154, `lit_colours/`).
+    LitColour(LitColour),
+    /// A strip of small forms on the ground in a low sun, its texture told by their shadows alone
+    /// (纹理, S154, `textures/`).
+    Texture(Texture),
 }
 
 impl Kind {

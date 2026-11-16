@@ -18,7 +18,7 @@ use crate::maths::random::derived;
 
 /// The example's seed; its maps' cells across the frame.
 const SEED: u64 = 0xDE30_5EED_0153;
-const CELLS: usize = 200;
+pub(crate) const CELLS: usize = 200;
 /// How far the hand's dark runs past the answer's on the form, cells (0.07 of the frame: wider
 /// than the grey pen, so Compare hatches it).
 const STRAY: usize = 14;
@@ -183,7 +183,7 @@ type Band = ((usize, usize), Vec<[Point; 2]>);
 
 /// The cells `held` (of a grid `CELLS` across the frame) as bands of `colour`: each row's runs
 /// joined to the runs under them they overlap.
-fn bands(held: &[bool], colour: Rgb8) -> Vec<Drawn> {
+pub(crate) fn bands(held: &[bool], colour: Rgb8) -> Vec<Drawn> {
     let cell = 1.0 / CELLS as f64;
     let row = |y: f64, (from, to): (usize, usize)| {
         [

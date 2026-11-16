@@ -228,8 +228,8 @@ impl Sheet {
         }
     }
 
-    /// It with each exercise's frames the shape of its picture as `packs` hold it (S99); one no
-    /// pack holds stays square.
+    /// It with each exercise's frames the shape of its picture as `packs` hold it (S99), or as its
+    /// kind draws it (`Facts::shape`, S154); one no pack holds stays square.
     #[must_use]
     pub fn framed(mut self, packs: &[Pack]) -> Self {
         for laid in self.lessons.iter_mut().flat_map(|l| l.exercises.iter_mut()) {
@@ -239,6 +239,8 @@ impl Sheet {
                 laid.frame = item
                     .size
                     .map(|side| u16::try_from(side).unwrap_or(u16::MAX));
+            } else if let Some(shape) = laid.exercise.kind.facts().shape {
+                laid.frame = shape;
             }
         }
         self

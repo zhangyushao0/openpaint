@@ -57,6 +57,8 @@ impl Pen {
     /// four, the darkest before value masses' three (its third, the core and the contact).
     pub const TWO_TONES: [Self; 2] = [Self::Dark, Self::Light];
     pub const FOUR_TONES: [Self; 4] = [Self::Darkest, Self::Dark, Self::Middle, Self::Light];
+    /// The darkest alone (S154: texture told by its shadows, no line pen).
+    pub const SHADOWS: [Self; 1] = [Self::Darkest];
 
     /// Whether it paints in the colour picked.
     #[must_use]
@@ -195,6 +197,12 @@ impl ToolSet {
         pens: &Pen::FOUR_TONES,
         ..Self::GREYS
     };
+    /// The darkest alone, Undo and Redo, no Fill (texture, S154).
+    pub(crate) const SHADOWS: Self = Self {
+        pens: &Pen::SHADOWS,
+        history: true,
+        ..Self::NONE
+    };
     /// The wheel and Fill frame: one flat colour, no pens (a colour).
     pub(crate) const COLOUR: Self = Self {
         wheel: true,
@@ -237,6 +245,12 @@ impl ToolSet {
     #[must_use]
     pub fn greys(&self) -> bool {
         self.pens.iter().any(|pen| pen.grey().is_some())
+    }
+
+    /// The lightest of its pens (greys run darkest first: the light, texture's darkest alone).
+    #[must_use]
+    pub fn lightest(&self) -> Pen {
+        self.pens.last().copied().unwrap_or(Pen::Light)
     }
 
     /// Whether its pens draw a division's levels.

@@ -75,6 +75,9 @@ pub struct Facts {
     /// Whether its original's frame is covered until its first Compare: drawn with the picture out
     /// of sight (a drawing from life, its photo, S151).
     pub hidden: bool,
+    /// The shape of the picture its generator draws, which its frames take (a texture's strip, 2
+    /// to 1, S154); none: square, or its pack picture's (S99).
+    pub shape: Option<[u16; 2]>,
     pub seconds: u16,
 }
 
@@ -96,7 +99,15 @@ impl Facts {
             grounded: false,
             under: false,
             hidden: false,
+            shape: None,
             seconds,
+        }
+    }
+
+    pub(crate) const fn shaped(self, shape: [u16; 2]) -> Self {
+        Self {
+            shape: Some(shape),
+            ..self
         }
     }
 

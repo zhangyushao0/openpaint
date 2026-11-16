@@ -1,0 +1,34 @@
+{
+  "walkthrough": [
+    "s154-texture on a Chinese tablet, the same first steps with every word in Chinese: the bar 纹理 1/1; the How 用影子画纹理, 用小形体投下的影子表现表面的纹理, its steps 不描形体的轮廓, 用最黑涂满它投下的影子, 每块影子都涂，先涂近的, 叠图对比, and its paragraph (灰面和亮面留白); the pen 最黑 alone with Undo and Redo; Compare's card 纹理 1, 原图浓淡, 准, 差一点, 重来, no count line. Level 3: its How's step 靠近光的一边只留最大的影子 and its second paragraph.",
+    "Not here: the author's hand on the tablet."
+  ],
+  "screen": [2880, 1800],
+  "system_language": "chinese",
+  "density": 1.75,
+  "steps": [
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "texture", "level": 1 } },
+    { "screenshot": { "name": "texture-how-mid-zh", "after_ms": 3000 } },
+    { "screenshot": { "name": "texture-how-end-zh" } },
+    { "expect": { "shown": ["Watch again", "Got it"], "absent": [] } },
+    { "tap": { "at": "Got it" } },
+    { "expect": { "shown": ["Darkest", "Undo", "Redo"], "absent": ["Fill frame", "Sketch", "Draw", "Big", "Dark", "Light"] } },
+    { "screenshot": { "name": "texture-opened-zh" } },
+    { "stroke": { "points": [[1254, 793, 0.9], [1304, 793, 0.9]] } },
+    { "stroke": { "points": [[1254, 807, 0.9], [1304, 807, 0.9]] } },
+    { "stroke": { "points": [[1367, 800, 0.9], [1417, 800, 0.9]] } },
+    { "stroke": { "points": [[1367, 814, 0.9], [1417, 814, 0.9]] } },
+    { "stroke": { "points": [[1469, 802, 0.9], [1519, 802, 0.9]] } },
+    { "stroke": { "points": [[1469, 816, 0.9], [1519, 816, 0.9]] } },
+    { "stroke": { "points": [[1672, 954, 0.8], [1661, 980, 0.8], [1636, 990, 0.8], [1611, 980, 0.8], [1600, 954, 0.8], [1611, 928, 0.8], [1636, 918, 0.8], [1661, 928, 0.8], [1672, 954, 0.8]] } },
+    { "tap": { "at": "Compare" } },
+    { "screenshot": { "name": "texture-compared-zh", "after_ms": 2500 } },
+    { "expect": { "shown": ["Original shown", "Accurate", "Almost", "Again"], "absent": ["Construction", "Grey"] } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "texture", "level": 3 } },
+    { "screenshot": { "name": "texture-level-three-how-zh", "after_ms": 9000 } },
+    { "tap": { "at": "Got it" } },
+    { "screenshot": { "name": "texture-level-three-zh" } }
+  ]
+}

@@ -15,6 +15,7 @@ mod key_copies;
 mod key_sheet;
 mod key_shifts;
 mod launch;
+mod lit_colours;
 mod long_session;
 mod output;
 mod quantiles;
@@ -53,6 +54,7 @@ fn main() -> ExitCode {
         ["test-art", ref rest @ ..] => test_art::run(rest),
         ["key-shifts", ref rest @ ..] => key_shifts::run(rest),
         ["contrasts", ref rest @ ..] => contrasts::run(rest),
+        ["lit-colours", ref rest @ ..] => lit_colours::run(rest),
         ["scenario", "--all", ref rest @ ..] => match scenarios::options(rest) {
             Some((jobs, then)) => scenarios::run_all(jobs, &then),
             None => Err(error::HarnessError::Missing(

@@ -41,11 +41,11 @@ fn after(learner: &Learner, key: &str, level: SkillLevel, outcomes: &[Outcome]) 
 }
 
 #[test]
-fn the_units_hold_twenty_four_skills_each_once_under_a_key_of_its_own() {
+fn the_units_hold_twenty_six_skills_each_once_under_a_key_of_its_own() {
     let skills: Vec<Skill> = Skill::all().collect();
-    assert_eq!(skills.len(), 24);
+    assert_eq!(skills.len(), 26);
     let held: usize = UNITS.iter().map(|unit| unit.skills.len()).sum();
-    assert_eq!(held, 24);
+    assert_eq!(held, 26);
     let mut keys: Vec<&str> = skills.iter().map(|skill| skill.key()).collect();
     for (skill, key) in skills.iter().zip(&keys) {
         assert_eq!(Skill::of_key(key), Some(*skill), "{key}");
@@ -54,7 +54,7 @@ fn the_units_hold_twenty_four_skills_each_once_under_a_key_of_its_own() {
     }
     keys.sort_unstable();
     keys.dedup();
-    assert_eq!(keys.len(), 24);
+    assert_eq!(keys.len(), 26);
     // A kind is its folder's skill; a long colour copy and the free scribble are none.
     assert_eq!(Skill::of(Kind::Line(LineTier::Hook)), Some(skill("line")));
     assert_eq!(

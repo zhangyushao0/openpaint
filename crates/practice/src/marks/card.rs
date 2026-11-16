@@ -150,6 +150,15 @@ pub enum CardItem {
         corners: Vec<Point>,
         marked: Vec<usize>,
     },
+    /// The hue and chroma disc with the colours an exercise gave to mix from (S154: colour under
+    /// light's local colour, light, sky and ground): each given colour a small square, each of the
+    /// copy's regions a dot in its colour (none where not painted) with a thin line from the given
+    /// colour it was mixed from where it names one, the `marked` regions' dots ringed red.
+    Mixed {
+        given: Vec<Rgb8>,
+        copy: Vec<(Option<Rgb8>, Option<usize>)>,
+        marked: Vec<usize>,
+    },
     /// The lightness bar: the original's lightness over it, the copy's under it (S107).
     Bar { original: Rgb8, copy: Rgb8 },
     /// A division's levels, their lines counted and measured (S95).

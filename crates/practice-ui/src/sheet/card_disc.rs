@@ -9,7 +9,8 @@
 //! A gamut mask's disc (S153) is the same disc with the mask's own shape, any convex polygon, so
 //! grey may lie outside it (veiled from the middle out to where the mask begins), outlined in ink:
 //! on the card (`gamut`, the areas outside it ringed red), beside its frame on the sheet and under
-//! a How's frames (`masked_disc`).
+//! a How's frames (`masked_disc`). Colour under light's (S154, `mixed`): the colours it gave as
+//! squares, the copy's regions as dots.
 
 use egui::{Color32, Mesh, Pos2, Sense, Shape, Stroke, Vec2};
 use openpaint_practice::{Point, Rgb8, gamut_span, in_gamut, oklab};
@@ -35,6 +36,9 @@ const VEIL: f32 = 0.82;
 const MARK: f32 = 4.5;
 const TENDENCY_MARK: f32 = 8.0;
 const OUTSIDE_RING: f32 = 9.0;
+/// A given colour's square's half side, and a dash of the line from it, in points (S154).
+const GIVEN: f32 = 6.0;
+const DASH: f32 = 3.0;
 
 /// The disc for the crop's `originals` and the copy's `colours` (none where not painted), the
 /// tendency where it lies in its colour, Gurney's `mask`, the `chosen` area heavier.
@@ -181,6 +185,52 @@ pub(crate) fn gamut(
             }
         }
         painter.circle_stroke(from, MARK, Stroke::new(weight, INK));
+    }
+}
+
+/// The hue and chroma disc with the colours an exercise gave to mix from (S154, colour under light):
+/// each given colour a small square, each of the copy's regions a dot in its colour with a thin
+/// dashed line from the given colour it was mixed from, the `marked` dots ringed red.
+pub(crate) fn mixed(
+    ui: &mut egui::Ui,
+    given: &[Rgb8],
+    copy: &[(Option<Rgb8>, Option<usize>)],
+    marked: &[usize],
+) {
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, SIDE), Sense::hover());
+    let (centre, radius) = (rect.center(), SIDE / 2.0 - 4.0);
+    let painter = ui.painter();
+    painter.add(Shape::mesh(colours_of(centre, radius)));
+    painter.circle_stroke(centre, radius, Stroke::new(1.0, DIVIDER));
+    let at = |colour: Rgb8| {
+        let [_, a, b] = oklab(colour);
+        on_disc((centre, radius), [a, b])
+    };
+    for (mine, from) in copy {
+        let (Some(mine), Some(from)) = (mine, from.and_then(|k| given.get(k))) else {
+            continue;
+        };
+        let line = [at(*from), at(*mine)];
+        let stroke = Stroke::new(1.0, INK_SECONDARY);
+        painter.extend(Shape::dashed_line(&line, stroke, DASH, DASH));
+    }
+    for given in given {
+        let square = egui::Rect::from_center_size(at(*given), Vec2::splat(2.0 * GIVEN));
+        painter.rect(
+            square,
+            0.0,
+            colour(*given),
+            Stroke::new(1.0, INK),
+            egui::StrokeKind::Middle,
+        );
+    }
+    for (region, (mine, _)) in copy.iter().enumerate() {
+        let Some(mine) = mine else { continue };
+        painter.circle(at(*mine), MARK, colour(*mine), Stroke::new(1.25, INK));
+        if marked.contains(&region) {
+            painter.circle_stroke(at(*mine), OUTSIDE_RING, Stroke::new(2.0, CORRECTION));
+        }
     }
 }
 

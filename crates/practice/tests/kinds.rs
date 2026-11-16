@@ -8,9 +8,10 @@ use std::sync::Arc;
 use openpaint_practice::{
     Areas, Asked, BoxView, Carve, Combination, Copied, CurvedRotation, DrawnCopy, Estimate,
     Exercise, Facts, Fill, Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness,
-    LineTier, Lit, Mask, MaskShape, Metric, Pack, PackItem, Pen, PictureFit, PictureKind, Pictures,
-    Placement, Point, Purity, Rgb8, Rotation, ScaleTone, SheetPicture, Skill, SkillLevel, Solid,
-    Standing, Tendency, Throw, Tier, Tone, Trick, ValueMasses, schedule,
+    LineTier, Lit, LitColour, Mask, MaskShape, Metric, Pack, PackItem, Pen, PictureFit,
+    PictureKind, Pictures, Placement, Point, Purity, Rgb8, Rotation, ScaleTone, SheetPicture,
+    Skill, SkillLevel, Solid, Standing, Tendency, Texture, Throw, Tier, Tone, Trick, ValueMasses,
+    schedule,
 };
 
 /// A kind of every variant the stores may hold.
@@ -50,6 +51,8 @@ fn every_kind() -> Vec<Kind> {
     kinds.extend(Lit::ALL.map(Kind::Light));
     kinds.extend(Throw::ALL.map(Kind::Shadows));
     kinds.extend(CurvedRotation::ALL.map(Kind::CurvedRotation));
+    kinds.extend(LitColour::ALL.map(Kind::LitColour));
+    kinds.extend(Texture::ALL.map(Kind::Texture));
     kinds
 }
 
@@ -63,14 +66,14 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_eight_
     }
     codes.sort_unstable();
     codes.dedup();
-    let expected: Vec<u8> = (1..=28).filter(|code| *code != 5).collect();
+    let expected: Vec<u8> = (1..=30).filter(|code| *code != 5).collect();
     assert_eq!(codes, expected);
     assert_eq!(Kind::of_code(5, 0), None, "code 5 is free");
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
     // A drawing from life (S151) is kind 23; a gamut mask (S153) 24, its shape times 36 and its
     // hue's step; a placement (S153) 25, light on form 26, cast shadows 27, a curved rotation
-    // (S154f) 28; no kind is 29.
+    // (S154f) 28, colour under light 29, texture 30 (S154j); no kind is 31.
     assert_eq!(Kind::Observation.code(), (23, 0));
     let small = Mask {
         shape: MaskShape::Small,
@@ -78,7 +81,7 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_eight_
     };
     assert_eq!(Kind::GamutMask(small).code(), (24, 2 * 36 + 6));
     assert_eq!(Kind::of_code(24, 108), None);
-    assert_eq!(Kind::of_code(29, 0), None);
+    assert_eq!(Kind::of_code(31, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -115,7 +118,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 39);
+    assert_eq!(topics().len(), 43);
 }
 
 #[test]
@@ -133,17 +136,21 @@ fn a_topic_s_facts_say_what_it_is() {
             "value-masses" | "light-halftone" => &Pen::VALUES,
             "light-families" => &Pen::TWO_TONES,
             "light-core" => &Pen::FOUR_TONES,
+            "texture" | "texture-sparse" => &Pen::SHADOWS,
             "colour" | "scale" | "combination" | "key-shift" | "study" | "gamut-mask" => &[],
+            "lit-colour" | "lit-colour-bounce" => &[],
             _ => &Pen::DRAWING,
         };
         assert_eq!(tools.pens, pens, "{key}");
         let painted = ["whole-copy", "combination", "key-shift", "gamut-mask"];
+        let painted = [painted.as_slice(), &["lit-colour", "lit-colour-bounce"]].concat();
         assert_eq!(tools.paints, painted.contains(&key), "{key}");
         let fill = match key {
             "scale" => Some(Fill::Cell),
             "colour" | "combination" | "key-shift" | "whole-copy" | "value-masses"
             | "gamut-mask" => Some(Fill::Frame),
             "light-families" | "light-halftone" | "light-core" => Some(Fill::Frame),
+            "lit-colour" | "lit-colour-bounce" => Some(Fill::Frame),
             _ => None,
         };
         assert_eq!(tools.fill, fill, "{key}");
@@ -153,9 +160,10 @@ fn a_topic_s_facts_say_what_it_is() {
         );
     }
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
-    // The eighteen built from given parts (light on form's three and cast shadows, S153), the free
-    // scribble's one frame (S122) and abstract analysis's, its picture under the marks (S112).
-    assert_eq!(constructed.count(), 20);
+    // The twenty built from given parts (light on form's three and cast shadows, S153; colour under
+    // light's two, S154), the free scribble's one frame (S122) and abstract analysis's, its picture
+    // under the marks (S112).
+    assert_eq!(constructed.count(), 22);
 }
 
 /// A pack of `kind` pictures, four of each of `tiers`, with value masses that read and areas.

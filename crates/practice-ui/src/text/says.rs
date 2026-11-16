@@ -38,6 +38,12 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
         "analysis-chosen" => super::analysis_chosen(language, &words(say)),
         "analysis-spread-chosen" => super::analysis_spread(language, words(say).first().copied()),
         "outside-mask" => super::outside_mask(language, word(0), count(1)),
+        "local-colour" => plain(super::LOCAL_COLOUR_NAME),
+        "sunlight" => plain(super::SUNLIGHT_NAME),
+        "lamplight" => plain(super::LAMPLIGHT_NAME),
+        "skylight" => plain(super::SKYLIGHT_NAME),
+        "ground" => plain(super::GROUND_NAME),
+        "one-answer" => plain(super::ONE_ANSWER),
         key => key.to_owned(),
     }
 }

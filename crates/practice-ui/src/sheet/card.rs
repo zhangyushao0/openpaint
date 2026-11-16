@@ -19,7 +19,7 @@ use openpaint_ui::components::{
 use openpaint_ui::design::{SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
 
-use super::card_disc::{disc, gamut};
+use super::card_disc::{disc, gamut, mixed};
 use super::card_items as items;
 use super::demo::{Demonstrations, HowOf};
 use super::lesson_name;
@@ -143,6 +143,8 @@ fn item_of(
     taps: &mut Vec<PracticeIntent>,
 ) {
     let chosen = practice.area;
+    // The choices are fixed from the first Compare on (D99).
+    let open = practice.result.is_none();
     match item {
         CardItem::Reading => card_text(ui, t::READING_COPY, true),
         CardItem::Overlaid => lines(ui, practice, taps),
@@ -188,17 +190,15 @@ fn item_of(
             corners,
             marked,
         } => gamut(ui, (originals, copy), corners, (marked, chosen)),
+        CardItem::Mixed {
+            given,
+            copy,
+            marked,
+        } => mixed(ui, given, copy, marked),
         CardItem::Bar { original, copy } => items::lightness(ui, *original, *copy),
         CardItem::Levels(rows) => items::levels(ui, rows),
-        // The choices are fixed from the first Compare on (D99).
-        CardItem::Toggles(keys) => {
-            let open = practice.result.is_none();
-            items::toggles(ui, keys, (practice.choices, open), taps);
-        }
-        CardItem::Shapes(shapes) => {
-            let open = practice.result.is_none();
-            items::shapes(ui, shapes, (practice.choices, open), taps);
-        }
+        CardItem::Toggles(keys) => items::toggles(ui, keys, (practice.choices, open), taps),
+        CardItem::Shapes(shapes) => items::shapes(ui, shapes, (practice.choices, open), taps),
         CardItem::Views(keys) => items::views(ui, keys, practice.view, taps),
     }
 }

@@ -270,11 +270,11 @@ impl PracticeSheet {
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = current.is_some_and(|index| self.record.first(index).is_some());
         let kind = current.and_then(|index| self.kind(index));
-        // The pen last chosen of the kind its tools' pens are: greys (the light where its greys
-        // lack the one last chosen, S153), a division's levels, the painting pens where it has no
-        // others, else the drawing pens (blue once compared).
+        // The pen last chosen of the kind its tools' pens are: greys (the lightest where its greys
+        // lack the one last chosen, S153, S154), a division's levels, the painting pens where it
+        // has no others, else the drawing pens (blue once compared).
         self.pen = match kind.map(|kind| &kind.facts().tools) {
-            Some(tools) if tools.greys() && !tools.pens.contains(&self.valuing) => Pen::Light,
+            Some(tools) if tools.greys() && !tools.pens.contains(&self.valuing) => tools.lightest(),
             Some(tools) if tools.greys() => self.valuing,
             Some(tools) if tools.pens.is_empty() => self.painting,
             Some(tools) if tools.levels() => self.dividing,

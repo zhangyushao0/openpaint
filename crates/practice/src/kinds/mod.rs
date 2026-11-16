@@ -29,6 +29,7 @@ pub(crate) mod gamut_masks;
 pub(crate) mod key_shifts;
 pub(crate) mod light_on_form;
 pub(crate) mod lines;
+pub(crate) mod lit_colours;
 pub(crate) mod objects;
 pub(crate) mod observation;
 pub(crate) mod placements;
@@ -38,6 +39,7 @@ pub(crate) mod scales;
 pub(crate) mod shapes;
 pub(crate) mod solids;
 pub(crate) mod study;
+pub(crate) mod textures;
 pub(crate) mod value_masses;
 pub(crate) mod whole_copies;
 
@@ -56,8 +58,8 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{DARKEST, DARKEST_PEN, Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 28, 5 free): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 27] = [
+/// Every kind, by its stored code (1 to 30, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 29] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -85,4 +87,6 @@ pub(crate) const KINDS: [&dyn Described; 27] = [
     &light_on_form::LightOnForm,
     &cast_shadows::CastShadows,
     &curved_rotations::CurvedRotations,
+    &lit_colours::LitColours,
+    &textures::Textures,
 ];
