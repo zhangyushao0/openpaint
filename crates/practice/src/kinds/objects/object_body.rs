@@ -95,6 +95,29 @@ pub(crate) struct Ball {
     pub(crate) radius: f64,
 }
 
+/// A capsule (S156k): the points within `radius` of the segment between its ends, a cylinder
+/// and the two balls that close it; a chain of them is a tube swept along a path (contours).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Capsule {
+    pub(crate) ends: [Vector; 2],
+    pub(crate) radius: f64,
+}
+
+impl Capsule {
+    /// The point of its segment nearest `p`.
+    pub(crate) fn nearest(&self, p: Vector) -> Vector {
+        let [a, b] = self.ends;
+        let axis = sub(b, a);
+        let long = dot(axis, axis);
+        let along = if long > 0.0 {
+            (dot(sub(p, a), axis) / long).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        add(a, times(axis, along))
+    }
+}
+
 /// How the box lies in the world: its corner 0 and its width, height and depth as vectors.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Placed {

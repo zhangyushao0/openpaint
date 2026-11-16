@@ -77,6 +77,9 @@ pub use kinds::colours::marks::ColourCompared;
 pub use kinds::combinations::marks::{AREAS_CLEAN, AreasCompared, AreasRead, NEAR_STRONG};
 pub use kinds::combinations::reading::AreasReading;
 pub use kinds::combined_lines::combined::{Combination, CombinedLines};
+pub use kinds::contours::marks::ContourCompared;
+pub use kinds::contours::sections::Contour;
+pub use kinds::contours::task::{Bend, ContourTask};
 pub use kinds::contrast_thumbnails::marks::{
     Finding, ThumbnailCompared, ThumbnailRead, ThumbnailReading, WITHIN,
 };
@@ -106,6 +109,8 @@ pub use kinds::gamut_masks::mask::{
     span as gamut_span,
 };
 pub use kinds::gamut_masks::reading::MaskReading;
+pub use kinds::intersections::marks::IntersectionCompared;
+pub use kinds::intersections::meeting::{IntersectionTask, Meeting, Way};
 pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{
     APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_SHARE, toward,

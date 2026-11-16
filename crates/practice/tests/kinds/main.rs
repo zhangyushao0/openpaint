@@ -5,9 +5,10 @@
 mod lessons;
 
 use openpaint_practice::{
-    Arrow, BoxView, Carve, Combination, CurvedRotation, Emphasis, Estimate, Facts, Fill, Guide,
-    Horizon, Kind, Lean, Leans, Lightness, LineTier, Lit, LitColour, Mask, MaskShape, Metric, Pen,
-    Placement, Purity, Rotation, ScaleTone, Solid, Tendency, Texture, Throw, Tier, Tone, Trick,
+    Arrow, Bend, BoxView, Carve, Combination, CurvedRotation, Emphasis, Estimate, Facts, Fill,
+    Guide, Horizon, Kind, Lean, Leans, Lightness, LineTier, Lit, LitColour, Mask, MaskShape,
+    Meeting, Metric, Pen, Placement, Purity, Rotation, ScaleTone, Solid, Tendency, Texture, Throw,
+    Tier, Tone, Trick,
 };
 
 /// A kind of every variant the stores may hold.
@@ -52,11 +53,13 @@ fn every_kind() -> Vec<Kind> {
     kinds.extend(Emphasis::ALL.map(Kind::Thumbnail));
     kinds.extend([0, 7, 100].map(|n| Kind::ColdWarm(Leans::nth(n))));
     kinds.extend(Arrow::ALL.map(Kind::Arrow));
+    kinds.extend(Bend::ALL.map(Kind::Contour));
+    kinds.extend(Meeting::ALL.map(Kind::Intersection));
     kinds
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_three_but_five() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_five_but_five() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -65,7 +68,7 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_three_
     }
     codes.sort_unstable();
     codes.dedup();
-    let expected: Vec<u8> = (1..=33).filter(|code| *code != 5).collect();
+    let expected: Vec<u8> = (1..=35).filter(|code| *code != 5).collect();
     assert_eq!(codes, expected);
     assert_eq!(Kind::Thumbnail(Emphasis::Two).code(), (31, 2));
     let first = Leans::nth(0);
@@ -77,7 +80,7 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_three_
     // A drawing from life (S151) is kind 23; a gamut mask (S153) 24, its shape times 36 and its
     // hue's step; a placement (S153) 25, light on form 26, cast shadows 27, a curved rotation
     // (S154f) 28, colour under light 29, texture 30 (S154j), a contrast thumbnail 31, a cold-warm
-    // copy 32 (S154g), an organic arrow 33 (S156l); no kind is 34.
+    // copy 32 (S154g), an organic arrow 33 (S156l), contours 34 and form intersections 35 (S156k).
     assert_eq!(Kind::Observation.code(), (23, 0));
     assert_eq!(Kind::Arrow(Arrow::Turning).code(), (33, 2));
     assert_eq!(Kind::of_code(33, 3), None);
@@ -87,7 +90,10 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_thirty_three_
     };
     assert_eq!(Kind::GamutMask(small).code(), (24, 2 * 36 + 6));
     assert_eq!(Kind::of_code(24, 108), None);
-    assert_eq!(Kind::of_code(34, 0), None);
+    assert_eq!(Kind::Contour(Bend::Crossing).code(), (34, 2));
+    assert_eq!(Kind::Intersection(Meeting::Sphere).code(), (35, 5));
+    assert_eq!((Kind::of_code(34, 3), Kind::of_code(35, 6)), (None, None));
+    assert_eq!(Kind::of_code(36, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -125,7 +131,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
     }
     // Free boxes looking down and up are topics of their own (S142), a path page and a funnel too
     // (S156l).
-    assert_eq!(topics().len(), 48);
+    assert_eq!(topics().len(), 50);
 }
 
 #[test]
@@ -168,9 +174,9 @@ fn a_topic_s_facts_say_what_it_is() {
         assert_eq!(facts.beside, key == "cold-warm", "{key}");
     }
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
-    // The twenty built from given parts (light on form's three and cast shadows, S153; colour under
-    // light's two, S154), the free scribble's one frame (S122), abstract analysis's, its picture
-    // under the marks (S112), and a contrast thumbnail's, its shapes printed in it (S154); an
-    // organic arrow's, a funnel's and a path page's (S156l).
-    assert_eq!(constructed.count(), 26);
+    // The twenty-one built from given parts (light on form's three and cast shadows, S153; colour
+    // under light's two, S154; form intersections, S156k), the free scribble's one frame (S122),
+    // abstract analysis's, its picture under the marks (S112), and a contrast thumbnail's, its
+    // shapes printed in it (S154); an organic arrow's, a funnel's and a path page's (S156l).
+    assert_eq!(constructed.count(), 27);
 }

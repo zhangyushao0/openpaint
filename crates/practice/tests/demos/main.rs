@@ -5,9 +5,10 @@
 mod examples;
 
 use openpaint_practice::{
-    Arrow, BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn, Emphasis,
-    Estimate, Guide, Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker, Placement, Point,
-    Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier, Tone, Trick, distance,
+    Arrow, Bend, BoxView, CELLS, Carve, Combination, CurvedRotation, Demo, DemoLayout, Drawn,
+    Emphasis, Estimate, Guide, Horizon, Kind, Lightness, LineTier, Lit, LitColour, Marker, Meeting,
+    Placement, Point, Purity, Rotation, ScaleTone, Solid, Texture, Throw, Tier, Tone, Trick,
+    distance,
 };
 
 const COLOUR: Tone = Tone {
@@ -16,7 +17,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 44] = [
+const STEPS: [(Kind, usize); 46] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -61,6 +62,8 @@ const STEPS: [(Kind, usize); 44] = [
     (Kind::Arrow(Arrow::Turning), 4),
     (Kind::Ellipse(Guide::Funnel), 4),
     (Kind::FreeBoxes(Horizon::Path), 4),
+    (Kind::Contour(Bend::Gentle), 4),
+    (Kind::Intersection(Meeting::Edge), 4),
 ];
 
 fn demo(kind: Kind) -> Demo {
@@ -82,6 +85,7 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
             "objects",
             "structure-rotation",
             "curved-rotation",
+            "contours",
             "division",
             "whole-copy",
             "value-masses",

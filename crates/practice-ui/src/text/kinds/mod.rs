@@ -19,6 +19,7 @@ mod cold_warm;
 mod colours;
 mod combinations;
 mod combined_lines;
+mod contours;
 mod contrast_thumbnails;
 mod curved_rotations;
 mod divisions;
@@ -27,6 +28,7 @@ mod estimates;
 mod free;
 mod free_boxes;
 mod gamut_masks;
+mod intersections;
 mod key_shifts;
 mod light_on_form;
 mod lines;
@@ -107,7 +109,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 32] = [
+const KINDS: [&[KindWords]; 34] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -140,6 +142,8 @@ const KINDS: [&[KindWords]; 32] = [
     &contrast_thumbnails::WORDS,
     &cold_warm::WORDS,
     &arrows::WORDS,
+    &contours::WORDS,
+    &intersections::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -227,6 +231,8 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         contrast_thumbnails::PRACTICE_THUMBNAILS,
         cold_warm::PRACTICE_COLD_WARM,
         arrows::PRACTICE_ARROWS,
+        contours::PRACTICE_CONTOURS,
+        intersections::PRACTICE_INTERSECTIONS,
     ]
 }
 

@@ -1,10 +1,13 @@
 //! Where rays meet an object's parts (S94, `object_body.rs`): a convex hull entered through its
-//! planes, a cylinder or a cone through its ends' slab and its side, a ball (S153); and how far a
+//! planes, a cylinder or a cone through its ends' slab and its side, a ball (S153), a capsule
+//! (S156k: a contour exercise's tube is a chain of them); and how far a
 //! point lies past a round part's surfaces. A ray starts anywhere (S153: a shadow ray leaves a
 //! surface towards the light): the eye's start at the origin, and a ray from `origin` is the same
 //! test with each plane's offset and each round part's centre moved by it.
 
-use crate::kinds::objects::object_body::{BALL_SURFACES, Ball, Hit, Hull, ROUND_SURFACES, Round};
+use crate::kinds::objects::object_body::{
+    BALL_SURFACES, Ball, Capsule, Hit, Hull, ROUND_SURFACES, Round,
+};
 use crate::maths::vector::{Vector, add, dot, norm, sub, times, unit};
 
 /// How far `p` lies outside `round` (negative inside).
@@ -125,6 +128,45 @@ pub(crate) fn ball_hit(ball: &Ball, (origin, d): (Vector, Vector), index: usize)
         normal: unit(add(w, times(d, enter))),
         round: true,
         surface: BALL_SURFACES + index as u32,
+    })
+}
+
+/// Where the ray from `origin` along `d` enters `capsule` (S156k), its surface `surface`: the first
+/// of its side's entry within its length and its end balls' (it is their union, and convex); the
+/// outward normal there from the nearest point of its segment.
+pub(crate) fn capsule_hit(
+    capsule: &Capsule,
+    (origin, d): (Vector, Vector),
+    surface: u32,
+) -> Option<Hit> {
+    let [a, b] = capsule.ends;
+    let r = capsule.radius;
+    let axis = sub(b, a);
+    let long = norm(axis);
+    let side = if long > 0.0 {
+        let e = times(axis, 1.0 / long);
+        let w = sub(origin, a);
+        let (we, de) = (dot(w, e), dot(d, e));
+        let (wp, dp) = (sub(w, times(e, we)), sub(d, times(e, de)));
+        let [qa, qb, qc] = [dot(dp, dp), 2.0 * dot(wp, dp), dot(wp, wp) - r * r];
+        let disc = qb * qb - 4.0 * qa * qc;
+        let t = (-qb - disc.max(0.0).sqrt()) / (2.0 * qa);
+        let on = qa > 1e-15 && disc >= 0.0 && t > 0.0;
+        (on && (0.0..=long).contains(&(we + t * de))).then_some(t)
+    } else {
+        None
+    };
+    let ball = |centre: Vector| ball_hit(&Ball { centre, radius: r }, (origin, d), 0);
+    let ends = [a, b]
+        .into_iter()
+        .filter_map(|end| ball(end).map(|hit| hit.t));
+    let t = side.into_iter().chain(ends).min_by(f64::total_cmp)?;
+    let at = add(origin, times(d, t));
+    Some(Hit {
+        t,
+        normal: unit(sub(at, capsule.nearest(at))),
+        round: true,
+        surface,
     })
 }
 

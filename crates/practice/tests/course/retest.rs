@@ -64,7 +64,8 @@ fn a_unit_s_re_test_lays_the_same_tasks_at_its_start_and_its_end() {
     assert_eq!(tasks(&end), tasks(&start), "the start's own tasks");
     let unstarted = retest::retest(3, true, &[], &pictures).expect("an end without a start");
     assert_eq!(tasks(&unstarted), tasks(&start), "the same set without one");
-    // Unit 8 holds a skill needing no pack since its organic arrows (S156l); no unit is 9.
+    // Unit 8 holds skills needing no pack since S156 (organic arrows, contours, form
+    // intersections): only a unit there is not has none.
     assert!(
         retest::retest(9, false, &[], &pictures).is_none(),
         "a unit without a skill"

@@ -213,7 +213,7 @@ pub(crate) fn seen(parts: &Parts, view: View, lines: &[(Line, Owner)]) -> Curved
 
 /// The runs of `state` over `[0, span]`, looked at in `steps` even steps and each change found by
 /// halving; a closed line's last run joins its first where alike (its end past `span`).
-fn runs<S: Copy + PartialEq>(
+pub(crate) fn runs<S: Copy + PartialEq>(
     steps: usize,
     (span, closed): (f64, bool),
     state: impl Fn(f64) -> S,

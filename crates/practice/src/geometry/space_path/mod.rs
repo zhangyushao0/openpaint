@@ -120,7 +120,7 @@ impl SpacePath {
         not(test),
         expect(
             dead_code,
-            reason = "S155: its tests measure the path by it; no kind needs it yet"
+            reason = "S155: arrows and contours sample the path; a point at a length is the tests'"
         )
     )]
     pub(crate) fn at(&self, s: f64) -> Vector {

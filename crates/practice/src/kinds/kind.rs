@@ -16,10 +16,12 @@ use crate::kinds::cast_shadows::scene::Throw;
 use crate::kinds::cold_warm::leans::Leans;
 use crate::kinds::colours::colour_match::Tone;
 use crate::kinds::combined_lines::combined::Combination;
+use crate::kinds::contours::task::Bend;
 use crate::kinds::contrast_thumbnails::rings::Emphasis;
 use crate::kinds::curved_rotations::curved::CurvedRotation;
 use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::gamut_masks::mask::Mask;
+use crate::kinds::intersections::meeting::Meeting;
 use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::light_on_form::scene::Lit;
 use crate::kinds::lines::line::LineTier;
@@ -129,6 +131,12 @@ pub enum Kind {
     /// A flat ribbon flowing back through space along a path, narrowing, hiding itself where it
     /// crosses, turning over (Drawabox's arrows, 有机箭头, S156l, `arrows/`).
     Arrow(Arrow),
+    /// A bending tube's contour lines at the ticks on its outline, so it turns as its picture
+    /// shows (截面线, S156k, `contours/`).
+    Contour(Bend),
+    /// Two forms passing into each other, the line where they meet drawn: its pierce points
+    /// first, then the line between them (穿插, S156k, `intersections/`).
+    Intersection(Meeting),
 }
 
 impl Kind {
@@ -139,7 +147,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its description's (1 to 33, 5
+    /// The kind and its variant as stored: each kind's code is its description's (1 to 35, 5
     /// free), its variant its description's (`Described::variant`). A code names one generator for
     /// good; a changed generator is a new code.
     #[must_use]
