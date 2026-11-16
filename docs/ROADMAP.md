@@ -46,15 +46,19 @@ Units 1 to 5 are built, laid out as a path since S122, timed by the Pomodoro sin
 
 Unit 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis (S112, done), structure rotation (S113, done); each joins unit 5 as a skill after the key shifts.
 
-Units 5 to 8, as the author accepted them on mocks (2026-11-15, every recommendation taken; the path mock's rows from "第 5 单元 · 结构翻转" down). Each builder's contract is its item in the design of that day, kept by the main session; one builder at a time, one proof each:
-- A. Done (S112a to S112c, 2026-11-15). Abstract analysis (S112, unit 5, the 2026-11-06 form): the pack's picture on a locked bottom layer of the sheet, placed in its frame and never an undo step; pens 强 red, 次 green, 弱 blue; Compare's veils from the picture's pixels (a reading brings pictures, in place of `Greys`), first the veils of all 61 compositions looked at, a veil hiding the focal point on more than about five dropped.
-- B. Done (S113, 2026-11-16). Structure rotation (S113, unit 5): unit 4's generated carved objects seen twice, one view the picture, the other drawn, its exact answer laid over the copy and judged by eye (the author, 2026-11-16: the app scores only direct measures); generated objects, not CC0 models (real models only if the blocks feel too abstract); 稳 a round part only (STATUS).
-- C. Re-tests (a unit's fixed set, its start's as the next lesson, its end's beside it, both shown side by side), ability curves in the book, an extra drill only in a lesson's summary.
-- D. Unit 6: a gamut mask (Gurney) as its own skill, checked by the app.
-- E. Unit 7: placement from a floor plan (V大's distribution method).
-- F. Unit 7: curved structure rotation, V大's three phases as its levels (after B).
-- G. Unit 8: contrast thumbnails (the analysis reversed, after A); the cold-warm copy as a long colour copy, lights warm and shadows cool on one picture.
-- H. Ghosted lines first in unit 1 (Drawabox) and a two-value Notan as value masses' variant at 熟练 and 稳.
+Units 5 to 8 and the foundation they complete, as the author accepted them on mocks: units 5 to 8 (2026-11-15), the ten foundation additions (2026-11-16, "按你推荐来吧"), who judges and progress from the learner's own judgements (2026-11-16). Each builder's contract is its item in the designs of those days, kept by the main session; one builder at a time, one proof each, in this order. For every builder: the app scores only direct measures, whatever reads free strokes lays its exact answer for the eye (D123), and no screen explains the app's workings (D118's guard).
+- Done: A abstract analysis (S112a to S112c), B structure rotation (S113), V drawn copies judged by eye (S145), the screens' words (S146).
+- C. Re-tests (a unit's fixed set at its start and its end, side by side) and progress from the learner's judgements: per skill a Whole-History Rating fit (Coulom 2008: a day's ability a Wiener walk, the exact MAP by Newton, refit each time) over the results read against their level's difficulty, the kept measures, and blind pairs of two earlier copies (比一比: at most once a lesson, skippable, sides random, dates after the answer, never today's copy); the book's curve with its band, no number, no sentence; an extra drill on a confident fall, only in a lesson's summary.
+- M. Drawing from life (写生), an optional project from unit 2: the photo taken first, drawn with it hidden, laid aligned at Compare, the eye judges; the first lesson's scribble becomes its first "before".
+- D. Unit 6: gamut masks (Gurney), the app judges.
+- I. Unit 6: light on form (the families the app's, inner tones as help; the pen 最暗) and cast shadows (answer laid); the light, rays from any point, the sphere's hit, the lit picture.
+- E. Unit 7: placement from a floor plan (V大's distribution method), answer laid.
+- F. Unit 7: curved structure rotation, V大's three phases as its levels, on I's sphere, answer laid.
+- J. Unit 7: colour under light and texture by its shadows, the eye with the app's marks as help.
+- G. Unit 8: contrast thumbnails (the analysis reversed); the cold-warm copy, lights warm and shadows cool on one picture.
+- L. Unit 8 first: organic arrows; funnels at ellipses' 稳, organic perspective at free boxes' 稳; answers laid.
+- K. Unit 8: contours on organic forms and form intersections, answers laid.
+- H. Ghosted lines first in unit 1 (Drawabox), a two-value Notan as value masses' variant at 熟练 and 稳.
 
 ## Reshape
 
@@ -70,7 +74,7 @@ The author, 2026-11-09, after an audit of the whole repository: the structure fo
   3. Checks that hold without a watcher: done (S129). s96-value-masses and s26-insert-image did not move in ten runs of the suite; plain `cargo test -p openpaint-runtime` passed alone (S126's 14 failures not reproduced: it ran beside other work).
   4. Tidy, after the engine: render's and the runtime's `#[path]` siblings into folders by ownership: done (S136); the old product's names out of practice's code and tests: done (S137).
   5. The read-only check of a practice feature's spread: done 2026-11-15, verdict "leave the structure, start content". The Pomodoro had something of its own at every layer (a record, a flow, screens, a clock, host calls) and its package deleted the full lesson; content has none of these. Counted along the code: a harder variant 5 to 9 files in practice alone, a reason 6 to 8 in practice and its words, a new kind about 22 with ten registrations of a line or two; the runtime's practice glue names no kind.
-  6. Then content: a reason beside the app's result (S138), harder levels from every source the plan drew on (S139 to S142), then units 5 to 8 by builders A to H (G9 above).
+  6. Then content: a reason beside the app's result (S138), harder levels from every source the plan drew on (S139 to S142), then units 5 to 8 and the foundation by the builders of G9 above.
 - Content after units 5 to 8: the author's practice records cleared for a fresh start (their wish, 2026-11-15, asked again first); studio features chosen with the author from Candidates, S115 Adjustment previews that finish among them (the author, 2026-11-07: while a slider moves the part the screen shows redrawn at the screen's resolution, the full one after release, waiting tiles from the view's middle outward).
 
 ## G8 Independent extensions after stabilisation
@@ -163,19 +167,12 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-09 Tooling: the scenario runner's "no control is named" failure does not say which step failed; `device-restore` exits 1 whenever the app wrote fjall files after the backup; device comparisons need the same view, so routines reopen the artwork before each screenshot; `device-reset` names the first backup of the day, not the newest.
 - 2026-10-09 Taper and shapes: a taper by path length per pixel (fast strokes taper in straight steps); a pressure and an opacity taper; spacing by the stroke's local diameter; stamps on the curve itself rather than its chords; stamps on paper; a dual brush.
 - 2026-10-09 Brush editor and sets: StreamLine on the strip's pen strokes; the paper's values, the first size and opacity, removing a curve point; renaming and adding sets, dragging a brush onto a set word, importing and exporting brushes (Procreate's); a set longer than the screen runs off the panel; the picker's height follows its set.
+- 2026-11-16 Abstract analysis on the tablet (1.26.0, a real composition): the picture sits right of the sheet's middle at about 30 % of its width, the left half empty (larger would ring more easily); the Strong ring redrawn over a view is a polygon where the live stroke was smooth.
+- 2026-11-16 Structure rotation: an object is generated on the frame loop (2 to 23 ms, at most 184 ms on the dev machine); the tablet's time is unread (STATUS).
 
 ## Done
 
-Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to S96, the G9 slices' full lines to S103 and the lines of S97 to S135, the recorder and S123: `docs/archive/ROADMAP-2026-11.md`.
-- S136 2026-11-15 1.24.0: render's and the runtime's `#[path]` siblings into 23 folders, each owner its `mod.rs` beside its parts (`protocol/`, `raster/`, `scene/`, `smudge/engine/`, `frame/`...); module paths unchanged; repo-check holds 68 siblings (114), render's root within 64; screenshots byte for byte.
-- S137 2026-11-15 1.24.0: the earlier product's names out of practice's code and tests: stage to unit (`Picked::Full { unit }`), session to sheet or lesson (`PracticeLog::sheet`, `Book::lessons`), drill to lesson; history said as history; bytes and words unchanged; screenshots byte for byte.
-- S138 2026-11-15 1.24.0: a reason beside the app's result — not right, the card's first line says what is off, which way and a little or clearly ("点偏左了一点"): estimates, points in space, colours, combinations, scales; verdicts and numbers unchanged. D121.
-- S139 2026-11-15 1.24.0: key shifts at levels 2 and 3 turn through all four leans (warm and cool every lesson, pure and grey every second; level 1 warm as before); a scale's reason says its cell's way alone ("第 3 格偏暗"); a combination's card opens on the area its reason names. D121.
-- S140 2026-11-15 1.24.0: colour crops by their areas at each level — combinations 3 or 4 at 入门, 5 at 熟练, 6 or 7 at 稳, key shifts 5 and 6 or 7, the nearest tier held where none; key shifts' 稳 tendency 120° or more from the crop's main hue (else the lean's farthest); 入门 turns all four leans. D105.
-- S141 2026-11-15 1.24.0: lines at 熟练 with three-bend meanders, at 稳 meanders and arcs or S's carrying three or four ripples; line groups at 熟练 with lines inside a closed shape, at 稳 two larger groups, a cluster of five or six and an enclosed one; key shifts' 入门 crops of 3 or 4 areas.
-- S142 2026-11-15 1.24.0: boxes at 熟练 a three-point and a long one (a side 2.5 to 4 times the shortest), at 稳 one drawn through, hidden edges checked, beside either; free boxes at 熟练 and 稳 one three-point page looking down or up, guided then bare; ellipses' 稳 turned frames.
-- S143 2026-11-15 1.24.0: a day in the practice book fits the screen — its card covers progress whole (no seal sticks out) and scrolls past its foot; sheets in rows as the path's tiles; a name wrapped under its picture, several lessons as their span (第 23 至 28 课 · 变调).
-- S144 2026-11-15 1.24.0: a practice sheet leaves for the home as an artwork does — the part on screen, its picture taken then and never kept, its marks over it, shrinks into Practice book with the studio's motion; no blank square. D98.
+Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to S96, the G9 slices' full lines to S103 and the lines of S97 to S144, the recorder and S123: `docs/archive/ROADMAP-2026-11.md`.
 - S112a 2026-11-15 1.25.0: abstract analysis's measure — veils where 明度, 纯度, 色相 or 虚实 contrast is weak and the squint, from a composition's pixels (`abstract_analysis/contrast.rs`); thresholds set on contact sheets of the 61 compositions (`harness contrasts`); no kind yet.
 - S112b 2026-11-15 1.25.0: a reading brings its pictures — `Reads::read` takes the original as read for the screen and returns pictures its marks lay (`Source::Read`); key shifts' greys made by their reading, `Greys` gone; screenshots byte for byte.
 - S112c 2026-11-15 1.25.0: abstract analysis (unit 5) — 强, 次, 弱 over the picture on a locked Picture layer, the card's four steps and chips before Compare, five views veiling where a contrast is weak, the eye's three. D122.
