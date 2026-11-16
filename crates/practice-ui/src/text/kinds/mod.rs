@@ -17,6 +17,7 @@ mod cast_shadows;
 mod colours;
 mod combinations;
 mod combined_lines;
+mod curved_rotations;
 mod divisions;
 mod ellipses;
 mod estimates;
@@ -94,7 +95,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 26] = [
+const KINDS: [&[KindWords]; 27] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -121,6 +122,7 @@ const KINDS: [&[KindWords]; 26] = [
     &placements::WORDS,
     &light_on_form::WORDS,
     &cast_shadows::WORDS,
+    &curved_rotations::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -202,6 +204,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         placements::PRACTICE_PLACEMENTS,
         light_on_form::PRACTICE_LIGHT_ON_FORM,
         cast_shadows::PRACTICE_CAST_SHADOWS,
+        curved_rotations::PRACTICE_CURVED_ROTATIONS,
     ]
 }
 

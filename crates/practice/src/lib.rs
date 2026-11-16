@@ -71,6 +71,12 @@ pub use kinds::colours::marks::ColourCompared;
 pub use kinds::combinations::marks::{AREAS_CLEAN, AreasCompared, AreasRead, NEAR_STRONG};
 pub use kinds::combinations::reading::AreasReading;
 pub use kinds::combined_lines::combined::{Combination, CombinedLines};
+pub use kinds::curved_rotations::answer::{CurvedAnswer, CurvedLine, Owner};
+pub use kinds::curved_rotations::curved::{CurvedRotation, CurvedTask, Handed};
+pub use kinds::curved_rotations::design::{Attached, Attachment, Design, Segment, SegmentKind};
+pub use kinds::curved_rotations::marks::CurvedCompared;
+pub use kinds::curved_rotations::sections::{Rim, Section};
+pub use kinds::curved_rotations::view::CurvedView;
 pub use kinds::divisions::division::{
     DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, MOST_MAIN, joined,
 };

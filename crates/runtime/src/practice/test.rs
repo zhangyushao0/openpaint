@@ -31,8 +31,8 @@ use crate::storage::Job;
 const SKILLS: &str = "a skill of line, combined, colour, shape, combination, scale, box, \
                       free-boxes, ellipse, estimates, points-in-space, solids, objects, division, \
                       value-masses, whole-copy, key-shift, abstract-analysis, \
-                      structure-rotation, gamut-mask, light-on-form, cast-shadows or placement, \
-                      at level 1, 2 or 3";
+                      structure-rotation, gamut-mask, light-on-form, cast-shadows, placement or \
+                      curved-rotation, at level 1, 2 or 3";
 
 /// The lesson of the skill keyed `key` at `level` (1 to 3), or at the learner's level without
 /// one.

@@ -31,8 +31,8 @@ pub const UNITS: [Unit; 8] = [
     unit(5, &[Skill(19), Skill(21), Skill(22)]),
     // Gamut masks, light on form, cast shadows.
     unit(6, &[Skill(24), Skill(26), Skill(27)]),
-    // Placement.
-    unit(7, &[Skill(25)]),
+    // Curved rotation, placement.
+    unit(7, &[Skill(28), Skill(25)]),
     unit(8, &[]),
 ];
 

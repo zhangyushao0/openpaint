@@ -19,6 +19,7 @@ pub(crate) mod cast_shadows;
 pub(crate) mod colours;
 pub(crate) mod combinations;
 pub(crate) mod combined_lines;
+pub(crate) mod curved_rotations;
 pub(crate) mod divisions;
 pub(crate) mod ellipses;
 pub(crate) mod estimates;
@@ -55,8 +56,8 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{DARKEST, DARKEST_PEN, Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 27, 5 free): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 26] = [
+/// Every kind, by its stored code (1 to 28, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 27] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -83,4 +84,5 @@ pub(crate) const KINDS: [&dyn Described; 26] = [
     &placements::Placements,
     &light_on_form::LightOnForm,
     &cast_shadows::CastShadows,
+    &curved_rotations::CurvedRotations,
 ];

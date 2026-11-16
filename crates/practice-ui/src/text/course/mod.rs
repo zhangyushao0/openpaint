@@ -85,10 +85,11 @@ texts! { PRACTICE_SKILLS;
     PLACEMENT_SKILL = "Placement", "摆放";
     LIGHT_SKILL = "Light on form", "明暗";
     SHADOWS_SKILL = "Cast shadows", "投影";
+    CURVED_SKILL = "Curved rotation", "曲面翻转";
 }
 
 /// Each skill's name by its key (`Skill::key`).
-const SKILLS: [(&str, Text); 23] = [
+const SKILLS: [(&str, Text); 24] = [
     ("line", LINES_SKILL),
     ("combined", COMBINED_SKILL),
     ("colour", COLOURS_SKILL),
@@ -112,6 +113,7 @@ const SKILLS: [(&str, Text); 23] = [
     ("placement", PLACEMENT_SKILL),
     ("light-on-form", LIGHT_SKILL),
     ("cast-shadows", SHADOWS_SKILL),
+    ("curved-rotation", CURVED_SKILL),
 ];
 
 /// A skill's name: "Lines", "Points in space".

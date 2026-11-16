@@ -14,6 +14,7 @@ use crate::geometry::perspective::{BoxView, Horizon};
 use crate::kinds::cast_shadows::scene::Throw;
 use crate::kinds::colours::colour_match::Tone;
 use crate::kinds::combined_lines::combined::Combination;
+use crate::kinds::curved_rotations::curved::CurvedRotation;
 use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::gamut_masks::mask::Mask;
 use crate::kinds::key_shifts::key_shift::Tendency;
@@ -105,6 +106,9 @@ pub enum Kind {
     /// Boxes on the ground, the shadows a sun or a lamp throws from them drawn (投影, S153,
     /// `cast_shadows/`).
     Shadows(Throw),
+    /// A curved object of hemispheres, cylinders and cones shown one way, drawn another, each
+    /// joint's section placed in its box (V大's 曲面翻转, S154f, `curved_rotations/`).
+    CurvedRotation(CurvedRotation),
 }
 
 impl Kind {
