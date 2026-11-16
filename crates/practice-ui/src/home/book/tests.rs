@@ -55,7 +55,6 @@ fn crowded() -> BookProjection {
         slot: 0,
         number,
         skill: Skill::of_key(key),
-        unit: None,
         first: false,
         retest: None,
     };

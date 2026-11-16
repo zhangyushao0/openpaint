@@ -4,8 +4,8 @@
 //! kind's verdict cuts one kept number in three, as that number (`Described::measured`) held within
 //! its result's band; and every blind pair of two of its copies on their days, halved where one was
 //! drawn the day the pair was asked (a re-test's own copy). The kept counts and shares whose answer
-//! is one of several (49 to 58) and the retired stroke measures (47, 48) are never read. Whether a
-//! skill was practised at all, judged or not, names it on the book's page before it has a curve.
+//! is one of several (49 to 58) are never read. Whether a skill was practised at all, judged or
+//! not, names it on the book's page before it has a curve.
 
 use crate::kinds::{Skill, SkillLevel};
 use crate::marks::compared::Outcome;

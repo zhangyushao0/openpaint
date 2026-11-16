@@ -1,6 +1,6 @@
 use openpaint_practice::{
-    Arrangement, BoxView, Carve, Estimate, Guide, Horizon, ItemRef, Lean, LineTier, Planned,
-    ScaleTone, Skill, SkillLevel, Solid, Tendency, Tier, Tone, Trick,
+    BoxView, Carve, Estimate, Guide, Horizon, ItemRef, Lean, LineTier, Planned, ScaleTone, Skill,
+    SkillLevel, Solid, Tendency, Tier, Tone, Trick,
 };
 
 use super::*;
@@ -17,9 +17,9 @@ fn planned(picked: Picked, exercises: Vec<Exercise>) -> Planned {
     }
 }
 
-/// A unit's full lesson part done: its warm-up, two exercises compared (one judged by the app,
+/// A skill's long lesson part done: two exercises compared (one judged by the app,
 /// one by the eye), a picture laid in a frame of its shape, time on it.
-fn full_lesson() -> Sheet {
+fn long_lesson() -> Sheet {
     let mut exercises: Vec<Exercise> = (0..16)
         .map(|seed| Exercise::generated(Kind::Line(LineTier::Arc), seed))
         .collect();
@@ -32,12 +32,7 @@ fn full_lesson() -> Sheet {
     };
     let tone = Tone::of_code(1).expect("a tone");
     exercises[14] = Exercise::generated(Kind::Colour(tone), 14);
-    let picked = Picked::Full {
-        unit: 1,
-        warm_up: 4,
-    };
-    let mut sheet = Sheet::begun(7, (Purpose::Day, NOON), planned(picked, exercises));
-    assert_eq!(sheet.lesson().map(Lesson::warm_up), Some(4));
+    let mut sheet = Sheet::begun(7, (Purpose::Day, NOON), planned(Picked::Chosen, exercises));
     sheet.canvas = 12;
     sheet.spans = vec![
         Span {
@@ -64,7 +59,7 @@ fn full_lesson() -> Sheet {
     let metrics = vec![(Metric::FinalDelta, 0.031_25), (Metric::Corrections, 2.0)];
     colour.compared(First::of(NOON + 200, 40, metrics));
     colour.result = Some((Outcome::Clean, Judge::App));
-    colour.first.as_mut().expect("compared").corrected_from = None;
+    colour.first.as_mut().expect("compared").corrected_from = 0;
     sheet
 }
 
@@ -75,7 +70,7 @@ fn round_trip(sheet: &Sheet) -> Result<Sheet, PortError> {
 
 #[test]
 fn a_sheet_round_trips_and_damage_is_refused() {
-    let sheet = full_lesson();
+    let sheet = long_lesson();
     assert_eq!(round_trip(&sheet).as_ref(), Ok(&sheet));
     let key = sheet_key(7);
     let bytes = encode_sheet(&sheet);
@@ -89,10 +84,9 @@ fn a_sheet_round_trips_and_damage_is_refused() {
         "a byte after its last exercise"
     );
     assert!(decode_sheet(b"p", &bytes).is_err(), "a key without its id");
-    // 1.21.6's records began with a stage (the earlier product's unit), not the tag.
-    let mut older = bytes.clone();
-    older[0] = 1;
-    assert!(decode_sheet(&key, &older).is_err(), "a record of 1.21.6");
+    let mut untagged = bytes.clone();
+    untagged[0] = 1;
+    assert!(decode_sheet(&key, &untagged).is_err(), "another tag");
     let mut purpose = bytes.clone();
     purpose[1 + 8 + 8] = 4;
     assert!(decode_sheet(&key, &purpose).is_err(), "a purpose unknown");
@@ -112,25 +106,25 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     none.extend_from_slice(&0u32.to_le_bytes());
     assert!(decode_sheet(&key, &none).is_err(), "no lesson");
     let picked = lessons + 4 + 8 + 8;
-    assert_eq!(
-        bytes[picked..picked + 3],
-        [3, 1, 4],
-        "unit 1's full lesson, four warming up"
-    );
-    let mut unpicked = bytes.clone();
-    unpicked[picked] = 1;
-    assert!(
-        decode_sheet(&key, &unpicked).is_err(),
-        "picked of a way not written yet"
-    );
+    assert_eq!(bytes[picked], 2, "a skill's lesson");
+    for way in [1, 3, 6] {
+        let mut unpicked = bytes.clone();
+        unpicked[picked] = way;
+        assert!(
+            decode_sheet(&key, &unpicked).is_err(),
+            "picked in a way this version does not write: {way}"
+        );
+    }
     // The first exercise: its kind after the lesson's exercise in hand and count.
-    let kind = picked + 3 + 2 + 4;
-    let mut unknown = bytes.clone();
-    unknown[kind] = 24;
-    assert!(
-        decode_sheet(&key, &unknown).is_err(),
-        "a kind no version wrote yet"
-    );
+    let kind = picked + 1 + 2 + 4;
+    for code in [5, 24] {
+        let mut unknown = bytes.clone();
+        unknown[kind] = code;
+        assert!(
+            decode_sheet(&key, &unknown).is_err(),
+            "a kind this version does not write: {code}"
+        );
+    }
 }
 
 #[test]
@@ -175,10 +169,7 @@ fn a_re_test_round_trips_with_its_unit_and_whether_it_is_the_end() {
 #[test]
 fn a_first_compare_s_metric_and_a_result_of_codes_unknown_are_refused() {
     let colour = Exercise::generated(Kind::Colour(Tone::of_code(1).expect("a tone")), 4);
-    let picked = Picked::Full {
-        unit: 2,
-        warm_up: 0,
-    };
+    let picked = Picked::Chosen;
     let mut sheet = Sheet::begun(3, (Purpose::Day, NOON), planned(picked, vec![colour]));
     let laid = sheet.laid_mut(0).expect("a colour");
     laid.compared(First::of(NOON, 9, vec![(Metric::FinalDelta, 0.5)]));
@@ -193,7 +184,8 @@ fn a_first_compare_s_metric_and_a_result_of_codes_unknown_are_refused() {
     assert_eq!(bytes[code], Metric::FinalDelta.code());
     let key = sheet_key(3);
     for (at, byte, what) in [
-        (code, 21, "a retired metric"),
+        (code, 21, "a metric unknown"),
+        (code, 47, "another metric unknown"),
         (outcome, 4, "an outcome unknown"),
         (judge, 3, "a judge unknown"),
     ] {
@@ -220,7 +212,6 @@ fn many_kinds() -> Vec<Exercise> {
         Kind::Box(BoxView::ThreePoint),
         Kind::FreeBoxes(Horizon::Low),
         Kind::Ellipse(Guide::Plane),
-        Kind::Areas(Arrangement::Blocks),
         Kind::Scale(ScaleTone::Hue, 9),
     ]
     .into_iter()
@@ -255,10 +246,7 @@ fn many_kinds() -> Vec<Exercise> {
 fn every_kind_s_exercises_round_trip_with_their_pictures_and_numbers() {
     let exercises = many_kinds();
     let count = exercises.len();
-    let picked = Picked::Full {
-        unit: 4,
-        warm_up: 0,
-    };
+    let picked = Picked::Chosen;
     let mut sheet = Sheet::begun(15, (Purpose::Day, NOON), planned(picked, exercises));
     for index in 0..count {
         let laid = sheet.laid_mut(index).expect("an exercise");
@@ -303,7 +291,7 @@ fn a_skill_s_lesson_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are(
     let mut copy = Sheet::copy(10, (5, NOON), picture);
     copy.laid_mut(0).expect("the copy").frame = [1200, 900];
     let read = round_trip(&copy).expect("read");
-    assert!(read.is_copy() && read.lesson().and_then(Lesson::unit).is_none());
+    assert!(read.is_copy() && read.lesson().and_then(Lesson::skill).is_none());
     assert_eq!(read, copy);
     // A drawing from life (S151): a copy's purpose, its exercise of kind 23, no new byte.
     let photo = ItemRef {
@@ -316,4 +304,23 @@ fn a_skill_s_lesson_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are(
     let read = round_trip(&life).expect("read");
     assert!(read.drawn_from_life() && !copy.drawn_from_life());
     assert_eq!(read, life);
+}
+
+#[test]
+fn the_project_a_record_names_is_read_alone_whatever_follows() {
+    let sheet = long_lesson();
+    let mut bytes = encode_sheet(&sheet);
+    assert_eq!(named_project(&bytes), Some(12));
+    // A lesson picked in a way this version does not read: refused, its project still named.
+    let picked = 1 + 8 + 8 + 1 + 4 + 2 * 16 + 4 + 8 + 8;
+    bytes[picked] = 3;
+    assert!(decode_sheet(&sheet_key(7), &bytes).is_err());
+    assert_eq!(named_project(&bytes), Some(12));
+    assert_eq!(named_project(&bytes[..9]), Some(12), "the head alone");
+    assert_eq!(named_project(&bytes[..8]), None, "too short");
+    let mut untagged = bytes.clone();
+    untagged[0] = 1;
+    assert_eq!(named_project(&untagged), None, "another tag");
+    let unplaced = encode_sheet(&Sheet { canvas: 0, ..sheet });
+    assert_eq!(named_project(&unplaced), None, "no project");
 }

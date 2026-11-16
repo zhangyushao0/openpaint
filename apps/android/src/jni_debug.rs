@@ -3,14 +3,15 @@
 //! (`device-input state`, the device smoke), turns the screen's
 //! precision check on and off (`gradient on|off`), loses the GPU device on purpose
 //! (`lose-device`), runs the app's scenario benchmarks (`bench`), opens a pushed
-//! OpenPaint file without the picker (`open-file`) and starts and removes a test practice
-//! lesson beside the author's (`practice-test start|end`, D102); and switches the recorder of
-//! frames in real use on as the debug build's process starts (`recordFrames`).
-//! Only Kotlin's debug source set declares
-//! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
-//! is built with the release profile for every APK, so a release APK carries these symbols with
-//! nothing that can call them.
+//! OpenPaint file without the picker (`open-file`), starts and removes a test practice
+//! lesson beside the author's (`practice-test start|end`, D102) and clears practice from a
+//! library no runtime holds (`practice-clear`, S152); and switches the recorder of frames in real
+//! use on as the debug build's process starts (`recordFrames`). Only Kotlin's debug source set
+//! declares them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the
+//! library is built with the release profile for every APK, so a release APK carries these
+//! symbols with nothing that can call them.
 
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
 use jni::EnvUnowned;
@@ -18,9 +19,13 @@ use jni::errors::LogErrorAndDefault;
 use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
 
+use openpaint_app::ProjectStore;
+use openpaint_practice_store::{Packs, clear};
 use openpaint_runtime::{
-    PracticeTest, Runtime, RuntimeError, SCENARIOS, ScreenProjection, Start, skill_start,
+    DisplayCache, PracticeTest, Runtime, RuntimeError, SCENARIOS, ScreenProjection, Start,
+    skill_start,
 };
+use openpaint_store::Library;
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
@@ -329,4 +334,59 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_gradient<'local>(
         Ok(())
     })
     .resolve::<LogErrorAndDefault>();
+}
+
+/// For `cargo device-practice-clear` (S152, D112): every practice record and practice sheet
+/// removed from the library in one write by the store's own code
+/// (`openpaint_practice_store::clear`), and each removed sheet's display cache, while no runtime
+/// holds the library (the chore stops the app first; the instrumentation's process has no
+/// activity). `files_dir` and `cache_dir` are the app's (`Context`'s). Answers "cleared" and
+/// what went and what stayed by count, separated by tabs, or why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_practiceClear<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    files_dir: JString<'local>,
+    cache_dir: JString<'local>,
+) -> JObject<'local> {
+    crate::jni_entry::init_logging();
+    env.with_env(|env| -> Result<JObject<'local>, HostError> {
+        let files = PathBuf::from(files_dir.try_to_string(env)?);
+        let cache = PathBuf::from(cache_dir.try_to_string(env)?);
+        let line = match runtime(HANDLE.load(Ordering::SeqCst)) {
+            Some(_) => "not cleared: the app is running".to_owned(),
+            None => practice_clear(&files, &cache),
+        };
+        log::info!("practice-clear: {line}");
+        Ok(env.new_string(line)?.into())
+    })
+    .resolve::<LogErrorAndDefault>()
+}
+
+/// The clear on the library in `files`, the display caches in `cache`: its answer.
+fn practice_clear(files: &Path, cache: &Path) -> String {
+    let mut library = Library::at(files.join("library"));
+    let cleared = match clear(&mut library) {
+        Ok(cleared) => cleared,
+        Err(error) => return format!("not cleared: {error}"),
+    };
+    let display = DisplayCache::at(cache.join("canvas"));
+    let caches = (cleared.projects.iter())
+        .filter(|project| display.path(**project).exists() && display.delete(**project).is_ok())
+        .count();
+    let artworks = library.list().map_or(0, |listed| listed.len());
+    let packs = Packs::at(files.join("packs"))
+        .list()
+        .map_or(0, |kept| kept.len());
+    [
+        "cleared".to_owned(),
+        format!("{} sheets' records", cleared.sheets),
+        format!("{} lessons' givens", cleared.givens),
+        format!("{} Pomodoro blocks", cleared.blocks),
+        format!("{} blind pairs", cleared.pairs),
+        format!("{} practice sheets", cleared.projects.len()),
+        format!("{caches} display caches"),
+        format!("kept {artworks} artworks and {packs} packs"),
+    ]
+    .join("\t")
 }

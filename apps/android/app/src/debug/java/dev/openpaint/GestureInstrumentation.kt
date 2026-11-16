@@ -32,7 +32,9 @@ import android.view.MotionEvent
  * <scenario>` answers a scenario benchmark ([DebugControls.bench]); `-e open-file <path>` opens
  * a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile]);
  * `-e practice-test start|start:<stage>|start:copy|end:<name>` starts or removes a test practice
- * session or colour copy ([DebugControls.practiceTest]). A question is answered with `gesture=answered`.
+ * session or colour copy ([DebugControls.practiceTest]); `-e practice-clear 1`, the app stopped first,
+ * clears practice from its library ([DebugControls.practiceClear]). A question is answered with
+ * `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -106,7 +108,8 @@ class GestureInstrumentation : Instrumentation() {
     /**
      * A question instead of a gesture, its answer put in [result]: `-e find <name>` (where
      * the control lies), `-e bench <scenario>` (a scenario benchmark), `-e practice-test`
-     * (a test session started or removed), `-e open-file` or `-e state 1` (what the app shows).
+     * (a test session started or removed), `-e practice-clear` (practice cleared), `-e open-file`
+     * or `-e state 1` (what the app shows).
      * False when there is none.
      */
     private fun answer(result: Bundle): Boolean {
@@ -132,6 +135,14 @@ class GestureInstrumentation : Instrumentation() {
             runOnMainSync { answer = DebugControls.practiceTest(command) }
             framed()
             result.putString("practice-test", answer ?: error("no answer for the test session"))
+            return true
+        }
+        arguments.getString("practice-clear")?.let {
+            // The app stopped first: this process has no activity, so no runtime holds the library.
+            val (files, cache) = targetContext.filesDir.absolutePath to targetContext.cacheDir.absolutePath
+            var answer: String? = null
+            runOnMainSync { answer = DebugControls.practiceClear(files, cache) }
+            result.putString("practice-clear", answer ?: error("no answer for the clear"))
             return true
         }
         arguments.getString("open-file")?.let { path ->

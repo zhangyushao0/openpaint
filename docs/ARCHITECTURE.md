@@ -26,7 +26,7 @@ This page is the design contract: how modules are cut, which way dependencies po
 | `openpaint-app` | application flow: intents, session (a mode owns one, D119), history, gallery, toolbox, transfers, capability ports (traits) | core | GPU, UI, file system |
 | `openpaint-practice-app` | practice's flow (D112): the sheet owning its session (D119), its pens, Compare, a result, a lesson's end, readings, views; the log, the path, the Pomodoro, the book; the practice options | core, practice, app | GPU, UI, file system |
 | `openpaint-store` | the local library (storage format 1), OpenPaint files, kept versions, image files, the display cache, record spaces of opaque bytes their owners keep (D112); implements the app ports | core, app | GPU, UI, the word practice |
-| `openpaint-practice-store` | practice's sheet records, lessons' givens, the Pomodoro's records and the blind pairs in the library's record spaces `p`, `g`, `t` and `b`, read only in their newest shape; its packs beside the library (D112) | core, practice, practice-app, app, store | GPU, UI |
+| `openpaint-practice-store` | practice's sheet records, lessons' givens, the Pomodoro's records and the blind pairs in the library's record spaces `p`, `g`, `t` and `b`, read only in the shape this version writes, cleared by key (`clear`); its packs beside the library (D112) | core, practice, practice-app, app, store | GPU, UI |
 | `openpaint-render` | derived rendering: wgpu, the raster core, the canvas, view tiers, exports, picks, pictures | core | file system; `egui` only under `src/adapter/` |
 | `openpaint-ui` | shared interface: egui panels and components, input ownership, canvas arbitration, the hooks a mode fills (`hooks.rs`, D112); reads app projections, emits intents | core, app, render | direct wgpu, file system, the word practice |
 | `openpaint-practice-ui` | practice's screens behind the ui's hooks (D112): a sheet's marks, bar, tools, card, result, end and How; the home's column, the path, options and book; their words | core, practice, practice-app, app, ui | direct wgpu, file system |
@@ -81,10 +81,11 @@ No public mutable setters. Layers come only from `from_storage` (the single full
 
 ```rust
 pub enum Kind { Line(LineTier), Colour(Tone), Combined(Combination), Shape(Tier),
-                Areas(Arrangement), Scale(ScaleTone, u8), Study, Box(BoxView), FreeBoxes(Horizon),
+                Scale(ScaleTone, u8), Study, Box(BoxView), FreeBoxes(Horizon),
                 Ellipse(Guide), Flat(Estimate), Space(Trick), Solid(Solid),
                 Object(Carve), Division(Tier), WholeCopy(Tier), ValueMasses(Tier), Crop(Tier),
-                KeyShift(Tendency), Free } // (1..=20, variant)
+                KeyShift(Tendency), Free, Analysis(Tier), Rotation(Rotation), Observation }
+                // (code 1..=23 but 5, variant)
 pub struct Skill(u8);  pub enum SkillLevel { First, Second, Third }  // a kind's folder (D115)
 pub struct Exercise { kind: Kind, seed: u64, picture: Option<ItemRef> }  // original() -> Arc<dyn Original>
 trait Described { code, facts, variant, topic(Kind), generate(&Exercise), how(Kind, cells), lesson, window, glyph }
@@ -98,11 +99,11 @@ impl ValueMasses { fn of(size, rgba); fn edges(); fn read((size, rgba), place) -
 impl SpaceTask { fn at(face [u, v]) -> Point; fn on_face(Point) -> [u, v]; fn construction() }
 pub struct Frame { origin: Point, size: Point }          // frame units isotropic, one to its width
 pub struct Sheet { id, canvas, started, purpose: Purpose /* Day | Copy | Test */, spans: Vec<Span>, lessons: Vec<Lesson> }  // Sheet::begun(id, .., Planned)
-pub struct Lesson { started, finished, picked: Picked /* Chosen | Full { unit, warm_up } | First | Retest { unit, end } */, at: u16, exercises: Vec<Laid> }
+pub struct Lesson { started, finished, picked: Picked /* Chosen | First | Retest { unit, end } */, at: u16, exercises: Vec<Laid> }
 pub struct Laid { exercise: Exercise, level, slot, frame: [u16; 2], first: Option<First>, compares, result: Option<(Outcome, Judge)>, seconds }
 pub fn practised(spans: &mut Vec<Span>, now: u64, hidden: bool) -> bool;  // PAUSE 300 s
 impl Book { fn of(records, offset) }  impl Tally { fn of(records); fn seals() -> Vec<Seal> }
-pub struct First { at, corrected_from: Option<u64>, metrics }  pub struct Givens { slots: Vec<(u16, Given)> }  // Span { from, to }: UTC seconds
+pub struct First { at, corrected_from: u64, metrics }  pub struct Givens { slots: Vec<(u16, Given)> }  // Span { from, to }: UTC seconds
 impl Learner { fn of(sheets); fn with(&Lesson); fn dots(Skill); fn level(Skill); fn open(unit, &Pictures) }  // derived
 impl Progress { fn of(sheets, &[BlindPair], offset) }  impl SkillFit { fn curve(); fn change() }  // WHR, derived (D124)
 pub fn ask(&[Skill], (sheets, pairs), (today, offset), &Within) -> Option<PairAsked>;  // the least sure pair; block_pairs(since, ..) a block's end's (S148)
@@ -118,7 +119,7 @@ pub fn edges(lines: &[&[Point]]) -> Vec<Edge>;  pub fn corrected(earlier, correc
 // Boxes, free boxes, ellipses, solids, objects, rotations: no check, the answer laid for the eye (D123)
 ```
 
-Pure, no dependency (D98, D99, D103, D105, D107, D108, D111). Only `lib.rs` lies at the root, re-exporting what other crates use; the rest lies in folders, each `mod.rs` saying what it holds: the shared ones, which never reach into a kind, and `kinds/` with a folder a kind holding its generator, answer, check, reading, marks, How (`demo.rs`) and tile, and in its `mod.rs` its description in two halves (D111): `Described` and the original it generates, its own type behind `Original`. One line in `KINDS` registers it; only a folder matches on `Kind`'s variants; a kind builds on another only where the course does (objects on solids, combined lines on lines, generated combinations on combinations). Metric codes, outcome codes and kind codes are stored and never reused (`records/metric.rs`, `kinds/kind.rs`).
+Pure, no dependency (D98, D99, D103, D105, D107, D108, D111). Only `lib.rs` lies at the root, re-exporting what other crates use; the rest lies in folders, each `mod.rs` saying what it holds: the shared ones, which never reach into a kind, and `kinds/` with a folder a kind holding its generator, answer, check, reading, marks, How (`demo.rs`) and tile, and in its `mod.rs` its description in two halves (D111): `Described` and the original it generates, its own type behind `Original`. One line in `KINDS` registers it; only a folder matches on `Kind`'s variants; a kind builds on another only where the course does (objects on solids, combined lines on lines). Metric codes, outcome codes and kind codes are stored and never reused; the reader reads only what this version writes (D112; `records/metric.rs`, `kinds/kind.rs`).
 
 ### app
 
@@ -193,12 +194,12 @@ Finger contacts go to `app::Gestures`, which decides in points what they mean (n
 - The library (D77): `Library::at(dir)` implements `ProjectStore` on fjall, keyspaces `library` and `projects`; Android keeps it in `getFilesDir()/library`, the harness in `artifacts/`. Every call that writes is one atomic batch; every save writes a new random save id into the head. No upgrade path (S116). The module map: `store/src/lib.rs`.
 - Record spaces (`spaces.rs`, D112): a mode's records in `library` under keys of its byte (`app::Space`; the store's own initials `a c e f l n v` refused), bytes it never reads: `records` (under a prefix), `put_records`, `create_owned` (a project, the open one, and its records, one batch), `remove_owned`, `artwork` (read only); `list` lists every project.
 - Files and versions (D62, D63): OpenPaint files are read over the same `read::artwork` as the library (a `Source` both implement); a kept version is a file's bytes with a dated entry.
-- Practice (`openpaint-practice-store`, D98, D99, D112): a sheet's record under `['p'][sheet u64]` (tag 0x53, `records.rs`) and a lesson's givens under `['g'][canvas u64][lesson u16]` (`givens/`), read only in this shape, every field required, an unknown tag, kind, metric or outcome refused; `stored.rs`: `sheets` (one unreadable left out, logged), `start` (project, sheet and givens in one batch), `append` (sheet and its new givens, one batch), `save`, `remove` (record, givens and project at once), `trim` (End's cut sheet with a removed lesson's givens, one write, `ProjectStore::rewrite_records`); `blocks.rs` the Pomodoro's records in space `t` (D117); `pairs.rs` the blind pairs in space `b` (D124). A project (a colour copy, a drawing from life) is a sheet of purpose Copy, its name its project's title (D105); the runtime's `gallery_list` leaves the sheets out and gives their titles.
+- Practice (`openpaint-practice-store`, D98, D99, D112): a sheet's record under `['p'][sheet u64]` (tag 0x53, `records.rs`) and a lesson's givens under `['g'][canvas u64][lesson u16]` (`givens/`), read only in this shape, every field required, an unknown tag, kind, metric or outcome refused; `stored.rs`: `sheets` (one unreadable left out, logged), `start` (project, sheet and givens in one batch), `append` (sheet and its new givens, one batch), `save`, `remove` (record, givens and project at once), `trim` (End's cut sheet with a removed lesson's givens, one write, `ProjectStore::rewrite_records`); `blocks.rs` the Pomodoro's records in space `t` (D117); `pairs.rs` the blind pairs in space `b` (D124); `clear.rs` the practice-only clear (S152): every record of `p`, `g`, `b`, the blocks of `t` and every project a sheet's head (`named_project`) or a givens' key names, by key, never decoding, one `remove_owned`. A project (a colour copy, a drawing from life) is a sheet of purpose Copy, its name its project's title (D105); the runtime's `gallery_list` leaves the sheets out and gives their titles.
 - Packs (D101, D103, in practice-store): `pack.rs` the file (`PACK_FORMAT` 4; a pack of another format is `OtherFormat`, refused on import and left out of the list; a non-pack file `Corrupt { what: "practice pack" }`), `packs.rs` (`Packs::at(dir)`: `<dir>/<id>.pack` beside the library, import checked whole and renamed into place, never the personal pack).
 - The display cache (`display_cache.rs`, D96): each artwork's shown canvas as one LZ4 block with a CRC-32 outside the library, keyed by the save id; derived, never read by files, versions or exports.
 - Images (D53, D55): decoding with colour conversion into sRGB; `ImageEncoder` takes bands of rows (PNG streamed, JPEG at the end) and embeds the sRGB profile.
 - Editor state (the toolbox) is stored apart from the artworks; when it cannot be decoded it falls back to defaults and never blocks opening an artwork. Autosave runs on the storage worker when a stroke finishes and when the canvas is left; failure shows a notice with Retry.
-- Tests: frozen samples, `store/tests/samples/format-1.bin` (every record kind) and practice-store's `areas-records.bin` (sheets and givens through the record spaces); the store's unit tests fail its n-th write through a test-only hook (leaving, a save cut at every byte, a project created or removed with its record).
+- Tests: a frozen sample, `store/tests/samples/format-1.bin` (every record kind), practice's records through the record spaces beside it (`practice-store/tests/clear.rs`); the store's unit tests fail its n-th write through a test-only hook (leaving, a save cut at every byte, a project created or removed with its record).
 
 ## 6. Brushes and rendering
 

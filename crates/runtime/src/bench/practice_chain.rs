@@ -1,4 +1,4 @@
-//! `bench practice` across lessons (S124: a lesson is one skill's, the full lesson gone): where
+//! `bench practice` across lessons (S124: a lesson is one skill's): where
 //! no exercise of the kinds a phase wants lies ahead on the sheet but a later skill of the lesson
 //! in hand's unit teaches one, the lesson in hand is taken to its end by Next and that skill's
 //! lesson laid on the same sheet in place, as a Pomodoro chains lessons (`practice::one_more`).

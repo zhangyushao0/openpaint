@@ -8,7 +8,6 @@ use super::KINDS;
 use super::facts::Facts;
 use super::original::Original;
 use super::skill::SkillLevel;
-use crate::colour_areas::areas_generated::Arrangement;
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::Guide;
 use crate::geometry::perspective::{BoxView, Horizon};
@@ -40,9 +39,6 @@ pub enum Kind {
     Combined(Combination),
     /// One object's picture of a tier, copied by its outline as a line drawing (`shapes/`).
     Shape(Tier),
-    /// A generated colour combination (S82, 1.5.0 to 1.18.1): kept in its records, its picture
-    /// made again from its seed; never planned since S101 (`generated_combinations/`).
-    Areas(Arrangement),
     /// A colour combination (V大's 临摹色彩组合, S101): a crop of a real picture of a tier (its
     /// areas' count, `crop::tier_of`), its few colour areas copied by eye (`combinations/`).
     Crop(Tier),
@@ -103,7 +99,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 23), its
+    /// The kind and its variant as stored: each kind's code is its description's (1 to 23), its
     /// variant its description's (`Described::variant`). A code names one generator for good; a
     /// changed generator is a new code.
     #[must_use]
@@ -161,10 +157,10 @@ pub(crate) struct Turn<'a> {
 /// A new kind is a folder holding a type for this (a unit struct) and a type for its original,
 /// its variant in `Kind`, and its line in `KINDS` (with its words and its place in a unit).
 pub(crate) trait Described: Sync {
-    /// Its stored code, its place in `KINDS` from 1.
+    /// Its stored code, never another kind's.
     fn code(&self) -> u8;
     /// Its topics' facts: most kinds one, an estimate's three, the tricks' five, the solids'
-    /// three; none for a kind kept only for old records, which goes by another's.
+    /// three.
     fn facts(&self) -> &'static [Facts];
     /// Its variant's stored code; none for another kind.
     fn variant(&self, kind: Kind) -> Option<u8>;

@@ -3,11 +3,10 @@
 //! made a weak contrast strong in the marking red. The card: a reason when not right (S138), the
 //! slider, a chip for each area to choose one (the reason's area chosen as the card opens, S139),
 //! the chosen area's colours on the wheel and in the colour table, or the point the eyedropper
-//! compared; a line where the area is not painted. A generated one's (a record of 1.18.1 and
-//! before) shows its picture drawn again in its original's frame.
+//! compared; a line where the area is not painted.
 
 use crate::colour_areas::areas_read::AreasCopy;
-use crate::kinds::colours::judgement::DELTA_SPAN;
+use crate::kinds::colours::bands::DELTA_SPAN;
 use crate::kinds::colours::marks::colour_reason;
 use crate::marks::card::{CardItem, Say, WheelSize};
 use crate::marks::compared::{Compared, Outcome, Seen, Verdict};
@@ -20,16 +19,6 @@ use crate::maths::path::Point;
 pub const AREAS_CLEAN: f64 = 0.05;
 /// A near combination made at most this many weak contrasts strong.
 pub const NEAR_STRONG: usize = 1;
-
-/// A generated combination's picture, drawn again, in its original's frame.
-pub(crate) fn generated_givens() -> Vec<SheetMark> {
-    let picture = Figure::Picture {
-        source: Source::Painted,
-        place: Place::Frame,
-        shown: 1.0,
-    };
-    vec![SheetMark::free(In::Original, picture)]
-}
 
 /// A colour combination's copy as read at the last Compare, and the edges where it made a weak
 /// contrast strong (frame units).

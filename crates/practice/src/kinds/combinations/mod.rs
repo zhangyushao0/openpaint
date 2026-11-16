@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use crate::course::picker::Picker;
 use crate::demos::demo::Demo;
-use crate::kinds::colours::judgement::DELTA_SPAN;
+use crate::kinds::colours::bands::DELTA_SPAN;
 use crate::kinds::{
     Described, Facts, Kind, Needs, Original, Picking, SkillLevel, ToolSet, Turn, held,
 };

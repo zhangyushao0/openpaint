@@ -1,6 +1,6 @@
 //! The path's contract (S122): the units' skills and their keys, the dot rule, what a redo is and
 //! when it is answered, what opens a unit, the first lesson; the schedule's order, the First-prefix
-//! rule and a unit's full lesson in `order.rs`; how a lesson's pictures turn in `pictures.rs`.
+//! rule in `order.rs`; how a lesson's pictures turn in `pictures.rs`.
 
 mod order;
 mod pictures;
@@ -183,10 +183,7 @@ fn the_first_lesson_is_a_scribble_a_straight_line_and_an_arc() {
     assert!(Learner::default().fresh());
     let sheet = Sheet::begun(1, (Purpose::Day, NOON), first);
     let lesson = &sheet.lessons[0];
-    assert_eq!(
-        (lesson.skill(), lesson.unit(), lesson.warm_up()),
-        (None, None, 0)
-    );
+    assert_eq!((lesson.skill(), lesson.retest()), (None, None));
     let learner = Learner::of([&sheet]);
     assert!(!learner.fresh());
     assert_eq!(

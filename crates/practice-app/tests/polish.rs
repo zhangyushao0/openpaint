@@ -14,7 +14,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Arrangement, Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, Sheet,
+    Exercise, ItemRef, Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, ScaleTone, Sheet,
     Tier,
 };
 use openpaint_practice_app::{PracticeIntent, PracticeLog, PracticePens, SheetSession};
@@ -135,8 +135,8 @@ fn undo_and_redo_reach_only_the_exercise_shown() {
 #[test]
 fn a_reading_that_arrives_after_its_exercise_was_left_is_dropped() {
     let exercises = vec![
-        Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
-        Exercise::generated(Kind::Areas(Arrangement::Strata), 0x5EED_0084),
+        Exercise::generated(Kind::Scale(ScaleTone::Grey, 5), 0x5EED_0082),
+        Exercise::generated(Kind::Scale(ScaleTone::Hue, 5), 0x5EED_0084),
     ];
     let record = support::laid(exercises, 0);
     let size = openpaint_practice::Layout::of_sheet(&record).size;

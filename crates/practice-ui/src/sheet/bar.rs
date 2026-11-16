@@ -1,6 +1,6 @@
 //! A practice sheet's chrome (G9, S122): the practice bar in the middle of the top band (while a
 //! Pomodoro's block runs its ring and minutes first, `timer.rs`; the lesson in hand and its place,
-//! "Lines 3/5", "First lesson 2/3", "Warm-up 1/3"; How, Compare carrying the ink pill while the
+//! "Lines 3/5", "First lesson 2/3"; How, Compare carrying the ink pill while the
 //! comparison shows, Next or Finish, End at the block's time; a scribble Next alone; once the
 //! lesson is done "Lines · lesson done", once the block is "Pomodoro done"; on a long colour copy
 //! its name, How and Compare, never an end nor a ring), the exercise's own tools beside its frame

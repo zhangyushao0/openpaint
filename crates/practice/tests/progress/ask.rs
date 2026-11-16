@@ -105,10 +105,9 @@ fn a_pair_is_two_earlier_copies_of_the_skill_weeks_apart_the_least_sure() {
     assert!((chosen - best).abs() < 1e-12, "{chosen} of {best}");
 }
 
-/// The author's shape (S150): copies compared and never judged, the older in a unit's full lesson
-/// of before S124, still make a pair; no fit is needed to choose it.
+/// Copies compared and never judged still make a pair (S150); no fit is needed to choose it.
 #[test]
-fn copies_never_judged_and_a_full_lesson_s_copies_still_pair() {
+fn copies_never_judged_still_pair() {
     let mut sheets = records();
     for laid in (sheets.iter_mut()).flat_map(|sheet| {
         sheet
@@ -118,10 +117,6 @@ fn copies_never_judged_and_a_full_lesson_s_copies_still_pair() {
     }) {
         laid.result = None;
     }
-    sheets[0].lessons[0].picked = openpaint_practice::Picked::Full {
-        unit: 1,
-        warm_up: 0,
-    };
     let pictures = Pictures::default();
     let asked = ask(
         &[lines()],

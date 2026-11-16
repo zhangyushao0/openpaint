@@ -175,8 +175,8 @@ impl ProjectStore for Watched {
     fn remove_owned(
         &mut self,
         keys: &[(Space, Vec<u8>)],
-        project: Option<ProjectId>,
+        projects: &[ProjectId],
     ) -> Result<(), PortError> {
-        self.on(|library| library.remove_owned(keys, project))
+        self.on(|library| library.remove_owned(keys, projects))
     }
 }

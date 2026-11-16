@@ -19,7 +19,6 @@ texts! { PRACTICE_COURSE;
     CONTINUE = "Continue", "继续";
     REVIEW = "Review", "复习";
     ALL_UNITS = "All units", "全部单元";
-    FULL_LESSON = "Full lesson", "完整一课";
     NEXT_LESSON = "Next lesson", "下一课";
     UNDER_WAY = "Lesson under way", "没上完的一课";
     ON_THE_SIDE = "Review on the side", "顺手复习";
@@ -223,18 +222,18 @@ pub(crate) fn retest_line(language: Language, retest: &Retest) -> String {
     )
 }
 
-/// The lesson in hand as the bar names it: "Lines 3/5", "First lesson 2/3", "Warm-up 1/3".
+/// The lesson in hand as the bar names it: "Lines 3/5", "First lesson 2/3".
 pub(crate) fn in_hand(language: Language, name: Text, (place, of): (usize, usize)) -> String {
     format!("{} {place}/{of}", name.get(language))
 }
 
-/// A lesson left under way as the home names it: "Lines 3/6", "First lesson 2/3", "Full
-/// lesson 5/15".
+/// A lesson left under way as the home names it: "Lines 3/6", "First lesson 2/3", "Re-test
+/// 2/5".
 pub(crate) fn open_lesson(language: Language, open: &OpenLesson) -> String {
     let name = match (open.row.first, open.row.skill) {
         (true, _) => FIRST_LESSON,
         (false, Some(skill)) => skill_name(skill),
-        (false, None) => FULL_LESSON,
+        (false, None) => RETEST,
     };
     in_hand(language, name, open.place)
 }
@@ -260,8 +259,7 @@ pub(crate) fn lesson_number(language: Language, number: u32) -> String {
     }
 }
 
-/// A lesson's row on the sheet and its sheet in the book: "Lesson 3 · Lines", "第 1 课 · 第一课",
-/// "Lesson 7 · Full lesson, unit 2".
+/// A lesson's row on the sheet and its sheet in the book: "Lesson 3 · Lines", "第 1 课 · 第一课".
 pub(crate) fn row_label(language: Language, row: &LessonRow) -> String {
     let number = lesson_number(language, row.number);
     match lesson_kind(language, row) {
@@ -270,20 +268,16 @@ pub(crate) fn row_label(language: Language, row: &LessonRow) -> String {
     }
 }
 
-/// What a lesson practised, as its label names it after its number: "Lines", "第一课",
-/// "Full lesson, unit 2"; none for a lesson of nothing named.
+/// What a lesson practised, as its label names it after its number: "Lines", "第一课", a
+/// re-test's unit; none for a lesson of nothing named.
 pub(crate) fn lesson_kind(language: Language, row: &LessonRow) -> Option<String> {
     if let Some((unit, _)) = row.retest {
         return Some(retest_name(language, unit));
     }
-    Some(match (row.first, row.skill, row.unit) {
-        (true, _, _) => FIRST_LESSON.get(language).to_owned(),
-        (false, Some(skill), _) => skill_name(skill).get(language).to_owned(),
-        (false, None, Some(unit)) => match language {
-            Language::English => format!("Full lesson, unit {unit}"),
-            Language::Chinese => format!("第 {unit} 单元完整一课"),
-        },
-        (false, None, None) => return None,
+    Some(match (row.first, row.skill) {
+        (true, _) => FIRST_LESSON.get(language).to_owned(),
+        (false, Some(skill)) => skill_name(skill).get(language).to_owned(),
+        (false, None) => return None,
     })
 }
 
@@ -316,7 +310,6 @@ mod tests {
             slot: 0,
             number: 3,
             skill: Some(line),
-            unit: None,
             first: false,
             retest: None,
         };

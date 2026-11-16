@@ -181,7 +181,7 @@ pub struct PracticeProjection {
     /// The shown exercise's kind (none once the lesson is done): what its facts, its words and
     /// its How go by (S122).
     pub kind: Option<Kind>,
-    /// The How shown, for a kind: by itself the first time a kind comes up outside a warm-up
+    /// The How shown, for a kind: by itself the first time a kind comes up
     /// (compared on no sheet before), else on asking (`PracticeIntent::Instructions`).
     pub how: Option<Kind>,
     /// While comparing: who judges the shown exercise and the result kept (S122).

@@ -1,6 +1,6 @@
 //! Practice counted by lesson (S121b, S122): a sheet may hold several lessons (the day's sheet),
 //! so whatever counts walks every lesson of every sheet in the order of (sheet id, lesson index),
-//! each told by its own lesson: a skill's, a unit's full one, the first one, a long colour copy.
+//! each told by its own lesson: a skill's, the first one, a re-test, a long colour copy.
 //! A lesson's number is its place among the learner's lessons (a copy's among the copies); the
 //! lesson in hand is a sheet's last unfinished one, else its last.
 
@@ -8,16 +8,6 @@ use crate::kinds::Skill;
 use crate::records::sheet::{Lesson, Picked, Sheet};
 
 impl Lesson {
-    /// The unit of a full lesson (S122); none for a skill's lesson, the first lesson, a re-test
-    /// or a copy.
-    #[must_use]
-    pub fn unit(&self) -> Option<u8> {
-        match self.picked {
-            Picked::Full { unit, .. } => Some(unit),
-            Picked::Chosen | Picked::First | Picked::Retest { .. } => None,
-        }
-    }
-
     /// A re-test's unit and whether it is the unit's end (S147); none for any other lesson.
     #[must_use]
     pub const fn retest(&self) -> Option<(u8, bool)> {
@@ -27,8 +17,8 @@ impl Lesson {
         }
     }
 
-    /// The skill a skill's lesson practises (its first exercise's, S122); none for a full
-    /// lesson, the first lesson or a copy.
+    /// The skill a skill's lesson practises (its first exercise's, S122); none for the first
+    /// lesson, a re-test or a copy.
     #[must_use]
     pub fn skill(&self) -> Option<Skill> {
         let first = self
@@ -36,15 +26,6 @@ impl Lesson {
             .first()
             .filter(|_| self.picked == Picked::Chosen)?;
         Skill::of(first.exercise.kind)
-    }
-
-    /// How many of its first exercises are a full lesson's warm-up.
-    #[must_use]
-    pub fn warm_up(&self) -> usize {
-        match self.picked {
-            Picked::Full { warm_up, .. } => usize::from(warm_up),
-            Picked::Chosen | Picked::First | Picked::Retest { .. } => 0,
-        }
     }
 }
 

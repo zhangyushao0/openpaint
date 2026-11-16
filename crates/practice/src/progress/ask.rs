@@ -171,14 +171,13 @@ fn ord(asked: PairAsked) -> (std::cmp::Reverse<CopyRef>, std::cmp::Reverse<CopyR
     )
 }
 
-/// Every copy of `skill` that may be asked: in a skill's lesson or a unit's full one of before S124
-/// (no first lesson, re-test or colour copy), compared, judged or not, its picture kept, a test
-/// sheet's only for a test.
+/// Every copy of `skill` that may be asked: in a skill's lesson (no first lesson, re-test or
+/// colour copy), compared, judged or not, its picture kept, a test sheet's only for a test.
 fn candidates(skill: Skill, sheets: &[Sheet], offset: i32, within: &Within<'_>) -> Vec<Candidate> {
     let mut all = Vec::new();
     for on in lessons(sheets) {
         let test = on.sheet.purpose == Purpose::Test;
-        let practice = matches!(on.lesson.picked, Picked::Chosen | Picked::Full { .. });
+        let practice = on.lesson.picked == Picked::Chosen;
         if on.is_copy() || !practice || (test && !within.test) {
             continue;
         }

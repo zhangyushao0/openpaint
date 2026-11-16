@@ -2,8 +2,8 @@
 //! patch in the middle of the other's frame, and on the card a reason when not right (S138) over
 //! both on the wheel and in the colour table (D108).
 
+use super::bands::{NOTICEABLE, PART_SPAN};
 use super::colour_match::{ColourCopy, score_colour};
-use super::judgement::{NOTICEABLE, PART_SPAN};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::{CardItem, Say, WheelSize};
 use crate::marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};

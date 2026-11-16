@@ -6,7 +6,7 @@
 //!
 //! A lesson is one skill at its level, 1 to 6 exercises by its kind's minutes
 //! (`Described::lesson`), a few minutes in all; a longer sitting is the Pomodoro's lessons one
-//! after another (S124: the full lesson is gone; `Picked::Full` only in old records).
+//! after another (S124).
 //! Everything follows from the seed, the learner and the pictures, the same for the same three.
 //! No streak, quota or gate: any skill of any unit may be tapped.
 

@@ -74,7 +74,7 @@ pub struct PathProjection {
 pub struct OpenLesson {
     /// Its sheet, which Continue opens.
     pub sheet: ProjectId,
-    /// The lesson as its row's label names it: its skill, a full lesson's unit or the first.
+    /// The lesson as its row's label names it: its skill, the first or a re-test.
     pub row: LessonRow,
     /// The exercise in hand's place among the lesson's, from 1, and how many there are.
     pub place: (usize, usize),

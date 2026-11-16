@@ -133,7 +133,7 @@ impl ProjectStore for Other {
     fn remove_owned(
         &mut self,
         _keys: &[(Space, Vec<u8>)],
-        _project: Option<ProjectId>,
+        _projects: &[ProjectId],
     ) -> Result<(), PortError> {
         self.wrote("record removal")
     }

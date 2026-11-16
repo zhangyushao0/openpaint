@@ -40,7 +40,7 @@ fn practising(record: &Sheet, others: Vec<Sheet>) -> SheetSession {
     SheetSession::open(sheet, (brush, pens), opening, &VIEWPORT)
 }
 
-/// A full lesson of six lines, four combined lines and six colours, sheet `id`, seeded `seed`.
+/// A lesson of six lines, four combined lines and six colours, sheet `id`, seeded `seed`.
 fn mixed_lesson(id: u64, seed: u64) -> Sheet {
     Sheet {
         id,

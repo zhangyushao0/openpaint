@@ -14,8 +14,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
-    Arrangement, Exercise, Given, Kind, LineTier, Pack, Picked, Planned, Purpose, ScaleTone, Sheet,
-    SkillLevel,
+    Exercise, Given, Kind, LineTier, Pack, Picked, Planned, Purpose, ScaleTone, Sheet, SkillLevel,
+    Tier,
 };
 use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, SheetSession};
 
@@ -141,10 +141,7 @@ fn session_of(kinds: &[Kind], toolbox: &Toolbox) -> SheetSession {
     let exercises = (kinds.iter())
         .map(|kind| (Exercise::generated(*kind, 0x5EED_0100), SkillLevel::First))
         .collect();
-    let picked = Picked::Full {
-        unit: 1,
-        warm_up: 0,
-    };
+    let picked = Picked::Chosen;
     let planned = Planned { picked, exercises };
     opened(Sheet::begun(1, (Purpose::Day, 0), planned), &[], toolbox)
 }
@@ -201,7 +198,7 @@ fn middle(session: &SheetSession) -> [f32; 2] {
 #[test]
 fn every_practice_pen_is_independent_of_the_toolbox_s_edits() {
     let toolbox = edited_toolbox();
-    let kinds = [Kind::Areas(Arrangement::Strata), Kind::Line(LineTier::Arc)];
+    let kinds = [Kind::Crop(Tier::Simple), Kind::Line(LineTier::Arc)];
     let mut session = session_of(&kinds, &toolbox);
     let picked = Color::rgb(0.8, 0.3, 0.1).expect("colour");
     let brush = toolbox.style().expect("style");

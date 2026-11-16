@@ -20,10 +20,8 @@ pub struct LessonRow {
     /// Its number among the learner's lessons, from 1, as `openpaint_practice::number` counts
     /// them (S121b; S122a: every lesson but a copy's counted together; `PracticeLog::rows`).
     pub number: u32,
-    /// The skill a skill's lesson or a review practises; none in a full lesson and the first.
+    /// The skill a skill's lesson or a review practises; none in the first and a re-test.
     pub skill: Option<Skill>,
-    /// A full lesson's unit.
-    pub unit: Option<u8>,
     /// It is the first lesson.
     pub first: bool,
     /// A re-test's unit and whether it is the unit's end (S147).
@@ -43,7 +41,6 @@ impl LessonRow {
                 slot: lesson.exercises.first().map_or(0, |laid| laid.slot),
                 number: number(index),
                 skill: lesson.skill(),
-                unit: lesson.unit(),
                 first: lesson.picked == openpaint_practice::Picked::First,
                 retest: lesson.retest(),
             })
@@ -58,13 +55,9 @@ pub struct LessonShown {
     pub row: LessonRow,
     /// The level the exercise shown was laid at.
     pub level: SkillLevel,
-    /// The exercise shown's place, from 1, and how many there are: in a skill's lesson, a review
-    /// and the first lesson among all of the lesson; in a full lesson's warm-up among the
-    /// warm-up's, after it among those of the shown one's skill after it. Once it is done, its
-    /// last's.
+    /// The exercise shown's place among all of the lesson, from 1, and how many there are. Once
+    /// it is done, its last's.
     pub place: (usize, usize),
-    /// The exercise shown is part of a full lesson's warm-up.
-    pub warming_up: bool,
 }
 
 /// What the shown comparison says of the exercise's result: who judges it and what is kept.

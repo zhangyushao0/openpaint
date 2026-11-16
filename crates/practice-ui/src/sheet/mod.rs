@@ -45,18 +45,15 @@ use openpaint_ui::{CanvasHook, Chrome};
 
 use crate::text::{self as t, Refused, Text};
 
-/// What the bar and the cards call the lesson in hand: its warm-up, the first lesson, its skill
-/// (the skill of the kind in hand in an old full lesson), an old full lesson once done, else the
-/// kind's own name.
+/// What the bar and the cards call the lesson in hand: the first lesson, a re-test, its skill,
+/// else the kind's own name.
 pub(crate) fn lesson_name(lesson: Option<LessonShown>, kind: Option<Kind>) -> Text {
     let skill = lesson.and_then(|lesson| lesson.row.skill);
     match (lesson, skill, kind) {
-        (Some(lesson), _, _) if lesson.warming_up => t::WARM_UP,
         (Some(lesson), _, _) if lesson.row.first => t::FIRST_LESSON,
         (Some(lesson), _, _) if lesson.row.retest.is_some() => t::RETEST,
         (_, Some(skill), _) => t::skill_name(skill),
         (_, None, Some(kind)) => Skill::of(kind).map_or(t::kind_words(kind).name, t::skill_name),
-        (Some(lesson), None, None) if lesson.row.unit.is_some() => t::FULL_LESSON,
         _ => t::STUDY_EXERCISE,
     }
 }

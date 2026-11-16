@@ -11,8 +11,7 @@
 
 use openpaint_app::Availability;
 use openpaint_practice::{
-    Laid, Lesson, Outcome, Picked, Sheet, Skill, SkillLevel, Standing, Unit, Verdict, retest,
-    schedule, sealed,
+    Lesson, Outcome, Picked, Sheet, SkillLevel, Standing, Unit, Verdict, retest, schedule, sealed,
 };
 
 use super::{PracticeSheet, unavailable};
@@ -29,8 +28,7 @@ impl PracticeSheet {
         Some(LessonShown {
             row,
             level: SkillLevel::of_code(exercises[at].level),
-            place: place(held.lesson, at),
-            warming_up: at < held.lesson.warm_up(),
+            place: (at + 1, exercises.len()),
         })
     }
 
@@ -142,7 +140,7 @@ impl PracticeSheet {
 /// The lesson One more starts after `lesson`, the learner after it standing as `standing` among
 /// `sheets`: the same skill again at its level where the lesson was a skill's of a unit past the
 /// learner's (entered by hand ahead of the path); else as Start would lay it, the unit's start
-/// re-test while it is due (S148), else the path's next (`schedule::next`); a full lesson and the
+/// re-test while it is due (S148), else the path's next (`schedule::next`); a re-test and the
 /// first lesson are never of a skill.
 fn one_more(lesson: &Lesson, (standing, sheets): (&Standing<'_>, &[Sheet])) -> Option<OneMore> {
     let in_hand = standing.learner.unit(standing.pictures);
@@ -157,23 +155,4 @@ fn one_more(lesson: &Lesson, (standing, sheets): (&Standing<'_>, &[Sheet])) -> O
         Some(retest) => Some(OneMore::Retest(retest)),
         None => schedule::next(standing).map(OneMore::Skill),
     }
-}
-
-/// Exercise `at`'s place in `lesson`, from 1, and how many there are: in a full lesson's warm-up
-/// among the warm-up's, after it among those of its skill after it; in any other lesson among all
-/// of it.
-fn place(lesson: &Lesson, at: usize) -> (usize, usize) {
-    let exercises = &lesson.exercises;
-    let warm_up = lesson.warm_up().min(exercises.len());
-    if at < warm_up {
-        return (at + 1, warm_up);
-    }
-    if !matches!(lesson.picked, Picked::Full { .. }) {
-        return (at + 1, exercises.len());
-    }
-    let skill = Skill::of(exercises[at].exercise.kind);
-    let alike = |laid: &&Laid| Skill::of(laid.exercise.kind) == skill;
-    let before = exercises[warm_up..at].iter().filter(alike).count();
-    let all = exercises[warm_up..].iter().filter(alike).count();
-    (before + 1, all)
 }

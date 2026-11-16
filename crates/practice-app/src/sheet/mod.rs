@@ -6,7 +6,7 @@
 //! the eyedropper (`read.rs`, a reading's frames in grey on asking), Next (the view glides to the
 //! next pair at its zoom, its row fitted, `view.rs`; after the last the lesson ends over the rows
 //! used), One more in place (`append.rs`: the next lesson laid from a new row of the day's
-//! sheet), a kind's How (by itself the first time a kind comes up, a warm-up's never), the
+//! sheet), a kind's How (by itself the first time a kind comes up), the
 //! result chosen by eye and the lesson's end (`lesson.rs`; its blind pairs and extra drill,
 //! `pairs.rs`), the time (`time.rs`) and the
 //! notices; what the screen draws (`projected.rs`); the lesson's pictures as the store reads
@@ -260,8 +260,8 @@ impl PracticeSheet {
     /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
     /// compared before are corrected in blue, others drawn with the pen last chosen, painted
     /// exercises painted with the painting pen last chosen (value masses with the grey last
-    /// chosen); its kind's How shows by itself the first time it comes up (never in a warm-up,
-    /// and in the first lesson only at its first exercise);
+    /// chosen); its kind's How shows by itself the first time it comes up (in the first lesson
+    /// only at its first exercise);
     /// once the lesson is done, its end is kept.
     fn shown(&mut self) {
         self.take_in_hand();
@@ -281,12 +281,10 @@ impl PracticeSheet {
         };
         self.painted_shown();
         self.choices_shown();
-        let at = current.zip(self.record.held()).and_then(|(index, held)| {
-            let at = index.checked_sub(held.first_exercise())?;
-            Some((at, held.lesson.warm_up()))
-        });
+        let at = (current.zip(self.record.held()))
+            .and_then(|(index, held)| index.checked_sub(held.first_exercise()));
         // The first lesson's How (shown in place of a kind's) comes by itself once, at its start.
-        let quiet = at.is_some_and(|(at, warm_up)| at < warm_up || (at > 0 && !self.scored()));
+        let quiet = at.is_some_and(|at| at > 0 && !self.scored());
         if let Some(kind) = kind.filter(|_| !quiet)
             && self.told.insert(kind.facts().key)
         {

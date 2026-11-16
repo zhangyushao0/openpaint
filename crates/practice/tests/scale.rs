@@ -66,11 +66,10 @@ fn a_scale_s_cells_grow_with_its_level() {
         }
     }
     assert_eq!(Kind::Scale(ScaleTone::Hue, 9).code(), (6, 19));
-    assert_eq!(
-        Kind::of_code(6, 1),
-        None,
-        "a tone alone, 1.14.0's form: no scale"
-    );
+    // Only a level's cells read: none, six or eight are no scale.
+    for variant in [1, 12, 13, 16] {
+        assert_eq!(Kind::of_code(6, variant), None, "{variant}");
+    }
 }
 
 #[test]
@@ -78,7 +77,7 @@ fn the_order_to_paint_halves_and_halves_again_and_the_even_row_lies_cell_under_c
     let rounds = halving;
     assert_eq!(rounds(9), vec![vec![4], vec![2, 6], vec![1, 3, 5, 7]]);
     assert_eq!(rounds(5), vec![vec![2], vec![1, 3]]);
-    // Every cell between the ends painted once, whatever the count (a 1.14.0 scale's 6 or 7).
+    // Every cell between the ends painted once, whatever the count.
     for cells in 5..=9 {
         let mut all: Vec<usize> = rounds(cells).into_iter().flatten().collect();
         all.sort_unstable();

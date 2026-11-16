@@ -15,9 +15,9 @@ const DAY: u64 = 86_400;
 /// The device's offset in Beijing, minutes.
 const BEIJING: i32 = 8 * 60;
 
-/// Unit 1's full lesson as an old record holds it (none is laid since S124) for a learner who has
-/// practised nothing: a warm-up of a line, a group and a colour, then a lesson of each skill.
-fn full_lesson(id: u64, started: u64) -> Sheet {
+/// Unit 1's three skills in one lesson, for a learner who has practised nothing: a line, a group
+/// and a colour, then a lesson of each skill.
+fn mixed_lesson(id: u64, started: u64) -> Sheet {
     let (pictures, learner) = (Pictures::default(), Learner::default());
     let standing = Standing {
         pictures: &pictures,
@@ -30,14 +30,11 @@ fn full_lesson(id: u64, started: u64) -> Sheet {
             schedule::lesson(skill, SkillLevel::First, seed, &standing).expect("its lesson")
         })
         .collect();
-    let warm_up = lessons.iter().filter_map(|lesson| lesson.exercises.first());
+    let firsts = lessons.iter().filter_map(|lesson| lesson.exercises.first());
     let parts = lessons.iter().flat_map(|lesson| lesson.exercises.iter());
     let planned = Planned {
-        picked: Picked::Full {
-            unit: 1,
-            warm_up: 3,
-        },
-        exercises: warm_up.chain(parts).cloned().collect(),
+        picked: Picked::Chosen,
+        exercises: firsts.chain(parts).cloned().collect(),
     };
     Sheet::begun(id, (Purpose::Day, started), planned)
 }
@@ -73,7 +70,7 @@ fn uses(spans: &mut Vec<Span>, from: u64, minutes: u64, step: u64) {
 
 #[test]
 fn a_sheet_left_untouched_two_hours_counts_only_its_minutes() {
-    let mut record = full_lesson(1, NOON);
+    let mut record = mixed_lesson(1, NOON);
     uses(&mut record.spans, NOON, 12, 20);
     // Put down for two hours with the app in front, then eight more minutes.
     let back = NOON + 12 * 60 + 2 * 3600;
@@ -149,11 +146,11 @@ fn a_copy_painted_over_two_days_shows_on_both() {
     );
 }
 
-/// A finished full lesson of unit 1 holding `lines` single lines and `colours` colours compared,
+/// A finished mixed lesson of unit 1 holding `lines` single lines and `colours` colours compared,
 /// each colour's first pick `first` off, practised `minutes`.
 fn done(id: u64, (lines, colours): (usize, usize), first: f64, minutes: u64) -> Sheet {
     let at = NOON + id * DAY;
-    let mut record = full_lesson(id, at);
+    let mut record = mixed_lesson(id, at);
     for nth in 0..lines {
         let index = of(&record, "line", nth);
         compared(&mut record, index, at + 60, Vec::new());
@@ -209,7 +206,7 @@ fn seals_are_earned_from_what_was_done_and_stamp_on_the_lesson_that_did_it() {
 
 #[test]
 fn a_unit_s_seal_is_earned_when_each_of_its_skills_holds_its_first_dot() {
-    // Every exercise of two full lessons of unit 1 clean: each skill's window fills.
+    // Every exercise of two mixed lessons of unit 1 clean: each skill's window fills.
     let clean = |id: u64| {
         let mut record = done(id, (0, 0), 0.0, 30);
         for laid in record
@@ -240,7 +237,7 @@ fn the_book_shows_the_lessons_and_the_first_and_latest_lines() {
         done(3, (1, 0), 0.0, 30),
     ];
     // An open lesson with a line compared: the latest.
-    let mut open = full_lesson(4, NOON + 4 * DAY);
+    let mut open = mixed_lesson(4, NOON + 4 * DAY);
     let line = of(&open, "line", 1);
     compared(&mut open, line, NOON + 4 * DAY + 60, Vec::new());
     records.push(open);

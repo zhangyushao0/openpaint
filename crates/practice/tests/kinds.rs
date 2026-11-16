@@ -6,18 +6,17 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, Arrangement, Asked, BoxView, Carve, Combination, Copied, DrawnCopy, Estimate, Exercise,
-    Facts, Fill, Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Metric,
-    Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, Rotation,
-    ScaleTone, SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick,
-    ValueMasses, schedule,
+    Areas, Asked, BoxView, Carve, Combination, Copied, DrawnCopy, Estimate, Exercise, Facts, Fill,
+    Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Metric, Pack,
+    PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, Rotation, ScaleTone,
+    SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick, ValueMasses,
+    schedule,
 };
 
 /// A kind of every variant the stores may hold.
 fn every_kind() -> Vec<Kind> {
     let mut kinds: Vec<Kind> = LineTier::ALL.map(Kind::Line).to_vec();
     kinds.extend(Combination::ALL.map(Kind::Combined));
-    kinds.extend(Arrangement::ALL.map(Kind::Areas));
     kinds.extend(BoxView::ALL.map(Kind::Box));
     kinds.extend(Horizon::ALL.map(Kind::FreeBoxes));
     kinds.extend(Guide::ALL.map(Kind::Ellipse));
@@ -50,7 +49,7 @@ fn every_kind() -> Vec<Kind> {
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three_but_five() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -59,7 +58,9 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three(
     }
     codes.sort_unstable();
     codes.dedup();
-    assert_eq!(codes, (1..=23).collect::<Vec<u8>>());
+    let expected: Vec<u8> = (1..=23).filter(|code| *code != 5).collect();
+    assert_eq!(codes, expected);
+    assert_eq!(Kind::of_code(5, 0), None, "code 5 is free");
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
     // A drawing from life (S151) is kind 23; no kind is 24.
@@ -76,8 +77,8 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three(
     assert_eq!(Kind::of_code(18, 3), Some(Kind::Crop(Tier::Medium)));
     assert_eq!((Kind::of_code(18, 0), Kind::of_code(20, 2)), (None, None));
     assert_eq!(
-        (Metric::ObjectOff.code(), Metric::MassesMatched.code()),
-        (48, 55)
+        (Metric::SpaceOff.code(), Metric::MassesMatched.code()),
+        (46, 55)
     );
 }
 
@@ -102,9 +103,6 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
     }
     // Free boxes looking down and up are topics of their own (S142).
     assert_eq!(topics().len(), 32);
-    // The retired generated combinations go by the combinations' topic.
-    let generated = Kind::Areas(Arrangement::ALL[0]).facts();
-    assert_eq!(generated, Kind::Crop(Tier::Simple).facts());
 }
 
 #[test]

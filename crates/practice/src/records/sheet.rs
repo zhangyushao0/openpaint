@@ -1,7 +1,7 @@
 //! What is kept of a practice sheet (S120): the sheet a hidden project of the library holds, its
 //! purpose (the day's practice, a test's, or a long colour copy), the spans it was practised in
-//! (`time.rs`) and its lessons, each with how it was picked (a skill's lesson, a unit's full one
-//! with its warm-up, the first lesson, or a copy's picture), the exercise in hand and its
+//! (`time.rs`) and its lessons, each with how it was picked (a skill's lesson, the first lesson, a
+//! unit's re-test, or a copy's picture), the exercise in hand and its
 //! exercises as laid: each one's place on the sheet (its slot), its picture's size (its frames'
 //! shape), its level, its first Compare (when, which strokes after it are corrections, its
 //! numbers), how often it was compared, its result and who judged it, and the seconds spent on
@@ -66,13 +66,9 @@ pub struct Lesson {
 /// How a lesson was picked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Picked {
-    /// One skill's lesson, tapped on the path or offered (S122), a review's (before S122 the
-    /// earlier product's drill); a copy's picture. Stored as 2.
+    /// One skill's lesson, tapped on the path or offered (S122), a review's; a copy's picture.
+    /// Stored as 2.
     Chosen,
-    /// A full lesson of `unit` (S122; before it the earlier product's session of a stage), its
-    /// first `warm_up` exercises the warm-up. Stored as 3; none is laid since S124 (the Pomodoro
-    /// took its place), an old record's still reads and is named as before.
-    Full { unit: u8, warm_up: u8 },
     /// The first lesson (S122): a drawing of something in front of the learner (S151), a straight
     /// line, an arc. Stored as 4.
     First,
@@ -107,8 +103,8 @@ pub struct First {
     /// When, in seconds since 1970 UTC.
     pub at: u64,
     /// The sheet's first stroke id after it: strokes begun in its frame from it on are
-    /// corrections; `None` in 1.1.0's records (a compared frame took nothing more).
-    pub corrected_from: Option<u64>,
+    /// corrections.
+    pub corrected_from: u64,
     /// Its numbers (a colour's, a combination's, a scale's, an estimate's); none for a line.
     pub metrics: Metrics,
 }
@@ -126,7 +122,7 @@ impl First {
     pub const fn of(at: u64, next_stroke: u64, metrics: Metrics) -> Self {
         Self {
             at,
-            corrected_from: Some(next_stroke),
+            corrected_from: next_stroke,
             metrics,
         }
     }
@@ -134,7 +130,7 @@ impl First {
     /// Whether the stroke `id` begun in its frame is a correction.
     #[must_use]
     pub fn corrects(&self, id: u64) -> bool {
-        self.corrected_from.is_some_and(|from| id >= from)
+        id >= self.corrected_from
     }
 }
 

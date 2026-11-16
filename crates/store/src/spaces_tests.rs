@@ -131,7 +131,7 @@ fn a_space_or_key_the_store_s_own_keys_take_is_refused_and_nothing_written() {
         vec![entry(MINE, 1, b"x"), (MINE, (key(OTHER, 1), b"x".to_vec()))]
     });
     assert_eq!(created, Err(refused.clone()));
-    let removed = library.remove_owned(&[(MINE, key(MINE, 1)), (MINE, b"last".to_vec())], None);
+    let removed = library.remove_owned(&[(MINE, key(MINE, 1)), (MINE, b"last".to_vec())], &[]);
     assert_eq!(removed, Err(refused));
     drop(library);
     assert_eq!(dump(&dir), before, "nothing written");
@@ -231,7 +231,7 @@ fn a_project_with_its_records_is_created_whole_or_not_at_all() {
 fn a_project_with_its_records_is_removed_whole_or_not_at_all() {
     let remove = |library: &mut Library| {
         let keys = [(MINE, key(MINE, 1)), (OTHER, key(OTHER, 1))];
-        library.remove_owned(&keys, Some(ProjectId::new(2)))
+        library.remove_owned(&keys, &[ProjectId::new(2)])
     };
     let (_dir, mut library) = library_of("spaces-removed", true);
     remove(&mut library).expect("removed");

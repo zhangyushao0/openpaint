@@ -1096,6 +1096,7 @@ dependencies = [
  "android_logger",
  "jni",
  "log",
+ "openpaint-app",
  "openpaint-practice-store",
  "openpaint-runtime",
  "openpaint-store",

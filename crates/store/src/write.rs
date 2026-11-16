@@ -227,16 +227,16 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
     batch.commit()
 }
 
-/// The records `keys` of their spaces and the project they own, if any, removed in one batch.
+/// The records `keys` of their spaces and the `projects` they own removed in one batch.
 pub(crate) fn remove_owned(
     open: &Open,
     keys: &[(Space, Vec<u8>)],
-    project: Option<ProjectId>,
+    projects: &[ProjectId],
 ) -> Result<(), PortError> {
     let mut batch = Batch::new(open);
     spaces::remove(open, &mut batch, keys)?;
-    if let Some(id) = project {
-        remove_project(open, &mut batch, id)?;
+    for id in projects {
+        remove_project(open, &mut batch, *id)?;
     }
     batch.commit()
 }

@@ -79,7 +79,7 @@ fn command(given: &[&str]) -> Result<String> {
 }
 
 /// The home, listed: a canvas showing is left first.
-fn to_home(adb: &Adb) -> Result<()> {
+pub(super) fn to_home(adb: &Adb) -> Result<()> {
     if until(adb, WAIT, |s| s.screen != Screen::Starting)?.screen == Screen::Canvas {
         tap(adb, "Home")?;
     }

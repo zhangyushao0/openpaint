@@ -1,6 +1,6 @@
 //! A practice sheet: the bar, the exercise's own tools and the card (each kind's words and How in
 //! `kinds/`, a lesson's names, results and end in `course/`), in V大's terms: 叠图对比, 原位,
-//! 对齐; 热身.
+//! 对齐.
 
 use openpaint_practice_app::Pen;
 
@@ -21,7 +21,6 @@ texts! { PRACTICE_TABLE;
     GOT_IT = "Got it", "知道了";
     IN_PLACE = "In place", "原位";
     ALIGNED = "Aligned", "对齐";
-    WARM_UP = "Warm-up", "热身";
     NO_OUTLINE = "This picture has no outline to align.", "这张图没有外轮廓，无法对齐。";
     ALIGNING = "Aligning…", "正在对齐…";
 }

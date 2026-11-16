@@ -29,6 +29,9 @@ device-info = "xtask device-info"
 device-smoke = "xtask device-smoke"
 device-screens = "xtask device-screens"
 device-reset = "xtask device-reset"
+# Practice alone cleared from the library (its records and sheets; the studio, the packs and the
+# user's pictures kept), only after a backup written the same day.
+device-practice-clear = "xtask device-practice-clear"
 device-idle = "xtask device-idle"
 device-log = "xtask device-log"
 device-frames = "xtask device-frames"

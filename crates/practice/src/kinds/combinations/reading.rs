@@ -1,7 +1,6 @@
 //! A colour combination's copy compared (S82, S101): read from its frame's pixels on the compare
-//! worker against the areas it was made with (a generated one's) or its crop holds, each area's
-//! colour and the weak contrasts made strong; a crop no pack holds with areas, its picture laid
-//! over it instead.
+//! worker against the areas its crop holds, each area's colour and the weak contrasts made
+//! strong; a crop no pack holds with areas, its picture laid over it instead.
 
 use std::sync::Arc;
 

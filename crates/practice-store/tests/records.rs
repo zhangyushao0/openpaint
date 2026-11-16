@@ -13,8 +13,8 @@ use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectId, ProjectStore, Record, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{
-    First, Given, Givens, Layout, Learner, Lesson, Metric, Picked, Pictures, Planned, Purpose,
-    Sheet, Skill, SkillLevel, Standing, schedule,
+    First, Given, Givens, Layout, Learner, Metric, Picked, Pictures, Planned, Purpose, Sheet,
+    Skill, SkillLevel, Standing, schedule,
 };
 use openpaint_practice_store::{
     GIVENS, decode_givens, encode_givens, printed, remove, save, sheets, start,
@@ -26,10 +26,9 @@ fn artwork() -> Artwork {
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 
-/// Unit 1's full lesson as an old record holds it (stored as 3; none is laid since S124), the
-/// `id`th sheet, seeded `seed`, after the lessons of `before`: a warm-up of a line, a group and a
-/// colour, then a lesson of each.
-fn full_lesson(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
+/// Unit 1's three skills in one lesson, the `id`th sheet, seeded `seed`, after the lessons of
+/// `before`: a line, a group and a colour, then a lesson of each.
+fn mixed_lesson(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
     let standing = Standing {
         pictures: &Pictures::default(),
         learner: &Learner::of(before),
@@ -40,14 +39,11 @@ fn full_lesson(id: u64, seed: u64, started: u64, before: &[Sheet]) -> Sheet {
             schedule::lesson(skill, SkillLevel::First, seed, &standing).expect("its lesson")
         })
         .collect();
-    let warm_up = lessons.iter().filter_map(|lesson| lesson.exercises.first());
+    let firsts = lessons.iter().filter_map(|lesson| lesson.exercises.first());
     let parts = lessons.iter().flat_map(|lesson| lesson.exercises.iter());
     let planned = Planned {
-        picked: Picked::Full {
-            unit: 1,
-            warm_up: 3,
-        },
-        exercises: warm_up.chain(parts).cloned().collect(),
+        picked: Picked::Chosen,
+        exercises: firsts.chain(parts).cloned().collect(),
     };
     Sheet::begun(id, (Purpose::Day, started), planned)
 }
@@ -90,7 +86,7 @@ fn a_sheet_round_trips_with_its_project_and_its_givens() {
     drop(library);
     let before = records(&dir);
     let mut library = Library::at(&dir);
-    let sheet = full_lesson(1, 0x5EED_0045, 1_791_201_600, &[]);
+    let sheet = mixed_lesson(1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     assert_ne!(id, artwork_id);
@@ -150,7 +146,7 @@ fn a_sheet_round_trips_with_its_project_and_its_givens() {
 fn a_sheet_s_title_is_its_project_s_and_renamed() {
     let dir = TestDir::new("practice-titles");
     let mut library = Library::at(&dir);
-    let sheet = full_lesson(1, 5, 1_791_201_600, &[]);
+    let sheet = mixed_lesson(1, 5, 1_791_201_600, &[]);
     let title = Title::new("Colour copy 1").expect("title");
     let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     let titled = |library: &mut Library| {
@@ -177,7 +173,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
         )
         .expect("an artwork");
     // The author's lesson, part done, then the home.
-    let mut theirs = full_lesson(1, 0x5EED_0045, 1_791_201_600, &[]);
+    let mut theirs = mixed_lesson(1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let printed = givens(&theirs);
     let sheet_id = start(&mut library, (&artwork(), &title), &theirs, &printed).expect("started");
@@ -196,12 +192,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
     // A test lesson beside it, worked on, then removed.
     let mut library = Library::at(&dir);
     let read = sheets(&mut library).expect("practice");
-    let mut test = full_lesson(2, 77, 1_791_202_000, &read);
-    assert_eq!(
-        test.lesson().map(Lesson::warm_up),
-        Some(3),
-        "beside the author's, as their next would be"
-    );
+    let mut test = mixed_lesson(2, 77, 1_791_202_000, &read);
     let test_title = Title::new("Practice 2").expect("title");
     let test_givens = givens(&test);
     let test_id =
@@ -238,7 +229,7 @@ fn a_sheet_removed_takes_its_record_givens_and_project_and_leaves_every_other_by
 fn a_sheet_s_givens_read_back_as_printed_and_refuse_it_when_not_whole() {
     let dir = TestDir::new("practice-printed");
     let mut library = Library::at(&dir);
-    let sheet = full_lesson(1, 0x5EED_0120, 1_791_201_600, &[]);
+    let sheet = mixed_lesson(1, 0x5EED_0120, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let id = start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     let stored = sheets(&mut library).expect("practice").remove(0);
@@ -265,7 +256,7 @@ fn a_sheet_s_givens_read_back_as_printed_and_refuse_it_when_not_whole() {
         .expect("damaged");
     assert!(printed(&mut library, &stored).is_err(), "damaged");
     library
-        .remove_owned(&[(GIVENS, key)], None)
+        .remove_owned(&[(GIVENS, key)], &[])
         .expect("removed");
     assert_eq!(printed(&mut library, &stored), corrupt, "missing");
 }
@@ -274,13 +265,12 @@ fn a_sheet_s_givens_read_back_as_printed_and_refuse_it_when_not_whole() {
 fn a_practice_record_that_cannot_be_read_is_left_out() {
     let dir = TestDir::new("practice-damaged");
     let mut library = Library::at(&dir);
-    let sheet = full_lesson(1, 3, 0, &[]);
+    let sheet = mixed_lesson(1, 3, 0, &[]);
     let title = Title::new("Practice 1").expect("title");
     start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     drop(library);
     let key = |id: u64| [b"p".as_slice(), &id.to_be_bytes()].concat();
-    // A sheet's tag with too few bytes after it, and a record beginning with a stage (the earlier
-    // product's unit) as 1.21.6's records did: neither is read.
+    // A sheet's tag with too few bytes after it, and a record beginning otherwise: neither is read.
     write_records(
         &dir,
         &[

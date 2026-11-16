@@ -59,11 +59,9 @@ pub use kinds::abstract_analysis::marks::{
     AnalysisCompared, AnalysisReading, CONTRASTS, DISTRIBUTIONS, VIEWS,
 };
 pub use kinds::boxes::marks::BoxCompared;
+pub use kinds::colours::bands::{DELTA_SPAN, NOTICEABLE, PART_SPAN};
 pub use kinds::colours::colour_match::{
     ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour,
-};
-pub use kinds::colours::judgement::{
-    Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement,
 };
 pub use kinds::colours::marks::ColourCompared;
 pub use kinds::combinations::marks::{AREAS_CLEAN, AreasCompared, AreasRead, NEAR_STRONG};
@@ -78,7 +76,6 @@ pub use kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck, NEAR_ANG
 pub use kinds::estimates::marks::FlatCompared;
 pub use kinds::free_boxes::FreePage;
 pub use kinds::free_boxes::marks::{FreeCompared, guides};
-pub use kinds::generated_combinations::AREAS_SIDE;
 pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{
     APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_SHARE, toward,

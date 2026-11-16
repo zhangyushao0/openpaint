@@ -56,6 +56,14 @@ internal object DebugControls {
     @JvmStatic external fun practiceTest(command: String): String?
 
     /**
+     * Every practice record and practice sheet removed from the library in [filesDir] by the
+     * store's own code, each removed sheet's display cache in [cacheDir] with it, while no
+     * activity holds the library: "cleared" and what went and stayed by count, tab-separated, or
+     * why not.
+     */
+    @JvmStatic external fun practiceClear(filesDir: String, cacheDir: String): String?
+
+    /**
      * Every runtime made from now on records its frames in real use, a line a stretch of motion
      * in `files/frames.txt` ([DebugApplication], before any activity).
      */

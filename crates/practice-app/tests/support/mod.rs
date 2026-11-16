@@ -1,4 +1,4 @@
-//! What every kind's test takes: the sheet it lays (the exercises it needs, as a full lesson of
+//! What every kind's test takes: the sheet it lays (the exercises it needs, as one lesson of
 //! them) and the opening the log makes of it. A lesson of a skill as the path starts it is
 //! `Start::At`'s (`PracticeLog::start`).
 
@@ -6,14 +6,11 @@ use openpaint_app::Title;
 use openpaint_practice::{Exercise, Given, Pack, Picked, Planned, Purpose, Sheet, SkillLevel};
 use openpaint_practice_app::{PracticeLog, Practising};
 
-/// A day's sheet, the first of all, begun at `started`, holding `exercises` as a full lesson of
-/// unit 1 without a warm-up, each at the first level: what a kind's test lays.
+/// A day's sheet, the first of all, begun at `started`, holding `exercises` as one lesson, each
+/// at the first level: what a kind's test lays.
 pub fn laid(exercises: Vec<Exercise>, started: u64) -> Sheet {
     let planned = Planned {
-        picked: Picked::Full {
-            unit: 1,
-            warm_up: 0,
-        },
+        picked: Picked::Chosen,
         exercises: (exercises.into_iter())
             .map(|exercise| (exercise, SkillLevel::First))
             .collect(),

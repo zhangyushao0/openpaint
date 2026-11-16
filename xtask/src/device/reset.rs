@@ -56,13 +56,13 @@ fn app_files(adb: &Adb) -> Result<Vec<String>> {
 }
 
 /// The UTC day of `time`: days since 1970-01-01.
-fn day_of(time: SystemTime) -> u64 {
+pub(super) fn day_of(time: SystemTime) -> u64 {
     time.duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs() / 86_400)
 }
 
 /// A backup (`<dir>/*.tar`) written on `day`, if any.
-fn todays_backup(dir: &Path, day: u64) -> Result<Option<PathBuf>> {
+pub(super) fn todays_backup(dir: &Path, day: u64) -> Result<Option<PathBuf>> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Ok(None);
     };

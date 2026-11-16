@@ -23,6 +23,9 @@
 //!   `artifacts/device/screens/` and listed, nothing on the tablet changed (`screens.rs`);
 //! - `cargo device-reset`: the app's data cleared by `pm clear`, each file it held listed;
 //!   refused without a backup written today (`reset.rs`);
+//! - `cargo device-practice-clear`: every practice record and sheet removed from the library by
+//!   the debug build's own store code, the studio, the packs and the user's pictures kept;
+//!   refused without a backup written today (`practice_clear.rs`);
 //! - `cargo device-log [n]`: the app's own last log lines, every level, read-only (`log.rs`);
 //! - `cargo device-idle [--minutes N]`: whether the tablet is free (screen off, or untouched for
 //!   N minutes), read-only, the first step of every device routine (`idle.rs`);
@@ -40,6 +43,7 @@ mod input;
 mod library;
 mod log;
 mod open_file;
+mod practice_clear;
 mod practice_test;
 mod push;
 mod reset;
@@ -63,6 +67,7 @@ pub use info::info;
 pub use input::input;
 pub use library::{backup, restore};
 pub use log::log;
+pub use practice_clear::practice_clear;
 pub use push::push;
 pub use reset::reset;
 pub use screens::screens;

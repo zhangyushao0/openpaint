@@ -233,12 +233,12 @@ pub trait ProjectStore: Send {
         owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
     ) -> Result<ProjectId, PortError>;
 
-    /// The records `keys` of their spaces and the project they own, if any, with everything
-    /// stored for it, removed for good in one write; every other record stays as it is.
+    /// The records `keys` of their spaces and the `projects` they own, with everything stored for
+    /// each, removed for good in one write; every other record stays as it is.
     fn remove_owned(
         &mut self,
         keys: &[(Space, Vec<u8>)],
-        project: Option<ProjectId>,
+        projects: &[ProjectId],
     ) -> Result<(), PortError>;
 }
 

@@ -82,31 +82,37 @@ fn read(exercise: &Exercise, picture: Option<&SheetPicture>, pixels: &[u8]) -> V
         .verdict()
 }
 
+/// A crop's picture, `SIDE` square, whose answer is `areas`.
+fn crop_picture(areas: &Areas) -> SheetPicture {
+    SheetPicture {
+        item: openpaint_practice::ItemRef::default(),
+        size: [SIDE, SIDE],
+        fit: PictureFit::of([SIDE, SIDE]),
+        outline: None,
+        credit: None,
+        masses: None,
+        areas: Some(Arc::new(areas.clone())),
+    }
+}
+
 #[test]
 fn a_combination_is_judged_by_its_areas_mean_difference_once_every_area_is_painted() {
-    let exercise = Exercise::generated(Kind::Areas(Arrangement::Patches), 21);
-    let Some(generated) = exercise.original().downcast::<GeneratedAreas>().cloned() else {
-        panic!("a generated combination")
-    };
+    let generated = GeneratedAreas::generate(Arrangement::Patches, 21);
     let areas = &generated.areas;
-    let itself = generated.picture(SIDE);
-    assert_eq!(read(&exercise, None, &itself), Verdict::App(Clean));
+    let picture = crop_picture(areas);
+    let exercise = Exercise {
+        picture: Some(picture.item.clone()),
+        ..Exercise::generated(Kind::Crop(Tier::Simple), 21)
+    };
+    let verdict = |pixels: &[u8]| read(&exercise, Some(&picture), pixels);
+    assert_eq!(verdict(&generated.picture(SIDE)), Verdict::App(Clean));
     // Darker all over keeps every contrast: judged by the mean alone.
     let all = |by: f64| -> Vec<Rgb8> { areas.colours.iter().map(|c| darker(*c, by)).collect() };
-    assert_eq!(
-        read(&exercise, None, &painted(areas, &all(0.07))),
-        Verdict::App(Near)
-    );
-    assert_eq!(
-        read(&exercise, None, &painted(areas, &all(0.15))),
-        Verdict::App(Redo)
-    );
+    assert_eq!(verdict(&painted(areas, &all(0.07))), Verdict::App(Near));
+    assert_eq!(verdict(&painted(areas, &all(0.15))), Verdict::App(Redo));
     let mut bare = areas.colours.clone();
     bare[0] = PAPER;
-    assert_eq!(
-        read(&exercise, None, &painted(areas, &bare)),
-        Verdict::Incomplete
-    );
+    assert_eq!(verdict(&painted(areas, &bare)), Verdict::Incomplete);
 }
 
 #[test]
@@ -204,15 +210,7 @@ fn a_key_shift_is_the_eye_s_once_every_area_is_painted_marked_or_not() {
         openpaint_practice::GeneratedAreas::generate(Arrangement::Patches, 0x5EED_0107).areas;
     let main = main_hue(&areas);
     let tendency = Tendency::chosen(Lean::CoolPure, main, AWAY, &mut Random::new(3));
-    let picture = SheetPicture {
-        item: openpaint_practice::ItemRef::default(),
-        size: [SIDE, SIDE],
-        fit: PictureFit::of([SIDE, SIDE]),
-        outline: None,
-        credit: None,
-        masses: None,
-        areas: Some(Arc::new(areas.clone())),
-    };
+    let picture = crop_picture(&areas);
     let exercise = Exercise {
         kind: Kind::KeyShift(tendency),
         seed: 1,

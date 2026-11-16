@@ -39,8 +39,8 @@ fn a_long_colour_copy_is_kept_beside_the_lessons_and_counts_in_none() {
     assert_eq!(copy.purpose, Purpose::Copy);
     let held = copy.lesson().expect("its lesson");
     assert_eq!(
-        (held.picked, held.skill(), held.unit(), held.warm_up()),
-        (Picked::Chosen, None, None, 0)
+        (held.picked, held.skill(), held.retest()),
+        (Picked::Chosen, None, None)
     );
     assert_eq!(copy.exercises().count(), 1);
     let laid = copy.laid(0).expect("its exercise");
@@ -66,7 +66,7 @@ fn a_lesson_begun_keeps_each_exercise_s_level_and_what_it_practises() {
     let sheet = Sheet::begun(2, (Purpose::Day, 0), planned);
     let held = sheet.lesson().expect("its lesson");
     assert_eq!(
-        (held.picked, held.skill(), held.unit()),
+        (held.picked, held.skill(), held.retest()),
         (Picked::Chosen, Some(lines), None)
     );
     assert!(
@@ -101,14 +101,6 @@ fn a_first_compare_marks_the_corrections_after_it_and_the_eye_s_result_is_kept_o
     assert_eq!(laid.compares, 1);
     let first = laid.first.clone().expect("its first Compare");
     assert!(!first.corrects(39) && first.corrects(40) && first.corrects(41));
-    let old = First {
-        corrected_from: None,
-        ..first
-    };
-    assert!(
-        !old.corrects(u64::MAX),
-        "1.1.0's records: nothing after Compare"
-    );
     // The eye's choice is kept once, never over the app's.
     let laid = sheet.laid_mut(1).expect("an exercise");
     laid.judged(Outcome::Near);

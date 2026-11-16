@@ -1,7 +1,6 @@
-//! A learner shaped like the author's library on 2026-11-16 (S149): unit 1's full lessons on three
-//! days, their lines and combined lines compared but never judged (no line held a result then),
-//! their colours judged by the app; then a day of lessons of lines and of combined lines laid and
-//! left; no pair. Every skill practised is on the Progress page in the course's order, one with
+//! A learner with unit 1's skills mixed in a lesson on three days (S149), their lines and
+//! combined lines compared but never judged, their colours judged by the app; then a day of
+//! lessons of lines and of combined lines laid and left; no pair. Every skill practised is on the Progress page in the course's order, one with
 //! nothing judged without a day; a lesson of lines judged by eye gives lines their curve. The first
 //! lesson alone puts nothing there.
 
@@ -53,12 +52,9 @@ fn sheet(id: u64, day: u64, picked: Picked, laid: &[(u8, Done)]) -> Sheet {
     sheet
 }
 
-/// The author's shape: three days of unit 1's full lessons, then a day of lessons left.
-fn authors() -> Vec<Sheet> {
-    let full = Picked::Full {
-        unit: 1,
-        warm_up: 4,
-    };
+/// Three days of unit 1's skills mixed in a lesson, then a day of lessons left.
+fn learner() -> Vec<Sheet> {
+    let mixed = Picked::Chosen;
     let app = |outcome| Done::Judged(outcome, Judge::App);
     let (line, colour, combined) = (1, 2, 3);
     let first = [
@@ -76,12 +72,12 @@ fn authors() -> Vec<Sheet> {
         (colour, app(Outcome::Near)),
     ];
     vec![
-        sheet(1, 0, full, &first),
-        sheet(2, 1, full, &second),
+        sheet(1, 0, mixed, &first),
+        sheet(2, 1, mixed, &second),
         sheet(
             3,
             5,
-            full,
+            mixed,
             &[(line, Done::Compared), (colour, app(Outcome::Clean))],
         ),
         sheet(4, 24, Picked::Chosen, &[(line, Done::Laid); 6]),
@@ -107,7 +103,7 @@ fn skill(key: &str) -> Skill {
 
 #[test]
 fn every_skill_practised_is_on_the_page_in_the_course_s_order_judged_or_not() {
-    let progress = Progress::of(&authors(), &[], 0);
+    let progress = Progress::of(&learner(), &[], 0);
     assert_eq!(keys(&progress), ["line", "combined", "colour"]);
     for bare in ["line", "combined"] {
         let curve = progress.curve(skill(bare)).expect("practised");
@@ -121,7 +117,7 @@ fn every_skill_practised_is_on_the_page_in_the_course_s_order_judged_or_not() {
 
 #[test]
 fn a_lesson_judged_by_eye_gives_its_skill_a_curve_in_its_place() {
-    let mut sheets = authors();
+    let mut sheets = learner();
     let eye = |outcome| Done::Judged(outcome, Judge::Eye);
     let judged = [
         (1, eye(Outcome::Near)),

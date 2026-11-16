@@ -169,13 +169,14 @@ pub fn save(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<(), PortError
 /// # Errors
 /// Whatever the write fails with; nothing is removed then.
 pub fn remove(store: &mut dyn ProjectStore, sheet: &Sheet) -> Result<(), PortError> {
-    let project = (sheet.canvas != 0).then(|| ProjectId::new(sheet.canvas));
+    let mut projects = Vec::new();
     let mut keys = vec![(PRACTICE, sheet_key(sheet.id))];
     if sheet.canvas != 0 {
+        projects.push(ProjectId::new(sheet.canvas));
         let lessons = 0..u16::try_from(sheet.lessons.len()).unwrap_or(u16::MAX);
         keys.extend(lessons.map(|lesson| (GIVENS, givens_key(sheet.canvas, lesson))));
     }
-    store.remove_owned(&keys, project)?;
+    store.remove_owned(&keys, &projects)?;
     log::info!(
         "practice sheet {} and its project {} removed",
         sheet.id,

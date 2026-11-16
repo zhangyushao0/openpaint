@@ -43,7 +43,7 @@ impl Described for Scales {
         &FACTS
     }
 
-    /// Its tone and twice its cells (S97); cells 5 to 9 read (a 1.14.0 scale holds 6 or 7).
+    /// Its tone and twice its cells (S97): a level's 5, 7 or 9.
     fn variant(&self, kind: Kind) -> Option<u8> {
         match kind {
             Kind::Scale(tone, cells) => Some(place(&ScaleTone::ALL, &tone) + 2 * cells),
@@ -53,7 +53,7 @@ impl Described for Scales {
 
     fn of_variant(&self, variant: u8) -> Option<Kind> {
         let cells = variant / 2;
-        let kept = (usize::from(cells) >= FIRST_CELLS) && usize::from(cells) <= CELLS;
+        let kept = [FIRST_CELLS, SECOND_CELLS, CELLS].contains(&usize::from(cells));
         let tone = ScaleTone::ALL.get(usize::from(variant) % 2)?;
         kept.then_some(Kind::Scale(*tone, cells))
     }

@@ -4,26 +4,27 @@
 //! owns, which the gallery never lists. A record is read only in this shape, every field present;
 //! anything else is refused (`sheets` leaves it out).
 //!
-//! - The tag `SHEET` (u8; a record beginning otherwise is refused, 1.21.6's too), its
-//!   project (u64, 0 none), when it started (u64 seconds since 1970 UTC), its purpose (u8: 1 the
-//!   day's practice, 2 a long colour copy, 3 a test's, `practice-test`).
+//! - The tag `SHEET` (u8; a record beginning otherwise is refused), its project (u64, 0 none),
+//!   when it started (u64 seconds since 1970 UTC), its purpose (u8: 1 the day's practice, 2 a
+//!   project (a long colour copy, a drawing from life), 3 a test's, `practice-test`).
 //! - The spans it was practised in: a count (u32) and each one's start and end (u64 seconds since
 //!   1970 UTC, the end not before the start).
 //! - Its lessons, a count (u32, one at least), each: started and finished (u64, finished 0 while
-//!   open), how it was picked (u8: 2 a kind chosen; 3 a unit's full lesson (before S122 the
-//!   earlier product's session of a stage), then its unit and how many exercises its warm-up
-//!   holds, u8 each; 4 the first lesson, S122; 5 a unit's re-test, S147, then its unit, u8, and
-//!   whether it is the unit's end, u8 0 or 1), the exercise in hand (u16), and its exercises, a
-//!   count (u32), each: its kind and variant (u8 each, `Kind::code`) and seed (u64), its level
-//!   (u8), its picture (u8: 0 none, 1 one, then its pack's id and its item's id, strings), its
-//!   slot (u16), its picture's size (u16 width and height; 0 0 square), its first Compare (u8: 0
-//!   none, 1 one, then when (u64), the sheet's first stroke id after it (u64, 0 unknown) and its
-//!   metrics, a count (u32) and each one's code (u8, `Metric::code`) and value (f64)), how often
-//!   it was compared (u32), its result (u8: 0 none, else `Outcome::code`, then who judged, u8: 1
-//!   the app, 2 the eye) and the seconds spent on it (u32).
+//!   open), how it was picked (u8: 2 a kind chosen; 4 the first lesson, S122; 5 a unit's
+//!   re-test, S147, then its unit, u8, and whether it is the unit's end, u8 0 or 1), the
+//!   exercise in hand (u16), and its exercises, a count (u32), each: its kind and variant (u8
+//!   each, `Kind::code`) and seed (u64), its level (u8), its picture (u8: 0 none, 1 one, then its
+//!   pack's id and its item's id, strings), its slot (u16), its picture's size (u16 width and
+//!   height; 0 0 square), its first Compare (u8: 0 none, 1 one, then when (u64), the sheet's
+//!   first stroke id after it (u64) and its metrics, a count (u32) and each one's code (u8,
+//!   `Metric::code`) and value (f64)), how often it was compared (u32), its result (u8: 0 none,
+//!   else `Outcome::code`, then who judged, u8: 1 the app, 2 the eye) and the seconds spent on it
+//!   (u32).
 //!
-//! A kind, a metric or an outcome of a code this version does not know is refused (retired codes
-//! are never reused). A value scale's kind holds its cells, (6, tone + 2 x cells).
+//! The reader reads what this version writes: a code it does not know (a way picked, a kind, a
+//! metric, an outcome) is refused. A value scale's kind holds its cells, (6, tone + 2 x cells).
+//! The project a record names is also read alone, from the tag and the field after it
+//! (`named_project`), so the practice-only clear finds it in a record it could not decode.
 
 use openpaint_app::{PortError, Space};
 use openpaint_practice::{
@@ -81,11 +82,6 @@ pub(crate) fn encode_sheet(sheet: &Sheet) -> Vec<u8> {
         writer.u64(lesson.finished.unwrap_or(0));
         match lesson.picked {
             Picked::Chosen => writer.u8(2),
-            Picked::Full { unit, warm_up } => {
-                writer.u8(3);
-                writer.u8(unit);
-                writer.u8(warm_up);
-            }
             Picked::First => writer.u8(4),
             Picked::Retest { unit, end } => {
                 writer.u8(5);
@@ -124,7 +120,7 @@ fn write_laid(writer: &mut Writer, laid: &Laid) {
         Some(first) => {
             writer.u8(1);
             writer.u64(first.at);
-            writer.u64(first.corrected_from.unwrap_or(0));
+            writer.u64(first.corrected_from);
             writer.len(first.metrics.len());
             for (metric, value) in &first.metrics {
                 writer.u8(metric.code());
@@ -205,10 +201,6 @@ fn read_lesson(reader: &mut Reader<'_>) -> Result<Lesson, PortError> {
     let (started, finished) = (reader.u64()?, reader.u64()?);
     let picked = match reader.u8()? {
         2 => Picked::Chosen,
-        3 => Picked::Full {
-            unit: reader.u8()?,
-            warm_up: reader.u8()?,
-        },
         4 => Picked::First,
         5 => Picked::Retest {
             unit: reader.u8()?,
@@ -289,9 +281,18 @@ fn read_first(reader: &mut Reader<'_>) -> Result<First, PortError> {
     }
     Ok(First {
         at,
-        corrected_from: (corrected_from != 0).then_some(corrected_from),
+        corrected_from,
         metrics,
     })
+}
+
+/// The project the sheet record `bytes` names, read from its tag and the field after it alone,
+/// whatever follows; none for a record of another tag or too short, and none for 0.
+pub(crate) fn named_project(bytes: &[u8]) -> Option<u64> {
+    let (&tag, rest) = bytes.split_first()?;
+    let (project, _) = rest.split_first_chunk::<8>()?;
+    let project = u64::from_le_bytes(*project);
+    (tag == SHEET && project != 0).then_some(project)
 }
 
 #[cfg(test)]

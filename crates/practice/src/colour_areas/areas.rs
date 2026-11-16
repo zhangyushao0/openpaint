@@ -3,7 +3,7 @@
 //! never picked from the original. V大 picks a corner of an abstract oil painting or of a rusted
 //! old thing, never a concrete object; since S101 the pictures are such crops of real pictures,
 //! cut and answered by the pack builder (`crop.rs`, `areas_found.rs`). S82's generated pictures
-//! (`areas_generated.rs`) stay for the records made of them, the How's example and the tests.
+//! (`areas_generated.rs`) stay as the How's example, the scenarios' test crops and the tests'.
 //!
 //! This is the answer either way: a map of the picture's areas on a grid of cells, `GRID` along
 //! its longer side: which area each cell lies in, each area's colour, which areas meet, and each

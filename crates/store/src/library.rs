@@ -312,15 +312,17 @@ impl ProjectStore for Library {
     fn remove_owned(
         &mut self,
         keys: &[(Space, Vec<u8>)],
-        project: Option<ProjectId>,
+        projects: &[ProjectId],
     ) -> Result<(), PortError> {
-        self.with(|open| write::remove_owned(open, keys, project))?;
-        if let Some(removed) = project
-            && self.stored.as_ref().is_some_and(|(id, _)| *id == removed)
-        {
+        self.with(|open| write::remove_owned(open, keys, projects))?;
+        if (self.stored.as_ref()).is_some_and(|(id, _)| projects.contains(id)) {
             self.stored = None;
         }
-        log::info!("{} records removed with project {project:?}", keys.len());
+        log::info!(
+            "{} records removed with {} projects",
+            keys.len(),
+            projects.len()
+        );
         Ok(())
     }
 }

@@ -28,7 +28,7 @@ const SHEET: f32 = 152.0;
 const SHEET_WIDEST: f32 = 224.0;
 const GAP: f32 = 2.0 * SPACE;
 const SQUARE: f32 = 36.0;
-/// A sheet's shape before it is read: a full lesson's (2,920 by 3,160 pixels).
+/// A sheet's shape before it is read: six rows' (2,920 by 3,160 pixels).
 const SHEET_SHAPE: f32 = 2920.0 / 3160.0;
 
 /// The card of `day` (practised), grown out of its `cell` over progress on `screen`; a sheet

@@ -1,4 +1,4 @@
-//! Single colours to match (`Kind::Colour`): their tones and scores, the colour radar's judgement
+//! Single colours to match (`Kind::Colour`): their tones and scores, their bands
 //! (D108), their How, tile and lessons; compared by the colours laid (`marks.rs`).
 //!
 //! A lesson (a colour about 1.75 minutes) holds three: the first level its first three
@@ -6,9 +6,9 @@
 //! the third near-greys alone, where the hue hides (V大 stresses the low saturations); each
 //! level's lightnesses in turn by the lesson.
 
+pub(crate) mod bands;
 pub(crate) mod colour_match;
 pub(crate) mod demo;
-pub(crate) mod judgement;
 pub(crate) mod marks;
 
 use std::sync::Arc;
@@ -27,8 +27,8 @@ use crate::packs::pack::ItemRef;
 use crate::progress::scaled;
 use crate::records::metric::{Metric, Metrics, value};
 use crate::sheets::exercise::Exercise;
+use bands::{NOTICEABLE, PART_SPAN};
 use colour_match::{Lightness, Purity, Tone};
-use judgement::{NOTICEABLE, PART_SPAN};
 
 pub(crate) struct Colours;
 

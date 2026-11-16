@@ -197,7 +197,6 @@ mod tests {
             slot: 0,
             number,
             skill: skill(key),
-            unit: None,
             first,
             retest: None,
         };

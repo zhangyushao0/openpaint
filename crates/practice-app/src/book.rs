@@ -120,7 +120,7 @@ impl SheetRead {
                 continue;
             };
             // As first drawn: before its first Compare, or all of it while never compared.
-            let corrected = laid.first.as_ref().and_then(|first| first.corrected_from);
+            let corrected = laid.first.as_ref().map(|first| first.corrected_from);
             let first = corrected.map_or(ALL_STROKES, |from| 0..from);
             let read = |original| LineRead {
                 index: u32::try_from(index).unwrap_or(u32::MAX),

@@ -1,6 +1,6 @@
 //! The generators: the same seed gives the same exercise (the variants before S141 as they were),
 //! exercises stay in their frames and vary, lines' and line groups' lessons ask more at each
-//! level (S141), and unit 1's full lesson gives each exercise its own seed, its colours mostly
+//! level (S141), and a colour lesson gives each exercise its own seed, its colours mostly
 //! low in saturation (the sheet: `sheet.rs`).
 
 use openpaint_practice::{

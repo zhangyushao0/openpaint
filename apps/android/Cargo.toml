@@ -14,6 +14,7 @@ openpaint-runtime.workspace = true
 
 # The JNI surface exists only on Android; the host build of this crate holds the pure decoding.
 [target.'cfg(target_os = "android")'.dependencies]
+openpaint-app.workspace = true
 openpaint-practice-store.workspace = true
 openpaint-store.workspace = true
 android_logger.workspace = true

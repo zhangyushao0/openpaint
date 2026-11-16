@@ -8,14 +8,7 @@
 //! (D107); a division its lines' counts and lengths per level, for its card's table and later
 //! trajectories (S95); value masses the share painted at the answer's value (S96); a key shift how
 //! many areas each of its checks marked (S107); abstract analysis what its card's choices held
-//! (S112).
-//! Written no more, still read (records hold them): 47 and 48, a solid's and an object's read
-//! lines off the answer, until S145 (D123: drawn copies are no longer read).
-//! Retired, never reused, unknown when read (a record holding one is refused): codes 1 to 8,
-//! 1.1.0's line metrics (key points, frame, shape, speed, wobble, strokes, erased, seconds); 21 to
-//! 23 and 25 to 27, a colour's hue (degrees, only where both passed an RGB chroma gate),
-//! saturation and value on the wheel's HSV until 1.6.0; 32, 1.5.0's value scale off its even
-//! steps on the wheel's value.
+//! (S112). A code is never given to another metric; one this version does not know is refused.
 
 use crate::compositions::levels::Level;
 
@@ -54,12 +47,6 @@ pub enum Metric {
     AngleOff,
     /// A point in space: the copy off the answer, a share of the face (`space_check.rs`).
     SpaceOff,
-    /// A solid: the lines read off the exact solid on the mean, a share of its box; written no
-    /// more since S145, still read.
-    SolidOff,
-    /// An object (S94): the lines read off its visible edges on the mean, a share of its box;
-    /// written no more since S145, still read.
-    ObjectOff,
     /// A division's level (S95, a whole copy's own division too): its lines drawn, and how far
     /// they run on the mean, a share of the picture's longer side (`division.rs`).
     DivisionLines(Level),
@@ -80,7 +67,7 @@ pub enum Metric {
 }
 
 impl Metric {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 32] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -101,8 +88,6 @@ impl Metric {
         Self::ProportionOff,
         Self::AngleOff,
         Self::SpaceOff,
-        Self::SolidOff,
-        Self::ObjectOff,
         Self::DivisionLines(Level::Main),
         Self::DivisionLength(Level::Main),
         Self::DivisionLines(Level::Second),
@@ -141,8 +126,6 @@ impl Metric {
             Self::ProportionOff => 44,
             Self::AngleOff => 45,
             Self::SpaceOff => 46,
-            Self::SolidOff => 47,
-            Self::ObjectOff => 48,
             Self::DivisionLines(Level::Main) => 49,
             Self::DivisionLength(Level::Main) => 50,
             Self::DivisionLines(Level::Second) => 51,
@@ -182,7 +165,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn codes_are_distinct_and_read_back_and_the_retired_ones_are_unknown() {
+    fn codes_are_distinct_and_read_back_and_others_are_unknown() {
         for metric in Metric::ALL {
             assert_eq!(Metric::of_code(metric.code()), Some(metric));
         }
@@ -190,8 +173,9 @@ mod tests {
         codes.sort_unstable();
         codes.dedup();
         assert_eq!(codes.len(), Metric::ALL.len());
-        for retired in (0..=8).chain([21, 22, 23, 25, 26, 27, 32]) {
-            assert_eq!(Metric::of_code(retired), None, "code {retired}");
+        let unknown = (0..=u8::MAX).filter(|code| !codes.contains(code));
+        for code in unknown {
+            assert_eq!(Metric::of_code(code), None, "code {code}");
         }
     }
 }

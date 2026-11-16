@@ -1,5 +1,16 @@
 # Archived decisions, 2026-11
 
+## Archived 2026-11-16 (S152: what spoke of old practice records kept readable, superseded by D112's clear, as it stood)
+
+- D99's kept `corrected_from` read "(the sheet's next stroke id then: strokes in the frame from it on are corrections; 0 unknown)".
+- D107's metrics went on "; 47 and 48 (a solid's and an object's read lines off the answer, a share of the box) were written until S145 and stay readable."
+- D109's consequences began "time before 1.7.0 counts only between compares;".
+- D111's shared folders ended "(objects on solids, combined lines on lines, generated combinations on combinations)."
+- D112's records ended "Practice's spaces are `p` (sheets) and `g` (givens). No upgrade path: a reader meets records only in their newest shape (a host opens a library with `store::Library::at`); a new shape is converted once (S120c)." and its consequences "a new record shape is a one-time conversion (AGENTS.md); `areas-records.bin` holds practice's bytes."
+- D114's consequences began "a sheet from before S121c (its canvas only as tall as its rows) never takes another lesson;".
+- D115's stored read "the learner is derived from the sheets every time (`Learner::of`), never stored; history is not seeded (records before S122 hold level 0 and few results: dots start at zero). Codes added, additive: `Picked::First` 4, `Kind::Free` (20, 0); a stored `Picked::Full` still reads, nothing lays one."
+- D123's consequences read "codes 47 and 48 are written no more and still read, 55 to 58 stay written".
+
 ## Archived 2026-11-16 (S147: D113 folded into D123, which held its results since S145; and historical fragments, as they stood)
 
 - D97's reason went on: "The rule of 2026-10-23 waited whenever a stroke's frame before was unfinished, and a light stroke's frame is, merely submitted late in its vsync: every stroke at a view tier drew every other vsync (the author's pen on S134's build, 2026-11-15: 301 events in 150 frames, frame work p50 6.1 ms, the GPU's work as at fit)."

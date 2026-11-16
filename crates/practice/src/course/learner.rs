@@ -11,8 +11,6 @@
 //! - The window is the skill's last `Skill::window()` such exercises (6; 3 where a lesson holds
 //!   one). When it is full, at least two thirds of it are `Outcome::Clean` and none is
 //!   `Outcome::Redo`, the skill gains a dot and the window empties. Dots never fall.
-//! - Records from before S122 hold level 0 and few results: nothing is seeded from them (the
-//!   author, 2026-11-11), dots come from what is judged from now on.
 //!
 //! A redo: an exercise that ended `Outcome::Redo`. It waits, oldest first, until its kind (its
 //! variant too) and its picture are laid again in a later lesson, which answers it whatever that

@@ -206,8 +206,8 @@ impl PracticeLog {
 }
 
 /// The facts' keys of `sheet`'s exercises whose How its record tells was told: compared, or come
-/// up in hand where a How shows by itself (not in a warm-up; in the first lesson only at its first
-/// exercise). An exercise came up once its lesson moved past it or on to it, or, the first of a
+/// up in hand where a How shows by itself (in the first lesson only at its first exercise). An
+/// exercise came up once its lesson moved past it or on to it, or, the first of a
 /// lesson, once the sheet was used in a span begun after that lesson was laid (a later second): a
 /// lesson laid but never shown tells nothing.
 fn told_on(sheet: &Sheet) -> impl Iterator<Item = &'static str> + '_ {
@@ -218,8 +218,8 @@ fn told_on(sheet: &Sheet) -> impl Iterator<Item = &'static str> + '_ {
             None if lesson.at > 0 || used_since(lesson.started) => usize::from(lesson.at) + 1,
             None => 0,
         };
-        let (warm_up, first) = (lesson.warm_up(), lesson.picked == Picked::First);
-        let came_up = move |at: usize| at < reached && at >= warm_up && (at == 0 || !first);
+        let first = lesson.picked == Picked::First;
+        let came_up = move |at: usize| at < reached && (at == 0 || !first);
         (lesson.exercises.iter().enumerate())
             .filter(move |(at, laid)| laid.first.is_some() || came_up(*at))
             .map(|(_, laid)| laid.exercise.kind.facts().key)

@@ -1,11 +1,10 @@
-//! S82's generated colour combinations (1.5.0 to 1.18.1): bands, patches or blocks
-//! (`areas_field.rs`), hard or soft edged, in colours related to a key (near hues, values and
-//! purities) with one contrasting, at least half of them low in saturation, at least one weak
-//! contrast between neighbours (under three just-noticeable steps) and at least one strong one,
-//! the same for the same seed. Retired from the exercises by S101 (the author: they vary too
-//! little beside real crops); they stay as the records made of them show them, as the How's
-//! example and as pictures of known areas the found answer is validated on
-//! (`areas_found.rs`).
+//! S82's generated pictures of colour areas: bands, patches or blocks (`areas_field.rs`), hard
+//! or soft edged, in colours related to a key (near hues, values and purities) with one
+//! contrasting, at least half of them low in saturation, at least one weak contrast between
+//! neighbours (under three just-noticeable steps) and at least one strong one, the same for the
+//! same seed. No exercise lays them since S101 (the author: they vary too little beside real
+//! crops); they are the How's examples, the scenarios' test crops (`devtools`) and pictures of
+//! known areas the found answer is validated on (`areas_found.rs`).
 
 use crate::colour_areas::areas::{Areas, CORE, GRID, LEAST_CORE, LEAST_SHARE, STRONG, WEAK};
 use crate::colour_areas::areas_field::Field;

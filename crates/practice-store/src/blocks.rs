@@ -100,6 +100,11 @@ pub fn forget_blocks(store: &mut dyn ProjectStore, since: u64) -> Result<usize, 
     Ok(gone.len() + put.len())
 }
 
+/// Whether `key` is the settings' (a preference the practice-only clear keeps, `clear.rs`).
+pub(crate) fn is_settings(key: &[u8]) -> bool {
+    key == [TIMER.byte(), SETTINGS]
+}
+
 /// The key of the record `rest` names in the space.
 fn key(rest: &[u8]) -> Vec<u8> {
     [&[TIMER.byte()], rest].concat()

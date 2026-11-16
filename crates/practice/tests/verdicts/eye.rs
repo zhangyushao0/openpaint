@@ -5,9 +5,9 @@
 //! holds now. Value masses and key shifts read with their answers: `painted.rs`.
 
 use openpaint_practice::{
-    Arrangement, Asked, BoxView, Carve, Combination, Compare, Copied, DrawnCopy, Estimate,
-    Exercise, Guide, Horizon, ItemRef, Kind, Lean, Level, LineTier, PictureFit, Point, Rgb8,
-    Rotation, ScaleTone, SheetPicture, Solid, Tendency, Tier, Trick, Verdict,
+    Asked, BoxView, Carve, Combination, Compare, Copied, DrawnCopy, Estimate, Exercise, Guide,
+    Horizon, ItemRef, Kind, Lean, Level, LineTier, PictureFit, Point, Rgb8, Rotation, ScaleTone,
+    SheetPicture, Solid, Tendency, Tier, Trick, Verdict,
 };
 
 use crate::{Laid, compare, shown, steady};
@@ -136,14 +136,13 @@ fn the_drawn_kinds_laid_over_by_their_answer_never_read_the_copy() {
 
 #[test]
 fn a_kind_the_app_judges_never_says_eye() {
-    // Whatever is drawn, an estimate's, a point in space's, a scale's or a combination's
+    // Whatever is drawn, an estimate's, a point in space's or a scale's
     // comparison is the app's or incomplete: each reads a direct measure.
     let kinds = [
         Kind::Flat(Estimate::ALL[0]),
         Kind::Flat(Estimate::ALL[2]),
         Kind::Space(Trick::ALL[0]),
         Kind::Scale(ScaleTone::Grey, 5),
-        Kind::Areas(Arrangement::ALL[0]),
     ];
     let laid = Laid {
         lines: steady(vec![vec![[0.2, 0.3], [0.8, 0.35]]], 3),

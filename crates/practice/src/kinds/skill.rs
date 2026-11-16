@@ -2,7 +2,7 @@
 //! practises. A skill is a kind's folder, named by its stored code (`Described::code`), so the
 //! flow and the screens hold one without knowing which kind it is: 19 of the folders are skills
 //! (`course/unit.rs` lists them by unit); a long colour copy, a drawing from life and the first
-//! lesson's drawing are none, and a generated combination (old records) counts as a combination.
+//! lesson's drawing are none.
 //!
 //! A level is how hard a skill's lesson is laid (入门, 熟练, 稳): harder variants, mixing or
 //! volume, as its folder's `Described::lesson` says. It is stored with every exercise
@@ -59,11 +59,7 @@ impl Skill {
     /// first lesson's drawing.
     #[must_use]
     pub fn of(kind: Kind) -> Option<Self> {
-        let folder = match kind.code().0 {
-            // A generated combination (1.18.1 and before) is a combination.
-            GENERATED => COMBINATIONS,
-            code => code,
-        };
+        let folder = kind.code().0;
         Self::all().find(|skill| skill.0 == folder)
     }
 
@@ -137,7 +133,3 @@ impl Skill {
             .unwrap_or(KINDS[0])
     }
 }
-
-/// The folders' stored codes a generated combination goes from and to.
-const GENERATED: u8 = 5;
-const COMBINATIONS: u8 = 18;

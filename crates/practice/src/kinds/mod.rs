@@ -23,7 +23,6 @@ pub(crate) mod ellipses;
 pub(crate) mod estimates;
 pub(crate) mod free;
 pub(crate) mod free_boxes;
-pub(crate) mod generated_combinations;
 pub(crate) mod key_shifts;
 pub(crate) mod lines;
 pub(crate) mod objects;
@@ -52,13 +51,12 @@ pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
 pub use tools::{Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 23): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 23] = [
+/// Every kind, by its stored code (1 to 23, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 22] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
     &shapes::Shapes,
-    &generated_combinations::Generated,
     &scales::Scales,
     &study::Study,
     &boxes::Boxes,

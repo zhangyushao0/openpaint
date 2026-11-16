@@ -37,8 +37,7 @@ fn every_kinds_card_has_a_step_for_each_step_of_its_demonstration() {
     for kind in &kinds {
         let how = text::how(*kind);
         let steps = text::how_steps(*kind, CELLS, english);
-        // A topic's How is its demonstration whichever of its kinds has one (a generated
-        // combination, kept for old records, has none of its own).
+        // A topic's How is its demonstration whichever of its kinds has one.
         let key = kind.facts().key;
         let shown = (kinds.iter()).find_map(|other| {
             (other.facts().key == key)

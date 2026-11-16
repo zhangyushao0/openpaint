@@ -106,10 +106,7 @@ fn every_kind_s_givens_and_painted_picture_round_trip_exactly() {
             let row = sizes.entry(kind.code().0).or_insert((name, Vec::new()));
             row.1.push(bytes);
         }
-        // A generated combination is kept in its records but never laid since S101.
-        if !matches!(kind, Kind::Areas(_)) {
-            by_kind.push((kind, total));
-        }
+        by_kind.push((kind, total));
     }
     assert!(painted >= 60, "objects, value masses, combinations painted");
     print_sizes(&sizes);

@@ -198,7 +198,10 @@ fn a_line_is_compared_in_place_and_aligned_and_its_pen_turns_blue() {
     let (compares, judged) = (record.laid(0)).map_or((0, None), |l| (l.compares, l.result));
     let kept = (compares, result.metrics.len(), judged);
     assert_eq!(kept, (1, 0, None), "no numbers, judged by the eye");
-    assert!(result.corrected_from.is_some(), "corrections marked");
+    assert!(
+        result.corrected_from > 0,
+        "corrections marked from the next stroke"
+    );
     // In place: the original as it lies in its frame, moved into the copy's.
     let in_place = overlay(&session).expect("the overlay");
     let placed = pair.copy.to_canvas(line[0]).map(|v| v as f32);
@@ -226,7 +229,7 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     practise(&mut session, PracticeIntent::Compare(true));
     practise(&mut session, PracticeIntent::Aligned(true));
     let record = session.sheet_mut().save_request().expect("changed");
-    let first_correction = record.first(0).and_then(|r| r.corrected_from);
+    let first_correction = record.first(0).map(|r| r.corrected_from);
     // Drawing in the frame takes the comparison away and is a correction, in blue.
     draw(&mut session, &copy[..20]);
     assert!(overlay(&session).is_none(), "corrected by eye");
@@ -239,7 +242,8 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
     assert_eq!(
-        result.corrected_from, first_correction,
+        Some(result.corrected_from),
+        first_correction,
         "kept from the first"
     );
     assert!(result.corrects(id) && !result.corrects(strokes(&session)[0].0));
@@ -249,7 +253,7 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     assert_eq!(session.session().view().zoom(), zoom, "the zoom kept");
     let practice = session.projection();
     let place = practice.lesson.map(|lesson| lesson.place);
-    assert_eq!((practice.current, place), (Some(1), Some((2, 6))));
+    assert_eq!((practice.current, place), (Some(1), Some((2, 16))));
     assert_eq!(
         practice.pen.map(|p| p.0),
         Some(Pen::Draw),
@@ -305,7 +309,7 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
         lightness: Lightness::Middle,
     });
     let place = practice.lesson.map(|lesson| lesson.place);
-    assert_eq!((practice.kind, place), (Some(muted), Some((1, 6))));
+    assert_eq!((practice.kind, place), (Some(muted), Some((11, 16))));
     assert_eq!(practice.how, Some(muted), "colours' How first");
     assert_eq!(practice.pen, None, "colours have no pens");
     let pair = practice.sheet.pairs[10];
@@ -374,7 +378,8 @@ fn finished(session: &mut SheetSession, at: [f32; 2]) {
         .map(|index| (index, (index == 10).then_some(Outcome::Clean)))
         .collect();
     assert_eq!(end.results, judged);
-    assert_eq!(end.skill, None, "a full lesson's");
+    let dots = end.skill.map(|(_, before, after)| (before, after));
+    assert_eq!(dots, Some((0, 0)), "its skill's, no dot yet");
     assert!(
         session
             .practise(PracticeIntent::Fill(Color::BLACK), 40)

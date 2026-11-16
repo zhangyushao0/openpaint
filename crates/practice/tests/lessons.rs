@@ -5,7 +5,7 @@
 
 use openpaint_practice::{
     Book, Exercise, First, Given, Givens, Kind, Layout, Learner, Lesson, LineShown, LineTier,
-    Picked, Planned, Purpose, Seal, Sheet, SkillLevel, Tally, lessons, number, sealed,
+    Picked, Planned, Purpose, Seal, Sheet, Skill, SkillLevel, Tally, lessons, number, sealed,
 };
 
 /// 2026-10-05 12:00 UTC.
@@ -28,9 +28,8 @@ fn line_lesson(id: u64) -> Sheet {
     Sheet::begun(id, (Purpose::Day, NOON), planned)
 }
 
-/// Unit 1's full lesson as an old record holds it (none is laid since S124), as a lesson to
-/// append, seeded `seed`: a warm-up of three, then lines.
-fn full_lesson(seed: u64) -> Lesson {
+/// A long lesson of seven lines, as a lesson to append, seeded `seed`: three rows' worth.
+fn long_lesson(seed: u64) -> Lesson {
     let exercises = (0..7)
         .map(|at| {
             let kind = Kind::Line(LineTier::Arc);
@@ -38,10 +37,7 @@ fn full_lesson(seed: u64) -> Lesson {
         })
         .collect();
     let planned = Planned {
-        picked: Picked::Full {
-            unit: 1,
-            warm_up: 3,
-        },
+        picked: Picked::Chosen,
         exercises,
     };
     Sheet::begun(0, (Purpose::Day, NOON + 600), planned)
@@ -60,7 +56,7 @@ fn a_lesson_appended_is_laid_from_a_new_row_with_its_givens() {
     let mut sheet = line_lesson(1);
     let first = Givens::of_lesson(&sheet.lessons[0], &[]);
     assert_eq!(Layout::next_slot(&sheet), 6, "two rows used");
-    let lesson = full_lesson(5);
+    let lesson = long_lesson(5);
     let count = lesson.exercises.len();
     let givens = Givens::of_lesson(&lesson, &[]);
     let moved = sheet.append(lesson, givens);
@@ -69,7 +65,10 @@ fn a_lesson_appended_is_laid_from_a_new_row_with_its_givens() {
     assert_eq!(slots, laid, "the givens moved with their exercises");
     assert_eq!(laid[0], 6);
     assert_eq!((sheet.in_hand(), sheet.at()), (1, 4));
-    assert_eq!(sheet.lesson().and_then(Lesson::unit), Some(1));
+    assert_eq!(
+        sheet.lesson().and_then(Lesson::skill),
+        Skill::of(Kind::Line(LineTier::Arc))
+    );
     // One pair an exercise, at its slot: the second lesson starts the third row's first column.
     let layout = Layout::of_sheet(&sheet);
     assert_eq!(layout.pairs.len(), 4 + count);
@@ -92,7 +91,7 @@ fn a_lesson_appended_is_laid_from_a_new_row_with_its_givens() {
     // Its givens resolve for every exercise.
     let printed = Givens::laid(&[first, moved], &sheet).expect("every exercise's");
     assert_eq!(printed, Given::of_sheet(&sheet, &[]));
-    // A sheet of the rows used holds no more; twelve rows hold a full lesson after a lesson.
+    // A sheet of the rows used holds no more; twelve rows hold a long lesson after a lesson.
     let lines = line_lesson(2);
     assert!(!Layout::fits(&lines, count, Layout::used(&lines)));
     assert!(Layout::fits(&lines, count, [2920, 6280]));
@@ -118,18 +117,18 @@ fn a_lesson_appended_is_laid_from_a_new_row_with_its_givens() {
     assert_eq!(Layout::laid_ahead(&copy), Layout::of_sheet(&copy).size);
 }
 
-/// Sheet 1: a lesson of lines, then unit 1's full lesson appended and finished, a line compared in
-/// each; sheet 2: a full lesson left open; sheet 3: a lesson of lines, a test's; sheet 4: a copy.
+/// Sheet 1: a lesson of lines, then a long lesson appended and finished, a line compared in
+/// each; sheet 2: a long lesson left open; sheet 3: a lesson of lines, a test's; sheet 4: a copy.
 fn four_sheets() -> Vec<Sheet> {
     let mut day = line_lesson(1);
     compared(&mut day, 0);
     day.lessons[0].finished = Some(NOON + 300);
-    let lesson = full_lesson(5);
+    let lesson = long_lesson(5);
     day.append(lesson, Givens::default());
     compared(&mut day, 4);
     day.lessons[1].finished = Some(NOON + 900);
     let mut open = line_lesson(2);
-    open.lessons = vec![full_lesson(6)];
+    open.lessons = vec![long_lesson(6)];
     let test = Sheet {
         purpose: Purpose::Test,
         ..line_lesson(3)
@@ -155,7 +154,7 @@ fn every_count_sees_each_lesson_in_the_order_of_sheet_and_lesson() {
     // The tally: the day's two lessons finished, the lines compared in both.
     let tally = Tally::of(&sheets);
     assert_eq!((tally.lessons, tally.lines), (2, 2));
-    // The full lesson in hand is set beside every other lesson, its sheet's first included: the
+    // The long lesson in hand is set beside every other lesson, its sheet's first included: the
     // first lesson finished was that one, so its finish stamps nothing; the first alone did.
     let others = Tally::beside(&sheets, day);
     assert_eq!((others.lessons, others.lines), (1, 1));

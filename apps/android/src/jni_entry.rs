@@ -59,7 +59,7 @@ fn size(width: jint, height: jint) -> [u32; 2] {
     [width, height].map(|side| u32::try_from(side).unwrap_or(0))
 }
 
-fn init_logging() {
+pub(crate) fn init_logging() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         android_logger::init_once(

@@ -69,9 +69,9 @@ impl ProjectStore for Batches {
     fn remove_owned(
         &mut self,
         keys: &[(Space, Vec<u8>)],
-        project: Option<ProjectId>,
+        projects: &[ProjectId],
     ) -> Result<(), PortError> {
-        self.library.remove_owned(keys, project)
+        self.library.remove_owned(keys, projects)
     }
 
     fn open_last(&mut self) -> Result<Option<Project>, PortError> {

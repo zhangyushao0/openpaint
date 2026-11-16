@@ -1,7 +1,7 @@
 //! A lesson of the path started (S122), the one way a lesson starts: the store's job for what
 //! the home, the path page, One more, a scenario or the test chore asks
 //! (`openpaint_practice_app::Start`), the lesson the log starts (`PracticeLog::start`: the next
-//! one offered, the review, a skill's, a unit's full lesson, the first), seeded from the strokes'
+//! one offered, the review, a skill's, a re-test, the first), seeded from the strokes'
 //! seed source, on a sheet for the day or a test, onto today's sheet where that takes it
 //! (`day.rs`); and a project begun the same way on a sheet of its own: a long colour copy of a
 //! picture chosen, a drawing from life against a photo of one's own (S151).

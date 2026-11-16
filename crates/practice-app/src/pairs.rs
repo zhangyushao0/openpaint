@@ -80,7 +80,7 @@ impl CopyCard {
             .pairs
             .get(index)?
             .copy;
-        let before = laid.first.as_ref().and_then(|first| first.corrected_from);
+        let before = laid.first.as_ref().map(|first| first.corrected_from);
         let marks = (artwork.layers().iter())
             .flat_map(|layer| card_marks(layer, &frame, before))
             .collect();
