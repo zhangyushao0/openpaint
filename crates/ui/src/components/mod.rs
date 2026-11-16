@@ -64,7 +64,7 @@ pub use canvas_frame::{CanvasArea, ScreenArea, canvas_frame, canvas_point, scree
 pub use card::{card, card_columns, card_step, card_text};
 pub use choices::{Choices, choices};
 pub use chrome::{Source, ring_of};
-pub use color_wheel::{WheelChange, color_compare, color_wheel, wheel_picture};
+pub use color_wheel::{WheelChange, WheelDims, color_compare, color_wheel, wheel_picture};
 pub use controls::{Control, ControlMap, Unresolved};
 pub use curve_editor::{CurveChange, DynamicsCurve, curve_editor, dynamics_editor};
 pub use dialog::{

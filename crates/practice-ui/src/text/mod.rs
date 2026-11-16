@@ -155,6 +155,7 @@ mod tests {
         ]);
         shown.extend(pomodoro::made(language));
         shown.extend(reasons::made(language));
+        shown.extend(outside_mask_made(language));
         shown
     }
 

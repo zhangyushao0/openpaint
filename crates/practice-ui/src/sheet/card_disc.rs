@@ -5,13 +5,19 @@
 //! Gurney's gamut mask, a triangle whose apex is the tendency at high chroma and whose base lies
 //! past the grey centre on the other side, so the tendency's opposites are allowed only greyed,
 //! everything outside it veiled in paper. It shows only on a compared key shift's card.
+//!
+//! A gamut mask's disc (S153) is the same disc with the mask's own shape, any convex polygon, so
+//! grey may lie outside it (veiled from the middle out to where the mask begins), outlined in ink:
+//! on the card (`gamut`, the areas outside it ringed red), beside its frame on the sheet and under
+//! a How's frames (`masked_disc`).
 
 use egui::{Color32, Mesh, Pos2, Sense, Shape, Stroke, Vec2};
-use openpaint_practice::{Point, Rgb8, in_gamut, oklab};
+use openpaint_practice::{Point, Rgb8, gamut_span, in_gamut, oklab};
 
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, PANEL};
 
 use super::marks::colour;
+use crate::palette::CORRECTION;
 
 /// The disc's side, in points, and the chroma at its rim (Oklab).
 const SIDE: f32 = 220.0;
@@ -24,9 +30,11 @@ const RINGS: usize = 5;
 const SECTORS: usize = 48;
 const VEIL_STEPS: usize = 96;
 const VEIL: f32 = 0.82;
-/// A ring's and a dot's radius, and the tendency's, in points.
+/// A ring's and a dot's radius, and the tendency's, in points; the red ring round a dot outside a
+/// gamut mask.
 const MARK: f32 = 4.5;
 const TENDENCY_MARK: f32 = 8.0;
+const OUTSIDE_RING: f32 = 9.0;
 
 /// The disc for the crop's `originals` and the copy's `colours` (none where not painted), the
 /// tendency where it lies in its colour, Gurney's `mask`, the `chosen` area heavier.
@@ -141,6 +149,90 @@ fn reach(triangle: &[Point; 3], d: Point) -> f64 {
         }
     }
     if nearest.is_finite() { nearest } else { 0.0 }
+}
+
+/// A gamut mask's disc on the card (S153): each area's crop colour a small ring, the copy's a dot
+/// in its colour, an arrow from one to the other (the `chosen` area heavier), the `marked` areas'
+/// dots (outside the mask) ringed red; the mask (`corners`) outlined, the disc veiled outside it.
+pub(crate) fn gamut(
+    ui: &mut egui::Ui,
+    (originals, colours): (&[Rgb8], &[Option<Rgb8>]),
+    corners: &[Point],
+    (marked, chosen): (&[usize], usize),
+) {
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, SIDE), Sense::hover());
+    let (centre, radius) = (rect.center(), SIDE / 2.0 - 4.0);
+    let painter = ui.painter();
+    masked_disc(painter, (centre, radius), corners);
+    let at = |colour: Rgb8| {
+        let [_, a, b] = oklab(colour);
+        on_disc((centre, radius), [a, b])
+    };
+    for (area, (original, mine)) in originals.iter().zip(colours).enumerate() {
+        let weight = if area == chosen { 2.5 } else { 1.25 };
+        let from = at(*original);
+        if let Some(mine) = mine {
+            let to = at(*mine);
+            arrow(painter, from, to, Stroke::new(weight, INK_SECONDARY));
+            painter.circle(to, MARK, colour(*mine), Stroke::new(weight, INK));
+            if marked.contains(&area) {
+                painter.circle_stroke(to, OUTSIDE_RING, Stroke::new(2.0, CORRECTION));
+            }
+        }
+        painter.circle_stroke(from, MARK, Stroke::new(weight, INK));
+    }
+}
+
+/// A hue and chroma disc at `centre` of `radius` points with a gamut mask: its colours softened,
+/// paper over it outside the convex polygon `corners` (Oklab `a`, `b`), the polygon outlined in
+/// ink (the card's, the sheet's beside a frame, a How's strip).
+pub(crate) fn masked_disc(
+    painter: &egui::Painter,
+    (centre, radius): (Pos2, f32),
+    corners: &[Point],
+) {
+    painter.add(Shape::mesh(colours_of(centre, radius)));
+    let mut veil = Mesh::default();
+    let paper = PANEL.gamma_multiply(VEIL);
+    let scale = f64::from(radius) / RIM;
+    let rim = f64::from(radius);
+    for step in 0..=VEIL_STEPS {
+        let angle = std::f64::consts::TAU * step as f64 / VEIL_STEPS as f64;
+        let d = [angle.cos(), angle.sin()];
+        let (near, far) = gamut_span(corners, d).map_or((0.0, 0.0), |(near, far)| {
+            ((near * scale).min(rim), (far * scale).min(rim))
+        });
+        let screen = Vec2::new(d[0] as f32, -d[1] as f32);
+        for at in [0.0, near, far, rim] {
+            veil.colored_vertex(centre + screen * at as f32, paper);
+        }
+    }
+    for step in 1..=VEIL_STEPS as u32 {
+        let (was, now) = (4 * (step - 1), 4 * step);
+        // Grey to where the ray enters the mask, and from where it leaves to the rim.
+        for (inner, outer) in [(0, 1), (2, 3)] {
+            veil.add_triangle(was + inner, was + outer, now + inner);
+            veil.add_triangle(was + outer, now + outer, now + inner);
+        }
+    }
+    painter.add(Shape::mesh(veil));
+    painter.circle_stroke(centre, radius, Stroke::new(1.0, DIVIDER));
+    let mut outline: Vec<Pos2> = (corners.iter())
+        .map(|p| on_disc((centre, radius), *p))
+        .collect();
+    outline.extend(outline.first().copied());
+    painter.add(Shape::line(outline, Stroke::new(1.25, INK)));
+}
+
+/// The point of the disc at `centre` of `radius` points where the Oklab `a`, `b` point `ab` lies,
+/// held inside its rim.
+fn on_disc((centre, radius): (Pos2, f32), [a, b]: Point) -> Pos2 {
+    let scale = f64::from(radius) / RIM;
+    let [x, y] = [a * scale, -b * scale];
+    let long = x.hypot(y).max(f64::MIN_POSITIVE);
+    let kept = long.min(f64::from(radius)) / long;
+    centre + Vec2::new((x * kept) as f32, (y * kept) as f32)
 }
 
 /// An arrow from `from` to `to`, its head at `to`'s mark.

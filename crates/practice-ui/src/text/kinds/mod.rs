@@ -21,6 +21,7 @@ mod ellipses;
 mod estimates;
 mod free;
 mod free_boxes;
+mod gamut_masks;
 mod key_shifts;
 mod lines;
 mod objects;
@@ -39,6 +40,9 @@ pub(crate) use abstract_analysis::{
     ANALYSIS_STRONGEST, ANALYSIS_STRONGEST_HOW, SECOND_MARK_PEN, STRONG_PEN, WEAK_PEN,
     analysis_chosen, analysis_spread, choice_word,
 };
+#[cfg(test)]
+pub(crate) use gamut_masks::made as outside_mask_made;
+pub(crate) use gamut_masks::outside_mask;
 pub(crate) use key_shifts::{GREY_VIEW, TENDENCY, lightness_off, merged, not_toward};
 pub(crate) use observation::{LIFE_DRAWINGS, LIFE_EXERCISE, LIFE_NEW, life_subject};
 pub(crate) use study::STUDY_EXERCISE;
@@ -86,7 +90,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 22] = [
+const KINDS: [&[KindWords]; 23] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -109,6 +113,7 @@ const KINDS: [&[KindWords]; 22] = [
     &abstract_analysis::WORDS,
     &rotations::WORDS,
     &observation::WORDS,
+    &gamut_masks::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -186,6 +191,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         study::PRACTICE_STUDY,
         value_masses::PRACTICE_VALUE_MASSES,
         whole_copies::PRACTICE_WHOLE_COPIES,
+        gamut_masks::PRACTICE_GAMUT_MASKS,
     ]
 }
 

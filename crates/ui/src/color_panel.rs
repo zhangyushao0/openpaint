@@ -12,7 +12,7 @@ use openpaint_app::{BrushProjection, Hsv, Intent, SessionProjection, ToolIntent}
 
 use crate::color_palette::PaletteState;
 use crate::components::{
-    Opener, ScreenArea, color_wheel, color32, panel_heading_with, popover, swatch,
+    Opener, ScreenArea, WheelDims, color_wheel, color32, panel_heading_with, popover, swatch,
 };
 use crate::design::{COLOR_WHEEL, INK_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
 use crate::taps::push_once;
@@ -81,7 +81,7 @@ impl ColorPanel {
                 palette.hex_field(ui, brush.color, taps);
             });
             palette.hex_hint(ui);
-            ui.vertical_centered(|ui| wheel(ui, shown, brush, taps));
+            ui.vertical_centered(|ui| wheel(ui, (shown, None), brush, taps));
             ui.add_space(SPACE);
             recent(ui, brush, taps);
             palette.palette(ui, brush, taps);
@@ -91,14 +91,15 @@ impl ColorPanel {
     }
 
     /// The wheel outside the panel, at the current colour of `brush`: a mode's colour beside
-    /// its frame. The same wheel as the panel's, keeping the hue the hand left on a grey.
+    /// its frame. The same wheel as the panel's, keeping the hue the hand left on a grey, what
+    /// the mode asks dimmed (`dims`: a gamut mask's outside, S153).
     pub(crate) fn inline_wheel(
         &mut self,
         ui: &mut egui::Ui,
-        brush: &BrushProjection,
+        (brush, dims): (&BrushProjection, Option<&dyn WheelDims>),
         taps: &mut Vec<Intent>,
     ) {
-        wheel(ui, &mut self.shown, brush, taps);
+        wheel(ui, (&mut self.shown, dims), brush, taps);
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.
@@ -114,17 +115,17 @@ impl ColorPanel {
 }
 
 /// The colour wheel at `brush`'s colour (with the hue `shown` last kept while the colour is the
-/// one it set), its changes pushed to `taps` and kept in `shown`.
+/// one it set), what `dims` asks dimmed, its changes pushed to `taps` and kept in `shown`.
 fn wheel(
     ui: &mut egui::Ui,
-    shown: &mut Option<Hsv>,
+    (shown, dims): (&mut Option<Hsv>, Option<&dyn WheelDims>),
     brush: &BrushProjection,
     taps: &mut Vec<Intent>,
 ) {
     let hsv = shown
         .filter(|shown| color32(shown.color()) == color32(brush.color))
         .unwrap_or_else(|| Hsv::of(brush.color));
-    if let Some(change) = color_wheel(ui, hsv, COLOR_WHEEL) {
+    if let Some(change) = color_wheel(ui, hsv, COLOR_WHEEL, dims) {
         *shown = Some(change.hsv);
         push(taps, change.hsv.color(), change.settled);
     }

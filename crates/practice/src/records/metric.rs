@@ -64,10 +64,12 @@ pub enum Metric {
     /// chosen (`Choices::shape`, 0 to 3).
     ChosenChips,
     ChosenShape,
+    /// A gamut mask (S153): the areas painted outside the mask (`gamut_masks/check.rs`).
+    MaskOutside,
 }
 
 impl Metric {
-    pub const ALL: [Self; 32] = [
+    pub const ALL: [Self; 33] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -100,6 +102,7 @@ impl Metric {
         Self::KeyMerged,
         Self::ChosenChips,
         Self::ChosenShape,
+        Self::MaskOutside,
     ];
 
     /// The code it is stored by; never reused.
@@ -138,6 +141,7 @@ impl Metric {
             Self::KeyMerged => 58,
             Self::ChosenChips => 59,
             Self::ChosenShape => 60,
+            Self::MaskOutside => 61,
         }
     }
 

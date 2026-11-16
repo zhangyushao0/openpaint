@@ -11,7 +11,8 @@
 //!   construction lines) and Draw, and after Compare Correct (blue); under them Undo and Redo. A
 //!   division: its levels' pens, Main, Second, Third (S95); a whole copy those and Draw.
 //! - A colour: the colour wheel (the colour panel's own) and Fill frame, which fills the frame
-//!   with the colour picked in one tap.
+//!   with the colour picked in one tap. Where a gamut mask is printed beside the frame (S153) the
+//!   wheel dims what lies outside it, refusing nothing.
 //! - A colour combination: the wheel, Fill frame (the overall tone first) with Undo and Redo,
 //!   the painting pens Big, Small and Soft in the colour picked and the eyedropper (the copy may
 //!   be picked from); a value scale the wheel, Fill cell (the cell in hand, which the pen touching
@@ -21,13 +22,15 @@
 
 use egui::Align;
 use openpaint_app::{
-    BrushProjection, EditorAction, HistoryIntent, Intent, SessionProjection, Tool, ToolIntent,
+    BrushProjection, EditorAction, HistoryIntent, Hsv, Intent, SessionProjection, Tool, ToolIntent,
 };
 use openpaint_core::Color;
-use openpaint_practice::{Fill, ToolSet};
+use openpaint_practice::{
+    Figure, Fill, INSIDE, Point, ToolSet, from_hsv, gamut_distance, gamut_span, oklab,
+};
 use openpaint_practice_app::{Pen, PracticeIntent, PracticeProjection};
 use openpaint_ui::components::{
-    Source, UNDER_ISLANDS, card, choices, icon_button, icon_toggle, swatch, text_button,
+    Source, UNDER_ISLANDS, WheelDims, card, choices, icon_button, icon_toggle, swatch, text_button,
     text_choice,
 };
 use openpaint_ui::design::{Icon, SPACE, TOUCH_TARGET};
@@ -97,9 +100,11 @@ pub(crate) fn exercise_tools(
     // wheel comes back with the pen or Got it. A swatch's wheel stays while compared.
     let painted = !facts.picks.swatch;
     let wheel = tools.wheel && !(practice.comparing && painted) && practice.how.is_none();
+    let masked = gamut_of(practice).map(Masked);
+    let dims = masked.as_ref().map(|masked| masked as &dyn WheelDims);
     let ((), rect) = card(ctx, "practice colour", source, |ui| {
         if wheel {
-            ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush));
+            ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush, dims));
             ui.add_space(SPACE);
         }
         colour_rows(ui, (tools, brush), shown, taps);
@@ -188,7 +193,7 @@ fn layered_tools(
     let brush = projection.brush().filter(|_| painting);
     let room = !practice.comparing && practice.how.is_none();
     if let Some(brush) = brush.filter(|_| tools.wheel && room) {
-        ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush));
+        ui.vertical_centered(|ui| taps.lent.inline_wheel(ui, brush, None));
         ui.add_space(SPACE);
     }
     ui.horizontal(|ui| pens(ui, ("pens", tools.pens), practice, taps));
@@ -268,6 +273,38 @@ fn pens(
             }
         }
     });
+}
+
+/// The gamut mask printed beside the shown exercise's frame (S153), its corners (Oklab `a`, `b`).
+fn gamut_of(practice: &PracticeProjection) -> Option<&[Point]> {
+    let givens = practice.sheet.givens.get(practice.current?)?;
+    givens.iter().find_map(|mark| match &mark.drawn {
+        Figure::Gamut { corners, .. } => Some(corners.as_slice()),
+        _ => None,
+    })
+}
+
+/// A gamut mask over the wheel (S153): the colours outside it dimmed, not refused; on the ring the
+/// hues the mask barely reaches into, less than `REACHED` of its farthest corner.
+struct Masked<'a>(&'a [Point]);
+
+/// The share of a mask's farthest reach from grey a hue's own must reach to show undimmed.
+const REACHED: f64 = 0.5;
+
+impl WheelDims for Masked<'_> {
+    fn dims_hue(&self, hue: f32) -> bool {
+        let [_, a, b] = oklab(from_hsv([f64::from(hue) * 360.0, 1.0, 1.0]));
+        let long = a.hypot(b).max(f64::MIN_POSITIVE);
+        let reach = gamut_span(self.0, [a / long, b / long]).map_or(0.0, |(_, far)| far);
+        let farthest = (self.0.iter()).fold(0.0, |far: f64, p| far.max(p[0].hypot(p[1])));
+        reach < REACHED * farthest
+    }
+
+    fn dims(&self, hsv: Hsv) -> bool {
+        let [h, s, v] = [hsv.h, hsv.s, hsv.v].map(f64::from);
+        let [_, a, b] = oklab(from_hsv([h * 360.0, s, v]));
+        gamut_distance(self.0, [a, b]) > INSIDE
+    }
 }
 
 /// Undo and Redo.

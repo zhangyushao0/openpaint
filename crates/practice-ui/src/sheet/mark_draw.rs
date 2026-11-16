@@ -4,7 +4,8 @@
 //! over the copy at half strength, what is off in the marking red, construction faint, a
 //! division's levels in V大's colours, hatching in a value's grey), rings, dots, a narrow corner's
 //! arc, a shaded face, the horizon, swatches, patches, cells, outlines over the paper's halo,
-//! pictures laid as strongly as asked, a pack's picture with its credit, a key shift's tendency.
+//! pictures laid as strongly as asked, a pack's picture with its credit, a key shift's tendency,
+//! a gamut mask and the swatches beside a frame (`mark_beside.rs`).
 //! Lines run as their mark's clip says: as they lie, cut at the sheet's edge (`At`), kept off the
 //! original's frame, or kept inside their own frame.
 
@@ -14,6 +15,7 @@ use openpaint_practice_app::PracticeProjection;
 
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH};
 
+use super::mark_beside as beside;
 use super::mark_lines::{
     At, DASH, FAINT, GAP, HALO, MARK, RING, SEE_THROUGH, faint, horizon, ring,
 };
@@ -218,6 +220,15 @@ impl Drawing<'_> {
                 pictured((self.painter, self.at), (practice, index), on, pictures);
             }
             Figure::Tendency(rgb) => self.tendency(*rgb),
+            Figure::Gamut {
+                at,
+                radius,
+                corners,
+            } => beside::gamut(painter, (self.frame, self.at), (*at, *radius), corners),
+            Figure::Beside { at, colour, name } => {
+                let on = (self.frame, self.at, self.widths.scale);
+                beside::swatch(painter, on, (*at, *colour, *name));
+            }
             _ => {}
         }
     }

@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use openpaint_practice::{
     Areas, Asked, BoxView, Carve, Combination, Copied, DrawnCopy, Estimate, Exercise, Facts, Fill,
-    Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Metric, Pack,
-    PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, Rotation, ScaleTone,
-    SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick, ValueMasses,
-    schedule,
+    Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Mask, MaskShape,
+    Metric, Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, Rotation,
+    ScaleTone, SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick,
+    ValueMasses, schedule,
 };
 
 /// A kind of every variant the stores may hold.
@@ -45,11 +45,12 @@ fn every_kind() -> Vec<Kind> {
     kinds.push(Kind::Study);
     kinds.push(Kind::Free);
     kinds.push(Kind::Observation);
+    kinds.extend(MaskShape::ALL.map(|shape| Kind::GamutMask(Mask { shape, hue: 60 })));
     kinds
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three_but_five() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_four_but_five() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -58,14 +59,21 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three_
     }
     codes.sort_unstable();
     codes.dedup();
-    let expected: Vec<u8> = (1..=23).filter(|code| *code != 5).collect();
+    let expected: Vec<u8> = (1..=24).filter(|code| *code != 5).collect();
     assert_eq!(codes, expected);
     assert_eq!(Kind::of_code(5, 0), None, "code 5 is free");
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
-    // A drawing from life (S151) is kind 23; no kind is 24.
+    // A drawing from life (S151) is kind 23; a gamut mask (S153) 24, its shape times 36 and its
+    // hue's step; no kind is 25.
     assert_eq!(Kind::Observation.code(), (23, 0));
-    assert_eq!(Kind::of_code(24, 0), None);
+    let small = Mask {
+        shape: MaskShape::Small,
+        hue: 60,
+    };
+    assert_eq!(Kind::GamutMask(small).code(), (24, 2 * 36 + 6));
+    assert_eq!(Kind::of_code(24, 108), None);
+    assert_eq!(Kind::of_code(25, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -102,7 +110,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 32);
+    assert_eq!(topics().len(), 33);
 }
 
 #[test]
@@ -118,17 +126,16 @@ fn a_topic_s_facts_say_what_it_is() {
             "division" | "abstract-analysis" => &Pen::DIVIDING,
             "whole-copy" => &Pen::COPYING,
             "value-masses" => &Pen::VALUES,
-            "colour" | "scale" | "combination" | "key-shift" | "study" => &[],
+            "colour" | "scale" | "combination" | "key-shift" | "study" | "gamut-mask" => &[],
             _ => &Pen::DRAWING,
         };
         assert_eq!(tools.pens, pens, "{key}");
-        let painted = ["whole-copy", "combination", "key-shift"];
+        let painted = ["whole-copy", "combination", "key-shift", "gamut-mask"];
         assert_eq!(tools.paints, painted.contains(&key), "{key}");
         let fill = match key {
             "scale" => Some(Fill::Cell),
-            "colour" | "combination" | "key-shift" | "whole-copy" | "value-masses" => {
-                Some(Fill::Frame)
-            }
+            "colour" | "combination" | "key-shift" | "whole-copy" | "value-masses"
+            | "gamut-mask" => Some(Fill::Frame),
             _ => None,
         };
         assert_eq!(tools.fill, fill, "{key}");
@@ -355,7 +362,7 @@ fn compositions_and_shapes_get_harder_with_the_level_and_need_their_pictures() {
         pictures: &none,
         learner: &learner,
     };
-    for key in ["shape", "combination", "key-shift"]
+    for key in ["shape", "combination", "key-shift", "gamut-mask"]
         .into_iter()
         .chain(composed)
     {

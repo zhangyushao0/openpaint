@@ -94,7 +94,7 @@ fn chinese((what, number): (&str, Option<usize>), way: &str, clearly: Option<boo
 }
 
 /// A way as it leans in Chinese: 偏左, 偏亮, 偏黄.
-fn leaning(way: &str) -> &'static str {
+pub(crate) fn leaning(way: &str) -> &'static str {
     match way {
         "left" => "偏左",
         "right" => "偏右",

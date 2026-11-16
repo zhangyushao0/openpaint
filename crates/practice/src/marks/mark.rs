@@ -7,6 +7,7 @@ use crate::compositions::levels::Level;
 use crate::compositions::value_masses::Value;
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
+use crate::sheets::layout::Frame;
 
 /// Which frame of the pair a mark lies in, in that frame's units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,6 +134,39 @@ pub enum Figure {
     Pictured,
     /// A key shift's tendency printed beside the frame as a disc of its colour, named under it.
     Tendency(Rgb8),
+    /// A gamut mask printed beside the frame (S153): a small hue and chroma disc (Oklab `a`, `b`,
+    /// as the card's) of `radius`, centred `at` (frame units from the frame's top right corner,
+    /// `beside`), the convex polygon `corners` outlined on it and the disc veiled outside.
+    Gamut {
+        at: Point,
+        radius: f64,
+        corners: Vec<Point>,
+    },
+    /// A colour given beside the frame (S153): a swatch `BESIDE_SIDE` square centred `at` (frame
+    /// units from the frame's top right corner, `beside`), its name's key under it where it has
+    /// one (one of `BESIDE_NAMES`); the eyedropper picks its colour whole. A gamut mask's corners
+    /// (the colours a painter premixes), and any colours an exercise hands the learner to mix from.
+    Beside {
+        at: Point,
+        colour: Rgb8,
+        name: Option<&'static str>,
+    },
+}
+
+/// A swatch's side beside a frame (`Figure::Beside`), frame units.
+pub const BESIDE_SIDE: f64 = 0.07;
+/// The keys a swatch beside a frame may be named by, the UI's words under it (`Figure::Beside`);
+/// stored by their place here, so a key is appended, never moved.
+pub const BESIDE_NAMES: [&str; 0] = [];
+
+/// The canvas point of the point `at` beside `frame`: frame units from its top right corner.
+#[must_use]
+pub fn beside(frame: &Frame, [x, y]: Point) -> Point {
+    let unit = frame.unit();
+    [
+        frame.origin[0] + frame.size[0] + x * unit,
+        frame.origin[1] + y * unit,
+    ]
 }
 
 /// A mark over a pair of frames.

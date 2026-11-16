@@ -19,7 +19,7 @@ use openpaint_ui::components::{
 use openpaint_ui::design::{SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
 
-use super::card_disc::disc;
+use super::card_disc::{disc, gamut};
 use super::card_items as items;
 use super::demo::{Demonstrations, HowOf};
 use super::lesson_name;
@@ -182,6 +182,12 @@ fn item_of(
             tendency,
             mask,
         } => disc(ui, (originals, copy), *tendency, mask, chosen),
+        CardItem::Gamut {
+            originals,
+            copy,
+            corners,
+            marked,
+        } => gamut(ui, (originals, copy), corners, (marked, chosen)),
         CardItem::Bar { original, copy } => items::lightness(ui, *original, *copy),
         CardItem::Levels(rows) => items::levels(ui, rows),
         // The choices are fixed from the first Compare on (D99).

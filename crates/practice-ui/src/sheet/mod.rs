@@ -21,6 +21,7 @@ mod demo_wheel;
 mod end;
 mod end_pair;
 mod first;
+mod mark_beside;
 mod mark_draw;
 mod mark_lines;
 mod marks;

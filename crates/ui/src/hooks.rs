@@ -13,8 +13,8 @@ use egui::{Context, Rect, Ui};
 use openpaint_app::{BrushProjection, Intent, Language, SessionProjection, ViewMapping, Viewport};
 
 use crate::color_panel::ColorPanel;
-use crate::components::ScreenArea;
 use crate::components::carry::Opening;
+use crate::components::{ScreenArea, WheelDims};
 use crate::text::Text;
 
 /// The hooks of one frame: a mode's canvas while the canvas shows its sheet, its part of the home
@@ -84,9 +84,15 @@ impl<'a> Chrome<'a> {
     }
 
     /// The colour panel's wheel outside the panel at `brush`'s colour, keeping the hue the hand
-    /// left on a grey; its changes go to the painting's taps.
-    pub fn inline_wheel(&mut self, ui: &mut Ui, brush: &BrushProjection) {
-        self.colors.inline_wheel(ui, brush, self.taps);
+    /// left on a grey, what the mode asks dimmed (`dims`: a gamut mask's outside, S153); its
+    /// changes go to the painting's taps.
+    pub fn inline_wheel(
+        &mut self,
+        ui: &mut Ui,
+        brush: &BrushProjection,
+        dims: Option<&dyn WheelDims>,
+    ) {
+        self.colors.inline_wheel(ui, (brush, dims), self.taps);
     }
 }
 

@@ -14,6 +14,7 @@ use crate::geometry::perspective::{BoxView, Horizon};
 use crate::kinds::colours::colour_match::Tone;
 use crate::kinds::combined_lines::combined::Combination;
 use crate::kinds::estimates::flat::Estimate;
+use crate::kinds::gamut_masks::mask::Mask;
 use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::lines::line::LineTier;
 use crate::kinds::objects::object_design::Carve;
@@ -89,6 +90,9 @@ pub enum Kind {
     /// A real object drawn from life from one seat, the photo taken from it hidden until Compare
     /// (写生, S151): a project beside the lessons, never one of their exercises (`observation/`).
     Observation,
+    /// A crop painted again with only the colours inside a gamut mask laid on the hue and chroma
+    /// wheel, its lightness kept (Gurney's gamut mask, S153, `gamut_masks/`).
+    GamutMask(Mask),
 }
 
 impl Kind {

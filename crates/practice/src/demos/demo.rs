@@ -61,14 +61,24 @@ impl Shaded {
     }
 }
 
-/// What a demonstration shows under its frames (a key shift's, S107): a chip of the colour being
-/// painted (its colour and the colour it goes to) from when its painting begins, and a disc of
-/// the colour aimed at under the copy, ringed in pencil from `looked` on.
+/// What a demonstration shows under its frames (a key shift's, S107; a gamut mask's, S153): a chip
+/// of the colour being painted (its colour and the colour it goes to) from when its painting
+/// begins, and what is aimed at under the copy, ringed in pencil from `looked` on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Strip {
-    pub disc: Rgb8,
+    pub aimed: Aimed,
     pub looked: f64,
     pub chips: Vec<(f64, [Rgb8; 2])>,
+}
+
+/// What a demonstration's strip aims its colours at, under the copy.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Aimed {
+    /// A key shift's tendency: a disc of its colour, named.
+    Tendency(Rgb8),
+    /// A gamut mask (S153): a small hue and chroma disc, the convex polygon of these corners
+    /// (Oklab `a`, `b`) outlined on it, the disc veiled outside.
+    Mask(Vec<Point>),
 }
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a

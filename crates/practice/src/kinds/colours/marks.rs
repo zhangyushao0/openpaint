@@ -112,7 +112,7 @@ pub(crate) fn colour_reason(original: Rgb8, copy: Rgb8) -> Option<Say> {
 }
 
 /// The named hue nearest on from `from` (degrees) the way red goes to yellow (`on`) or back.
-fn toward(from: f64, on: bool) -> &'static str {
+pub(crate) fn toward(from: f64, on: bool) -> &'static str {
     let away = |h: f64| {
         let turn = if on { h - from } else { from - h };
         turn.rem_euclid(360.0)

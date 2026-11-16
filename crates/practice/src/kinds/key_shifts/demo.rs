@@ -8,7 +8,7 @@
 //! the lightness kept.
 
 use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
-use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, Strip, clearest};
+use crate::demos::demo::{Aimed, Demo, DemoLayout, Drawn, Marker, On, Script, Strip, clearest};
 use crate::kinds::key_shifts::key_shift::{Lean, Tendency};
 use crate::maths::colour::{Rgb8, delta_e, from_oklab, in_gamut, oklab};
 
@@ -80,7 +80,7 @@ pub(crate) fn key_shift() -> Demo {
     ];
     let mut demo = script.compare(DemoLayout::Pair, compared);
     demo.strip = Some(Box::new(Strip {
-        disc: TENDENCY.colour(),
+        aimed: Aimed::Tendency(TENDENCY.colour()),
         looked,
         chips,
     }));

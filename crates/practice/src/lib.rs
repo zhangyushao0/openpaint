@@ -40,6 +40,7 @@ pub use course::retest::Retest;
 pub use course::schedule;
 pub use course::schedule::{Offer, Planned, Standing};
 pub use course::unit::{UNITS, Unit};
+pub use demos::demo::Aimed;
 pub use demos::demo::{
     Demo, DemoLayout, Drawn, Mark, Marker, On, Pictured, Shaded, Strip, WIDE_REACH,
 };
@@ -76,6 +77,13 @@ pub use kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck, NEAR_ANG
 pub use kinds::estimates::marks::FlatCompared;
 pub use kinds::free_boxes::FreePage;
 pub use kinds::free_boxes::marks::{FreeCompared, guides};
+pub use kinds::gamut_masks::check::{MaskCheck, NEAR_FINDINGS, way};
+pub use kinds::gamut_masks::marks::{MaskCompared, MaskRead};
+pub use kinds::gamut_masks::mask::{
+    INSIDE, Mask, MaskShape, distance as gamut_distance, nearest as gamut_nearest,
+    span as gamut_span,
+};
+pub use kinds::gamut_masks::reading::MaskReading;
 pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{
     APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_SHARE, toward,
@@ -117,6 +125,7 @@ pub use marks::asked::{Asked, Compare, Copied, Painted, Pixels, Read, Reading, R
 pub use marks::card::{Arg, CardItem, Choices, Say, WheelSize};
 pub use marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};
 pub use marks::drawing::PictureCompared;
+pub use marks::mark::{BESIDE_NAMES, BESIDE_SIDE, beside};
 pub use marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 pub use marks::tile::{TILE, TileMark};
 pub use maths::colour::{

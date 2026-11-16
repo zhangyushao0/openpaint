@@ -7,6 +7,7 @@
 //! its painted picture, a flag (u8, 0 none, 1 one) and the picture (`painted.rs`). The marks and
 //! the picture are also encoded alone, without the format byte.
 
+mod beside;
 mod marks;
 mod painted;
 

@@ -141,6 +141,15 @@ pub enum CardItem {
         tendency: (Point, Rgb8),
         mask: [Point; 3],
     },
+    /// The hue and chroma disc with a gamut mask (S153): the areas' original colours as small
+    /// rings and the copy's as dots (the chosen one heavier), the convex polygon `corners`
+    /// outlined and the disc veiled outside it, the `marked` areas' dots ringed red.
+    Gamut {
+        originals: Vec<Rgb8>,
+        copy: Vec<Option<Rgb8>>,
+        corners: Vec<Point>,
+        marked: Vec<usize>,
+    },
     /// The lightness bar: the original's lightness over it, the copy's under it (S107).
     Bar { original: Rgb8, copy: Rgb8 },
     /// A division's levels, their lines counted and measured (S95).

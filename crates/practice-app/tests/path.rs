@@ -55,7 +55,7 @@ fn before_anything_is_practised_the_path_offers_the_first_lesson() {
         .collect();
     assert_eq!(first.len(), 3);
     assert_eq!(first[0], (lines(), 0));
-    assert!(path.units[5].skills.is_empty(), "a unit not built yet");
+    assert!(path.units[7].skills.is_empty(), "a unit not built yet");
     // Without a pack a single shape lacks its pictures.
     assert!(path.units[1].skills[0].lacks.is_some());
     assert!(path.first && path.next.is_none() && path.review.is_none());

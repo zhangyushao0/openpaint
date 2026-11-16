@@ -4,8 +4,8 @@
 
 use openpaint_app::PortError;
 use openpaint_practice::{
-    Clip, Figure, Given, Givens, In, Level, LinePen, Painted, Place, Point, SheetMark, Source,
-    Value,
+    BESIDE_NAMES, Clip, Figure, Given, Givens, In, Level, LinePen, Painted, Place, Point,
+    SheetMark, Source, Value,
 };
 use openpaint_practice_store::{
     GIVENS_FORMAT, decode_givens, decode_marks, decode_painted, encode_givens, encode_marks,
@@ -108,6 +108,22 @@ fn figures() -> Vec<Figure> {
     figures
 }
 
+/// What an exercise gives beside its frame (S153): a gamut mask, a swatch.
+fn beside() -> [Figure; 2] {
+    [
+        Figure::Gamut {
+            at: B,
+            radius: 0.075,
+            corners: vec![A, B, [0.17, -0.05]],
+        },
+        Figure::Beside {
+            at: A,
+            colour: [210, 154, 78],
+            name: None,
+        },
+    ]
+}
+
 /// A mark of every figure, frame, clip, pen, source and place.
 fn every_variant() -> Vec<SheetMark> {
     let clips = [
@@ -117,7 +133,8 @@ fn every_variant() -> Vec<SheetMark> {
         Clip::KeptOff,
         Clip::Inside,
     ];
-    (pen_lines().into_iter().chain(figures()).enumerate())
+    let figures = figures().into_iter().chain(beside());
+    (pen_lines().into_iter().chain(figures).enumerate())
         .map(|(n, drawn)| SheetMark {
             on: [In::Original, In::Copy][n % 2],
             drawn,
@@ -227,7 +244,7 @@ fn a_mark_s_unknown_code_is_refused_never_guessed() {
         |bytes: &[u8], at: usize, value: u8| decode_marks(&patched(bytes, at, value)).err();
     assert_eq!(refused(&pictured, 4, 2), CORRUPT, "a frame");
     assert_eq!(refused(&pictured, 5, 5), CORRUPT, "a clip");
-    assert_eq!(refused(&pictured, 6, 19), CORRUPT, "a figure");
+    assert_eq!(refused(&pictured, 6, 21), CORRUPT, "a figure");
     assert_eq!(refused(&pictured, 6, u8::MAX), CORRUPT, "a figure");
     let given = one(Figure::Given {
         at: [0.5; 2],
@@ -246,6 +263,16 @@ fn a_mark_s_unknown_code_is_refused_never_guessed() {
         small: false,
     });
     assert_eq!(refused(&dot, 7 + 16, 2), CORRUPT, "a flag");
+    // A swatch beside the frame (S153): its point, its colour, then its name's code.
+    let swatch = one(Figure::Beside {
+        at: [1.1, 0.2],
+        colour: [1, 2, 3],
+        name: None,
+    });
+    let named = 7 + 16 + 3;
+    assert_eq!(swatch.len(), named + 1);
+    let code = u8::try_from(BESIDE_NAMES.len() + 1).expect("a code");
+    assert_eq!(refused(&swatch, named, code), CORRUPT, "a name");
 }
 
 #[test]

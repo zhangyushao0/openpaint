@@ -1,23 +1,28 @@
 //! A demonstration's strip under its two frames (`openpaint_practice::Strip`, `demo.rs`): a
 //! key shift's (S107), the chip of the area being painted under the original (its colour, an arrow,
 //! the colour it goes to) and the disc of the colour aimed at under the copy with its name beside
-//! it, ringed in pencil while it is looked at and after.
+//! it, ringed in pencil while it is looked at and after; a gamut mask's (S153) the mask on its disc
+//! in the tendency's place, unnamed.
 
 use egui::{Align2, FontId, Pos2, Rect, Stroke, Vec2};
-use openpaint_practice::Strip;
+use openpaint_practice::{Aimed, Strip};
 
 use openpaint_ui::design::{INK, INK_SECONDARY};
 
+use super::card_disc::masked_disc;
 use super::demo_marks::Frames;
 use super::marks::colour;
 use crate::palette::PENCIL;
 use crate::text::{self as t, Words};
 
-/// The strip's height, in points; a chip's swatch side, the disc's radius and its ring's.
+/// The strip's height, in points; a chip's swatch side, the disc's radius and its ring's; a gamut
+/// mask's disc's and its ring's, within the strip.
 pub(crate) const STRIP: f32 = 40.0;
 const SWATCH: f32 = 22.0;
 const DISC: f32 = 10.0;
 const RING: f32 = 15.0;
+const MASK_DISC: f32 = 16.0;
+const MASK_RING: f32 = 19.5;
 /// Seconds the ring takes to draw.
 const RINGING: f64 = 0.5;
 
@@ -54,17 +59,29 @@ pub(crate) fn strip(
         painter.line_segment([tip, tip + Vec2::new(head.x, -head.y)], line);
     }
     let centre = Pos2::new(frames.copy.center().x - 2.0 * DISC, middle);
-    painter.circle(centre, DISC, colour(shift.disc), Stroke::new(1.0, INK));
+    let ring = match &shift.aimed {
+        Aimed::Tendency(rgb) => {
+            painter.circle(centre, DISC, colour(*rgb), Stroke::new(1.0, INK));
+            RING
+        }
+        Aimed::Mask(corners) => {
+            masked_disc(painter, (centre, MASK_DISC), corners);
+            MASK_RING
+        }
+    };
     if seconds >= shift.looked {
         let drawn = ((seconds - shift.looked) / RINGING).clamp(0.0, 1.0) as f32;
         let points: Vec<Pos2> = (0..=32)
             .map(|k| k as f32 / 32.0 * drawn * std::f32::consts::TAU)
-            .map(|angle| centre + Vec2::new(angle.cos(), -angle.sin()) * RING)
+            .map(|angle| centre + Vec2::new(angle.cos(), -angle.sin()) * ring)
             .collect();
         painter.add(egui::Shape::line(points, Stroke::new(1.25, PENCIL)));
     }
-    let name = Words::from(t::TENDENCY).shown(painter.ctx());
-    let beside = Pos2::new(centre.x + RING + 6.0, middle);
-    let font = FontId::proportional(13.0);
-    painter.text(beside, Align2::LEFT_CENTER, name, font, INK_SECONDARY);
+    // A tendency is named beside its disc; a mask shows as itself.
+    if matches!(shift.aimed, Aimed::Tendency(_)) {
+        let name = Words::from(t::TENDENCY).shown(painter.ctx());
+        let beside = Pos2::new(centre.x + RING + 6.0, middle);
+        let font = FontId::proportional(13.0);
+        painter.text(beside, Align2::LEFT_CENTER, name, font, INK_SECONDARY);
+    }
 }

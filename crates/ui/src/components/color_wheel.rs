@@ -20,6 +20,17 @@ const SQUARE_STEPS: usize = 16;
 /// one colour to the other shows even when they lie near).
 const MARKER: f32 = SPACE;
 const COMPARED: f32 = 0.75 * SPACE;
+/// How far a dimmed colour fades into the paper.
+const DIMMED: f32 = 0.72;
+
+/// What a mode asks the wheel to dim, not refusing it (a gamut mask's outside, S153): hues on its
+/// ring, colours in its square.
+pub trait WheelDims {
+    /// Whether the ring dims `hue` (a turn, 0 to 1).
+    fn dims_hue(&self, hue: f32) -> bool;
+    /// Whether the square dims `hsv`.
+    fn dims(&self, hsv: Hsv) -> bool;
+}
 
 /// A colour the hand set this frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,8 +106,14 @@ impl Geometry {
     }
 }
 
-/// Shows the wheel at `hsv`, `side` points square; returns the colour the hand set, if any.
-pub fn color_wheel(ui: &mut egui::Ui, hsv: Hsv, side: f32) -> Option<WheelChange> {
+/// Shows the wheel at `hsv`, `side` points square, what `dims` asks dimmed; returns the colour the
+/// hand set, if any.
+pub fn color_wheel(
+    ui: &mut egui::Ui,
+    hsv: Hsv,
+    side: f32,
+    dims: Option<&dyn WheelDims>,
+) -> Option<WheelChange> {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click_and_drag());
     let name = Words::from(COLOUR_WHEEL).shown(ui.ctx());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, name));
@@ -129,14 +146,14 @@ pub fn color_wheel(ui: &mut egui::Ui, hsv: Hsv, side: f32) -> Option<WheelChange
         })
         .filter(|change| change.settled || change.hsv != hsv);
     if ui.is_rect_visible(rect) {
-        paint(ui, &shape, change.map_or(hsv, |change| change.hsv));
+        paint(ui, &shape, change.map_or(hsv, |change| change.hsv), dims);
     }
     change
 }
 
-fn paint(ui: &egui::Ui, shape: &Geometry, hsv: Hsv) {
+fn paint(ui: &egui::Ui, shape: &Geometry, hsv: Hsv, dims: Option<&dyn WheelDims>) {
     let painter = ui.painter();
-    paint_wheel(painter, shape, hsv.h);
+    paint_wheel(painter, shape, hsv.h, dims);
     for centre in [shape.on_ring(hsv.h), shape.spot(hsv)] {
         painter.circle_stroke(centre, MARKER, Stroke::new(4.0, PANEL));
         painter.circle_stroke(centre, MARKER, Stroke::new(1.5, INK));
@@ -176,7 +193,7 @@ pub fn color_compare(
     }
     let shape = Geometry::of(rect);
     let painter = ui.painter();
-    paint_wheel(painter, &shape, to.h);
+    paint_wheel(painter, &shape, to.h, None);
     let marks = [(from, hued[0], INK), (to, hued[1], mark)];
     for (hsv, has_hue, colour) in marks {
         let ring = has_hue.then(|| shape.on_ring(hsv.h));
@@ -203,7 +220,7 @@ pub fn color_compare(
 pub fn wheel_picture(painter: &egui::Painter, rect: Rect, pick: Hsv, ringed: &[(Hsv, Color32)]) {
     let ring = rect.width().min(rect.height()) * 0.13;
     let shape = Geometry::with_ring(rect, ring, ring * 0.3);
-    paint_wheel(painter, &shape, pick.h);
+    paint_wheel(painter, &shape, pick.h, None);
     let marker = ring * 0.4;
     for (hsv, colour) in ringed {
         for centre in [shape.on_ring(hsv.h), shape.spot(*hsv)] {
@@ -248,8 +265,9 @@ fn arrow(painter: &egui::Painter, path: &[Pos2], colour: Color32) {
     ));
 }
 
-/// The hue ring and the square of saturation and value for `hue`.
-fn paint_wheel(painter: &egui::Painter, shape: &Geometry, hue: f32) {
+/// The hue ring and the square of saturation and value for `hue`, what `dims` asks faded into the
+/// paper.
+fn paint_wheel(painter: &egui::Painter, shape: &Geometry, hue: f32, dims: Option<&dyn WheelDims>) {
     let mut mesh = Mesh::default();
     let at = |radius: f32, turn: f32| {
         shape.centre + radius * Vec2::new((turn * TAU).cos(), -(turn * TAU).sin())
@@ -264,6 +282,7 @@ fn paint_wheel(painter: &egui::Painter, shape: &Geometry, hue: f32) {
             }
             .color(),
         );
+        let color = dimmed(color, dims.is_some_and(|dims| dims.dims_hue(turn)));
         mesh.colored_vertex(at(shape.inner, turn), color);
         mesh.colored_vertex(at(shape.outer, turn), color);
         if step > 0 {
@@ -272,12 +291,22 @@ fn paint_wheel(painter: &egui::Painter, shape: &Geometry, hue: f32) {
             mesh.add_triangle(i - 1, i + 1, i);
         }
     }
-    square_mesh(&mut mesh, shape.square, hue);
+    square_mesh(&mut mesh, shape.square, hue, dims);
     painter.add(Shape::mesh(mesh));
 }
 
-/// The square of saturation and value for `hue`, as a grid of shaded cells.
-fn square_mesh(mesh: &mut Mesh, square: Rect, hue: f32) {
+/// `color`, faded into the paper where `dim`.
+fn dimmed(color: Color32, dim: bool) -> Color32 {
+    if dim {
+        color.lerp_to_gamma(PANEL, DIMMED)
+    } else {
+        color
+    }
+}
+
+/// The square of saturation and value for `hue`, as a grid of shaded cells, what `dims` asks
+/// faded.
+fn square_mesh(mesh: &mut Mesh, square: Rect, hue: f32, dims: Option<&dyn WheelDims>) {
     let first = mesh.vertices.len() as u32;
     let row = SQUARE_STEPS as u32 + 1;
     for j in 0..=SQUARE_STEPS {
@@ -290,7 +319,11 @@ fn square_mesh(mesh: &mut Mesh, square: Rect, hue: f32) {
                 square.left() + s * square.width(),
                 square.top() + (1.0 - v) * square.height(),
             );
-            let color: Color32 = color32(Hsv { h: hue, s, v }.color());
+            let hsv = Hsv { h: hue, s, v };
+            let color = dimmed(
+                color32(hsv.color()),
+                dims.is_some_and(|dims| dims.dims(hsv)),
+            );
             mesh.colored_vertex(at, color);
             if i > 0 && j > 0 {
                 let corner = first + j as u32 * row + i as u32;

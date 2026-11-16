@@ -29,7 +29,8 @@ pub const UNITS: [Unit; 8] = [
     unit(4, &[Skill(14), Skill(15), Skill(17), Skill(16)]),
     // Key shifts, abstract analysis, structure rotation.
     unit(5, &[Skill(19), Skill(21), Skill(22)]),
-    unit(6, &[]),
+    // Gamut masks.
+    unit(6, &[Skill(24)]),
     unit(7, &[]),
     unit(8, &[]),
 ];

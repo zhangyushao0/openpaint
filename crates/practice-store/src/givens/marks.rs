@@ -11,6 +11,8 @@ use openpaint_practice::{
 };
 use openpaint_store::{Reader, Writer};
 
+use super::beside;
+
 /// The fewest bytes of a mark (its frame, clip and figure's code), of a point and of a line.
 const MARK_BYTES: usize = 3;
 const POINT_BYTES: usize = 16;
@@ -68,6 +70,8 @@ const CELL: u8 = 15;
 const PICTURE: u8 = 16;
 const PICTURED: u8 = 17;
 const TENDENCY: u8 = 18;
+const GAMUT: u8 = 19;
+const BESIDE: u8 = 20;
 
 pub(crate) fn write_marks(writer: &mut Writer, marks: &[SheetMark]) {
     writer.len(marks.len());
@@ -157,6 +161,7 @@ fn write_figure(writer: &mut Writer, figure: &Figure) {
             shown,
         } => write_picture(writer, (*source, place, *shown)),
         Figure::Pictured => {}
+        Figure::Gamut { .. } | Figure::Beside { .. } => beside::write_beside(writer, figure),
     }
 }
 
@@ -181,6 +186,8 @@ const fn figure_code(figure: &Figure) -> u8 {
         Figure::Picture { .. } => PICTURE,
         Figure::Pictured => PICTURED,
         Figure::Tendency(_) => TENDENCY,
+        Figure::Gamut { .. } => GAMUT,
+        Figure::Beside { .. } => BESIDE,
     }
 }
 
@@ -264,6 +271,8 @@ fn read_coloured(code: u8, reader: &mut Reader<'_>) -> Result<Figure, PortError>
         }
         PICTURED => Figure::Pictured,
         TENDENCY => Figure::Tendency(read_colour(reader)?),
+        GAMUT => beside::read_gamut(reader)?,
+        BESIDE => beside::read_beside(reader)?,
         _ => return Err(reader.corrupt()),
     })
 }
@@ -344,25 +353,25 @@ fn coded<T: Copy>(reader: &mut Reader<'_>, table: &[T]) -> Result<T, PortError> 
         .ok_or(reader.corrupt())
 }
 
-fn write_point(writer: &mut Writer, [x, y]: Point) {
+pub(super) fn write_point(writer: &mut Writer, [x, y]: Point) {
     writer.f64(x);
     writer.f64(y);
 }
 
-fn read_point(reader: &mut Reader<'_>) -> Result<Point, PortError> {
+pub(super) fn read_point(reader: &mut Reader<'_>) -> Result<Point, PortError> {
     Ok([reader.f64()?, reader.f64()?])
 }
 
-fn write_points(writer: &mut Writer, points: &[Point]) {
+pub(super) fn write_points(writer: &mut Writer, points: &[Point]) {
     writer.len(points.len());
     points.iter().for_each(|point| write_point(writer, *point));
 }
 
-fn read_points(reader: &mut Reader<'_>) -> Result<Vec<Point>, PortError> {
+pub(super) fn read_points(reader: &mut Reader<'_>) -> Result<Vec<Point>, PortError> {
     let count = reader.count(POINT_BYTES)?;
     (0..count).map(|_| read_point(reader)).collect()
 }
 
-fn read_colour(reader: &mut Reader<'_>) -> Result<Rgb8, PortError> {
+pub(super) fn read_colour(reader: &mut Reader<'_>) -> Result<Rgb8, PortError> {
     Ok([reader.u8()?, reader.u8()?, reader.u8()?])
 }

@@ -5,14 +5,15 @@
 //! compares the original and the copy there (`Probe`): the runtime reads the copy's pixel and
 //! hands it back (`probed`), a whole copy's bare paper comparing nothing. Value masses compare
 //! greys, not colours: nothing. A key shift's original is never picked, its copy as the canvas
-//! (S107), nor a picture laid under abstract analysis's marks (S112). Over an exercise before the
-//! one in hand its original is made again by its generator
+//! (S107), nor a picture laid under abstract analysis's marks (S112). A swatch given beside a frame
+//! is picked whole, its colour (a gamut mask's corners, S153). Over an exercise before the one in
+//! hand its original is made again by its generator
 //! for the pick, the one place a sheet still remakes an exercise not in hand.
 
 use std::sync::Arc;
 
 use openpaint_core::Color;
-use openpaint_practice::{Original, Picking, Point, Rgb8};
+use openpaint_practice::{BESIDE_SIDE, Figure, In, Original, Picking, Point, Rgb8, beside};
 
 use super::PracticeSheet;
 use crate::copy::PAPER;
@@ -81,8 +82,37 @@ impl PracticeSheet {
                 PracticePick::Refused
             }
             Some(index) => self.picked(index, point, false),
-            None => PracticePick::Canvas,
+            None => (self.beside(point, revealed))
+                .and_then(colour)
+                .map_or(PracticePick::Canvas, PracticePick::Colour),
         }
+    }
+
+    /// The colour of a swatch given beside a frame of the first `revealed` exercises at the
+    /// canvas `point` (`Figure::Beside`, S153: a gamut mask's corners), picked whole.
+    fn beside(&self, point: Point, revealed: usize) -> Option<Rgb8> {
+        let half = BESIDE_SIDE / 2.0;
+        let pairs = self
+            .sheet
+            .pairs
+            .iter()
+            .zip(&self.sheet.givens)
+            .take(revealed);
+        pairs
+            .flat_map(|(pair, marks)| marks.iter().map(move |mark| (pair, mark)))
+            .find_map(|(pair, mark)| {
+                let Figure::Beside { at, colour, .. } = mark.drawn else {
+                    return None;
+                };
+                let frame = match mark.on {
+                    In::Original => pair.original,
+                    In::Copy => pair.copy,
+                };
+                let centre = beside(&frame, at);
+                let reach = half * frame.unit();
+                let within = (0..2).all(|axis| (point[axis] - centre[axis]).abs() <= reach);
+                within.then_some(colour)
+            })
     }
 
     /// What the eyedropper reads at the canvas `point` of exercise `index`'s original's frame
