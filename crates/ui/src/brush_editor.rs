@@ -48,7 +48,7 @@ impl BrushEditor {
     pub(crate) fn page(
         &mut self,
         ui: &mut egui::Ui,
-        brush: &BrushProjection,
+        (brush, streamline): (&BrushProjection, bool),
         taps: &mut Vec<Intent>,
     ) -> bool {
         let edited = &brush.edited;
@@ -85,7 +85,7 @@ impl BrushEditor {
         self.strip.show(ui);
         ui.add_space(SPACE);
         let page = self.dynamics;
-        let opened = column(ui, brush, page, taps);
+        let opened = column(ui, (brush, streamline), page, taps);
         if page.is_none() {
             self.footer(ui, brush, taps);
         }
@@ -171,11 +171,12 @@ impl BrushEditor {
     }
 }
 
-/// The settings, or `page`'s curves, in one column a finger scrolls, down to two rows above the
-/// screen's bottom. Returns the dynamics page a row opened.
+/// The settings (StreamLine among them while it applies), or `page`'s curves, in one column a
+/// finger scrolls, down to two rows above the screen's bottom. Returns the dynamics page a row
+/// opened.
 fn column(
     ui: &mut egui::Ui,
-    brush: &BrushProjection,
+    (brush, streamline): (&BrushProjection, bool),
     page: Option<Dynamic>,
     taps: &mut Vec<Intent>,
 ) -> Option<Dynamic> {
@@ -195,7 +196,7 @@ fn column(
                     curves(ui, dynamic, &brush.edited, taps);
                     None
                 }
-                None => settings(ui, brush, taps),
+                None => settings(ui, (brush, streamline), taps),
             })
             .inner
     })

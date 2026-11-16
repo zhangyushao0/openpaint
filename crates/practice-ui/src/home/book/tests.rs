@@ -2,7 +2,7 @@
 //! completed that day, none on a day without (S124); a day of three sheets, one of six lessons,
 //! lies within the card over progress, each sheet named within its picture's width (S143); the
 //! Progress page's curves named and dated, a skill with nothing judged named with no date, a day
-//! alone a dot over its date (S147, S149).
+//! alone a dot over its date (S147, S149); a sheet opened from a day coming back to it (S158h).
 
 use std::sync::Arc;
 
@@ -42,7 +42,7 @@ fn a_day_s_card_holds_a_red_seal_for_each_block() {
         let ctx = context();
         let shown = book(blocks);
         let (_, shapes) = settled_drawn(&ctx, (1.0, language), |ui| {
-            day_card(ui.ctx(), &shown, (20_754, cell), SCREEN);
+            day_card(ui.ctx(), &shown, (20_754, cell), (SCREEN, false));
         });
         assert_eq!(outlined(&shapes, VERMILION), blocks as usize);
     }
@@ -103,7 +103,7 @@ fn a_crowded_day_lies_within_its_card_each_name_under_its_picture() {
         let ctx = context();
         let shown = crowded();
         let (map, shapes) = settled_drawn(&ctx, (1.0, language), |ui| {
-            day_card(ui.ctx(), &shown, (20_754, cell), SCREEN);
+            day_card(ui.ctx(), &shown, (20_754, cell), (SCREEN, false));
         });
         for record in shown.records.iter() {
             let english = t::sheet_lessons(Language::English, &record.rows);
@@ -253,4 +253,38 @@ fn a_skill_with_nothing_judged_is_named_dateless_and_a_lone_day_is_a_dot_over_it
         );
         assert!(lone[0].y < under.top());
     }
+}
+
+/// A sheet opened from a day's card comes back to the book (S158h): while it shows on the canvas
+/// the book waits, the screen's switch back to the home keeps it open (its back), and the sheet
+/// lands in its picture on the card; the next back closes it. A sheet that never showed (its
+/// opening failed) waits for nothing.
+#[test]
+fn a_sheet_opened_from_a_day_comes_back_to_the_book() {
+    let (word, picture) = (
+        Rect::from_min_size(egui::pos2(40.0, 800.0), egui::vec2(120.0, 48.0)),
+        Rect::from_min_size(egui::pos2(900.0, 300.0), egui::vec2(140.0, 152.0)),
+    );
+    let mut book = super::BookState::default();
+    book.open(word);
+    book.left = Some(picture);
+    book.sheet_shows();
+    assert_eq!(
+        book.landing(),
+        Some(picture),
+        "it goes back into its picture"
+    );
+    assert!(
+        book.close() && book.shows(),
+        "the switch home keeps the book"
+    );
+    assert!(book.coming, "shown as it was left");
+    assert_eq!(book.landing(), None, "landed once");
+    assert!(book.close() && !book.shows(), "the next back closes it");
+    book.open(word);
+    book.left = Some(picture);
+    assert!(
+        book.close() && !book.shows(),
+        "no sheet showed: the back closes it"
+    );
 }

@@ -3,11 +3,13 @@
 //! title holds the search's text as a card in a grid, the one changed last first (Procreate's
 //! gallery). The top band holds the search field in its middle and, at the right, an island with
 //! the "+" that makes a new artwork of a size chosen in a small popover or opens an OpenPaint file
-//! (`new.rs`). Tap a picture to open it, its title to rename it (a dialog under the islands, above
-//! the soft keyboard), the options to save it as an OpenPaint file or restore a kept version
-//! (`dialogs.rs`, `dates.rs`), the copy button to duplicate it and the bin to delete it, which asks
-//! first: it cannot be undone. A mode's whole pages lie over the home with an island of their own,
-//! its dialogs after the home's own.
+//! (`new.rs`); a notice lies in a pill under the band at the right, under "+", so however long it
+//! never covers the search field (S158h). Tap a picture to open it, its title to rename it (a
+//! dialog under the islands, above the soft keyboard), the options to save it as an OpenPaint file
+//! or restore a kept version (`dialogs.rs`, `dates.rs`), the copy button to duplicate it and the
+//! bin to delete it, which asks first: it cannot be undone. A mode's whole pages lie over the home
+//! with an island of their own, its dialogs after the home's own; a mode's sheet opened from its
+//! page goes back into it (`HomeHook::landing`, S158h).
 
 mod dates;
 mod dialogs;
@@ -26,8 +28,8 @@ use openpaint_app::{
 
 use crate::components::carry::{self, Arrival, Opening};
 use crate::components::{
-    Alpha, ISLAND_TOP, Naming, Place, Source, TOP_BAND, fitted, icon_button, icon_toggle, island,
-    notice, picture_texture, pill, text_field,
+    Alpha, ISLAND_TOP, Naming, Place, Source, TOP_BAND, UNDER_ISLANDS, fitted, icon_button,
+    icon_toggle, island, notice, picture_texture, pill, text_field,
 };
 use crate::design::{CARD_GAP, DESK, Icon, SPACE};
 use crate::hooks::{HomeHook, Page};
@@ -99,11 +101,12 @@ impl HomeScreen {
     }
 
     /// The canvas, last shown at `from` (points), comes back into the card of `id` (or the
-    /// first card), a mode's sheet into the mode's column with the `picture` it left with.
+    /// first card), a mode's sheet into the mode's column with the `picture` it left with, or
+    /// `into` that place on the mode's page it was opened from (S158h).
     pub(crate) fn arrive(
         &mut self,
         from: Rect,
-        (id, card): (Option<ProjectId>, bool),
+        (id, card, into): (Option<ProjectId>, bool, Option<Rect>),
         picture: Option<egui::TextureHandle>,
     ) {
         self.arrivals += 1;
@@ -113,6 +116,7 @@ impl HomeScreen {
             card,
             run: self.arrivals,
             picture,
+            into,
         });
     }
 
@@ -134,7 +138,13 @@ impl HomeScreen {
         let ctx = ui.ctx().clone();
         let page = self.page(&ctx, (hook.as_deref_mut(), &mut *taps));
         if page == Page::None {
+            // No page to go back into: the column takes the sheet.
+            if let Some(arrival) = self.arriving.as_mut() {
+                arrival.into = None;
+            }
             self.islands(&ctx, projection, (hook.as_deref_mut(), &mut *taps));
+        } else {
+            self.land_on_page(&ctx, hook.as_deref_mut());
         }
         // On the desk, so the list's edge fade has its colour.
         let desk = egui::CentralPanel::default().frame(egui::Frame::new().fill(DESK));
@@ -158,7 +168,8 @@ impl HomeScreen {
     }
 
     /// The top band: the search field in the middle, and at the right an island with "+" and,
-    /// left of it, a pill with any notice. "+" opens the new-canvas popover (and closes it again).
+    /// under it, a pill with any notice (S158h: in the band, a long one lay over the search
+    /// field). "+" opens the new-canvas popover (and closes it again).
     pub(crate) fn islands(
         &mut self,
         ctx: &egui::Context,
@@ -174,7 +185,7 @@ impl HomeScreen {
             });
         let enabled = projection.availability().is_available();
         let open = self.sizes != Sizes::Closed;
-        let (button, plus) = island(ctx, ISLAND, Place::top_right(0.0), |ui| {
+        let (button, _) = island(ctx, ISLAND, Place::top_right(0.0), |ui| {
             let label = t::NEW_ARTWORK;
             if enabled {
                 icon_toggle(ui, Icon::Add, label, open)
@@ -190,7 +201,11 @@ impl HomeScreen {
         let told = (t::gallery_notice(projection.notice()).map(|m| (m, true)))
             .or_else(|| Some((hook.as_deref()?.notice()?, false)));
         if let Some((message, own)) = told {
-            let place = Place::top_right(plus.width() + SPACE);
+            // Under the band, its right end under the island's: the search field stays whole.
+            let place = Place {
+                anchor: Align2::RIGHT_TOP,
+                offset: Vec2::new(-SPACE, UNDER_ISLANDS),
+            };
             let source = Source::Within(egui::Align::Max);
             let (dismissed, _) = pill(ctx, "gallery notice", place, source, |ui| {
                 notice(ui, message, t::OK, true).clicked()
@@ -245,13 +260,34 @@ impl HomeScreen {
     /// shape: the picture it left with and the mode's marks over it shrink there together, as an
     /// artwork's picture into its card (S144).
     fn land_sheet(&mut self, ctx: &egui::Context, hook: &mut (dyn HomeHook + '_), place: Rect) {
-        let Some(arrival) = self.arriving.as_ref().filter(|arrival| arrival.card) else {
+        let arrival = self.arriving.as_ref();
+        let Some(arrival) = arrival.filter(|arrival| arrival.card && arrival.into.is_none()) else {
             return;
         };
         let into = fitted(place, arrival.from.size());
         let (at, landed) = carry::carried(ctx, arrival, into);
         let painter = carry::sheet_at(ctx, arrival.picture.as_ref(), at);
         hook.carried(&painter, (arrival.from, at));
+        if landed {
+            self.arriving = None;
+        }
+    }
+
+    /// A mode's sheet going back into the page it was opened from (S158h) lands in its place
+    /// there, over the page, at its own shape.
+    fn land_on_page(&mut self, ctx: &egui::Context, hook: Option<&mut (dyn HomeHook + '_)>) {
+        let Some((arrival, place)) = (self.arriving.as_ref())
+            .filter(|arrival| arrival.card)
+            .and_then(|arrival| Some((arrival, arrival.into?)))
+        else {
+            return;
+        };
+        let into = fitted(place, arrival.from.size());
+        let (at, landed) = carry::carried(ctx, arrival, into);
+        let painter = carry::sheet_over(ctx, arrival.picture.as_ref(), at);
+        if let Some(hook) = hook {
+            hook.carried(&painter, (arrival.from, at));
+        }
         if landed {
             self.arriving = None;
         }

@@ -30,8 +30,8 @@ use openpaint_practice::{
 };
 use openpaint_practice_app::{Pen, PracticeIntent, PracticeProjection};
 use openpaint_ui::components::{
-    Source, UNDER_ISLANDS, WheelDims, card, choices, icon_button, icon_toggle, swatch, text_button,
-    text_choice,
+    Source, UNDER_ISLANDS, WheelDims, card, choice_width, choices, icon_button, icon_toggle,
+    swatch, text_button, text_choice,
 };
 use openpaint_ui::design::{Icon, SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
@@ -245,11 +245,12 @@ fn pens(
     let compared = practice.result.is_some();
     // Abstract analysis's levels mark a picture: 强, 次, 弱 (S112).
     let marks = (practice.kind).is_some_and(|kind| kind.facts().tools.marks);
+    let shown: Vec<Pen> = (offered.iter().copied())
+        .filter(|pen| *pen != Pen::Correct || compared)
+        .collect();
+    close_up(ui, shown.iter().map(|pen| t::pen_of(*pen, marks)));
     choices(ui, id, |ui, group| {
-        for &pen in offered {
-            if pen == Pen::Correct && !compared {
-                continue;
-            }
+        for pen in shown {
             let word = text_choice(ui, group, t::pen_of(pen, marks), chosen == Some(pen));
             // A division's level shows its colour under its word (S95), a grey its grey (S96, the
             // darkest too, S153).
@@ -274,6 +275,21 @@ fn pens(
             }
         }
     });
+}
+
+/// A row of `words` too long for its card at the usual gaps closes them up, as far as none, so
+/// the card stands no wider than the cards under it (S158h: in Chinese a whole copy's four pens,
+/// 主分割 次分割 三级分割 勾线笔).
+fn close_up(ui: &mut egui::Ui, words: impl Iterator<Item = t::Text>) {
+    let (count, width) = words.fold((0_u16, 0.0), |(count, width), word| {
+        (count + 1, width + choice_width(ui, word))
+    });
+    let gaps = f32::from(count.saturating_sub(1));
+    let gap = ui.spacing().item_spacing.x;
+    let room = ui.available_width();
+    if gaps > 0.0 && width + gaps * gap > room {
+        ui.spacing_mut().item_spacing.x = ((room - width) / gaps).clamp(0.0, gap);
+    }
 }
 
 /// The gamut mask printed beside the shown exercise's frame (S153), its corners (Oklab `a`, `b`).

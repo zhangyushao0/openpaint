@@ -41,6 +41,9 @@ pub(crate) struct Arrival {
     pub(crate) run: u64,
     /// The picture a mode's sheet left with (an artwork's is its card's).
     pub(crate) picture: Option<egui::TextureHandle>,
+    /// A mode's sheet going back into the page it was opened from: where on it (points,
+    /// `HomeHook::landing`), else into the mode's column (S158h).
+    pub(crate) into: Option<Rect>,
 }
 
 impl std::fmt::Debug for Arrival {
@@ -50,6 +53,7 @@ impl std::fmt::Debug for Arrival {
             .field("id", &self.id)
             .field("card", &self.card)
             .field("run", &self.run)
+            .field("into", &self.into)
             .finish_non_exhaustive()
     }
 }
@@ -61,7 +65,25 @@ pub(crate) fn sheet_at(
     picture: Option<&egui::TextureHandle>,
     rect: Rect,
 ) -> egui::Painter {
-    let painter = ctx.layer_painter(LayerId::new(Order::Middle, Id::new("carried artwork")));
+    sheet_on(ctx, Order::Middle, picture, rect)
+}
+
+/// As `sheet_at`, over a mode's page and what lies on it (a day's card), going back into it.
+pub(crate) fn sheet_over(
+    ctx: &egui::Context,
+    picture: Option<&egui::TextureHandle>,
+    rect: Rect,
+) -> egui::Painter {
+    sheet_on(ctx, Order::Foreground, picture, rect)
+}
+
+fn sheet_on(
+    ctx: &egui::Context,
+    order: Order,
+    picture: Option<&egui::TextureHandle>,
+    rect: Rect,
+) -> egui::Painter {
+    let painter = ctx.layer_painter(LayerId::new(order, Id::new("carried artwork")));
     paint_sheet(&painter, picture, rect, Color32::WHITE);
     painter
 }

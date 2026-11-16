@@ -1,9 +1,11 @@
 //! The unit in hand's skills on the home's column (S122, S156): every one of them as a small tile
 //! with its dots, four a row where the column leaves each the room for its glyph and every word of
-//! its name, else three; more than a row holds wraps into rows as even as they come (six as two of
-//! three). The sheet grows to hold them (`column.rs`); only where the column itself is too short
-//! are they pressed (`TileRow::fitted`), and a row that still does not fit is left out. A tap
-//! starts that skill's lesson, as on the path; a skill lacking its pictures is greyed, no tap.
+//! its name (its type smaller, to the UI's Small, before a word would break, S158h), else three;
+//! more than a row holds wraps into rows as even as they come (six as two of three). The sheet
+//! grows to hold them (`column.rs`); only where the column itself is too short are they pressed
+//! (`TileRow::fitted`: a smaller glyph, then none), every skill shown in every state of the home
+//! on the tablet and the tests' screen (S158h). A tap starts that skill's lesson, as on the path;
+//! a skill lacking its pictures is greyed, no tap.
 
 use egui::{Rect, Vec2};
 use openpaint_practice::Skill;
@@ -20,8 +22,8 @@ const MOST: usize = 4;
 const GAP: f32 = 2.0 * SPACE;
 
 /// The unit in hand's skills as small tiles under a rule, every row ending above `foot` (a row
-/// that would pass it left out, where the column itself is too short); the skill tapped and
-/// where.
+/// that would pass it even pressed all the way left out, on a screen far shorter than the
+/// tablet's); the skill tapped and where.
 pub(super) fn unit_tiles(
     ui: &mut egui::Ui,
     path: &PathProjection,
@@ -32,7 +34,7 @@ pub(super) fn unit_tiles(
     rule(ui);
     ui.add_space(SPACE);
     let names = || (unit.skills.iter()).map(|shown| t::skill_name(shown.skill).into());
-    let fits = |width| TileRow::unbroken(ui, names(), width);
+    let fits = |width| TileRow::name_size(ui, names(), width).is_some();
     let (across, width) = grid(ui.available_width(), unit.skills.len(), fits);
     // Pressed only as far as every row fits above the foot.
     let rows = (
@@ -80,8 +82,8 @@ fn lacks(shown: &SkillShown) -> Option<Words<'static>> {
 }
 
 /// How many of `count` tiles a row across `width` points and how wide each: four a row where each
-/// keeps `NARROWEST_SMALL` and its name's every word (`fits`), else three; the rows as even as
-/// they come; a tile never wider than three a row's.
+/// keeps `NARROWEST_SMALL` and its name's every word at some size (`fits`), else three; the rows
+/// as even as they come; a tile never wider than three a row's.
 fn grid(width: f32, count: usize, fits: impl Fn(f32) -> bool) -> (usize, f32) {
     let wide = |across: usize| (width - GAP * (across - 1) as f32) / across as f32;
     let four = wide(MOST);

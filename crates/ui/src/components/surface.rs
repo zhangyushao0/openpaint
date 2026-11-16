@@ -52,6 +52,15 @@ impl Growth {
         }
     }
 
+    /// Open and finished, at rest: no motion.
+    pub(crate) const fn shown(since: u64) -> Self {
+        Self {
+            x: Spring::at(1.0),
+            y: Spring::at(1.0),
+            ..Self::new(since, 0.0)
+        }
+    }
+
     pub(crate) const fn close(&mut self, since: u64, retracting: bool) {
         self.open = false;
         self.retracting = retracting;

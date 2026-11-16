@@ -90,7 +90,7 @@ fn columns(
     events: Vec<egui::Event>,
 ) -> (Vec<Intent>, ControlMap) {
     pass(ctx, events, |ui, taps| {
-        settings(ui, brush, taps);
+        settings(ui, (brush, true), taps);
     })
 }
 
@@ -200,7 +200,7 @@ fn reset_is_grey_while_the_built_in_is_as_its_file_has_it() {
     let mut page = |toolbox: &Toolbox, events| {
         let brush = toolbox.projection();
         pass(&ctx, events, |ui, taps| {
-            editor.page(ui, &brush, taps);
+            editor.page(ui, (&brush, true), taps);
         })
     };
     // The column knows its height from the second pass on.

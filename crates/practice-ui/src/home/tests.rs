@@ -8,9 +8,7 @@ use openpaint_practice_app::{OptionsIntent, PathProjection, PracticeLog, Start, 
 use openpaint_ui::HomeHook;
 
 use super::{HomePart, PathHook};
-use crate::passes::{
-    SCREEN, TABLET, assert_on_screen, context, drawn, pass, pass_on, settled, tap,
-};
+use crate::passes::{assert_on_screen, context, drawn, pass, settled, tap};
 use crate::text::{self as t, Language};
 
 /// Where the home lays the column, in points.
@@ -172,7 +170,7 @@ fn the_path_page_shows_the_units_the_skills_and_the_offers() {
 }
 
 /// A path with unit 2's start re-test due and unit 1's end.
-fn retests_due() -> PathProjection {
+pub(super) fn retests_due() -> PathProjection {
     let (_, going) = paths();
     let skill = |key| Skill::of_key(key).expect("a skill");
     let retest = |unit, end, skills: Vec<Skill>| openpaint_practice::Retest {
@@ -242,68 +240,4 @@ fn a_unit_s_start_re_test_takes_the_next_lesson_s_place_and_its_end_a_row_of_its
         asked.contains(&OptionsIntent::Lesson(Start::Retest(1, true))),
         "{asked:?}"
     );
-}
-
-/// Every skill of the unit in hand shows on the home (S156): four a row where they fit, the sheet
-/// longer while they need it, pressed if the column is short, all inside it and above its foot;
-/// units 1 to 8, a fresh column, one with a review and one with both re-tests too, both languages.
-#[test]
-fn the_home_shows_every_skill_of_the_unit_in_hand() {
-    let ctx = context();
-    let mut part = HomePart::default();
-    let timer = TimerShown::default();
-    // The tests' screen, and the tablet's in landscape: on the tests' screen, shorter, unit 2's
-    // two rows under a review are pressed as far as they go and the second left out.
-    let tablet = Rect::from_min_max(egui::pos2(32.0, 56.0), TABLET.max - egui::vec2(0.0, 32.0));
-    let tablet = Rect::from_min_size(tablet.min, egui::vec2(600.0, tablet.height()));
-    // Under all four rows, unit 2's tiles fit with the packs (nothing lacking), as the author's
-    // library holds them; without, what they lack takes two lines and the second row is left out.
-    let mut packed = retests_due();
-    for unit in &mut packed.units {
-        for skill in &mut unit.skills {
-            skill.lacks = None;
-        }
-    }
-    for (path, (screen, column)) in [
-        (paths().0, (SCREEN, COLUMN)),
-        (paths().1, (TABLET, tablet)),
-        (packed, (TABLET, tablet)),
-    ] {
-        for unit in 1..=8_u8 {
-            let path = PathProjection {
-                unit,
-                ..path.clone()
-            };
-            let skills = &path.units[usize::from(unit - 1)].skills;
-            assert!(!skills.is_empty(), "unit {unit} holds skills");
-            for language in [Language::English, Language::Chinese] {
-                let map = pass_on(&ctx, screen, (1.0, language, Vec::new()), |ui| {
-                    let (mut taps, mut asked, mut timed) = (Vec::new(), Vec::new(), Vec::new());
-                    part.column(
-                        ui,
-                        column,
-                        (&path, &timer, true),
-                        ((&mut taps, &mut asked), &mut timed),
-                    );
-                });
-                let rect = |name: &str| {
-                    let found = map.find(name).unwrap_or_else(|why| {
-                        panic!("unit {unit}, {language:?}, {column:?}: {name}: {why:?}")
-                    });
-                    let [left, top, right, bottom] = found.rect;
-                    Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom))
-                };
-                let foot = rect(t::PRACTICE_BOOK.id());
-                assert!(column.contains_rect(foot), "unit {unit}: the foot {foot:?}");
-                for shown in skills {
-                    let name = t::skill_name(shown.skill).id();
-                    let tile = rect(name);
-                    assert!(
-                        column.contains_rect(tile) && tile.bottom() < foot.top(),
-                        "unit {unit}, {language:?}: {name} at {tile:?}, the foot at {foot:?}"
-                    );
-                }
-            }
-        }
-    }
 }

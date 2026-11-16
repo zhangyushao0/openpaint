@@ -94,6 +94,10 @@ pub fn card_step<'a>(ui: &mut egui::Ui, number: usize, text: impl Into<Words<'a>
 /// those that never end one (they go with what follows).
 const NO_LINE_START: &str = "，。、：；？！）》」』”’…%°,.:;?!)";
 const NO_LINE_END: &str = "（《「『“‘(";
+/// The marks that open and close a quoted name (a control's, “叠图对比”): what lies between
+/// them is never broken (S158h).
+const QUOTE_OPEN: &str = "“「『";
+const QUOTE_CLOSE: &str = "”」』";
 
 fn is_han(c: char) -> bool {
     ('\u{4E00}'..='\u{9FFF}').contains(&c) || ('\u{3400}'..='\u{4DBF}').contains(&c)
@@ -106,10 +110,11 @@ fn in_word(c: char) -> bool {
 
 /// `text` with a line break wherever the next unit would pass `width` points in `font`: a unit
 /// is a character with the marks that may not begin a line after it and those that may not end
-/// one before it, or a whole Latin word or number. egui's own breaking would set a full-width
-/// comma or colon at a line's start.
+/// one before it, a whole Latin word or number, or a whole quoted name with its marks. egui's own
+/// breaking would set a full-width comma or colon at a line's start.
 fn chinese_lines(ctx: &egui::Context, text: &str, font: &egui::FontId, width: f32) -> String {
     let mut units: Vec<String> = Vec::new();
+    let mut quoted = false;
     for c in text.chars() {
         // A mark after a space ("11 %") stays with what stands before the space.
         if NO_LINE_START.contains(c)
@@ -124,7 +129,8 @@ fn chinese_lines(ctx: &egui::Context, text: &str, font: &egui::FontId, width: f3
             .last()
             .and_then(|unit| unit.chars().last())
             .is_some_and(|last| {
-                NO_LINE_START.contains(c)
+                quoted
+                    || NO_LINE_START.contains(c)
                     || NO_LINE_END.contains(last)
                     || in_word(last) && in_word(c)
             });
@@ -132,6 +138,7 @@ fn chinese_lines(ctx: &egui::Context, text: &str, font: &egui::FontId, width: f3
             Some(unit) if joins => unit.push(c),
             _ => units.push(c.to_string()),
         }
+        quoted = (quoted || QUOTE_OPEN.contains(c)) && !QUOTE_CLOSE.contains(c);
     }
     let mut lines = String::with_capacity(text.len() + 8);
     let mut used = 0.0;
@@ -206,6 +213,26 @@ mod tests {
                 lines.split('\n').any(|line| line.contains("Oklab")),
                 "{width}"
             );
+        }
+    }
+
+    /// A quoted control's name is never broken across lines (S158h), wherever the line ends.
+    #[test]
+    fn a_quoted_name_stays_whole_on_its_line() {
+        let ctx = egui::Context::default();
+        crate::design::install(&ctx);
+        let font = egui::FontId::proportional(18.0);
+        let text = "抓形能力强的话，也可以在分割线上画色块：用“填满方框”铺整体色调，点「叠图对比」看差在哪。";
+        let mut output = ctx.run_ui(egui::RawInput::default(), |_| {});
+        output.textures_delta.clear();
+        for width in (80..=400).step_by(9) {
+            let lines = chinese_lines(&ctx, text, &font, width as f32);
+            assert_eq!(lines.replace('\n', ""), text, "{width}");
+            for line in lines.split('\n') {
+                let opened = line.matches(['“', '「']).count();
+                let closed = line.matches(['”', '」']).count();
+                assert_eq!(opened, closed, "{width}: {line}");
+            }
         }
     }
 }

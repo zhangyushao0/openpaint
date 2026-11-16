@@ -50,14 +50,15 @@ pub(crate) fn how_of(practice: &PracticeProjection, kind: Kind) -> HowOf {
 
 /// A kind's How (S92): its title, what it trains and its week, its demonstration playing with
 /// its numbered steps (`demos`; a value scale's of the row in hand's cells), how to practise, and
-/// Again beside Got it; returns whether Got it was tapped.
+/// Again beside Got it; returns whether Got it was tapped, or the demonstration's wheel touched
+/// (S158h: the learner reaches for the wheel the card hides, and How gives way as Got it does).
 pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrations) -> bool {
     let how = t::how(of.kind());
     let steps = t::how_steps(of.kind(), of.cells(), language(ui.ctx()));
     ui.heading(Words::from(how.heading).shown(ui.ctx()));
     // On a screen too short for the whole card its body scrolls; Again and Got it stay in reach.
     let room = ui.ctx().content_rect().bottom() - ui.cursor().top() - HOW_FOOT;
-    egui::ScrollArea::vertical()
+    let reached = egui::ScrollArea::vertical()
         .id_salt("how")
         .max_height(room.max(HOW_LEAST))
         .auto_shrink([false, true])
@@ -65,11 +66,13 @@ pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrati
             if let Some(trains) = how.trains {
                 card_text(ui, trains, true);
             }
-            demos.show(ui, of, &steps);
+            let reached = demos.show(ui, of, &steps);
             for line in how.says {
                 card_text(ui, *line, false);
             }
-        });
+            reached
+        })
+        .inner;
     // At the top of its row: centred, the row would take the height the card had before and keep
     // it.
     ui.horizontal_top(|ui| {
@@ -83,6 +86,7 @@ pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrati
         .inner
     })
     .inner
+        || reached
 }
 
 /// The shown exercise as compared: its title (a colour copy's name), its result where the app

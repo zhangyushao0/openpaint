@@ -75,7 +75,9 @@ fn a_scale_s_how_plays_the_count_of_the_row_in_hand() {
     for cells in [5, 9, 5] {
         let of = HowOf::new(scale, cells);
         let steps = text::how_steps(scale, cells, text::Language::English);
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| demos.show(ui, of, &steps));
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            demos.show(ui, of, &steps);
+        });
         output.textures_delta.clear();
         let playing = demos.playing.as_ref().expect("a demonstration");
         assert_eq!(

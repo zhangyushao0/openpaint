@@ -6,7 +6,7 @@
 //! Recent with nothing drawn yet says so in the quiet hint. In the four sets the hand orders, a
 //! row held still lifts and follows the hand, the others making room, and lands where it is let
 //! go (`row_drag.rs`, as layer rows); Recent is never ordered. A tap chooses a brush; the chosen
-//! brush's row tapped again opens its editor. StreamLine under the list.
+//! brush's row tapped again opens its editor. StreamLine under the list, but on a mode's sheet.
 
 use std::collections::HashMap;
 
@@ -38,11 +38,12 @@ impl ListState {
     }
 }
 
-/// The list: the heading, the sets' words, the shown set's rows, StreamLine. Returns whether the
-/// chosen brush's row was tapped again, which opens its editor.
+/// The list: the heading, the sets' words, the shown set's rows, StreamLine while it applies
+/// (`streamline`: not on a mode's sheet, S158h). Returns whether the chosen brush's row was
+/// tapped again, which opens its editor.
 pub(crate) fn list(
     ui: &mut egui::Ui,
-    brush: &BrushProjection,
+    (brush, streamline): (&BrushProjection, bool),
     (state, textures): (&mut ListState, &HashMap<BrushKey, egui::TextureHandle>),
     taps: &mut Vec<Intent>,
 ) -> bool {
@@ -66,7 +67,9 @@ pub(crate) fn list(
     } else {
         brush_rows(ui, (brush, set, rows), (&mut state.drag, textures), taps)
     };
-    streamline(ui, brush.streamline.amount(), taps);
+    if streamline {
+        streamline_row(ui, brush.streamline.amount(), taps);
+    }
     edit
 }
 
@@ -178,7 +181,7 @@ fn shown<'a>(rows: &'a [BrushRow], drag: Option<&BrushDrag>) -> Vec<&'a BrushRow
 /// The chosen brush's StreamLine under the rows (Procreate keeps it in the brush's settings):
 /// its name and value, then a slider from off to the strongest. It applies from the next
 /// stroke on and is the brush's own, per tool.
-fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
+fn streamline_row(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
     ui.separator();
     ui.horizontal(|ui| {
         ui.set_height(TOUCH_TARGET);

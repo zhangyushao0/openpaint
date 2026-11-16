@@ -121,6 +121,10 @@ pub trait HomeHook {
     /// left, lies at `at` now, its picture painted there: what it laid over the canvas, there,
     /// in `painter` (S144).
     fn carried(&mut self, painter: &egui::Painter, from_at: (Rect, Rect));
+    /// Asked as its sheet is left for the home: where on its page the sheet goes back into, at
+    /// the sheet's own shape, while the sheet was opened from that page, which then shows as it
+    /// was left (S158h); none: into its column.
+    fn landing(&self) -> Option<Rect>;
     /// Its dialogs, after the home's own.
     fn dialogs(&mut self, ctx: &Context, taps: &mut Vec<Intent>);
     /// What it tells in the home's notice pill once the home has nothing to.

@@ -20,6 +20,8 @@ mod pomodoro_tests;
 #[cfg(test)]
 mod tests;
 mod tiles;
+#[cfg(test)]
+mod tiles_tests;
 
 use egui::emath::TSTransform;
 use egui::{Context, Rect, Shape, Ui};
@@ -65,6 +67,11 @@ impl HomePart {
     /// Whether the path page or the practice book lies over the home.
     pub(crate) const fn page_shows(&self) -> bool {
         self.book.shows() || self.path.shows()
+    }
+
+    /// A practice sheet shows on the canvas: the book waits for one opened from it (S158h).
+    pub(crate) const fn sheet_shows(&mut self) {
+        self.book.sheet_shows();
     }
 
     /// A lesson started as `start` from what lies at `from` (the sheet grows out of it): the
@@ -130,6 +137,10 @@ impl HomeHook for PathHook<'_> {
             shape.transform(moved);
             shape
         }));
+    }
+
+    fn landing(&self) -> Option<Rect> {
+        self.part.book.landing()
     }
 
     fn dialogs(&mut self, ctx: &Context, taps: &mut Vec<Intent>) {

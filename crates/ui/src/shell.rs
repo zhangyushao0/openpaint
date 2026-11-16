@@ -167,15 +167,17 @@ impl Shell {
                 self.came_from = self.opening.as_ref().and_then(|opening| opening.id);
             }
             (Showing::Canvas, Showing::Gallery) => {
-                // The last canvas pass's: a mode's sheet goes back into the mode's place with
-                // the picture it left with.
+                // The last canvas pass's: a mode's sheet goes back into the mode's place (or the
+                // page it was opened from) with the picture it left with.
                 let card = self.shown.is_some_and(|shown| shown.mode);
                 let picture = self
                     .carried
                     .take()
                     .map(|picture| carry::texture(ctx, &picture));
+                let into = (home.as_deref()).and_then(HomeHook::landing);
                 if let Some((from, _)) = self.shown_at.take() {
-                    self.home.arrive(from, (self.came_from, card), picture);
+                    self.home
+                        .arrive(from, (self.came_from, card, into), picture);
                 }
             }
             _ => {}
@@ -233,7 +235,8 @@ impl Shell {
         let opener = self.panels.actions.button_rect();
         self.reference
             .show(&ctx, projection, (self.now_ms, opener), &mut self.taps);
-        self.panels.show(&ctx, projection, &mut self.taps);
+        let sheet = hook.is_some();
+        self.panels.show(&ctx, (projection, sheet), &mut self.taps);
         self.adjust.show(&ctx, projection, &mut self.taps);
         if self.panels.actions.take_copy_menu() {
             self.copy.open();

@@ -7,7 +7,8 @@
 //! the one being drawn in ink and the
 //! others in pencil grey, every one in ink once it is over. It plays whenever How opens, once
 //! through on the frame clock, then stands still on its last frame; Again plays it from the start.
-//! Frames are wanted only while it moves (D97). Nothing of it touches the sheet.
+//! Frames are wanted only while it moves (D97). Nothing of it touches the sheet. Its little wheel
+//! touched, How gives way to the tools' wheel, which its card hid (S158h).
 
 use std::fmt;
 use std::sync::Arc;
@@ -15,8 +16,9 @@ use std::sync::Arc;
 use egui::{Rect, Sense, TextureHandle, Vec2};
 use openpaint_practice::{Demo, DemoLayout, Drawn, Kind, Marker, On, Rgb8, ValueMasses};
 
-use openpaint_ui::components::{Alpha, card_step, keep_moving, picture_texture};
+use openpaint_ui::components::{Alpha, card_step, controls, keep_moving, picture_texture};
 use openpaint_ui::design::{INK, SPACE};
+use openpaint_ui::text::COLOUR_WHEEL;
 
 use super::demo_marks::{Frames, paint};
 use super::demo_strip::{self, STRIP};
@@ -121,8 +123,9 @@ struct Playing {
 impl Demonstrations {
     /// `of`'s demonstration under the card's title, playing since How opened (a card not shown in
     /// the pass before has just opened), and its numbered `steps`. A kind without one (the colour
-    /// copy) shows nothing.
-    pub(crate) fn show(&mut self, ui: &mut egui::Ui, of: HowOf, steps: &[String]) {
+    /// copy) shows nothing. Returns whether its little wheel was touched: the learner reaches for
+    /// the wheel, and How gives way to the real one (S158h).
+    pub(crate) fn show(&mut self, ui: &mut egui::Ui, of: HowOf, steps: &[String]) -> bool {
         let ctx = ui.ctx().clone();
         let (now, pass) = (ctx.input(|input| input.time), ctx.cumulative_pass_nr());
         let still = (self.playing.as_ref()).is_some_and(|p| p.of == of && p.pass + 1 >= pass);
@@ -133,7 +136,7 @@ impl Demonstrations {
             }
             let Some(demo) = self.made(of) else {
                 self.playing = None;
-                return;
+                return false;
             };
             self.playing = Some(Playing {
                 of,
@@ -143,12 +146,12 @@ impl Demonstrations {
             });
         }
         let Some(playing) = self.playing.as_mut() else {
-            return;
+            return false;
         };
         playing.pass = pass;
         let demo = Arc::clone(&playing.demo);
         let seconds = now - playing.start;
-        self.example(ui, &demo, seconds);
+        let touched = self.example(ui, &demo, seconds);
         let (lit, over) = (demo.step_at(seconds), seconds >= demo.length);
         for (index, words) in steps.iter().enumerate() {
             let ink = if over || index == lit { INK } else { PENCIL };
@@ -157,6 +160,7 @@ impl Demonstrations {
         if !over {
             keep_moving(&ctx);
         }
+        touched
     }
 
     /// The demonstration on the card plays again from the start.
@@ -178,8 +182,9 @@ impl Demonstrations {
         Some(made)
     }
 
-    /// The example `seconds` after the start, its frames laid out across the card.
-    fn example(&mut self, ui: &mut egui::Ui, demo: &Demo, seconds: f64) {
+    /// The example `seconds` after the start, its frames laid out across the card; whether its
+    /// wheel (a colour kind's) was touched.
+    fn example(&mut self, ui: &mut egui::Ui, demo: &Demo, seconds: f64) -> bool {
         let width = ui.available_width();
         let height = match demo.layout {
             DemoLayout::Wheel => (width - 2.0 * GAP) / 3.0,
@@ -215,6 +220,7 @@ impl Demonstrations {
                 .map(|(_, texture)| texture.clone())
         };
         paint(ui.painter(), (demo, seconds), &frames, &pictures);
+        frames.wheel.is_some_and(|wheel| touched(ui, wheel))
     }
 
     /// Makes the example's picture `key` names, once: a combination's with its areas in its
@@ -246,6 +252,15 @@ impl Demonstrations {
         let texture = picture_texture(ctx, name, (size, &pixels, Alpha::Straight));
         self.pictures.push((key, texture));
     }
+}
+
+/// Whether the example's `wheel` is touched: named as the wheel it stands for, which the tools
+/// give back once How gives way (S158h).
+fn touched(ui: &mut egui::Ui, wheel: Rect) -> bool {
+    let id = ui.id().with("demonstration wheel");
+    let response = ui.interact(wheel, id, Sense::click_and_drag());
+    controls::register(ui, COLOUR_WHEEL.id(), wheel);
+    response.is_pointer_button_down_on()
 }
 
 /// `map`'s cells in their greys where their value is `shown` (dark, middle, light), clear

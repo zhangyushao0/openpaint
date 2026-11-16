@@ -40,6 +40,19 @@ pub fn heading_button<'a>(ui: &mut egui::Ui, words: impl Into<Words<'a>>) -> egu
     .inner
 }
 
+/// The room a word takes beyond itself in its button, and in its pill, in points.
+const PAD: f32 = 4.0 * SPACE;
+const PILL_PAD: f32 = 7.0 * SPACE;
+
+/// The width `text_choice` lays `words` at, in points: a row's words measured before the row is
+/// laid (S158h).
+pub fn choice_width<'a>(ui: &egui::Ui, words: impl Into<Words<'a>>) -> f32 {
+    let font = TextStyle::Button.resolve(ui.style());
+    let shown = words.into().shown(ui.ctx()).to_owned();
+    let galley = ui.painter().layout_no_wrap(shown, font, INK);
+    (galley.size().x + PAD).max(TOUCH_TARGET)
+}
+
 /// A word reading `words` in the group `group`, showing whether it is the one `chosen`.
 pub fn text_choice<'a>(
     ui: &mut egui::Ui,
@@ -181,7 +194,7 @@ fn button(
     let shown = words.shown(ui.ctx());
     let galley = ui.painter().layout_no_wrap(shown.to_owned(), font, color);
     // A pilled word stands well inside its pill.
-    let pad = if pilled { 7.0 * SPACE } else { 4.0 * SPACE };
+    let pad = if pilled { PILL_PAD } else { PAD };
     let width = (galley.size().x + pad).max(min_width);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, TOUCH_TARGET), sense);
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, enabled, on, shown));

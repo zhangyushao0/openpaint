@@ -34,16 +34,19 @@ fn edit(taps: &mut Vec<Intent>, change: BrushChange, settled: bool) {
     push_brush(taps, BrushIntent::Edit { change, settled });
 }
 
-/// The column. Returns the dynamics page a row opened, if one was tapped.
+/// The column, StreamLine in it while it applies (`streamline`: not on a mode's sheet, whose
+/// strokes never take it, S158h). Returns the dynamics page a row opened, if one was tapped.
 pub(crate) fn settings(
     ui: &mut egui::Ui,
-    brush: &BrushProjection,
+    (brush, streamline): (&BrushProjection, bool),
     taps: &mut Vec<Intent>,
 ) -> Option<Dynamic> {
     let edited = &brush.edited;
     section(ui, t::STROKE);
     knob(ui, edited, Knob::Spacing, taps);
-    streamline(ui, brush.streamline.amount(), taps);
+    if streamline {
+        streamline_slider(ui, brush.streamline.amount(), taps);
+    }
     for taper in [Knob::TaperStart, Knob::TaperEnd, Knob::TaperTip] {
         knob(ui, edited, taper, taps);
     }
@@ -129,7 +132,7 @@ pub(crate) fn shown(language: Language, knob: Knob, value: f32) -> String {
 }
 
 /// The brush's StreamLine for the tool, as the brush list's slider sets it.
-fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
+fn streamline_slider(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
     let shown = format!("{} %", (amount * 100.0).round());
     let slider = SettingSlider {
         label: t::STREAMLINE.into(),

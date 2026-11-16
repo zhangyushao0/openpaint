@@ -138,6 +138,26 @@ pub fn declare(
     })
 }
 
+/// The surface `id`, coming from `source`, shows finished from this pass on, with no motion,
+/// where it is not known yet: a page the screen comes back to as it was left (S158h). Declare it
+/// as usual after.
+pub fn settle(ctx: &egui::Context, id: Id, source: Source, order: Order) {
+    state(ctx, |state| {
+        if state.entries.iter().any(|entry| entry.id == id) {
+            return;
+        }
+        state.entries.push(Entry {
+            id,
+            source,
+            order,
+            target: Rect::NOTHING,
+            growth: Growth::shown(state.clock),
+            wanted: true,
+            laid: None,
+        });
+    });
+}
+
 /// The declared surface `id` was laid out finished at `target` on `layer`; paper keeps the
 /// shape `paper` reserved under its content.
 pub(crate) fn laid_out(

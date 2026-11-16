@@ -45,6 +45,7 @@ impl PracticeScreens {
         // On the home, what the sheet last left laid over the canvas goes back with it (S144).
         let (sheet, laid) = match sheet {
             Some(sheet) => {
+                self.home.sheet_shows();
                 let hook = SheetHook {
                     part: &mut self.sheet,
                     sheet,

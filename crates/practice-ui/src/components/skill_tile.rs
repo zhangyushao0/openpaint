@@ -5,11 +5,13 @@
 //! pencil with what it lacks under its dots, and takes no tap. Pressed, the sheet darkens under the
 //! hand. The home shows the unit in hand as smaller tiles (`small`). A row lays its tiles alike
 //! (`TileRow`, S156): a name too long for its tile wraps under its glyph, the row giving every
-//! name as many lines as its longest takes; room under the dots only while one of the row lacks
-//! its pictures; a small row pressed to fit its column, its glyph smaller and the room over and
-//! under it less, as far as they stay legible. Named by its English (`text.rs`).
+//! name as many lines as its longest takes, its type smaller (to the UI's Small) where a word of
+//! one would break inside (S158h); room under the dots only while one of the row lacks its
+//! pictures; a small row pressed to fit its column, its glyph smaller and the room over and under
+//! it less, then no glyph at all, the name and dots kept (S158h). Named by its English
+//! (`text.rs`).
 
-use egui::{Color32, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2, pos2};
+use egui::{Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2, pos2};
 use openpaint_practice::{Skill, TileMark};
 
 use openpaint_ui::components::{controls, paint_sheet};
@@ -36,8 +38,9 @@ const PRESSED_ROOM: f32 = 0.5;
 /// The room over a glyph and between it and the name, in points.
 const OVER: f32 = 2.0 * SPACE;
 const UNDER: f32 = 1.5 * SPACE;
-/// What a small tile gives up pressed all the way, in points.
+/// What a small tile gives up pressed all the way, and more without its glyph, in points.
 const PRESS: f32 = (1.0 - PRESSED_GLYPH) * SMALL_GLYPH.y + (1.0 - PRESSED_ROOM) * (OVER + UNDER);
+const BARE: f32 = PRESSED_GLYPH * SMALL_GLYPH.y + PRESSED_ROOM * UNDER;
 /// A small tile's narrowest: its glyph twice over, so a name of two lines stays readable.
 pub(crate) const NARROWEST_SMALL: f32 = 2.0 * SMALL_GLYPH.x;
 /// The drawing's line, a dot's radius in the glyph's units, and the dots' radius and pitch, in
@@ -64,82 +67,133 @@ pub struct SkillTile<'a> {
     pub row: TileRow,
 }
 
-/// How a row lays its tiles alike: the lines it gives a name, the lines it gives what a tile's
-/// pictures lack (0 while none of it lacks them), and how far a small row is pressed (0 as
-/// drawn, 1 all the way).
+/// How a row lays its tiles alike: the lines it gives a name, the names' type size in points
+/// (the body's, smaller where a word would break inside) and the lines a name takes at the UI's
+/// Small, the lines it gives what a tile's pictures lack (0 while none of it lacks them, or
+/// pressed past saying it), and how far a small row is pressed (0 as drawn, 1 all the way;
+/// `bare` past it: no glyph).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TileRow {
     pub lines: usize,
+    pub size: f32,
+    pub least_lines: usize,
     pub lacks: usize,
     pub pressed: f32,
+    pub bare: bool,
 }
 
 impl TileRow {
     /// A row of tiles `width` points wide, each its name and what its pictures lack; not
-    /// pressed.
+    /// pressed. Its names' type is the largest from the body's down to the UI's Small at which
+    /// no word of one breaks (`name_size`), else the Small.
     pub(crate) fn of<'a>(
         ui: &egui::Ui,
         tiles: impl IntoIterator<Item = (Words<'a>, Option<Words<'a>>)>,
         width: f32,
     ) -> Self {
-        let rows = |words: Words<'a>, style: TextStyle| {
+        let tiles: Vec<_> = tiles.into_iter().collect();
+        let names = tiles.iter().map(|(name, _)| *name);
+        let size = Self::name_size(ui, names, width).unwrap_or_else(|| least(ui));
+        let rows = |words: Words<'a>, font: FontId| {
             let shown = words.shown(ui.ctx()).to_owned();
-            let font = style.resolve(ui.style());
             ui.painter()
                 .layout(shown, font, INK, wrap(width))
                 .rows
                 .len()
         };
-        let (mut lines, mut lacks) = (1, 0);
+        let small = TextStyle::Small.resolve(ui.style());
+        let (mut lines, mut least_lines, mut lacks) = (1, 1, 0);
         for (name, lacking) in tiles {
-            lines = lines.max(rows(name, TextStyle::Body));
-            let lacking = lacking.map(|words| rows(words, TextStyle::Small));
+            lines = lines.max(rows(name, name_font(ui, size)));
+            least_lines = least_lines.max(rows(name, name_font(ui, least(ui))));
+            let lacking = lacking.map(|words| rows(words, small.clone()));
             lacks = lacks.max(lacking.unwrap_or(0));
         }
         Self {
             lines,
+            size,
+            least_lines,
             lacks,
             pressed: 0.0,
+            bare: false,
         }
     }
 
-    /// Whether every word of `names` fits a tile `width` points wide, so none breaks inside.
-    pub(crate) fn unbroken<'a>(
+    /// The largest type size, in whole points from the body's down to the UI's Small, at which
+    /// every word of `names` fits a tile `width` points wide, so none breaks inside; none where
+    /// one breaks even at the Small. A Chinese name, without spaces, is one word.
+    pub(crate) fn name_size<'a>(
         ui: &egui::Ui,
         names: impl IntoIterator<Item = Words<'a>>,
         width: f32,
-    ) -> bool {
-        let body = TextStyle::Body.resolve(ui.style());
-        let fits = |word: &str| {
-            let galley = ui
-                .painter()
-                .layout_no_wrap(word.to_owned(), body.clone(), INK);
-            galley.size().x <= wrap(width)
+    ) -> Option<f32> {
+        let shown: Vec<String> = (names.into_iter())
+            .map(|name| name.shown(ui.ctx()).to_owned())
+            .collect();
+        let words: Vec<&str> = shown.iter().flat_map(|n| n.split_whitespace()).collect();
+        let body = TextStyle::Body.resolve(ui.style()).size;
+        let fits = |size: f32| {
+            (words.iter()).all(|word| {
+                let font = name_font(ui, size);
+                let galley = ui.painter().layout_no_wrap((*word).to_owned(), font, INK);
+                galley.size().x <= wrap(width)
+            })
         };
-        (names.into_iter()).all(|name| name.shown(ui.ctx()).split_whitespace().all(fits))
+        let sizes = (0..).map(|step| body - step as f32);
+        sizes
+            .take_while(|size| *size >= least(ui))
+            .find(|size| fits(*size))
     }
 
     /// Its small tiles pressed as little as lets `rows` of them, `apart` points apart, fit in
-    /// `room` points, at most all the way.
+    /// `room` points, in steps until one does: their glyphs and the room around them smaller (to
+    /// half), then no glyph, then what their pictures lack unsaid (the tile still in pencil),
+    /// then the names at the UI's Small; the names and dots always kept.
     pub(crate) fn fitted(self, ui: &egui::Ui, (rows, apart): (usize, f32), room: f32) -> Self {
         let rows = rows.max(1) as f32;
-        let need = rows * self.height(ui, true) + (rows - 1.0) * apart;
+        let need = |row: &Self| rows * row.height(ui, true) + (rows - 1.0) * apart;
         // A point to spare, so the last row stays clear of the edge it was fitted to.
-        let pressed = ((need - room + 1.0) / (rows * PRESS)).clamp(0.0, 1.0);
-        Self { pressed, ..self }
+        let room = room - 1.0;
+        let pressed = ((need(&self) - room) / (rows * PRESS)).clamp(0.0, 1.0);
+        let pressed = Self { pressed, ..self };
+        let bare = Self {
+            bare: true,
+            ..pressed
+        };
+        let quiet = Self { lacks: 0, ..bare };
+        let small = Self {
+            size: least(ui).min(self.size),
+            lines: self.least_lines,
+            ..quiet
+        };
+        let fits = |row: &Self| need(row) <= room + 0.01;
+        ([pressed, bare, quiet].into_iter())
+            .find(fits)
+            .unwrap_or(small)
     }
 
     /// Its tiles' height, small or not.
     pub(crate) fn height(&self, ui: &egui::Ui, small: bool) -> f32 {
         let one = if small {
             let room = if self.lacks > 0 { 0.0 } else { LACKS_ROOM };
-            SMALL_TILE_HEIGHT - room - self.pressed * PRESS
+            let bare = if self.bare { BARE } else { 0.0 };
+            SMALL_TILE_HEIGHT - room - self.pressed * PRESS - bare
         } else {
             TILE_HEIGHT
         };
-        let lacks = more(ui, self.lacks, TextStyle::Small);
-        one + more(ui, self.lines, TextStyle::Body) + lacks
+        let lacks = more(ui, self.lacks, &TextStyle::Small.resolve(ui.style()));
+        one + more(ui, self.lines, &name_font(ui, self.size)) + lacks
     }
+}
+
+/// The UI's Small type's size, the least a name is set in.
+fn least(ui: &egui::Ui) -> f32 {
+    TextStyle::Small.resolve(ui.style()).size
+}
+
+/// A name's type at `size` points, the body's family.
+fn name_font(ui: &egui::Ui, size: f32) -> FontId {
+    FontId::new(size, TextStyle::Body.resolve(ui.style()).family)
 }
 
 /// A tile `width` points wide; its response.
@@ -174,6 +228,21 @@ pub fn skill_tile(ui: &mut egui::Ui, tile: &SkillTile<'_>, width: f32) -> egui::
         };
         paint_mark(painter, ring, 1.0);
     }
+    paint_inside(ui, tile, (rect, glyph_size), (gap, pressed));
+    response
+}
+
+/// What a tile at `rect` holds, its glyph `glyph_size` drawn and the dots `gap` under its name's
+/// top, `pressed` as its row: its glyph (none pressed past it), its name, its dots, and what its
+/// pictures lack (unless pressed past saying it).
+fn paint_inside(
+    ui: &egui::Ui,
+    tile: &SkillTile<'_>,
+    (rect, glyph_size): (Rect, Vec2),
+    (gap, pressed): (f32, f32),
+) {
+    let painter = ui.painter();
+    let width = rect.width();
     let (ink, quiet) = if tile.lacks.is_some() {
         (PENCIL, PENCIL)
     } else {
@@ -182,18 +251,22 @@ pub fn skill_tile(ui: &mut egui::Ui, tile: &SkillTile<'_>, width: f32) -> egui::
     let room = 1.0 - (1.0 - PRESSED_ROOM) * pressed;
     let glyph_size = glyph_size * (1.0 - (1.0 - PRESSED_GLYPH) * pressed);
     let left = rect.left() + 2.0 * SPACE;
-    let glyph = Rect::from_min_size(pos2(left, rect.top() + OVER * room), glyph_size);
-    paint_glyph(painter, glyph, tile.skill, ink);
-    let body = TextStyle::Body.resolve(ui.style());
+    let top = rect.top() + OVER * room;
+    // Pressed past its glyph, the name lies where the glyph would.
+    let below = if tile.small && tile.row.bare {
+        pos2(left, top)
+    } else {
+        let glyph = Rect::from_min_size(pos2(left, top), glyph_size);
+        paint_glyph(painter, glyph, tile.skill, ink);
+        pos2(left, glyph.bottom() + UNDER * room)
+    };
+    let font = name_font(ui, tile.row.size);
     let name = tile.name.shown(ui.ctx()).to_owned();
-    let below = pos2(left, glyph.bottom() + UNDER * room);
-    painter.galley(below, painter.layout(name, body, ink, wrap(width)), ink);
-    let dots = pos2(
-        left + DOT,
-        below.y + gap + more(ui, tile.row.lines, TextStyle::Body),
-    );
+    let laid = painter.layout(name, font.clone(), ink, wrap(width));
+    painter.galley(below, laid, ink);
+    let dots = pos2(left + DOT, below.y + gap + more(ui, tile.row.lines, &font));
     paint_dots(painter, (dots, DOT_PITCH, DOT), (tile.dots, None), ink);
-    if let Some(lacks) = tile.lacks {
+    if let Some(lacks) = tile.lacks.filter(|_| tile.row.lacks > 0) {
         let small = TextStyle::Small.resolve(ui.style());
         let under = pos2(left, dots.y + 2.0 * SPACE);
         let shown = lacks.shown(ui.ctx()).to_owned();
@@ -203,12 +276,11 @@ pub fn skill_tile(ui: &mut egui::Ui, tile: &SkillTile<'_>, width: f32) -> egui::
             quiet,
         );
     }
-    response
 }
 
-/// The height the lines past the first of words in `style` take.
-fn more(ui: &egui::Ui, lines: usize, style: TextStyle) -> f32 {
-    lines.saturating_sub(1) as f32 * ui.text_style_height(&style)
+/// The height the lines past the first of words in `font` take.
+fn more(ui: &egui::Ui, lines: usize, font: &FontId) -> f32 {
+    lines.saturating_sub(1) as f32 * ui.fonts_mut(|fonts| fonts.row_height(font))
 }
 
 /// The width a name wraps at in a tile `width` points wide: in from its left as the glyph, a

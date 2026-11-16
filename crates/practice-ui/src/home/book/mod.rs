@@ -3,7 +3,8 @@
 //! back. At its top its name, its two pages (Calendar, Progress; S147) and, quietly, the lessons
 //! done and the time practised; on the calendar's page the month's calendar (`days.rs`; a day
 //! tapped shows its card over what lies beside it, `day.rs`: its time, its sheets, which open, and
-//! its colours) and beside it the first and latest lines and the seals (`progress/`); on the
+//! its colours; a sheet opened there comes back to it, the book as it was left, S158h) and beside
+//! it the first and latest lines and the seals (`progress/`); on the
 //! Progress page each skill's curve (`progress/curves.rs`). No legends, no days in a row, nothing
 //! to fill: what was done, drawn.
 
@@ -52,6 +53,12 @@ pub(crate) struct BookState {
     progress: bool,
     refitting: bool,
     cards: HashSet<openpaint_practice::CopyRef>,
+    /// A sheet opened from a day's card (S158h): its picture there (points); while the sheet
+    /// shows on the canvas (`away`) the book waits for it, and as it comes back (`coming`) the
+    /// book shows as it was left and the sheet goes back into its picture.
+    left: Option<Rect>,
+    away: bool,
+    coming: bool,
 }
 
 impl BookState {
@@ -63,11 +70,27 @@ impl BookState {
         };
     }
 
-    /// Closes it. Returns whether it was open.
+    /// Closes it, unless the sheet opened from it is coming back into it: then it stays as it
+    /// was left. Returns whether it was open.
     pub(in crate::home) fn close(&mut self) -> bool {
         let open = self.from.is_some();
-        (self.from, self.day, self.covers) = (None, None, false);
+        if std::mem::take(&mut self.away) {
+            self.coming = true;
+            return open;
+        }
+        (self.from, self.day, self.covers, self.left) = (None, None, false, None);
         open
+    }
+
+    /// A practice sheet shows on the canvas: one opened from the book's day card makes the book
+    /// wait for it.
+    pub(in crate::home) const fn sheet_shows(&mut self) {
+        self.away = self.left.is_some() && self.from.is_some();
+    }
+
+    /// Where the sheet opened from a day's card goes back into, while it is away.
+    pub(in crate::home) fn landing(&self) -> Option<Rect> {
+        self.left.filter(|_| self.away)
     }
 
     pub(in crate::home) const fn shows(&self) -> bool {
@@ -113,7 +136,6 @@ impl HomePart {
         let Some(from) = self.book.from else {
             return;
         };
-        self.ask_sheets(&path.book, options);
         let screen = ctx.content_rect();
         let id = Id::new("practice book");
         let source = Source::Rect {
@@ -121,6 +143,14 @@ impl HomePart {
             radius: (0.0, 0.0),
             veil: false,
         };
+        // Back from a sheet opened from it, it shows as it was left, its day's card too.
+        let coming = std::mem::take(&mut self.book.coming);
+        if coming {
+            chrome::settle(ctx, id, source, Order::Middle);
+            // The sheet may have changed while away: its picture is read again.
+            self.book.asked.clear();
+        }
+        self.ask_sheets(&path.book, options);
         let grown = chrome::declare(ctx, id, source, Order::Middle, true).map_or(1.0, |s| s.grown);
         self.book.covers = grown >= 1.0;
         let area = egui::Area::new(id)
@@ -135,12 +165,13 @@ impl HomePart {
             page(ui, screen, (&path.book, month, shown), &mut self.book.swipe)
         });
         let chosen = self.book.day.filter(|_| !shown);
-        let carded = chosen.and_then(|day| day::day_card(ctx, &path.book, day, screen));
+        let carded = chosen.and_then(|day| day::day_card(ctx, &path.book, day, (screen, coming)));
         match carded.or(tapped) {
             Some(BookTap::Day(day)) => self.book.day = day,
             Some(BookTap::Month(first)) => (self.book.month, self.book.day) = (Some(first), None),
             Some(BookTap::Progress(on)) => (self.book.progress, self.book.day) = (on, None),
             Some(BookTap::Open(sheet, from)) => {
+                self.book.left = Some(from);
                 taps.push(Intent::Gallery(GalleryIntent::Open(sheet)));
                 self.opening = Some(Opening {
                     from,

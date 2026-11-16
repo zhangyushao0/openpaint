@@ -86,7 +86,7 @@ fn shown(
     let brush = toolbox.projection();
     let textures = HashMap::new();
     pass(ctx, (time, events), |ui, taps| {
-        list(ui, &brush, (state, &textures), taps);
+        list(ui, (&brush, true), (state, &textures), taps);
     })
 }
 
@@ -221,7 +221,7 @@ fn the_set_row_lies_under_the_name_and_moves_the_brush() {
     let mut page = |toolbox: &Toolbox, (time, events)| {
         let brush = toolbox.projection();
         pass(&ctx, (time, events), |ui, taps| {
-            editor.page(ui, &brush, taps);
+            editor.page(ui, (&brush, true), taps);
         })
     };
     let (_, map, texts) = page(&toolbox, (1.0, Vec::new()));
@@ -243,4 +243,28 @@ fn the_set_row_lies_under_the_name_and_moves_the_brush() {
     let moved = Intent::Brush(BrushIntent::MoveToSet(BrushSet::Painting));
     assert_eq!(taps, [moved]);
     assert_eq!(editor.moved, Some(BrushSet::Painting), "the list shows it");
+}
+
+/// On a mode's sheet, whose strokes keep the pen's own samples, neither the list nor the
+/// editor offers StreamLine (S158h); elsewhere both do.
+#[test]
+fn streamline_shows_only_where_strokes_take_it() {
+    let ctx = context();
+    let toolbox = toolbox();
+    let brush = toolbox.projection();
+    let textures = HashMap::new();
+    for streamline in [true, false] {
+        let mut state = ListState::default();
+        let (_, listed, _) = pass(&ctx, (1.0, Vec::new()), |ui, taps| {
+            list(ui, (&brush, streamline), (&mut state, &textures), taps);
+        });
+        let mut editor = BrushEditor::default();
+        let (_, edited, _) = pass(&ctx, (2.0, Vec::new()), |ui, taps| {
+            editor.page(ui, (&brush, streamline), taps);
+        });
+        for map in [listed, edited] {
+            let shown = map.find("StreamLine").is_ok();
+            assert_eq!(shown, streamline, "{:?}", map.names());
+        }
+    }
 }

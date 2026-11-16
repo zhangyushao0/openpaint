@@ -5,7 +5,8 @@
 //! stroke it painted, the tool's brush outlined in ink (`brush_list.rs`). The smudge and the
 //! eraser choose from the same brushes and sets. A tap chooses the brush; the panel stays until a
 //! contact lands on the canvas outside it, and a pen stroke there draws with the brush just
-//! chosen. Under the rows, the chosen brush's StreamLine slider (0 to 100 %). Tapping the chosen
+//! chosen. Under the rows, the chosen brush's StreamLine slider (0 to 100 %; none on a mode's
+//! sheet, whose strokes never take it, S158h). Tapping the chosen
 //! brush's row again turns the panel into its editor (`brush_editor.rs`) from any of the
 //! three tools, as all three draw with the same brushes; Back, or the panel closing, returns to
 //! the list, on the set the editor's Set row moved the brush to, if it did.
@@ -134,11 +135,12 @@ impl BrushPanel {
         })
     }
 
-    /// The panel while it is open or closing, its taps pushed to `taps`.
+    /// The panel while it is open or closing, its taps pushed to `taps`; StreamLine in the list
+    /// and the editor only while it applies (`streamline`: not on a mode's sheet).
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
-        projection: &SessionProjection,
+        (projection, streamline): (&SessionProjection, bool),
         taps: &mut Vec<Intent>,
     ) {
         self.load(ctx);
@@ -158,9 +160,9 @@ impl BrushPanel {
             editor.strip.hide();
         }
         let rect = popover(ctx, "brushes", (opener, open), |ui| match editor.as_mut() {
-            Some(editor) if open => back = editor.page(ui, brush, taps),
+            Some(editor) if open => back = editor.page(ui, (brush, streamline), taps),
             Some(_) => {}
-            None => edit = list(ui, brush, (state, textures), taps),
+            None => edit = list(ui, (brush, streamline), (state, textures), taps),
         });
         // The editor's Set row moved the brush: the list shows that set when it is back.
         if let Some(set) = self.editor.as_mut().and_then(|editor| editor.moved.take()) {

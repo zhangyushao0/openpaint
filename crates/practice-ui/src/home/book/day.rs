@@ -11,7 +11,7 @@ use std::ops::Range;
 use egui::{Id, Order, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2};
 use openpaint_practice::{Day, Rgb8};
 use openpaint_practice_app::{BookProjection, BookRecord, Mark, SheetRead};
-use openpaint_ui::components::chrome::Source;
+use openpaint_ui::components::chrome::{self, Source};
 use openpaint_ui::components::{controls, paint_sheet, paper};
 use openpaint_ui::dates::{Date, weekday};
 use openpaint_ui::design::{CORNER, DIVIDER, INK_SECONDARY, SPACE, surface_frame};
@@ -31,13 +31,13 @@ const SQUARE: f32 = 36.0;
 /// A sheet's shape before it is read: six rows' (2,920 by 3,160 pixels).
 const SHEET_SHAPE: f32 = 2920.0 / 3160.0;
 
-/// The card of `day` (practised), grown out of its `cell` over progress on `screen`; a sheet
-/// tapped opens it.
+/// The card of `day` (practised), grown out of its `cell` over progress on `screen` (already
+/// there while a sheet opened from it is `coming` back, S158h); a sheet tapped opens it.
 pub(super) fn day_card(
     ctx: &egui::Context,
     book: &BookProjection,
     (day, cell): (i64, Rect),
-    screen: Rect,
+    (screen, coming): (Rect, bool),
 ) -> Option<BookTap> {
     let shown = book.book.day(day)?;
     let [_, side] = layout(screen);
@@ -53,6 +53,9 @@ pub(super) fn day_card(
         .constrain(false)
         .fade_in(false)
         .fixed_pos(side.min);
+    if coming {
+        chrome::settle(ctx, id, source, Order::Foreground);
+    }
     let (tapped, _) = paper(ctx, id, source, area, |ui| {
         surface_frame(egui::Margin::ZERO)
             .show(ui, |ui| {

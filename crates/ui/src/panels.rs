@@ -28,16 +28,17 @@ pub(crate) struct Panels {
 }
 
 impl Panels {
-    /// Every panel open or still closing, under the islands.
+    /// Every panel open or still closing, under the islands; on a mode's `sheet` the brushes'
+    /// without StreamLine, which its strokes never take (they keep the pen's own samples, S158h).
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
-        projection: &SessionProjection,
+        (projection, sheet): (&SessionProjection, bool),
         taps: &mut Vec<Intent>,
     ) {
         self.actions.show(ctx, projection, taps);
         self.layers.show(ctx, projection, taps);
-        self.brushes.show(ctx, projection, taps);
+        self.brushes.show(ctx, (projection, !sheet), taps);
         self.colors.show(ctx, projection, taps);
     }
 
