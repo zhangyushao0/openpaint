@@ -3,13 +3,15 @@
 //! The repository keeps the lists (`tools/packs/lists/`), never a picture; a pack and its
 //! downloads live under `artifacts/packs/` (untracked).
 //!
-//! - `build <list> [out] [--sheet]`: the pack the list names (`build.rs`), written to `out` or
-//!   `artifacts/packs/<pack id>.pack`, one line per item; with `--sheet` a contact sheet per tier
-//!   beside it (`<pack id>-<tier>.png`), numbered as the lines. A list of shapes loads the
-//!   outlines' segmentation model through the same cache (`segment.rs`, 176 MB on the first
-//!   build); a list of compositions never does.
-//! - `search <cleveland|met|commons> <query> [count]`: candidates and their contact sheet for the
-//!   curator (`search.rs`).
+//! - `build <list> [out] [--sheet] [--from <item id>]`: the pack the list names (`build.rs`),
+//!   written to `out` or `artifacts/packs/<pack id>.pack`, one line per item; with `--sheet` a
+//!   contact sheet per tier beside it (`<pack id>-<tier>.png`), numbered as the lines. With
+//!   `--from`, only the items from that one to the list's end, for the curator to judge a new
+//!   batch (S159): their pack and sheets go to `artifacts/packs/curate/` unless `out` is given,
+//!   never over the whole pack's. A list of shapes loads the outlines' segmentation model through
+//!   the same cache (`segment.rs`, 176 MB on the first build); a list of compositions never does.
+//! - `search <cleveland|met|commons|aic|textureninja|openverse> <query> [count]`: candidates and
+//!   their contact sheet for the curator (`search.rs`).
 #![forbid(unsafe_code)]
 
 mod build;
@@ -21,6 +23,7 @@ mod full;
 mod libraries;
 mod list;
 mod nga;
+mod openverse;
 mod rijks;
 #[cfg(test)]
 mod scratch;
@@ -34,6 +37,8 @@ mod tests;
 mod tests_crops;
 #[cfg(test)]
 mod tests_libraries;
+#[cfg(test)]
+mod tests_openverse;
 #[cfg(test)]
 mod tests_sources;
 mod trim;
@@ -54,8 +59,9 @@ use list::{Source, SourceList};
 use segment::Segmenter;
 use sheet::{Mark, Picture, write_sheet};
 
-const USAGE: &str = "practice-pack build <list.toml> [out.pack] [--sheet]\n       \
-                     practice-pack search <cleveland|met|commons> <query> [count]";
+const USAGE: &str = "practice-pack build <list.toml> [out.pack] [--sheet] [--from <item id>]\n       \
+                     practice-pack search <cleveland|met|commons|aic|textureninja|openverse> \
+                     <query> [count]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -103,13 +109,25 @@ fn packs_dir() -> PathBuf {
 
 fn build_command(rest: &[&str]) -> Result<(), PackError> {
     let sheets = rest.contains(&"--sheet");
-    let paths: Vec<&str> = rest.iter().copied().filter(|a| *a != "--sheet").collect();
-    let (list, out) = match paths[..] {
+    let mut rest: Vec<&str> = rest.iter().copied().filter(|a| *a != "--sheet").collect();
+    let from = match rest.iter().position(|a| *a == "--from") {
+        Some(at) if at + 1 < rest.len() => Some(rest.drain(at..=at + 1).nth(1).unwrap_or("")),
+        Some(_) => return Err(PackError::Missing(USAGE)),
+        None => None,
+    };
+    let (list, out) = match rest[..] {
         [list] => (list, None),
         [list, out] => (list, Some(PathBuf::from(out))),
         _ => return Err(PackError::Missing(USAGE)),
     };
-    let list = SourceList::parse(&fs::read_to_string(list)?)?;
+    let mut list = SourceList::parse(&fs::read_to_string(list)?)?;
+    if let Some(from) = from {
+        let at = (list.items.iter().position(|item| item.id == from))
+            .ok_or(PackError::Missing("--from names no item of the list"))?;
+        list.items.drain(..at);
+    }
+    let out = out
+        .or_else(|| from.map(|_| (packs_dir().join("curate")).join(format!("{}.pack", list.id))));
     let fetcher = Fetcher::new(packs_dir().join("cache"));
     let segmenter = (list.kind.outlined())
         .then(|| Segmenter::load(&fetcher))

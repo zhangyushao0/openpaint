@@ -3,8 +3,9 @@
 //! (Cleveland's `share_license_status`, the Met's `isPublicDomain`, the Art Institute's
 //! `is_public_domain`, the National Gallery's `openaccess`, `nga.rs`, the Rijksmuseum's rights
 //! statement of its picture, `rijks.rs`, Commons' machine-readable `License` with its templates,
-//! `commons.rs`), never assumed from the source; but for the two texture libraries, which
-//! dedicate every asset to CC0 and state no licence per asset (`libraries.rs`, S101c).
+//! `commons.rs`, Openverse's `license` and `license_version`, `openverse.rs`), never assumed from
+//! the source; but for the texture libraries, which dedicate every asset to CC0 and state no
+//! licence per asset (`libraries.rs`, S101c, S159).
 
 use std::cell::OnceCell;
 
@@ -13,7 +14,7 @@ use serde_json::Value;
 
 use super::fetch::{Fetcher, USER_AGENT, cache_name, query_text};
 use super::list::{Listed, Source};
-use super::{commons, libraries, nga, rijks};
+use super::{commons, libraries, nga, openverse, rijks};
 use crate::error::PackError;
 
 /// The licence an API states for an object.
@@ -42,7 +43,7 @@ pub struct Found {
     pub page: String,
     pub stated: Stated,
     /// The picture to download: the largest the source hands out as a JPEG or PNG (at most
-    /// 2,048 pixels a side where the source sizes it).
+    /// 2,048 pixels a side where the source sizes it, but the Art Institute's 3,000).
     pub picture: String,
     /// Who to credit: the creator, or the attribution the file's author asked for.
     pub credit: String,
@@ -61,7 +62,8 @@ pub struct Found {
 pub enum Full {
     /// The picture downloaded is the source's own file at its full size: Commons' original (an
     /// SVG's or TIFF's rendering, the only one taken), the Met's primary picture, Cleveland's
-    /// print, Poly Haven's colour map at 4K.
+    /// print, Poly Haven's colour map at 4K, Texture Ninja's photograph, Openverse's file (a
+    /// WordPress photograph's original).
     Picture,
     /// A IIIF image service, by its base URL: the picture asked at its full size, its longer side
     /// at most `most` pixels (the most the server hands out); asked as `!most,most` alone when
@@ -137,6 +139,8 @@ impl<'a> Sources<'a> {
             Source::Rijks => rijks::found(fetcher, object),
             Source::AmbientCg => libraries::ambientcg(fetcher, object),
             Source::PolyHaven => libraries::polyhaven(fetcher, object),
+            Source::TextureNinja => libraries::texture_ninja(fetcher, object),
+            Source::Openverse => openverse::found(fetcher, object),
             Source::Commons => {
                 let url = commons::info_url(object, listed.at);
                 commons::found(&fetcher.json(&name, &url)?, &url, listed.at)
@@ -150,7 +154,7 @@ impl<'a> Sources<'a> {
 pub const AIC_HEADERS: [(&str, &str); 1] = [("AIC-User-Agent", USER_AGENT)];
 /// The longest side the Art Institute's IIIF server hands out (`!3000,3000`; it refuses larger
 /// sizes, and most others, with 403, and gives a smaller picture at its own size, as tried on
-/// 2026-11-06).
+/// 2026-11-06 and 2026-11-16).
 const AIC_MOST: u32 = 3000;
 
 /// The text at `field`, trimmed; `None` when missing or empty.
@@ -232,8 +236,8 @@ pub fn aic_url(id: &str) -> String {
 }
 
 /// The Art Institute of Chicago's API: `is_public_domain` true for the works whose pictures the
-/// museum releases under CC0; the picture from its IIIF server (the answer's `iiif_url`),
-/// fitted within 2,048 pixels.
+/// museum releases under CC0; the picture from its IIIF server (the answer's `iiif_url`) at the
+/// one fitted size it hands out (`AIC_MOST`; since 2026-11-16 it refuses `!2048,2048` too).
 fn aic(answer: &Value, url: &str) -> Result<Found, PackError> {
     let data = &answer["data"];
     let public = data["is_public_domain"]
@@ -249,7 +253,7 @@ fn aic(answer: &Value, url: &str) -> Result<Found, PackError> {
         creator,
         page: format!("https://www.artic.edu/artworks/{id}"),
         stated: cc0_when(public, "not public domain"),
-        picture: format!("{iiif}/{image}/full/!2048,2048/0/default.jpg"),
+        picture: format!("{iiif}/{image}/full/!{AIC_MOST},{AIC_MOST}/0/default.jpg"),
         collection: "The Art Institute of Chicago",
         changes: "resized",
         headers: &AIC_HEADERS,

@@ -1,10 +1,11 @@
 //! A pack's crops (S101, V大's 色彩组合: a corner of an abstract oil painting or of a rusted old
 //! thing, never a concrete object): the crops a picture gives (`list::cropping`: a composition's
-//! best corner, a texture's best two places), found and held to a combination's rules by the
-//! practice crate (`openpaint_practice::candidates`, `best`), each cut from the picture at its full
-//! size (`full.rs`, S101b: at least `LEAST_LONGER` long, never the packed picture's 2,048
-//! pixels), reduced to `LONGEST`, made as a pack holds a picture and answered anew from those
-//! pixels (`Areas::found`), so the answer is the picture's the app shows. A crop the list leaves
+//! best two corners, any other picture's best six places, S159), found and held to a combination's
+//! rules by the practice crate (`openpaint_practice::candidates`, `best`), each cut from the
+//! picture at its full size (`full.rs`, S101b: at least `LEAST_LONGER` long, never the packed
+//! picture's 2,048 pixels), reduced to `LONGEST`, made as a pack holds a picture and answered anew
+//! from those pixels (`Areas::found`), so the answer is the picture's the app shows; one whose new
+//! answer breaks a rule makes way for the next best. A crop the list leaves
 //! out (`no_crop`) is still cut and drawn on the sheets, never packed. Their contact sheets:
 //! `<pack id>-crops-<page>.png`, `PAGE` crops a page, each beside its areas, numbered as the
 //! command lists them.
@@ -51,8 +52,9 @@ pub struct Cropped {
 }
 
 /// The crops `listed`'s picture (at its full size; `source` what its API says of it) gives at
-/// `places`, `count` at most, best first; each with its item and file unless the list leaves it
-/// out or its answer, made anew from the packed pixels, breaks a rule.
+/// `places`, `count` at most, best first, each keeping the rules once packed: a crop whose answer,
+/// made anew from its packed pixels, breaks a rule makes way for the next best (S159), so it
+/// never hides one overlapping it. Each with its item and file unless the list leaves it out.
 ///
 /// # Errors
 /// `Pack` when a crop cannot be made as a pack holds a picture.
@@ -62,39 +64,65 @@ pub fn crops_of(
     (places, count): (Places, usize),
 ) -> Result<Vec<(Cropped, Option<Packed>)>, PackError> {
     let all = found_side_by_side(picture, places);
-    let kept = best(all.clone(), count);
-    if kept.is_empty() {
+    let mut left = all.clone();
+    let made = loop {
+        let kept = best(left.clone(), count);
+        let mut made = Vec::with_capacity(kept.len());
+        for crop in &kept {
+            made.push(packed(listed, picture, crop)?);
+        }
+        let refused: Vec<&Crop> = (kept.iter().zip(&made))
+            .filter(|(_, made)| refusal(&made.found).is_some())
+            .map(|(crop, _)| crop)
+            .collect();
+        if refused.is_empty() {
+            break made;
+        }
+        left.retain(|crop| !refused.contains(&crop));
+    };
+    if made.is_empty() {
         say_none(listed, &all);
     }
-    let mut made = Vec::with_capacity(kept.len());
-    for (number, crop) in (1..).zip(kept) {
-        let pixels = cut(picture.size, &picture.rgba, crop.at, crop.size);
-        let (size, pixels) = reduced(crop.size, pixels);
-        let failed = |detail: String| PackError::Pack {
-            item: listed.id.clone(),
-            problem: format!("its crop {number}: {detail}"),
-        };
-        let file =
-            encode_image(ImageFormat::Png, size, &pixels).map_err(|e| failed(e.to_string()))?;
-        let packed = pack_picture(&file).map_err(|e| failed(e.to_string()))?;
-        let found = Areas::found(packed.size, &packed.rgba);
-        let left_out = (listed.no_crop.get(&number).cloned())
-            .or_else(|| refusal(&found).map(|rule| format!("{rule} once packed")));
+    let crops = (1..).zip(made).map(|(number, made)| {
         let cropped = Cropped {
             id: format!("{}-{number}", listed.id),
             title: format!("{} (detail {number})", source.title),
-            size: packed.size,
-            rgba: packed.rgba.clone(),
-            found,
-            left_out,
+            size: made.size,
+            rgba: made.rgba,
+            found: made.found,
+            left_out: listed.no_crop.get(&number).cloned(),
         };
-        let item = cropped.left_out.is_none().then(|| {
-            let item = item(listed, source, &cropped);
-            (item, packed.file)
-        });
-        made.push((cropped, item));
-    }
-    Ok(made)
+        let item =
+            (cropped.left_out.is_none()).then(|| (item(listed, source, &cropped), made.file));
+        (cropped, item)
+    });
+    Ok(crops.collect())
+}
+
+/// A crop made as a pack holds a picture: its size, pixels and file, and its answer anew.
+struct Made {
+    size: [u32; 2],
+    rgba: Vec<u8>,
+    file: Vec<u8>,
+    found: Found,
+}
+
+/// `crop` of `picture` cut, reduced to `LONGEST`, made as a pack holds it and answered anew.
+fn packed(listed: &Listed, picture: &FullPicture, crop: &Crop) -> Result<Made, PackError> {
+    let pixels = cut(picture.size, &picture.rgba, crop.at, crop.size);
+    let (size, pixels) = reduced(crop.size, pixels);
+    let failed = |detail: String| PackError::Pack {
+        item: listed.id.clone(),
+        problem: format!("its crop at {:?}: {detail}", crop.at),
+    };
+    let file = encode_image(ImageFormat::Png, size, &pixels).map_err(|e| failed(e.to_string()))?;
+    let packed = pack_picture(&file).map_err(|e| failed(e.to_string()))?;
+    Ok(Made {
+        found: Areas::found(packed.size, &packed.rgba),
+        size: packed.size,
+        rgba: packed.rgba,
+        file: packed.file,
+    })
 }
 
 /// Every candidate crop of `picture` at `places` with its areas found (`candidates`), the
@@ -135,7 +163,10 @@ fn say_none(listed: &Listed, all: &[Crop]) {
     let why = nearest.map_or_else(
         || format!("too small: no crop of it reaches {LEAST_LONGER} px"),
         |crop| {
-            let rule = refusal(&crop.found).map_or_else(String::new, |rule| rule.to_string());
+            let rule = refusal(&crop.found).map_or_else(
+                || "every crop breaks a rule once packed".to_owned(),
+                |rule| rule.to_string(),
+            );
             let areas = crop.found.areas.count();
             format!(
                 "{rule}; its best of {} has {areas} areas, busy {:.3}",

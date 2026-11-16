@@ -1,7 +1,7 @@
-//! The texture libraries (S101c) on a cache of made-up answers (no network): an ambientCG
-//! material and a Poly Haven texture each give their crops, credited to the library as CC0, the
-//! material's colour map read from its archive; a library's map never goes into a list of
-//! another kind; the official combinations list reads.
+//! The texture libraries (S101c, S159) on a cache of made-up answers (no network): an ambientCG
+//! material, a Poly Haven texture and a Texture Ninja photograph each give their crops, credited
+//! to the library as CC0, the material's colour map read from its archive; a library's picture
+//! never goes into a list of another kind; the official combinations list reads.
 
 use std::fs;
 
@@ -34,7 +34,17 @@ source = "polyhaven"
 object = "rusty_test"
 licence = "CC0"
 reason = "rust and paint in four patches"
+
+[[item]]
+id = "tn-rust"
+source = "textureninja"
+object = "Rust_Test-0001.jpg"
+licence = "CC0"
+reason = "rust and paint in four patches"
 "#;
+
+const TEXTURE_NINJA: &str = r#"[{"id": 9001, "key": "Rust_Test-0001.jpg", "width": 450,
+    "height": 300, "children": null, "tags": [{"tag": "rust"}], "categories": [37]}]"#;
 
 const AMBIENTCG: &str = r#"{"foundAssets": [{"assetId": "Rust900", "displayName": "Rust 900",
     "shortLink": "https://ambientcg.com/a/Rust900", "downloadFolders": {"default":
@@ -71,50 +81,53 @@ fn cache() -> Scratch {
         POLYHAVEN_FILES.as_bytes(),
     );
     put(cache_name("polyhaven", "rusty_test", "img"), &rust());
+    let key = "Rust_Test-0001.jpg";
+    put(
+        cache_name("textureninja", key, "json"),
+        TEXTURE_NINJA.as_bytes(),
+    );
+    put(cache_name("textureninja", key, "img"), &rust());
     dir
 }
 
 #[test]
-fn both_libraries_give_crops_of_their_colour_maps_credited_as_cc0() {
+fn every_library_gives_crops_of_its_pictures_credited_as_cc0() {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = cache();
     let built = build(&list, &Fetcher::cache_only(&dir), &no_segment).expect("built");
     let (pack, _) =
         open_pack(&encode_pack(&built.pack, &built.pictures).expect("encoded")).expect("a pack");
-    let credits: Vec<(String, String, Licence)> = (pack.items.iter())
+    let credits: Vec<String> = (pack.items.iter())
         .map(|item| {
             let credit = item.credit.as_ref().expect("credited");
-            (item.id.clone(), credit.creator.clone(), credit.licence)
+            format!(
+                "{} | {} | {}",
+                item.id,
+                credit.creator,
+                credit.licence.name()
+            )
         })
         .collect();
-    assert_eq!(
-        credits,
-        [
-            (
-                "acg-rust-1".to_owned(),
-                "ambientCG".to_owned(),
-                Licence::Cc0
-            ),
-            (
-                "acg-rust-2".to_owned(),
-                "ambientCG".to_owned(),
-                Licence::Cc0
-            ),
-            (
-                "ph-rust-1".to_owned(),
-                "A. Painter".to_owned(),
-                Licence::Cc0
-            ),
-            (
-                "ph-rust-2".to_owned(),
-                "A. Painter".to_owned(),
-                Licence::Cc0
-            ),
-        ]
-    );
+    let expected: Vec<String> = [
+        ("acg-rust", "ambientCG"),
+        ("ph-rust", "A. Painter"),
+        ("tn-rust", "Texture Ninja"),
+    ]
+    .into_iter()
+    .flat_map(|(id, creator)| (1..=3).map(move |n| format!("{id}-{n} | {creator} | CC0")))
+    .collect();
+    assert_eq!(credits, expected);
     let first = pack.items[0].credit.as_ref().expect("credited");
     assert_eq!(first.source, "https://ambientcg.com/a/Rust900");
-    assert!(pack.items[2].title.starts_with("Rusty Test (detail 1)"));
+    assert!(pack.items[3].title.starts_with("Rusty Test (detail 1)"));
+    let ninja = &pack.items[6];
+    assert!(ninja.title.starts_with("Rust Test 0001 (detail 1)"));
+    let credit = ninja.credit.as_ref().expect("credited");
+    assert_eq!(
+        credit.source,
+        "https://texture.ninja/search?texture=Rust_Test-0001.jpg"
+    );
+    assert_eq!(credit.licence, Licence::Cc0);
     assert!(pack.items.iter().all(|item| item.kind == PictureKind::Crop));
 }
 

@@ -10,11 +10,12 @@
 //!   Metropolitan Museum of Art's Collection API), `aic` (the Art Institute of Chicago's API),
 //!   `nga` (the National Gallery of Art's open data), `rijks` (the Rijksmuseum's Linked Art
 //!   API), `commons` (Wikimedia Commons' API), `ambientcg` or `polyhaven` (the two CC0 texture
-//!   libraries' APIs, S101c: a material's colour map, only ever cropped);
+//!   libraries' APIs, S101c: a material's colour map, only ever cropped), `textureninja` (Texture
+//!   Ninja's CC0 photographs, S159, only ever cropped), `openverse` (Openverse's API, S159);
 //! - `object`: what the source knows it by: Cleveland's accession number, the Met's, the Art
 //!   Institute's or the National Gallery's object id, the Rijksmuseum's object number, a Commons
 //!   file's title (`File:…`), an ambientCG asset id (`PaintedMetal006`), a Poly Haven asset id
-//!   (`rusty_metal_02`);
+//!   (`rusty_metal_02`), a Texture Ninja file (`PaintFlaking_0327.jpg`), an Openverse image's id;
 //! - `at` (a Commons video only): the second of the frame taken, as a still;
 //! - `licence`: the licence the API must state (`CC0`, `PD-US-gov`, `PD-old`, `CC BY 4.0`, …);
 //! - `reason`: why it is in its tier, which the pack keeps as the item's notes;
@@ -49,10 +50,12 @@ pub enum Source {
     Commons,
     AmbientCg,
     PolyHaven,
+    TextureNinja,
+    Openverse,
 }
 
 impl Source {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
         Self::Cleveland,
         Self::Met,
         Self::Aic,
@@ -61,6 +64,8 @@ impl Source {
         Self::Commons,
         Self::AmbientCg,
         Self::PolyHaven,
+        Self::TextureNinja,
+        Self::Openverse,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -73,7 +78,14 @@ impl Source {
             Self::Commons => "commons",
             Self::AmbientCg => "ambientcg",
             Self::PolyHaven => "polyhaven",
+            Self::TextureNinja => "textureninja",
+            Self::Openverse => "openverse",
         }
+    }
+
+    /// A texture library's (S101c, S159): its pictures only ever cropped.
+    pub const fn library(self) -> bool {
+        matches!(self, Self::AmbientCg | Self::PolyHaven | Self::TextureNinja)
     }
 
     pub fn of_name(name: &str) -> Option<Self> {
@@ -228,9 +240,8 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, PackError> {
         ));
     }
     let source = Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?;
-    let library = matches!(source, Source::AmbientCg | Source::PolyHaven);
-    if library && kind != PictureKind::Crop {
-        return Err(wrong("a texture library's colour map is only ever cropped"));
+    if source.library() && kind != PictureKind::Crop {
+        return Err(wrong("a texture library's picture is only ever cropped"));
     }
     match item.at {
         Some(_) if source != Source::Commons => return Err(wrong("a frame comes from Commons")),
@@ -252,12 +263,13 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, PackError> {
     })
 }
 
-/// How many crops a picture of `kind` gives (S101), and where they are taken: a composition's
-/// one, at its corners; a texture's two, anywhere; a shape none.
+/// How many crops a picture of `kind` gives at most (S101; S159: every crop keeping the rules
+/// and overlapping no better one by more than `OVERLAP`, up to these), and where they are taken:
+/// a composition's two, at its corners; a picture only cropped six, anywhere; a shape none.
 pub fn cropping(kind: PictureKind) -> Option<(Places, usize)> {
     match kind {
-        PictureKind::Composition => Some((Places::Corners, 1)),
-        PictureKind::Crop => Some((Places::Anywhere, 2)),
+        PictureKind::Composition => Some((Places::Corners, 2)),
+        PictureKind::Crop => Some((Places::Anywhere, 6)),
         PictureKind::Shape => None,
     }
 }

@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use openpaint_practice::{
     Areas, Arrangement, CropRefusal, FEWEST_AREAS, GeneratedAreas, Kind, LEAST_LONGER, Learner,
-    MOST_AREAS, Pack, PackItem, PictureKind, Pictures, Places, Purpose, Sheet, Skill, SkillLevel,
-    Standing, Tier, best, candidates, delta_e, refusal, schedule, tier_of,
+    MOST_AREAS, OVERLAP, Pack, PackItem, PictureKind, Pictures, Places, Purpose, Sheet, Skill,
+    SkillLevel, Standing, Tier, best, candidates, delta_e, refusal, schedule, tier_of,
 };
 
 /// The generated pictures' side in pixels: about a crop's.
@@ -194,7 +194,7 @@ fn the_builder_keeps_the_best_crops_none_overlapping_and_the_same_every_time() {
         }
     });
     let all = candidates(size, &rgba, Places::Anywhere);
-    assert_eq!(all.len(), 27, "one size, three shapes, nine places");
+    assert_eq!(all.len(), 75, "one size, three shapes, twenty-five places");
     assert!(
         all.iter()
             .all(|crop| crop.size[0].max(crop.size[1]) >= LEAST_LONGER)
@@ -218,6 +218,50 @@ fn the_builder_keeps_the_best_crops_none_overlapping_and_the_same_every_time() {
         let [x, y] = crop.at;
         (x == 0 || x + crop.size[0] == size[0]) && (y == 0 || y + crop.size[1] == size[1])
     }));
+}
+
+#[test]
+fn a_large_picture_gives_every_crop_its_grid_finds_up_to_the_count_asked() {
+    // Five columns of rust side by side, each its four patches meeting at a point: the middle of
+    // the square crop of the one size reaching `LEAST_LONGER` (770 pixels, 0.55 of 1,400) at
+    // each of the five places across (S159), where nine places found two.
+    let size = [4400, 1400];
+    let rgba = picture(size, |[x, y]| {
+        let column = (x * 5.0).floor().min(4.0);
+        let centre = (907.5 * column + 385.0) / 4400.0;
+        match (x < centre, y < 0.5) {
+            (true, true) => [120, 80, 60],
+            (false, true) => [128, 86, 64],
+            (true, false) => [150, 150, 145],
+            (false, false) => [80, 95, 115],
+        }
+    });
+    let all = candidates(size, &rgba, Places::Anywhere);
+    let kept = best(all.clone(), 8);
+    let mut columns: Vec<u32> = (kept.iter())
+        .map(|crop| (crop.at[0] + crop.size[0] / 2) / 880)
+        .collect();
+    columns.sort_unstable();
+    columns.dedup();
+    assert_eq!(
+        columns,
+        [0, 1, 2, 3, 4],
+        "a crop of every column of {}",
+        kept.len()
+    );
+    for (k, crop) in kept.iter().enumerate() {
+        assert_eq!(refusal(&crop.found), None);
+        for better in &kept[..k] {
+            assert!(better.score() >= crop.score(), "best first");
+            assert!(crop.overlap(better) <= OVERLAP, "none over a better one");
+        }
+    }
+    // Asked for fewer, the best of them; asked for more, no more than the rules keep.
+    assert_eq!(best(all.clone(), 2), kept[..2]);
+    assert_eq!(
+        best(all, 40),
+        best(candidates(size, &rgba, Places::Anywhere), 40)
+    );
 }
 
 /// A pack of `count` crops of each of `tiers`, each named by its tier, all of a few colours.

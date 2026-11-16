@@ -1,7 +1,7 @@
-//! Crops (S101) on a cache of made-up answers (no network): a list of crops gives its picture's
-//! best two crops, each a crop item with its areas, the same bytes every build; one the list
-//! leaves out is cut and drawn but never packed; every crop 768 to 1,024 pixels long (S101b); the
-//! list's marks are checked.
+//! Crops (S101) on a cache of made-up answers (no network): a list of crops gives every crop of
+//! its picture that keeps the rules, up to six (S159), each a crop item with its areas, the same
+//! bytes every build; one the list leaves out is cut and drawn but never packed; every crop 768 to
+//! 1,024 pixels long (S101b); the list's marks are checked.
 
 use std::fs;
 
@@ -84,7 +84,8 @@ fn a_list_of_crops_packs_its_best_crops_with_their_areas_the_same_every_build() 
     let bytes = encode_pack(&built.pack, &built.pictures).expect("encoded");
     let again = build(&list, &fetcher, &no_segment).expect("built again");
     assert!(encode_pack(&again.pack, &again.pictures).expect("encoded") == bytes);
-    assert_eq!(built.crops.len(), 2, "the picture's best two");
+    // Every crop keeping the rules and overlapping no better one by more than a quarter (S159).
+    assert_eq!(built.crops.len(), 3, "every crop the picture gives");
     assert_eq!(built.crops[0].left_out, None);
     let why = built.crops[1].left_out.as_deref();
     assert_eq!(
@@ -96,8 +97,8 @@ fn a_list_of_crops_packs_its_best_crops_with_their_areas_the_same_every_build() 
     let ids: Vec<&str> = pack.items.iter().map(|item| item.id.as_str()).collect();
     assert_eq!(
         ids,
-        ["rust-1"],
-        "only the crop kept; the photograph itself never"
+        ["rust-1", "rust-3"],
+        "only the crops kept; the photograph itself never"
     );
     let crop = &pack.items[0];
     assert_eq!(crop.kind, PictureKind::Crop);
@@ -145,9 +146,10 @@ fn a_crop_list_s_marks_are_checked() {
         Err(PackError::List(_))
     ));
     assert!(
-        matches!(with("no_crop.3"), Err(PackError::List(_))),
-        "two crops a photograph"
+        matches!(with("no_crop.7"), Err(PackError::List(_))),
+        "six crops a photograph at most"
     );
+    assert!(with("no_crop.6").is_ok());
     let blank = LIST.replace("\"a test of the list's mark\"", "\" \"");
     assert!(
         SourceList::parse(&blank).is_err(),

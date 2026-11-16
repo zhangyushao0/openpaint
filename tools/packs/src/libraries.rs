@@ -1,12 +1,15 @@
-//! The two CC0 texture libraries a list of crops takes colour maps from (S101c): ambientCG
+//! The CC0 texture libraries a list of crops takes pictures from: ambientCG
 //! (`ambientcg.com/api/v2/full_json`, its materials as zip archives of maps) and Poly Haven
-//! (`api.polyhaven.com`, each map its own file). Only the colour map (ambientCG's `Color`, Poly
-//! Haven's `Diffuse`) is ever taken, never a normal, roughness or height map, at 4K (4,096
-//! pixels a side). Neither API states a licence per asset: each library dedicates every asset it
-//! publishes to the public domain under CC0 (ambientCG: "All assets are provided under the
-//! Creative Commons CC0 1.0 Universal License", docs.ambientcg.com/license; Poly Haven: "All
-//! assets on Poly Haven are CC0", polyhaven.com/license), so an asset the API answers for is CC0;
-//! one the API does not know fails the build.
+//! (`api.polyhaven.com`, each map its own file), S101c; Texture Ninja (`texture.ninja/api`, about
+//! 5,000 photographs of walls, rust, paint and stone, each file at its full size), S159. Of the
+//! first two only the colour map (ambientCG's `Color`, Poly Haven's `Diffuse`) is ever taken,
+//! never a normal, roughness or height map, at 4K (4,096 pixels a side). No API states a licence
+//! per asset: each library dedicates every asset it publishes to the public domain under CC0
+//! (ambientCG: "All assets are provided under the Creative Commons CC0 1.0 Universal License",
+//! docs.ambientcg.com/license; Poly Haven: "All assets on Poly Haven are CC0",
+//! polyhaven.com/license; Texture Ninja: "All textures on Texture Ninja are released into the
+//! public domain (CC0)", beside every texture on texture.ninja), so an asset the API answers for
+//! is CC0; one the API does not know fails the build.
 
 use openpaint_practice::Licence;
 
@@ -20,6 +23,10 @@ const AMBIENTCG_ARCHIVE: &str = "4K-JPG";
 pub const AMBIENTCG_COLOUR: &str = "_Color.jpg";
 /// Poly Haven's resolution taken, 4,096 pixels a side.
 const POLYHAVEN_SIZE: &str = "4k";
+/// Where Texture Ninja keeps its files at their full size (its Download button's), and their
+/// previews (its cards').
+pub const TEXTURE_NINJA_FILES: &str = "https://texture-ninja.nyc3.cdn.digitaloceanspaces.com/";
+pub const TEXTURE_NINJA_PREVIEWS: &str = "https://d1wumrtbuo797i.cloudfront.net/thumb-";
 
 /// The ambientCG material `id` (`PaintedMetal006`): its title, page and archive.
 ///
@@ -79,6 +86,32 @@ pub fn polyhaven(fetcher: &Fetcher, id: &str) -> Result<Found, PackError> {
         "Poly Haven",
         (colour, Full::Picture),
     ))
+}
+
+/// The Texture Ninja photograph `key` (`PaintFlaking_0327.jpg`): its page and file, titled by its
+/// name.
+///
+/// # Errors
+/// `Fetch` when the API cannot be reached or knows no such texture.
+pub fn texture_ninja(fetcher: &Fetcher, key: &str) -> Result<Found, PackError> {
+    let url = format!(
+        "https://texture.ninja/api/textures?textureKey={}",
+        query_text(key)
+    );
+    let answer = fetcher.json(&cache_name("textureninja", key, "json"), &url)?;
+    (answer.as_array().into_iter().flatten())
+        .find(|texture| texture["key"] == key)
+        .ok_or_else(|| lacking(&url, "texture of that key"))?;
+    let stem = key.rsplit_once('.').map_or(key, |(stem, _)| stem);
+    let title = stem.replace(['_', '-'], " ").trim().to_owned();
+    let mut found = library(
+        (title, "Texture Ninja".to_owned()),
+        format!("https://texture.ninja/search?texture={}", query_text(key)),
+        "Texture Ninja",
+        (format!("{TEXTURE_NINJA_FILES}{key}"), Full::Picture),
+    );
+    found.changes = "cropped";
+    Ok(found)
 }
 
 /// A library's asset as found: CC0 by the library's own dedication (see the module).

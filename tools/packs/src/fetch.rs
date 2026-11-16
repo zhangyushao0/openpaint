@@ -1,7 +1,8 @@
 //! Downloads for `practice-pack`, kept in a cache (`artifacts/packs/cache/`, untracked): an
 //! API's answer or a picture is fetched once and read from the cache ever after, so a rebuild
 //! from the same list and cache makes the same pack without the network. Requests go one at a
-//! time with a descriptive User-Agent, as Wikimedia's and the museums' API policies ask.
+//! time with a descriptive User-Agent, as Wikimedia's and the museums' API policies ask, each
+//! followed by a pause, longer for an API that asks for fewer requests a minute (`pause`).
 
 use std::fs;
 use std::path::PathBuf;
@@ -21,6 +22,19 @@ pub const USER_AGENT: &str = concat!(
 const MOST_BYTES: u64 = 256 << 20;
 /// A pause after every request that reached the network.
 const PAUSE: Duration = Duration::from_millis(150);
+
+/// The pause after a request to `url` that reached the network: Openverse takes 20 requests a
+/// minute without a key, the Art Institute asks for no more than 60 (S159); `PAUSE` elsewhere.
+fn pause(url: &str) -> Duration {
+    if url.starts_with("https://api.openverse.org/") {
+        Duration::from_millis(3_100)
+    } else if url.starts_with("https://api.artic.edu/") || url.starts_with("https://www.artic.edu/")
+    {
+        Duration::from_millis(1_000)
+    } else {
+        PAUSE
+    }
+}
 
 /// What of a download is kept: the bytes, or why it holds nothing to keep.
 pub type Part<'a> = &'a dyn Fn(&[u8]) -> Result<Vec<u8>, String>;
@@ -116,7 +130,7 @@ impl Fetcher {
                     .read_to_vec()
             })
             .map_err(|error| failed(error.to_string()))?;
-        std::thread::sleep(PAUSE);
+        std::thread::sleep(pause(url));
         let bytes = part(&bytes).map_err(failed)?;
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir)?;

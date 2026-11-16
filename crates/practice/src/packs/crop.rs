@@ -1,12 +1,14 @@
 //! Crops for colour combinations (S101, the pack builder's; V大's 色彩组合: a corner of an abstract
 //! oil painting or of a rusted old thing, never a concrete object). A picture gives candidate
 //! rectangles, square or a third longer one way, three sizes, at its corners (a composition's
-//! paintings) or anywhere on a grid of nine places (a texture's photograph); each candidate's areas
+//! paintings) or anywhere on a grid of five places by five (a texture's photograph, a painting
+//! cropped; S159: nine places kept too few of a large picture's); each candidate's areas
 //! are found (`areas_found.rs`) and held to the rules a combination keeps: `FEWEST_AREAS` to
 //! `MOST_AREAS` areas, each thick enough to read, at least one weak contrast between neighbours
 //! and one pair plainly apart (`DISTINCT`), at least one area low in saturation, and areas that
-//! say the picture (`BUSIEST`). The best are kept, none overlapping another by more than a
-//! quarter: the most varied colours and the flattest areas first, four or five before others.
+//! say the picture (`BUSIEST`). The best are kept, as many as the builder asks, none overlapping
+//! a better one by more than a quarter: the most varied colours and the flattest areas first,
+//! four or five before others.
 //! Whether a crop shows a recognisable object no rule can tell: every crop is judged by eye on the
 //! builder's contact sheets, and one that does is listed out with its reason.
 
@@ -37,14 +39,17 @@ pub const LEAST_LONGER: u32 = 768;
 const SIDES: [f64; 3] = [0.25, 0.4, 0.55];
 const SHAPES: [f64; 3] = [1.0, 4.0 / 3.0, 3.0 / 4.0];
 /// How much of the smaller of two crops kept may lie in the other.
-const OVERLAP: f64 = 0.25;
+pub const OVERLAP: f64 = 0.25;
+/// The steps a crop is moved in along each side of its picture, from one edge to the other: the
+/// places across and down are one more.
+const STEPS: u32 = 4;
 
 /// Where a picture's crops are taken.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Places {
     /// Its four corners: a painting's, whose middle holds its subject.
     Corners,
-    /// Nine places, its corners, the middles of its sides and its middle: a texture's.
+    /// Twenty-five places, five across by five down, its corners among them: a texture's.
     Anywhere,
 }
 
@@ -144,7 +149,8 @@ impl Crop {
     }
 
     /// The share of the smaller of it and `other` lying in both.
-    fn overlap(&self, other: &Self) -> f64 {
+    #[must_use]
+    pub fn overlap(&self, other: &Self) -> f64 {
         let along = |axis: usize| {
             let from = self.at[axis].max(other.at[axis]);
             let to = (self.at[axis] + self.size[axis]).min(other.at[axis] + other.size[axis]);
@@ -219,15 +225,15 @@ pub fn candidate(size: [u32; 2], rgba: &[u8], (at, crop): ([u32; 2], [u32; 2])) 
 /// Where a crop of `crop` pixels lies in a picture of `size` at `places`: its top left corners.
 fn spots(size: [u32; 2], crop: [u32; 2], places: Places) -> Vec<[u32; 2]> {
     let room = [size[0] - crop[0], size[1] - crop[1]];
-    let steps: &[u32] = match places {
-        Places::Corners => &[0, 2],
-        Places::Anywhere => &[0, 1, 2],
+    let steps: Vec<u32> = match places {
+        Places::Corners => vec![0, STEPS],
+        Places::Anywhere => (0..=STEPS).collect(),
     };
     (steps.iter())
         .flat_map(|y| {
             steps
                 .iter()
-                .map(move |x| [room[0] * x / 2, room[1] * y / 2])
+                .map(move |x| [room[0] * x / STEPS, room[1] * y / STEPS])
         })
         .collect()
 }

@@ -192,8 +192,8 @@ pub use maths::random::{Random, derived};
 pub use outlines::outline::{Outline, OutlineRefusal, outline};
 pub use outlines::outline_matte::{Matte, outline_of_matte};
 pub use packs::crop::{
-    BUSIEST, Crop, CropRefusal, DISTINCT, FEWEST_AREAS, GREYISH, LEAST_LONGER, Places, best,
-    candidate, candidates, cut, rectangles, refusal, tier_of,
+    BUSIEST, Crop, CropRefusal, DISTINCT, FEWEST_AREAS, GREYISH, LEAST_LONGER, OVERLAP, Places,
+    best, candidate, candidates, cut, rectangles, refusal, tier_of,
 };
 pub use packs::licence::Licence;
 pub use packs::pack::{
