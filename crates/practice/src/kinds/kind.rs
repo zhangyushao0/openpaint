@@ -115,9 +115,9 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its description's (1 to 23), its
-    /// variant its description's (`Described::variant`). A code names one generator for good; a
-    /// changed generator is a new code.
+    /// The kind and its variant as stored: each kind's code is its description's (1 to 27, 5
+    /// free), its variant its description's (`Described::variant`). A code names one generator for
+    /// good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let described = self.described();

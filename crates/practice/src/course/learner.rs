@@ -256,7 +256,7 @@ impl Learner {
 
     /// Whether `unit` is open with the `pictures` kept: the first always; another when it holds a
     /// skill, the unit before it is open and each skill of that one that can be practised has its
-    /// first dot. A unit without a skill (6 to 8) is never open.
+    /// first dot. A unit without a skill (8) is never open.
     #[must_use]
     pub fn open(&self, unit: u8, pictures: &Pictures) -> bool {
         if !Unit::of(unit).is_some_and(Unit::built) {

@@ -42,15 +42,12 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-Units 1 to 5 are built, laid out as a path since S122, timed by the Pomodoro since S124 (S75 to S124 are done: the list at the end and its archive).
+Units 1 to 5 are built, 6 and 7 begun (S153), laid out as a path since S122, timed by the Pomodoro since S124 (S75 to S124 are done: the list at the end and its archive).
 
 Unit 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis (S112, done), structure rotation (S113, done); each joins unit 5 as a skill after the key shifts.
 
 Units 5 to 8 and the foundation they complete, as the author accepted them on mocks: units 5 to 8 (2026-11-15), the ten foundation additions (2026-11-16, "按你推荐来吧"), who judges and progress from the learner's own judgements (2026-11-16). Each builder's contract is its item in the designs of those days, kept by the main session; one builder at a time, one proof each, in this order. For every builder: the app scores only direct measures, whatever reads free strokes lays its exact answer for the eye (D123), and no screen explains the app's workings (D118's guard).
-- Done: A abstract analysis (S112a to S112c), B structure rotation (S113), V drawn copies judged by eye (S145), the screens' words (S146), C re-tests and progress from the learner's judgements (S147, its pairs inside a Pomodoro and One more's re-test S148), M drawing from life (S151).
-- D. Unit 6: gamut masks (Gurney), the app judges.
-- I. Unit 6: light on form (the families the app's, inner tones as help; the pen 最暗) and cast shadows (answer laid); the light, rays from any point, the sphere's hit, the lit picture.
-- E. Unit 7: placement from a floor plan (V大's distribution method), answer laid.
+- Done: A abstract analysis (S112a to S112c), B structure rotation (S113), V drawn copies judged by eye (S145), the screens' words (S146), C re-tests and progress from the learner's judgements (S147, its pairs inside a Pomodoro and One more's re-test S148), M drawing from life (S151), D gamut masks, E placement, I light on form and cast shadows with the shared light (S153).
 - F. Unit 7: curved structure rotation, V大's three phases as its levels, on I's sphere, answer laid.
 - J. Unit 7: colour under light and texture by its shadows, the eye with the app's marks as help.
 - G. Unit 8: contrast thumbnails (the analysis reversed); the cold-warm copy, lights warm and shadows cool on one picture.
@@ -184,3 +181,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S150 2026-11-16 1.28.0: a blind pair of any two compared copies, judged or not, a unit's full lessons of before S124 among them — the author's October lines, never judged, can be the older copy; the pair is then their judgement. D124.
 - S151 2026-11-16 1.28.0: drawing from life (写生), a project from unit 2 (the path's card, New copy…) against a photo of one's own, hidden until Compare, laid in place or aligned, no result, lesson or seal; the first lesson draws what is in front of the learner, the book's "before". D105, D123.
 - S152 2026-11-16 1.28.0: a fresh start for practice — the reader reads only what this version writes (`Picked::Full`, metrics 47 and 48, the generated combinations' kind 5 and its frozen sample, the colours' unused radar gone); `cargo device-practice-clear` removes every practice record and sheet by key, the studio, packs and own pictures kept, proved on `v128-before`'s copy. D112.
+- S153 2026-11-16 1.29.0: units 6 and 7 begun and named — gamut masks (the app judges, code 61), light on form (its families the app's, code 62; inner tones hatched; 最黑) and cast shadows (by eye) in unit 6, placement from a floor plan (by eye) in unit 7; the shared light (`geometry/light.rs`). D123.

@@ -57,6 +57,8 @@ texts! { PRACTICE_UNITS;
     POINTS_UNIT = "Points", "点定位";
     SIMPLIFYING_UNIT = "Simplifying", "概括";
     KEY_SHIFTS_UNIT = "Key shifts", "变调";
+    GAMUT_AND_LIGHT_UNIT = "Gamut and light", "色域与明暗";
+    CURVES_AND_LIGHT_UNIT = "Curves and coloured light", "曲面与光色";
 }
 
 texts! { PRACTICE_SKILLS;
@@ -156,11 +158,13 @@ pub(crate) const fn unit_name(unit: u8) -> Option<Text> {
         3 => Some(POINTS_UNIT),
         4 => Some(SIMPLIFYING_UNIT),
         5 => Some(KEY_SHIFTS_UNIT),
+        6 => Some(GAMUT_AND_LIGHT_UNIT),
+        7 => Some(CURVES_AND_LIGHT_UNIT),
         _ => None,
     }
 }
 
-/// A unit by its number, as its ring on the path is named: "Unit 6", "第 6 单元".
+/// A unit by its number, as its ring on the path is named: "Unit 8", "第 8 单元".
 pub(crate) fn unit_number(language: Language, unit: u8) -> String {
     match language {
         Language::English => format!("Unit {unit}"),
@@ -168,7 +172,7 @@ pub(crate) fn unit_number(language: Language, unit: u8) -> String {
     }
 }
 
-/// A unit's title: "Unit 1 · Lines and colours", "第 6 单元".
+/// A unit's title: "Unit 1 · Lines and colours", "第 8 单元".
 pub(crate) fn unit_title(language: Language, unit: u8) -> String {
     let number = unit_number(language, unit);
     match unit_name(unit) {
@@ -313,7 +317,12 @@ mod tests {
             "熟练 · 5 题 · 约 4 分钟"
         );
         assert_eq!(unit_title(Language::Chinese, 1), "第 1 单元 · 线条与颜色");
-        assert_eq!(unit_title(Language::English, 7), "Unit 7");
+        assert_eq!(unit_title(Language::Chinese, 6), "第 6 单元 · 色域与明暗");
+        assert_eq!(
+            unit_title(Language::English, 7),
+            "Unit 7 · Curves and coloured light"
+        );
+        assert_eq!(unit_title(Language::English, 8), "Unit 8");
         let row = LessonRow {
             slot: 0,
             number: 3,
