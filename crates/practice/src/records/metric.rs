@@ -4,11 +4,13 @@
 //!
 //! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;
 //! the overlay is the feedback). Colours, colour combinations and value scales do (D105, D108);
-//! estimates, points in space, solids and objects keep their exact errors for the trajectories,
-//! never shown (D107); a division its lines' counts and lengths per level, for its card's table
-//! and later trajectories (S95); value masses the share painted at the answer's value (S96); a
-//! key shift how many areas each of its checks marked (S107); abstract analysis what its card's
-//! choices held (S112).
+//! estimates and points in space keep their exact errors for the trajectories, never shown
+//! (D107); a division its lines' counts and lengths per level, for its card's table and later
+//! trajectories (S95); value masses the share painted at the answer's value (S96); a key shift how
+//! many areas each of its checks marked (S107); abstract analysis what its card's choices held
+//! (S112).
+//! Written no more, still read (records hold them): 47 and 48, a solid's and an object's read
+//! lines off the answer, until S145 (D123: drawn copies are no longer read).
 //! Retired, never reused, unknown when read (a record holding one is refused): codes 1 to 8,
 //! 1.1.0's line metrics (key points, frame, shape, speed, wobble, strokes, erased, seconds); 21 to
 //! 23 and 25 to 27, a colour's hue (degrees, only where both passed an RGB chroma gate),
@@ -52,11 +54,11 @@ pub enum Metric {
     AngleOff,
     /// A point in space: the copy off the answer, a share of the face (`space_check.rs`).
     SpaceOff,
-    /// A solid: the lines read off the exact solid on the mean, a share of its box
-    /// (`solid_check.rs`).
+    /// A solid: the lines read off the exact solid on the mean, a share of its box; written no
+    /// more since S145, still read.
     SolidOff,
-    /// An object (S94): the lines read off its visible edges on the mean, a share of its box
-    /// (`solid_check.rs`).
+    /// An object (S94): the lines read off its visible edges on the mean, a share of its box;
+    /// written no more since S145, still read.
     ObjectOff,
     /// A division's level (S95, a whole copy's own division too): its lines drawn, and how far
     /// they run on the mean, a share of the picture's longer side (`division.rs`).

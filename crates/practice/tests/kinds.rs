@@ -196,10 +196,7 @@ impl Copied for Held {
     }
 
     fn drawn(&self) -> DrawnCopy {
-        DrawnCopy {
-            all: lines(),
-            corrected: None,
-        }
+        DrawnCopy { all: lines() }
     }
 
     fn division(&self) -> Vec<(Level, Vec<Point>)> {

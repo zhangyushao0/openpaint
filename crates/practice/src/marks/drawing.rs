@@ -2,13 +2,11 @@
 //! horizon run on, a box's edges; and the comparison of a picture laid over its copy as strongly as
 //! the user sets, which colour copies and whole copies share.
 
-use crate::geometry::edges::{Edge, corrected, edges};
-use crate::geometry::heading::Checked;
 use crate::geometry::off::Off;
-use crate::geometry::perspective::{Direction, PerspectiveBox};
+use crate::geometry::perspective::PerspectiveBox;
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::{CardItem, Say, WheelSize};
-use crate::marks::compared::{Compared, Comparison, DrawnCopy, Seen, Verdict};
+use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::path::Point;
 use crate::records::metric::Metrics;
@@ -114,28 +112,6 @@ pub(crate) fn picture_laid(asked: &Asked<'_>, metrics: Metrics) -> Option<Compar
         corners,
         metrics,
     })))
-}
-
-/// The straight edges of `copy` (a correction in place of the edge it redraws).
-pub(crate) fn edges_of(copy: &DrawnCopy) -> Vec<Edge> {
-    let found = |pieces: &[Vec<Point>]| {
-        let lines: Vec<&[Point]> = pieces.iter().map(Vec::as_slice).collect();
-        edges(&lines)
-    };
-    match &copy.corrected {
-        Some((first, corrections)) => corrected(found(first), found(corrections)),
-        None => found(&copy.all),
-    }
-}
-
-/// Of `edges` checked, those that miss their vanishing point and the verticals that lean; with
-/// `narrow` front corners.
-pub(crate) fn counted(edges: &[Checked], narrow: usize) -> [usize; 3] {
-    let off = edges.iter().filter(|edge| !edge.on);
-    let lean = (off.clone())
-        .filter(|edge| edge.direction == Direction::Vertical && edge.leans())
-        .count();
-    [off.count() - lean, lean, narrow]
 }
 
 /// A checked estimate's or point's card: unless nothing was read, the picture speaks; then that no

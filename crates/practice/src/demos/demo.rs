@@ -2,9 +2,10 @@
 //! by step at a hand's pace, then Compare's marks as the exercise shows them. A demonstration is a
 //! short timeline of marks in frame units: what the example gives (`Marker::Given`, shown from the
 //! start), the pencil of looking and construction, passes in the air, the ink of the answer, and
-//! Compare's see-through red answer with only what is off marked (S97, S98: the exercise's own
-//! check on the example's ink, `off_marks`). The screen draws it on its frame clock; the words of
-//! each step are the UI's, one per step.
+//! Compare's see-through red answer as the exercise lays it: where the app reads one stroke (an
+//! estimate, a point in space) with only what is off marked by the exercise's own check on the
+//! example's ink (S98, `off_marks`); where the eye judges a drawn copy, the answer alone (S145).
+//! The screen draws it on its frame clock; the words of each step are the UI's, one per step.
 //!
 //! The example is never the exercise in hand: each kind's is the clearest on a small card of the
 //! first few its generator makes from a fixed seed's sequence (`clearest`: a line long and plainly

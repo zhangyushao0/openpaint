@@ -1,19 +1,15 @@
 //! What the perspective demonstrations share (S92, S97): an example box whose vanishing points the
 //! card has room for, the horizon across a wide example, an edge ruled a hair off or drawn off its
-//! aim and run on past it as Compare draws it, the answer's red rings.
+//! aim (so Compare's red shows it apart from the ink), the answer's red rings.
 
 use crate::demos::demo::{Drawn, Marker, On, Script, WIDE_REACH, clearest, line};
-use crate::geometry::edges::Edge;
-use crate::geometry::heading::toward;
 use crate::geometry::perspective::{Direction, PerspectiveBox};
 use crate::maths::path::{Point, distance};
 
 /// Seeds of the sequence tried for a box whose vanishing points the card has room for.
 const TRIES: u64 = 96;
-/// How far off its aim the hand draws the edge Compare then draws on (degrees), and how far from
-/// the frame's middle an extension may run (frame units).
+/// How far off its aim the hand draws the edge drawn off (degrees).
 const MISS: f64 = 5.0;
-const REACH: f64 = 2.0;
 
 /// Of the boxes `make` lays from `seed`'s sequence whose two vanishing points lie within
 /// `WIDE_REACH` of the frame's sides, the one widest beside the distance between its points, so
@@ -65,26 +61,20 @@ fn turned(a: Point, b: Point, degrees: f64) -> Point {
 }
 
 /// `edges` of `exact` ruled with Draw one after another, each once (the `first`'s hair off one
-/// way); the one at `off`, if any, drawn `MISS` off its aim: what Compare draws of the copy's own
-/// lines, that edge on past its vanishing point.
+/// way); the one at `off`, if any, drawn `MISS` off its aim.
 pub(crate) fn rule_edges(
     script: &mut Script,
     exact: &PerspectiveBox,
     edges: &[(usize, usize, Direction)],
     (first, off): (usize, Option<usize>),
-) -> Vec<(On, Marker, Drawn)> {
-    let mut missed = Vec::new();
-    for (turn, (a, b, direction)) in edges.iter().enumerate() {
+) {
+    for (turn, (a, b, _)) in edges.iter().enumerate() {
         let (a, mut b) = (exact.corners[*a], exact.corners[*b]);
         if Some(turn) == off {
             b = turned(a, b, MISS);
-            let edge = Edge { ends: [a, b] };
-            let way = point(exact, *direction).and_then(|p| toward(&edge, p, REACH));
-            missed.extend(way.map(|[from, to]| (On::Copy, Marker::Missed, line(from, to))));
         }
         script.draw(On::Copy, Marker::Ink, ruled(a, b, turn + first));
     }
-    missed
 }
 
 /// The rings of `points` in the answer's red.

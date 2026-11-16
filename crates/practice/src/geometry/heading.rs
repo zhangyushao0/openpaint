@@ -3,12 +3,11 @@
 //! 100-pixel edge, unseen on the edge, but some 20 pixels at a vanishing point a frame away, where
 //! the extension shows it); one that misses is drawn on, the way Drawabox's rough-perspective check
 //! does, past where it comes nearest the point, and a leaning vertical gets the true vertical
-//! through it. Shared by the boxes' and free boxes' checks and by what is off on any straight part
-//! (`off.rs`). Frame units.
+//! through it. What is off on a straight part read where one stroke is asked (`off.rs`). Frame
+//! units.
 
 use crate::geometry::edges::Edge;
-use crate::geometry::off::Off;
-use crate::geometry::perspective::{Direction, angle_between};
+use crate::geometry::perspective::angle_between;
 use crate::maths::path::{Point, distance};
 
 /// An edge heads for a point within this angle (degrees); a two-point vertical leans past it.
@@ -20,53 +19,6 @@ const PLUMB: f64 = 0.15;
 pub const PAST: f64 = 0.06;
 /// How far beyond a point (frame units) from the frame's middle an extension may run.
 const BEYOND: f64 = 0.25;
-
-/// One edge of the copy as checked: the direction it was taken for and whether it heads for its
-/// point (a vertical: stays vertical); one that misses, what is off (`Off::RunOn` from its end
-/// nearer the point past it, or `Off::Plumb`, the true vertical through it).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Checked {
-    pub edge: Edge,
-    pub direction: Direction,
-    pub off: Option<Off>,
-    pub on: bool,
-}
-
-impl Checked {
-    /// Whether it is a vertical that leans.
-    #[must_use]
-    pub const fn leans(&self) -> bool {
-        matches!(self.off, Some(Off::Plumb(_)))
-    }
-}
-
-/// `edge` taken for `direction`, whose edges meet at `point` (none: they stay vertical): whether
-/// it heads there, and if not its extension within `reach` of the frame's middle or its true
-/// vertical.
-pub(crate) fn checked(
-    edge: &Edge,
-    direction: Direction,
-    point: Option<Point>,
-    reach: f64,
-) -> Checked {
-    let Some(point) = point else {
-        let on = line_angle(edge.direction(), [0.0, 1.0]) <= ON_ANGLE;
-        return Checked {
-            edge: *edge,
-            direction,
-            off: (!on).then(|| Off::Plumb(plumb(edge))),
-            on,
-        };
-    };
-    let on = line_angle(edge.direction(), sub(point, edge.middle())) <= ON_ANGLE;
-    let run = (!on).then(|| toward(edge, point, reach)).flatten();
-    Checked {
-        edge: *edge,
-        direction,
-        off: run.map(|line| Off::RunOn { line, past: None }),
-        on,
-    }
-}
 
 /// How far from the frame's middle an extension towards any of `points` may run: a little beyond
 /// the farthest, a frame at least.

@@ -1,8 +1,8 @@
-//! Objects on a practice sheet (S94): an object's picture beside the box given by its front
-//! corner, three edges and horizon; the box completed and its points found with Sketch, never
-//! read; its visible edges drawn with Draw and compared against the exact answer (each edge read,
-//! the error kept at the first Compare); an edge corrected in place of what it redraws; a lesson
-//! of objects as the path starts it.
+//! Objects on a practice sheet (S94, S145): an object's picture beside the box given by its front
+//! corner, three edges and horizon; the box completed and its points found with Sketch; its
+//! visible edges drawn with Draw; Compare lays the exact visible edges over the copy and the
+//! learner's eye judges it: nothing read from the strokes, nothing kept but the choice (D123); a
+//! lesson of objects as the path starts it.
 
 mod support;
 
@@ -14,10 +14,12 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Carve, Exercise, Frame, Kind, Metric, OBJECT_SIDE, ObjectTask, Point, Skill, SkillLevel,
-    SolidCheck, resample, value,
+    Carve, Exercise, Figure, Frame, Judge, Kind, LinePen, OBJECT_SIDE, ObjectCompared, ObjectTask,
+    Outcome, Point, SheetMark, Skill, SkillLevel, Verdict, resample,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticeLog, PracticePens, SheetSession, Start};
+use openpaint_practice_app::{
+    Judged, Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession, Start,
+};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -73,16 +75,8 @@ fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_900_000).expect("practised");
 }
 
-/// The object's check over the copy.
-fn checked(session: &SheetSession) -> SolidCheck {
-    let practice = session.projection();
-    let compared = practice.compared.as_ref().expect("compared");
-    let object = compared.downcast::<openpaint_practice::ObjectCompared>();
-    object.expect("the object's check").check.clone()
-}
-
 #[test]
-fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
+fn an_object_is_constructed_drawn_and_compare_lays_its_edges_for_the_eye() {
     let mut session = opened();
     let practice = session.projection();
     let block = Kind::Object(Carve::Block);
@@ -101,7 +95,8 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
     else {
         panic!("an object")
     };
-    // The box completed and the construction drawn with Sketch: never read.
+    let task = task.clone();
+    // The box completed and the construction drawn with Sketch.
     practise(&mut session, PracticeIntent::Pen(Pen::Sketch));
     for (a, b, _) in task.seen.edges() {
         draw(&mut session, &frame, &[a, b]);
@@ -122,27 +117,44 @@ fn an_object_is_constructed_drawn_compared_and_an_edge_corrected() {
         draw(&mut session, &frame, &stretch.points);
     }
     practise(&mut session, PracticeIntent::Compare(true));
-    let check = checked(&session);
-    assert!(
-        check.sides.iter().all(|side| !side.is_empty()),
-        "every edge read"
-    );
-    let pen = session.projection().pen;
-    assert_eq!(pen.map(|(pen, _)| pen), Some(Pen::Correct));
-    let first = value(&check.metrics, Metric::ObjectOff).expect("measured");
-    assert!(first > 0.0 && first < 0.02, "{first}");
-    // The first edge corrected: read alone in place of the first try, the first error kept.
+    let practice = session.projection();
+    let compared = practice.compared.as_ref().expect("compared");
+    let laid = compared
+        .downcast::<ObjectCompared>()
+        .expect("the object laid");
+    assert_eq!(laid.task, task);
+    laid_for_the_eye(&practice, &task);
+    // The first edge corrected and compared again; the learner's choice kept, nothing read.
     draw(&mut session, &frame, &[a, b]);
     practise(&mut session, PracticeIntent::Compare(true));
-    let now = value(&checked(&session).metrics, Metric::ObjectOff).expect("measured");
-    assert!(now < first, "{now} against {first}");
+    practise(&mut session, PracticeIntent::Judge(Outcome::Near));
     let record = session
         .sheet_mut()
         .save_request()
         .expect("the record changed");
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
-    assert_eq!(value(&result.metrics, Metric::ObjectOff), Some(first));
+    assert!(result.metrics.is_empty(), "nothing read");
+    let kept = record.laid(0).and_then(|laid| laid.result);
+    assert_eq!(kept, Some((Outcome::Near, Judge::Eye)));
+}
+
+/// Every visible edge and seen curve of `task` red over the copy, nothing ringed or run on; the
+/// pen blue, the eye's three asked.
+fn laid_for_the_eye(practice: &PracticeProjection, task: &ObjectTask) {
+    assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Correct));
+    let waiting = Judged {
+        verdict: Verdict::Eye,
+        result: None,
+    };
+    assert_eq!(practice.judged, Some(waiting), "the eye's to judge");
+    let overlay = practice.overlay.clone().expect("compared");
+    let red = (overlay.iter())
+        .filter(|mark| matches!(&mark.drawn, Figure::Line { pen, .. } if *pen == LinePen::Answer));
+    let seen = (task.answer.outlines.iter().flatten()).filter(|stretch| !stretch.hidden);
+    assert_eq!(red.count(), task.answer.sides.len() + seen.count());
+    let ringed = |mark: &SheetMark| matches!(mark.drawn, Figure::Ring(_));
+    assert!(!overlay.iter().any(ringed));
 }
 
 #[test]

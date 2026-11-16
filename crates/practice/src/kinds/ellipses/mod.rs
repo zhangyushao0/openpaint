@@ -1,5 +1,6 @@
-//! Ellipses (`Kind::Ellipse`, S84): the fit of a hand's ellipse and its check. The guide and its
-//! exact ellipse are `geometry/ellipse.rs`; its How `demo.rs`.
+//! Ellipses (`Kind::Ellipse`, S84): an ellipse drawn in its frame, the exact one laid over it at
+//! Compare for the learner's eye (S145, D123). The guide and its exact ellipse are
+//! `geometry/ellipse.rs`; its How `demo.rs`.
 //!
 //! A lesson (an ellipse about a minute): the first level four, in a plain frame and in a square
 //! in perspective by turns, the second five, three of them in perspective, the third five, three
@@ -7,7 +8,6 @@
 //! (S142), so the ellipse's axes are not the hand's habit.
 
 pub(crate) mod demo;
-pub(crate) mod ellipse_check;
 pub(crate) mod marks;
 
 use crate::course::picker::{laid, turned};
@@ -16,7 +16,8 @@ use crate::geometry::ellipse::{EllipseGuide, Guide};
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
-use crate::marks::compared::{Compared, DrawnCopy};
+use crate::marks::asked::{Asked, Compare};
+use crate::marks::compared::Comparison;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, closed, curve, line};
 use crate::packs::pack::ItemRef;
@@ -109,7 +110,10 @@ impl Original for EllipseGuide {
         marks::givens(self)
     }
 
-    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::EllipseCompared::of(self, copy))
+    /// Once anything lies in the copy's frame, the exact ellipse laid over it for the eye; the
+    /// copy's strokes are never read or fitted (D123).
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        let compared = || marks::EllipseCompared { guide: *self };
+        (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
     }
 }

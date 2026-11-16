@@ -35,8 +35,6 @@ texts! { PRACTICE_OBJECTS_HOW;
     OBJECT_STEP_4 = "The visible edges with Draw", "用勾线笔画出看得见的边";
     OBJECT_SAYS = "Find each point on the box by a reason, never in the air: diagonals, a line to \
         the vanishing point, thirds measured on the near upright. No details. Ghost each edge, \
-        then draw it once. Compare: the visible edges in red; an edge of yours off its vanishing \
-        point runs on dashed red past it, one off its place has its corners ringed. Construction \
-        shows the box and its construction over the picture. Correct in blue and compare again.",
-        "每个点都要在方块上用作图找到，不要凭空找：对角线、连向消失点的线、在近处竖边上量出的三等分。不画细节。每条边先在空中比划，再一笔画出。叠图对比：红色是看得见的边；你的边没对准消失点，会用红色虚线延长，越过消失点；位置偏了，它的两端画上红圈。点“看画法”，图上会显示方块和作图。用修正笔（蓝色）改，再对比。";
+        then draw it once. Redraw a wrong one once with Correct.",
+        "每个点都要在方块上用作图找到，不要凭空找：对角线、连向消失点的线、在近处竖边上量出的三等分。不画细节。每条边先在空中比划，再一笔画出。画错了用修正笔重画一次。";
 }

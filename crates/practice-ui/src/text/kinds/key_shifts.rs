@@ -43,13 +43,8 @@ texts! { PRACTICE_KEY_SHIFTS;
     KEY_STEP_5 = "The lightest barely move; every lightness kept",
         "最亮的几乎不动；每块的明度都不变";
     KEY_STEP_6 = "After the shift, the areas still apart", "偏完各色仍要分得开";
-    KEY_SAYS = "Hues near the tendency draw closer to it, the short way round the colour wheel. \
-        Compare marks what is off, red on your copy and on its swatch: an area whose lightness left \
-        the original's, one that did not move toward the tendency (a grey too: it should move \
-        most), two areas apart in the original that merged. Grey shows both frames in grey, only \
-        the lightness marked. On the disc each original colour is a ring and yours a dot; the \
-        triangle is the range the tendency allows: across from it only greyed colours.",
-        "与倾向色相近的色相向它靠拢，沿色环走近的那一边。叠图对比标出不对的地方，在你的画和色卡上用红色标出：明度偏离原图的色块，没往倾向色走的色块（灰色也算：它应该偏得最多），原图里分得开、你画得混成一块的两块颜色。“看黑白”把两边都变成黑白，只标明度。圆盘上，原图的每个颜色是一个圆圈，你的是一个圆点；三角形是倾向色允许的范围：它对面只能用灰下来的颜色。";
+    KEY_SAYS = "Hues near the tendency draw closer to it, the short way round the colour wheel.",
+        "与倾向色相近的色相向它靠拢，沿色环走近的那一边。";
 }
 
 /// A key shift compared: areas lighter than the original's (`lighter`), darker: "1 area darker",

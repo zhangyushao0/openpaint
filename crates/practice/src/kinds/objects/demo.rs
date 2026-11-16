@@ -2,17 +2,15 @@
 //! completed from its front corner, three edges and horizon; the biggest change's points by halves
 //! and thirds, then the smaller part's, each change's construction dark while its step draws and
 //! faint under the next (`Marker::Construction`); the visible edges in ink, the first a little off
-//! its place; then Compare as the exercise shows it (S98): the visible edges red and only what
-//! is off, by `SolidCheck`'s own marks on the hand's ink, the construction faint under them. The
-//! copy's givens are printed grey. The picture, the lines and the points are `ObjectTask`'s.
+//! its place; then Compare as the exercise shows it (S145): the visible edges red over the ink,
+//! the construction faint under them, for the eye. The copy's givens are printed grey. The
+//! picture, the lines and the points are `ObjectTask`'s.
 
 use crate::demos::demo::{
-    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Pictured, Script, Shaded, bounds, line,
-    off_marks, wobbled,
+    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Pictured, Script, Shaded, bounds, line, wobbled,
 };
 use crate::kinds::objects::object::ObjectTask;
 use crate::kinds::objects::object_design::Carve;
-use crate::kinds::solids::solid_check::SolidCheck;
 use crate::maths::path::Point;
 use crate::maths::random::derived;
 
@@ -62,8 +60,8 @@ pub(crate) fn object() -> Option<Demo> {
         script.together(dots);
     }
     script.step();
-    let drawn = inked(&mut script, &task);
-    let mut demo = compared(script, &task, drawn);
+    inked(&mut script, &task);
+    let mut demo = compared(script, &task);
     // Both frames cropped to the box, a little round it, so the example reads
     // large on the card.
     let seen: Vec<Point> = task.seen.corners.to_vec();
@@ -91,9 +89,9 @@ impl Pictured for ObjectTask {
 }
 
 /// The visible edges and seen curves inked with Draw, a few a stroke's time (so an object's many
-/// edges ink at a hand's pace overall), the first edge `DRAWN_OFF` beside its place, so Compare
-/// marks it; the lines drawn.
-fn inked(script: &mut Script, task: &ObjectTask) -> Vec<Vec<Point>> {
+/// edges ink at a hand's pace overall), the first edge `DRAWN_OFF` beside its place, so Compare's
+/// red shows it apart.
+fn inked(script: &mut Script, task: &ObjectTask) {
     let seen = (task.answer.outlines.iter().flatten()).filter(|stretch| !stretch.hidden);
     let beside = |k: usize, [a, b]: [Point; 2]| {
         let long = (b[0] - a[0]).hypot(b[1] - a[1]).max(f64::MIN_POSITIVE);
@@ -116,7 +114,6 @@ fn inked(script: &mut Script, task: &ObjectTask) -> Vec<Vec<Point>> {
             .collect();
         script.together(marks);
     }
-    inked
 }
 
 /// Whether the segments `a b` and `p q` are one, either way.
@@ -125,8 +122,8 @@ fn same(a: Point, b: Point, p: Point, q: Point) -> bool {
     (near(a, p) && near(b, q)) || (near(a, q) && near(b, p))
 }
 
-/// Compare: the visible edges red, and what the exercise's check finds off in `drawn`.
-fn compared(script: Script, task: &ObjectTask, drawn: Vec<Vec<Point>>) -> Demo {
+/// Compare: the visible edges red.
+fn compared(script: Script, task: &ObjectTask) -> Demo {
     let mut marks: Vec<(On, Marker, Drawn)> = (task.answer.sides.iter())
         .map(|[a, b]| (On::Copy, Marker::Answer, line(*a, *b)))
         .collect();
@@ -138,7 +135,5 @@ fn compared(script: Script, task: &ObjectTask, drawn: Vec<Vec<Point>>) -> Demo {
             Drawn::Line(stretch.points.clone()),
         )
     }));
-    let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
-    marks.extend(off_marks(&SolidCheck::of_object(task, (&lines, &[])).off));
     script.compare(DemoLayout::Pair, marks)
 }

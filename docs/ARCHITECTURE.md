@@ -91,7 +91,6 @@ trait Described { code, facts, variant, topic(Kind), generate(&Exercise), how(Ki
 pub trait Original { givens, check, compare, painted, answer, lines, swatch, picture, areas, scale, colour_at }
 pub struct Facts { key, aligned, compared, constructed, tools: ToolSet, picks: Picking, needs, kept, counted, grounded, seconds }
 impl FlatCheck { fn of(&Flat, lines) }  impl SpaceCheck { fn of(&SpaceTask, lines) }  // metrics
-impl SolidCheck { fn of(&SolidTask, (drawn, corrections)); fn of_object(&ObjectTask, ..) }
 impl ObjectTask { fn generate(Carve, seed); fn picture(side) -> Vec<u8>; fn surface(Point) }  // answer, stages
 impl DivisionCheck { fn of(&[(Level, Vec<Point>)], side) }  // lines joined, rows, metrics (S95)
 impl Masses { fn generate(seed, aspect); fn picture(width); fn known(Point) }  // division, turning, drawing
@@ -114,8 +113,7 @@ impl Areas { fn found(size, rgba) -> Found; fn read(size, rgba, paper) -> AreasC
 pub fn candidates(size, rgba, Places) -> Vec<Crop>;  pub fn best(Vec<Crop>, count) -> Vec<Crop>;
 impl ValueScale { fn read(size, rgba, paper) -> ScaleCheck }
 pub fn edges(lines: &[&[Point]]) -> Vec<Edge>;  pub fn corrected(earlier, corrections) -> Vec<Edge>;
-impl BoxCheck { fn of(&PerspectiveBox, &[Edge]) }  impl FreeCheck { fn of(horizon, &[Edge]) }
-impl EllipseCheck { fn of(&EllipseGuide, lines: &[&[Point]]) }  // fit_ellipse: Fitzgibbon's
+// Boxes, free boxes, ellipses, solids, objects, rotations: no check, the answer laid for the eye (D123)
 ```
 
 Pure, no dependency (D98, D99, D103, D105, D107, D108, D111). Only `lib.rs` lies at the root, re-exporting what other crates use; the rest lies in folders, each `mod.rs` saying what it holds: the shared ones, which never reach into a kind, and `kinds/` with a folder a kind holding its generator, answer, check, reading, marks, How (`demo.rs`) and tile, and in its `mod.rs` its description in two halves (D111): `Described` and the original it generates, its own type behind `Original`. One line in `KINDS` registers it; only a folder matches on `Kind`'s variants; a kind builds on another only where the course does (objects on solids, combined lines on lines, generated combinations on combinations). Metric codes, outcome codes and kind codes are stored and never reused (`records/metric.rs`, `kinds/kind.rs`).

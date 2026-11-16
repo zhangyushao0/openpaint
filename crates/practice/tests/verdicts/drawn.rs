@@ -1,86 +1,13 @@
-//! Drawn kinds judged against their exact answer: an ellipse (its findings), the estimates (a
-//! mark's or a line's error against `NEAR_OFF` and `NEAR_ANGLE`) and a point in space (its share
-//! of the face against `NEAR_FACE`).
+//! Drawn kinds the app reads one stroke of, judged against their exact answer: the estimates (a
+//! mark's or a line's error against `NEAR_OFF` and `NEAR_ANGLE`) and a point in space (its share of
+//! the face against `NEAR_FACE`).
 
 use openpaint_practice::{
-    Ellipse, EllipseGuide, Estimate, Exercise, Flat, Guide, Kind, NEAR_ANGLE, NEAR_FACE, NEAR_OFF,
-    PEN_WIDTH, Point, REACH, SpaceAnswer, SpaceTask, Trick, Verdict, distance,
+    Estimate, Exercise, Flat, Kind, NEAR_ANGLE, NEAR_FACE, NEAR_OFF, PEN_WIDTH, Point, SpaceAnswer,
+    SpaceTask, Trick, Verdict, distance,
 };
 
 use crate::{Clean, Near, Redo, checked, moved, steady};
-
-/// A frame's ellipse clearly wider than tall and level, its exercise.
-fn level_ellipse() -> (Exercise, EllipseGuide) {
-    (0..)
-        .map(|seed| Exercise::generated(Kind::Ellipse(Guide::Frame), seed))
-        .find_map(|exercise| {
-            let guide = *exercise.original().downcast::<EllipseGuide>()?;
-            let e = guide.exact;
-            ((0.4..0.7).contains(&e.roundness()) && e.angle.abs() < 0.1)
-                .then_some((exercise, guide))
-        })
-        .expect("a wide frame")
-}
-
-#[test]
-fn an_ellipse_is_clean_near_with_one_finding_redo_with_more_incomplete_unfitted() {
-    let (exercise, guide) = level_ellipse();
-    let exact = guide.exact;
-    let round = |e: Ellipse| steady(vec![e.outline(200)], 1);
-    assert_eq!(checked(&exercise, round(exact)), Verdict::App(Clean));
-    // Its right side drawn short by two pen widths: one finding.
-    let short = Ellipse {
-        centre: [exact.centre[0] - REACH, exact.centre[1]],
-        axes: [exact.axes[0] - REACH, exact.axes[1]],
-        ..exact
-    };
-    assert_eq!(checked(&exercise, round(short)), Verdict::App(Near));
-    // Moved left: short of the right side and past the left.
-    let moved = Ellipse {
-        centre: [exact.centre[0] - 2.0 * REACH, exact.centre[1]],
-        ..exact
-    };
-    assert_eq!(checked(&exercise, round(moved)), Verdict::App(Redo));
-    // A quarter of it: no ellipse to fit yet.
-    let quarter: Vec<Point> = exact.outline(200).into_iter().take(50).collect();
-    assert_eq!(checked(&exercise, vec![quarter]), Verdict::Incomplete);
-}
-
-/// S142: an ellipse in a turned frame is judged as in an upright one; drawn upright, as the hand
-/// is used to, it misses the frame's middles.
-#[test]
-fn a_turned_frame_s_ellipse_is_clean_on_its_answer_and_off_drawn_upright() {
-    let mut judged = 0;
-    for seed in 0..40 {
-        let exercise = Exercise::generated(Kind::Ellipse(Guide::Turned), seed);
-        let guide = *exercise
-            .original()
-            .downcast::<EllipseGuide>()
-            .expect("a frame");
-        let exact = guide.exact;
-        if exact.roundness() > 0.8 {
-            continue;
-        }
-        judged += 1;
-        let round = |e: Ellipse| steady(vec![e.outline(200)], 1);
-        assert_eq!(
-            checked(&exercise, round(exact)),
-            Verdict::App(Clean),
-            "{seed}"
-        );
-        let upright = checked(
-            &exercise,
-            round(Ellipse {
-                angle: 0.0,
-                ..exact
-            }),
-        );
-        assert!(matches!(upright, Verdict::App(Near | Redo)), "{seed}");
-        let quarter: Vec<Point> = exact.outline(200).into_iter().take(50).collect();
-        assert_eq!(checked(&exercise, vec![quarter]), Verdict::Incomplete);
-    }
-    assert!(judged >= 15, "{judged}");
-}
 
 /// `exercise`'s answer as a hand draws it, moved by `by`.
 fn answer_moved(exercise: &Exercise, by: Point) -> Vec<Vec<Point>> {

@@ -1,19 +1,16 @@
-//! A solid's marks (S93, S98): in its one frame the box whole printed grey (its hidden edges dashed
-//! and thinner) and its horizon. Compared, the exact solid in see-through red, its hidden part
-//! dashed, and only what is off; Construction lays V大's construction faint (the diagonals, the
-//! lines through the centres, a sphere's box halved and its section's ellipse) with the middles and
-//! a cone's point dotted.
-
-use std::sync::Arc;
+//! A solid's marks (S93, S98, S145): in its one frame the box whole printed grey (its hidden edges
+//! dashed and thinner) and its horizon. Compared, the exact solid in see-through red over the copy,
+//! its hidden part dashed; Construction lays V大's construction faint (the diagonals, the lines
+//! through the centres, a sphere's box halved and its section's ellipse) with the middles and a
+//! cone's point dotted. The learner's eye judges (D123): the copy's strokes are never read, and the
+//! card asks Accurate, Almost or Again after Compare.
 
 use crate::kinds::solids::solid::{Solid, SolidTask};
-use crate::kinds::solids::solid_check::SolidCheck;
-use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, DrawnCopy, Seen, Verdict};
-use crate::marks::drawing::{box_edges, off_marks, segment};
-use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
+use crate::marks::card::CardItem;
+use crate::marks::compared::{Compared, Seen, Verdict};
+use crate::marks::drawing::{box_edges, segment};
+use crate::marks::mark::{Figure, In, LinePen, SheetMark};
 use crate::maths::path::Point;
-use crate::records::metric::Metrics;
 
 /// An ellipse drawn in pieces.
 const PIECES: usize = 96;
@@ -27,21 +24,10 @@ pub(crate) fn givens(task: &SolidTask) -> Vec<SheetMark> {
         .collect()
 }
 
-/// A solid compared.
+/// A solid compared: the exact solid laid over the copy for the eye.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolidCompared {
     pub task: SolidTask,
-    pub check: SolidCheck,
-}
-
-impl SolidCompared {
-    pub fn of(task: &SolidTask, copy: &DrawnCopy) -> Arc<dyn Compared> {
-        let (first, corrections) = copy.split();
-        Arc::new(Self {
-            task: task.clone(),
-            check: SolidCheck::of(task, (&first, &corrections)),
-        })
-    }
 }
 
 impl Compared for SolidCompared {
@@ -71,20 +57,15 @@ impl Compared for SolidCompared {
         }
         let sides = task.answer.sides.iter();
         marks.extend(sides.map(|side| segment(In::Copy, *side, LinePen::Answer)));
-        marks.extend(off_marks(&self.check.off, Clip::Sheet));
         marks
     }
 
     fn card(&self, _seen: &Seen<'_>) -> Vec<CardItem> {
-        let none = (self.check.metrics.is_empty()).then(|| CardItem::Says(Say::plain("no-solid")));
-        none.into_iter().chain([CardItem::Construction]).collect()
+        vec![CardItem::Construction]
     }
 
-    fn metrics(&self) -> Metrics {
-        self.check.metrics.clone()
-    }
-
+    /// The eye judges the copy against the solid laid over it (D123).
     fn verdict(&self) -> Verdict {
-        self.check.verdict(&self.task.answer)
+        Verdict::Eye
     }
 }

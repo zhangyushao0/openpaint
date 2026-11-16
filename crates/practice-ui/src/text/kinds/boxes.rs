@@ -24,9 +24,7 @@ texts! { PRACTICE_BOXES;
     BOX_STEP_3 = "The nine edges with Draw, each once, hidden ones too",
         "用勾线笔画九条边，每条一笔，背后的也画";
     BOX_SAYS = "Ghost each edge in the air, then draw it once. A wrong one: redraw it once with \
-        Correct, never scratch over it. Compare lays the exact box over yours in red, its hidden \
-        edges dashed; an edge of yours that misses its vanishing point is drawn on dashed red past \
-        the point's ring, so you see by how much. Construction shows the lines from every corner \
-        to the points.",
-        "每条边先在空中比划，再一笔画出。画错了就用修正笔重画一次，不要来回描。叠图对比把准确的盒子用红色叠在你的盒子上，看不见的边画成虚线；你的边没对准消失点的，会用红色虚线延长，越过消失点的红圈，偏了多少一看便知。点“看画法”，可以看到每个角连向消失点的线。";
+        Correct, never scratch over it. To check an edge, run it on in pencil with Sketch: it \
+        should reach its vanishing point.",
+        "每条边先在空中比划，再一笔画出。画错了就用修正笔重画一次，不要来回描。想检查一条边，就用草稿笔把它延长：它应该交到自己的消失点上。";
 }

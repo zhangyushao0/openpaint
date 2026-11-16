@@ -1,19 +1,16 @@
-//! An object's marks (S94, S98): its picture filling the original's frame (lit on paper, no lines,
-//! no horizon), copied by eye; in the copy's frame the horizon and the box's front corner with its
-//! three edges, printed grey. Compared, the object's visible edges and outlines in see-through red
-//! and only what is off, kept off the picture's frame (S88); Construction lays over the picture the
-//! whole box in pencil (its hidden edges dashed) and V大's construction in dashed pencil, the
-//! corners it finds ringed and a round part's middles dotted, inside the frame.
-
-use std::sync::Arc;
+//! An object's marks (S94, S98, S145): its picture filling the original's frame (lit on paper, no
+//! lines, no horizon), copied by eye; in the copy's frame the horizon and the box's front corner
+//! with its three edges, printed grey. Compared, the object's visible edges and outlines in
+//! see-through red over the copy; Construction lays over the picture the whole box in pencil (its
+//! hidden edges dashed) and V大's construction in dashed pencil, the corners it finds ringed and a
+//! round part's middles dotted, inside the frame. The learner's eye judges (D123): the copy's
+//! strokes are never read, and the card asks Accurate, Almost or Again after Compare.
 
 use crate::kinds::objects::object::ObjectTask;
-use crate::kinds::solids::solid_check::SolidCheck;
-use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, DrawnCopy, Seen, Verdict};
-use crate::marks::drawing::{box_edges, off_marks, segment};
+use crate::marks::card::CardItem;
+use crate::marks::compared::{Compared, Seen, Verdict};
+use crate::marks::drawing::{box_edges, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
-use crate::records::metric::Metrics;
 
 /// The picture in the original's frame, the horizon and the given edges in the copy's.
 pub(crate) fn givens(task: &ObjectTask) -> Vec<SheetMark> {
@@ -31,21 +28,10 @@ pub(crate) fn givens(task: &ObjectTask) -> Vec<SheetMark> {
     marks
 }
 
-/// An object compared.
+/// An object compared: its exact visible edges laid over the copy for the eye.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObjectCompared {
     pub task: ObjectTask,
-    pub check: SolidCheck,
-}
-
-impl ObjectCompared {
-    pub fn of(task: &ObjectTask, copy: &DrawnCopy) -> Arc<dyn Compared> {
-        let (first, corrections) = copy.split();
-        Arc::new(Self {
-            task: task.clone(),
-            check: SolidCheck::of_object(task, (&first, &corrections)),
-        })
-    }
 }
 
 impl Compared for ObjectCompared {
@@ -82,20 +68,15 @@ impl Compared for ObjectCompared {
         let outlines =
             seen_outlines.map(|s| SheetMark::line(In::Copy, s.points.clone(), LinePen::Answer));
         marks.extend(outlines);
-        marks.extend(off_marks(&self.check.off, Clip::KeptOff));
         marks
     }
 
     fn card(&self, _seen: &Seen<'_>) -> Vec<CardItem> {
-        let none = (self.check.metrics.is_empty()).then(|| CardItem::Says(Say::plain("no-object")));
-        none.into_iter().chain([CardItem::Construction]).collect()
+        vec![CardItem::Construction]
     }
 
-    fn metrics(&self) -> Metrics {
-        self.check.metrics.clone()
-    }
-
+    /// The eye judges the copy against the edges laid over it (D123).
     fn verdict(&self) -> Verdict {
-        self.check.verdict(&self.task.answer)
+        Verdict::Eye
     }
 }

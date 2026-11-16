@@ -28,9 +28,6 @@ texts! { PRACTICE_VALUE_MASSES;
     MASSES_STEP_2 = "The darkest big masses with Dark", "用黑画最暗的几块大色块";
     MASSES_STEP_3 = "Then the light ones with Light", "再用白画亮的色块";
     MASSES_SAYS = "A shadow and a dark ground are one mass; leave out what squinting loses, and \
-        paint big, the canvas not zoomed in. Compare lays the answer's three greys over your copy \
-        as strongly as the slider sets: its mass edges red, and where your grey differs over more \
-        than a pen's width, hatched in the grey it should be. Repaint with the same pens and \
-        compare again.",
-        "暗部和暗的背景并成一块；眯眼时看不出的就不画；大块地画，不要放大画布。叠图对比把答案的黑白灰叠在你的画上，浓淡由滑块调节：色块的边界画成红线；你的灰画错、且错处宽过一个笔宽的地方，用应有的灰打上斜线。用同样的笔重画，再对比。";
+        paint big, the canvas not zoomed in. Repaint a mass with the same pens.",
+        "暗部和暗的背景并成一块；眯眼时看不出的就不画；大块地画，不要放大画布。要改哪一块，就用同样的笔重画。";
 }

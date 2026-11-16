@@ -1,14 +1,14 @@
 {
   "walkthrough": [
-    "Goal: week 2's perspective (V大's 透视盒子, with Drawabox's checks): complete a box in perspective from its front corner, draw ellipses that fit their frames, and draw boxes freely on a horizon; then see the geometry itself, the exact answer over my lines and my own edges drawn on to where they vanish, never a score.",
+    "Goal: week 2's perspective (V大's 透视盒子, with Drawabox's checks): complete a box in perspective from its front corner, draw ellipses that fit their frames, and draw boxes freely on a horizon; then see the geometry itself, the exact answer over my lines, and judge my copy against it by eye: nothing of my strokes is read (S145).",
     "Entry: a lesson of Boxes at level 1 from the home: two boxes to complete (a two-point box, then a three-point one), the first a tall box across the horizon. Then Home, a lesson of Ellipses at level 1 (four ellipses in frames), Home, a lesson of Free boxes at level 1 (one page).",
     "The box: in the left frame the horizon (labelled) and the box's front corner with its three edges (of a box across the horizon, the corner farther from it); the same in the empty frame beside it, where I draw. The first time, the instructions show by themselves: near is bigger, far is smaller; edges running the same way meet at one vanishing point, those parallel to the ground on the horizon; judge where the given edges meet (the points may lie off the frame); draw the other nine edges with Draw, the hidden ones too, each in one sure stroke, ghosted first; Sketch for construction lines; then Compare. The tools beside the frame: Sketch, Draw, Undo, Redo.",
     "Copy: a construction line with Sketch, then the nine edges with Draw, one of the bottom edges a little off.",
-    "Compare: the exact box lies over mine in red, its two vanishing points ringed red off the frame; each of my edges is drawn on dashed towards its point, blue where it heads for it, red for the one I drew off, which misses its ring. The card: '1 edge misses its vanishing point.', Almost ringed. No In place or Aligned: geometry has one answer. The pen is blue: I redraw the edge over the wrong one; the overlay goes as my pen lands; Compare again: the correction counts in place of the edge it redraws, 'Every edge heads for its vanishing point.', Accurate ringed. The left frame now shows the whole box, its hidden edges dashed, with its lines to its points, kept inside its frame.",
-    "The ellipse: a plain frame (a table's cell) in both frames. Its instructions: draw the ellipse that touches the middle of each side; in perspective the middles lie nearer the far ends, found through the diagonals; round two or three times from the shoulder; Compare shows the exact one red, the one found in my lines dashed blue. I draw it twice round, a little narrow and to the left. Compare: the exact ellipse red with the middle it misses ringed; the card says it falls short of the right side, Almost ringed. The left frame now shows the exact ellipse with its diagonals and middle lines.",
-    "Chinese: All tools, Actions, 中文: the card reads 椭圆 and its words in Chinese (你的椭圆没碰到右边). I draw the ellipse again over it in blue; Compare reads my correction alone: 你的椭圆画准了. Home leaves the lesson under way.",
+    "Compare: the exact box lies over mine in red, its hidden edges dashed, its two vanishing points ringed red off the frame; my edges are not read or drawn on, and no line says what is off: the edge I drew off stands apart from the red. The card: Construction, How close is it?, Accurate, Almost, Again. No In place or Aligned: geometry has one answer. The pen is blue: I redraw the edge over the wrong one; the overlay goes as my pen lands; Compare again: the red over my correction. I choose Accurate, kept with the exercise once.",
+    "The ellipse: a plain frame (a table's cell) in my one frame. Its instructions: draw the ellipse that touches the middle of each side; in perspective the middles lie nearer the far ends, found through the diagonals; one stroke through the middles from the shoulder; its paragraph says only how to practise. I draw it a little narrow and to the left. Compare: the exact ellipse red over mine, nothing ringed, no words; the card How close is it?.",
+    "Chinese: All tools, Actions, 中文: the card reads 椭圆, 看画法, 准, 差一点, 重来. I draw the ellipse again over it in blue; Compare lays the exact one over both; I choose 差一点 (Almost). Home leaves the lesson under way.",
     "Free boxes: a lesson of Free boxes: a page on a middle horizon (视平线). Its instructions: three or four boxes freely, each turned another way and of other proportions; verticals vertical; each box's edges of a direction meet at one point on the horizon; front corner wider than 90°, about 120. I draw three boxes, every edge and the hidden ones: one well, one whose vanishing points sit too close (its bottom corner narrow), one with an edge turned off.",
-    "Compare: every straight edge is drawn on dashed to the horizon, blue where it meets its direction's point (ringed blue), red for the edge turned off; a vertical that leaned would get its true vertical in red; the narrow front corner is marked with a red arc. The card: one front corner under 90° (what the red arc and the rings mean, How says), and How close is it?; the turned edge stays within reach of its point. Back in English, the same in English.",
+    "Compare: the page's horizon run on across the sheet, faint; nothing of my boxes is read, ringed or marked: the narrow corner and the turned edge are mine to see, as the How says, by running my edges on in pencil. The card: How close is it?, Accurate, Almost, Again. Back in English, the same in English; I choose Accurate; Finish shows it under the page.",
     "Not here: single shapes (s80); boxes and ellipses on the tablet's own hand (the author's)."
   ],
   "screen": [2880, 1800],
@@ -43,6 +43,8 @@
     { "stroke": { "points": [[1710, 1057, 0.8], [1629, 1031, 0.8], [1548, 1005, 0.8]] } },
     { "tap": { "at": "Compare" } },
     { "screenshot": { "name": "box-corrected" } },
+    { "tap": { "at": "Accurate" } },
+    { "screenshot": { "name": "box-judged" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "skill": "ellipse", "level": 1 } },
     { "screenshot": { "name": "ellipse-instructions" } },
@@ -60,6 +62,7 @@
     { "stroke": { "points": [[1438, 1152, 0.8], [1424, 1142, 0.8], [1411, 1130, 0.8], [1399, 1116, 0.8], [1388, 1100, 0.8], [1378, 1082, 0.8], [1370, 1064, 0.8], [1363, 1044, 0.8], [1358, 1023, 0.8], [1354, 1002, 0.8], [1352, 980, 0.8], [1351, 958, 0.8], [1352, 936, 0.8], [1355, 915, 0.8], [1359, 894, 0.8], [1365, 873, 0.8], [1373, 854, 0.8], [1381, 836, 0.8], [1392, 819, 0.8], [1403, 804, 0.8], [1415, 790, 0.8], [1429, 778, 0.8], [1443, 769, 0.8], [1458, 761, 0.8], [1473, 756, 0.8], [1489, 753, 0.8], [1505, 752, 0.8], [1520, 754, 0.8], [1536, 757, 0.8], [1551, 763, 0.8], [1566, 772, 0.8], [1580, 782, 0.8], [1593, 794, 0.8], [1605, 808, 0.8], [1616, 824, 0.8], [1626, 842, 0.8], [1634, 860, 0.8], [1641, 880, 0.8], [1646, 901, 0.8], [1650, 922, 0.8], [1652, 944, 0.8], [1653, 966, 0.8], [1652, 988, 0.8], [1649, 1009, 0.8], [1645, 1030, 0.8], [1639, 1051, 0.8], [1631, 1070, 0.8], [1623, 1088, 0.8], [1612, 1105, 0.8], [1601, 1120, 0.8], [1589, 1134, 0.8], [1575, 1146, 0.8], [1561, 1155, 0.8], [1546, 1163, 0.8], [1531, 1168, 0.8], [1515, 1171, 0.8], [1499, 1172, 0.8], [1484, 1170, 0.8], [1468, 1167, 0.8], [1453, 1161, 0.8], [1438, 1152, 0.8]] } },
     { "tap": { "at": "Compare" } },
     { "screenshot": { "name": "ellipse-corrected-zh" } },
+    { "tap": { "at": "Almost" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "skill": "free-boxes", "level": 1 } },
     { "screenshot": { "name": "free-instructions-zh" } },
@@ -109,6 +112,7 @@
     { "tap": { "at": "Actions" } },
     { "tap": { "at": "All tools" } },
     { "screenshot": { "name": "free-compared" } },
+    { "tap": { "at": "Accurate" } },
     { "tap": { "at": "Finish" } },
     { "screenshot": { "name": "summary-two" } }
   ]

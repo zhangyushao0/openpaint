@@ -17,6 +17,9 @@
 //!    `AT`, a just-noticeable step) not at all.
 //! 3. Still apart (V大: 偏完各色仍要分得开): two neighbours `APART` or more in the original whose
 //!    copies came within `MERGED` of each other, under two just-noticeable steps: one block.
+//!
+//! The checks guard necessary conditions, not the shift reading as one key, so they mark and the
+//! learner's eye gives the result (S145, D123); their counts are kept (codes 56 to 58).
 
 use crate::colour_areas::areas::Areas;
 use crate::kinds::key_shifts::key_shift::Tendency;
@@ -38,8 +41,6 @@ pub const AT: f64 = 0.02;
 /// are one block.
 pub const APART: f64 = 0.08;
 pub const MERGED: f64 = 0.035;
-/// A near key shift has at most this many areas marked by any of the three checks.
-pub const NEAR_AREAS: usize = 1;
 
 /// A key shift's copy judged: what is off, area by area.
 #[derive(Debug, Clone, PartialEq)]

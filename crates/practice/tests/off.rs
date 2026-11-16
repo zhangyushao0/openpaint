@@ -4,8 +4,7 @@
 //! across its frame, one beside the dot rings it; a halving line that misses the vanishing point is
 //! run on past it, one through the point but off the centre rings the centre; an upright off its
 //! third or the next face's rings the point V大's construction finds it at, a leaning one gets its
-//! true vertical. The solids' and objects' are in their own tests (`solids/off.rs`,
-//! `objects/off.rs`).
+//! true vertical. Drawn copies judged by eye are never read (S145, D123).
 
 #[expect(
     dead_code,

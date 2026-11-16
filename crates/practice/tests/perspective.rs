@@ -3,12 +3,12 @@
 //! box's verticals vertical, a three-point box's meeting above or below; every box keeps V大's
 //! rules (a front angle over 90 degrees, vanishing points neither too near nor too far, in the
 //! frame); free-box pages put their example on their horizon, a three-point page's third point
-//! far below or above (S142); a long box is long and a box drawn through hides its far corner
-//! clear inside it (S142).
+//! far below or above (S142), a guided page's guides leading to it; a long box is long and a box
+//! drawn through hides its far corner clear inside it (S142).
 
 use openpaint_practice::{
     BoxView, Direction, EDGES, Exercise, FAR, FreePage, Horizon, Kind, Look, PerspectiveBox, Point,
-    ThroughBox, distance,
+    distance, guides,
 };
 
 /// How far the point `p` lies from the line through `a` and `b`.
@@ -157,6 +157,38 @@ fn a_free_page_s_example_box_lies_on_its_horizon() {
     }
 }
 
+/// S142: a guided three-point page's faint guides lead to its third point, drawing together
+/// towards it inside the frame; a bare page and a level one have none.
+#[test]
+fn a_guided_page_s_guides_lead_to_its_third_point_and_a_bare_page_has_none() {
+    for horizon in Horizon::ALL {
+        for seed in 0..100 {
+            let label = format!("{horizon:?} {seed}");
+            let page = FreePage(PerspectiveBox::on_horizon(horizon, seed), horizon);
+            let given = Exercise::generated(Kind::FreeBoxes(horizon), seed).original();
+            let guided = horizon.look() != Look::Level && horizon.guided();
+            assert_eq!(given.givens().len(), if guided { 3 } else { 1 }, "{label}");
+            let Some(third) = page.given_third() else {
+                assert!(!guided, "{label}");
+                continue;
+            };
+            let [left, right] = guides(page.0.horizon, third);
+            for guide in [left, right] {
+                assert!(
+                    off_line(third, guide[0], guide[1]) < 1e-9,
+                    "{label}: {guide:?}"
+                );
+                let inside = |p: &Point| p.iter().all(|v| (0.06..=0.94).contains(v));
+                assert!(guide.iter().all(inside), "{label}: {guide:?}");
+                assert!(distance(guide[0], guide[1]) > 0.4, "{label}: {guide:?}");
+            }
+            // They draw together towards the point: plainly, at the sheet's view.
+            let apart = |k: usize| distance(left[k], right[k]);
+            assert!(apart(0) - apart(1) > 0.04, "{label}");
+        }
+    }
+}
+
 #[test]
 fn a_long_box_is_two_point_and_one_side_two_and_a_half_to_four_times_its_shortest() {
     let mut longest_up = [0; 3];
@@ -244,9 +276,9 @@ fn the_exercises_carry_their_boxes_and_their_codes() {
     // A box drawn through carries its box; a three-point page its look.
     let through = Exercise::generated(Kind::Box(BoxView::Through), 7).original();
     let drawn = through
-        .downcast::<ThroughBox>()
+        .downcast::<PerspectiveBox>()
         .expect("a box drawn through");
-    assert_eq!(drawn.0, PerspectiveBox::generate(BoxView::Through, 7));
+    assert_eq!(*drawn, PerspectiveBox::generate(BoxView::Through, 7));
     let down = Exercise::generated(Kind::FreeBoxes(Horizon::HighDown), 7).original();
     let page = down.downcast::<FreePage>().expect("a page");
     assert_eq!(page.1, Horizon::HighDown);

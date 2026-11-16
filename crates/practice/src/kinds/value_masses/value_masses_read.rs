@@ -7,10 +7,12 @@
 //! edge off by less, or a seam the strokes leave between them, is no difference, as a squinting
 //! eye merges it. The share of the picture painted at the answer's value is kept by the first
 //! Compare (`Metric::MassesMatched`), shown nowhere; the share left bare over more than the pen's
-//! width says whether the copy is complete (S119).
+//! width says whether the copy is complete (S119). The answer is one good reading of the picture,
+//! not the only one (V大 groups by feel): the hatching shows where the copy differs from it and the
+//! learner's eye chooses the result (S145, D123).
 
 use crate::compositions::value_masses::{Value, ValueMasses};
-use crate::marks::compared::{Outcome, Verdict};
+use crate::marks::compared::Verdict;
 use crate::maths::path::Point;
 use crate::records::metric::{Metric, Metrics};
 
@@ -24,8 +26,6 @@ const LEAST_HATCH: usize = 2;
 /// A copy is not yet complete while more than this share of its picture is left bare over more
 /// than the pen's width.
 pub const BARE_LEFT: f64 = 0.02;
-/// A near copy has at least this share of its picture painted at the answer's value.
-pub const NEAR_MATCHED: f64 = 0.8;
 
 /// A copy as read: the hatching (each stretch's ends in frame units, with the value the answer
 /// holds there), the share of the picture painted at the answer's value and the share left bare
@@ -101,20 +101,13 @@ impl ValueMasses {
 
 impl MassesCheck {
     /// Incomplete while more than `BARE_LEFT` of the picture is left bare over more than the pen's
-    /// width; clean with nothing hatched; near with `NEAR_MATCHED` of the picture at the answer's
-    /// value at least; else redo.
+    /// width; else the eye's, the hatching its help (D123).
     #[must_use]
     pub fn verdict(&self) -> Verdict {
         if self.bare > BARE_LEFT {
             return Verdict::Incomplete;
         }
-        Verdict::App(if self.hatching.is_empty() {
-            Outcome::Clean
-        } else if self.matched >= NEAR_MATCHED {
-            Outcome::Near
-        } else {
-            Outcome::Redo
-        })
+        Verdict::Eye
     }
 }
 

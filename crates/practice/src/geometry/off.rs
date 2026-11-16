@@ -1,48 +1,25 @@
-//! Only what is off (S97, S98): Compare lays the exact answer over the copy and marks only the
-//! parts of it the copy's ink misses by more than the Draw pen's width (`PEN_WIDTH`, 5 pixels of
-//! a 400-pixel frame); ink within it gets nothing.
+//! Only what is off (S97, S98) where the app reads one stroke where one is asked (an estimate's
+//! mark or line, a point in space's mark, line or uprights; D123): Compare lays the exact answer
+//! over the copy and marks only the parts of it the copy's ink misses by more than the Draw pen's
+//! width (`PEN_WIDTH`, 5 pixels of a 400-pixel frame); ink within it gets nothing.
 //!
 //! - A point the ink marks more than a pen's width off is ringed (an estimate's, a centre's, a
 //!   mirror's).
-//! - A straight edge is run on to where it heads, as Drawabox's rough-perspective check does
-//!   (S97's boxes): past its vanishing point or a cone's point (ringed), across the frame (an
-//!   angle copied), or a leaning upright given its true vertical. One that heads right but lies off
-//!   its place has the points that fix it ringed: where V大's construction finds it (a halving
-//!   line's centre, a third's point on the diagonal, the next face's foot, a solid's side's
-//!   touches, an object's corners).
-//! - A curve, an ellipse in its frame (a cylinder's end, a cone's base, an object's round end in
-//!   its square; a sphere's outline along its axes), has the middles it falls short of or runs past
-//!   ringed, as S97's ellipse: the ellipse fitted to it, or, drawn too little round to fit, its
-//!   pieces about each middle they pass.
+//! - A straight line is run on to where it heads, as Drawabox's rough-perspective check does:
+//!   past its vanishing point (ringed), across the frame (an angle copied), or a leaning upright
+//!   given its true vertical. One that heads right but lies off its place has the points that fix
+//!   it ringed: where V大's construction finds it (a halving line's centre, a third's point on the
+//!   diagonal, the next face's foot).
 //!
 //! Frame units.
 
 use crate::geometry::edges::Edge;
-use crate::geometry::ellipse::{Ellipse, EllipseGuide};
-use crate::geometry::ellipse_sides::missed;
 use crate::geometry::heading::{ON_ANGLE, line_angle, plumb, reach, sub, toward};
-use crate::maths::path::{Point, across_frame, distance, length, resample};
+use crate::maths::path::{Point, across_frame, distance};
 use crate::sheets::layout::FRAME;
 
 /// The Draw pen's width (the app's `INK_DIAMETER`, 5 canvas pixels) on a frame of `FRAME`.
 pub const PEN_WIDTH: f64 = 5.0 / FRAME;
-
-/// What was read for one of an answer's ellipses (a solid's end, an object's round end): the
-/// curves drawn nearest it, and the ellipse fitted to them once they go far enough round.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ReadCurve {
-    pub pieces: Vec<Vec<Point>>,
-    pub fitted: Option<Ellipse>,
-}
-
-/// A curve's pieces are read at this even step; a middle is judged only where they pass it within
-/// `PASSES` of its turn either way, from the points within `ABOUT` of it (radians round the
-/// ellipse, as on the circle it is drawn from).
-const SPACING: f64 = 0.004;
-const PASSES: f64 = std::f64::consts::FRAC_PI_8;
-const ABOUT: f64 = std::f64::consts::FRAC_PI_4;
-/// A piece of a curve shorter than this says nothing of it (8 pixels of a 400-pixel frame).
-const STUB: f64 = 0.02;
 
 /// A mark of what is off, red over the copy.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,7 +39,7 @@ pub enum Off {
 /// Where a straight part of an answer heads.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Heads {
-    /// A point its line runs through beyond it: a vanishing point, a cone's point.
+    /// A point its line runs through beyond it: a vanishing point.
     Point(Point),
     /// Upright: a level eye's verticals stay vertical.
     Upright,
@@ -70,8 +47,8 @@ pub enum Heads {
     Across,
 }
 
-/// A straight part of an answer: its line, where it heads (none where no hand aims: an object's
-/// slanted edge) and the points that fix it.
+/// A straight part of an answer: its line, where it heads (none where no hand aims) and the
+/// points that fix it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Straight {
     pub line: [Point; 2],
@@ -135,38 +112,6 @@ pub fn ringed(answer: Point, mark: Point) -> Option<Off> {
     (distance(answer, mark) > PEN_WIDTH).then_some(Off::Ring(answer))
 }
 
-/// The middles of `frame` the curve `read` for its ellipse falls short of or runs past by more
-/// than a pen's width: by the ellipse fitted to it, else by its pieces about each middle they
-/// pass, those `STUB` long at least (a stroke's stray end near it, a side's overshoot, is none).
-#[must_use]
-pub fn middles_missed(frame: &EllipseGuide, read: &ReadCurve) -> Vec<Off> {
-    let points: Vec<Point> = (read.pieces.iter())
-        .filter(|piece| length(piece) >= STUB)
-        .flat_map(|piece| resample(piece, SPACING))
-        .collect();
-    let exact = frame.exact;
-    let reach = |side: usize, normal: Point| match read.fitted {
-        Some(fitted) => Some(fitted.support(normal)),
-        None => {
-            let middle = turn(&exact, frame.touches[side]);
-            let near: Vec<(f64, Point)> = (points.iter())
-                .map(|p| (wrapped(turn(&exact, *p) - middle), *p))
-                .filter(|(off, _)| off.abs() <= ABOUT)
-                .collect();
-            let passes = near.iter().any(|(off, _)| (-PASSES..=0.0).contains(off))
-                && near.iter().any(|(off, _)| (0.0..=PASSES).contains(off));
-            passes.then(|| {
-                (near.iter())
-                    .map(|(_, p)| normal[0] * p[0] + normal[1] * p[1])
-                    .fold(f64::NEG_INFINITY, f64::max)
-            })
-        }
-    };
-    (missed(frame, reach).into_iter())
-        .map(|side| Off::Ring(side.middle))
-        .collect()
-}
-
 /// `marks` each once.
 #[must_use]
 pub fn once(marks: Vec<Off>) -> Vec<Off> {
@@ -181,26 +126,6 @@ pub fn once(marks: Vec<Off>) -> Vec<Off> {
         }
     }
     out
-}
-
-/// Where `p` lies round `e`: the angle round its centre on the circle it is drawn from.
-pub(crate) fn turn(e: &Ellipse, p: Point) -> f64 {
-    let (sin, cos) = e.angle.sin_cos();
-    let [dx, dy] = [p[0] - e.centre[0], p[1] - e.centre[1]];
-    let along = (dx * cos + dy * sin) / e.axes[0].max(f64::MIN_POSITIVE);
-    let across = (-dx * sin + dy * cos) / e.axes[1].max(f64::MIN_POSITIVE);
-    across.atan2(along)
-}
-
-/// `angle` brought into -pi to pi.
-fn wrapped(angle: f64) -> f64 {
-    let tau = std::f64::consts::TAU;
-    let turned = angle.rem_euclid(tau);
-    if turned > std::f64::consts::PI {
-        turned - tau
-    } else {
-        turned
-    }
 }
 
 /// How far `p` lies from the line through `line`'s two points.

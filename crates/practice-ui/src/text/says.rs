@@ -1,7 +1,8 @@
 //! The words a compared exercise's card says, by the keys its comparison names them by (S109,
 //! `openpaint_practice::Say`): each key read in the language shown from the tables beside this.
+//! Keys are never stored; a box's counts and an ellipse's findings went with their checks (S145).
 
-use openpaint_practice::{Arg, Missed, Reach, Roundness, Say, Side, Tilt};
+use openpaint_practice::{Arg, Say};
 
 use super::{Language, Text};
 
@@ -17,8 +18,6 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
     };
     let plain = |text: Text| text.get(language).to_owned();
     match say.key {
-        "off" => super::off(language, (count(0), count(1), count(2))),
-        "ellipse-differs" => ellipse(language, say),
         "reason" => super::reason(language, say),
         "cells-uneven" => super::cells_uneven(language, count(0)),
         "lightness-off" => super::lightness_off(language, count(0), word(1) == "lighter"),
@@ -26,10 +25,6 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
         "merged" => super::merged(language, count(0), count(1)),
         "no-edges" => plain(super::NO_EDGES),
         "no-mark" => plain(super::NO_MARK),
-        "no-solid" => plain(super::NO_SOLID),
-        "no-object" => plain(super::NO_OBJECT),
-        "no-ellipse" => plain(super::NO_ELLIPSE),
-        "ellipse-fits" => plain(super::ELLIPSE_FITS),
         "not-painted" => plain(super::NOT_PAINTED),
         "no-outline" => plain(super::NO_OUTLINE),
         "analysis-strongest" => plain(super::ANALYSIS_STRONGEST),
@@ -53,41 +48,4 @@ fn words(say: &Say) -> Vec<&'static str> {
             Arg::Count(_) => "",
         })
         .collect()
-}
-
-/// An ellipse's difference from its words: its roundness, its tilt, then each side missed and
-/// which way.
-fn ellipse(language: Language, say: &Say) -> String {
-    let words = words(say);
-    let roundness = match words.first() {
-        Some(&"rounder") => Some(Roundness::Rounder),
-        Some(&"flatter") => Some(Roundness::Flatter),
-        _ => None,
-    };
-    let tilt = match words.get(1) {
-        Some(&"clockwise") => Some(Tilt::Clockwise),
-        Some(&"anticlockwise") => Some(Tilt::Anticlockwise),
-        _ => None,
-    };
-    let sides: Vec<Missed> = (words.get(2..).unwrap_or_default().chunks(2))
-        .filter_map(|pair| {
-            let side = match *pair.first()? {
-                "top" => Side::Top,
-                "right" => Side::Right,
-                "bottom" => Side::Bottom,
-                _ => Side::Left,
-            };
-            let reach = if pair.get(1) == Some(&"short") {
-                Reach::Short
-            } else {
-                Reach::Past
-            };
-            Some(Missed {
-                side,
-                reach,
-                middle: [0.0, 0.0],
-            })
-        })
-        .collect();
-    super::ellipse_differs(language, (roundness, tilt), &sides)
 }

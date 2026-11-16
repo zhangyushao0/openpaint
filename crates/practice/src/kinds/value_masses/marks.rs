@@ -2,7 +2,7 @@
 //! frame as strongly as the card's slider sets, where the copy's grey differs from the answer's over
 //! more than a pen's width hatched in the grey it should be, and the mass edges in the marking red
 //! as thick as the pen and see-through (S88). The card: the slider; until the copy is read, saying
-//! so.
+//! so. Once read, the learner's eye judges, the hatching its help (S145, D123).
 
 use std::sync::Arc;
 
@@ -102,7 +102,8 @@ impl Compared for MassesCompared {
         std::iter::once(CardItem::Slider).chain(reading).collect()
     }
 
-    /// Once read, its check's (`MassesCheck::verdict`); unread, no verdict yet.
+    /// Once read, its check's (`MassesCheck::verdict`: the eye's, or incomplete while left bare);
+    /// unread, no verdict yet.
     fn verdict(&self) -> Verdict {
         (self.check.as_ref()).map_or(Verdict::Incomplete, MassesCheck::verdict)
     }

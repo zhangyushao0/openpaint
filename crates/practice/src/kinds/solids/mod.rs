@@ -1,6 +1,6 @@
-//! Solids in boxes (`Kind::Solid`, S93): a cylinder, a cone or a sphere, its exact answer, its
-//! check (an object's too: objects are boxes simplified, their answer and check these, `objects/`)
-//! and its How, and its lessons.
+//! Solids in boxes (`Kind::Solid`, S93): a cylinder, a cone or a sphere, its exact answer (an
+//! object's too: objects are boxes simplified, their answer this kind's, `objects/`) laid over the
+//! copy at Compare for the learner's eye (S145, D123), its How, and its lessons.
 //!
 //! A lesson (a solid about 2.5 minutes) holds two, in V大's order: the first level cylinders, the
 //! second cones, the third a sphere with a cylinder or a cone in turn.
@@ -9,14 +9,14 @@ pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod solid;
 pub(crate) mod solid_answer;
-pub(crate) mod solid_check;
 
 use crate::course::picker::laid;
 use crate::demos::demo::Demo;
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
-use crate::marks::compared::{Compared, DrawnCopy};
+use crate::marks::asked::{Asked, Compare};
+use crate::marks::compared::Comparison;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, arc};
 use crate::maths::path::Point;
@@ -112,8 +112,11 @@ impl Original for SolidTask {
         marks::givens(self)
     }
 
-    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::SolidCompared::of(self, copy))
+    /// Once anything lies in the copy's frame, the exact solid laid over it for the eye; the
+    /// copy's strokes are never read (D123).
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        let compared = || marks::SolidCompared { task: self.clone() };
+        (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
     }
 
     /// Once round each ellipse, a stroke along each side.

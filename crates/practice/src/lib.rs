@@ -41,13 +41,11 @@ pub use demos::demo::{
 };
 pub use fits::align::{Fit, align};
 pub use fits::align_shape::align_shape;
-pub use geometry::edges::{Edge, SHORTEST, corrected, edges};
+pub use geometry::edges::{Edge, SHORTEST, edges};
 pub use geometry::ellipse::{Ellipse, EllipseGuide, Guide};
-pub use geometry::ellipse_fit::fit_ellipse;
-pub use geometry::ellipse_sides::{Missed, REACH, Reach, Side};
-pub use geometry::heading::{Checked, ON_ANGLE, PAST};
+pub use geometry::heading::{ON_ANGLE, PAST};
 pub use geometry::marks::{MARK, last_edges, last_mark};
-pub use geometry::off::{Heads, Off, PEN_WIDTH, ReadCurve, Straight, ringed};
+pub use geometry::off::{Heads, Off, PEN_WIDTH, Straight, ringed};
 pub use geometry::perspective::{BoxView, Direction, EDGES, FAR, Horizon, Look, PerspectiveBox};
 pub use kinds::abstract_analysis::contrast::{
     CHROMA_CONTRAST, CONTRAST_REACH, ContrastView, Contrasts, HARD_EDGE, HUE_CONTRAST,
@@ -56,9 +54,7 @@ pub use kinds::abstract_analysis::contrast::{
 pub use kinds::abstract_analysis::marks::{
     AnalysisCompared, AnalysisReading, CONTRASTS, DISTRIBUTIONS, VIEWS,
 };
-pub use kinds::boxes::ThroughBox;
 pub use kinds::boxes::marks::BoxCompared;
-pub use kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, NEAR_MISSED, THROUGH_TO_ADD};
 pub use kinds::colours::colour_match::{
     ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour,
 };
@@ -73,20 +69,15 @@ pub use kinds::divisions::division::{
     DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, MOST_MAIN, joined,
 };
 pub use kinds::divisions::marks::DivisionCompared;
-pub use kinds::ellipses::ellipse_check::{
-    DEGREE, EllipseCheck, NEAR_FINDINGS, Roundness, TILT, Tilt,
-};
 pub use kinds::ellipses::marks::EllipseCompared;
 pub use kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck, NEAR_ANGLE, NEAR_OFF};
 pub use kinds::estimates::marks::FlatCompared;
 pub use kinds::free_boxes::FreePage;
-pub use kinds::free_boxes::marks::FreeCompared;
-pub use kinds::free_boxes::perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
-pub use kinds::free_boxes::third::{Uprights, guides};
+pub use kinds::free_boxes::marks::{FreeCompared, guides};
 pub use kinds::generated_combinations::AREAS_SIDE;
 pub use kinds::key_shifts::key_shift::{AWAY, FAR_AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{
-    APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_AREAS, NEAR_SHARE, toward,
+    APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_SHARE, toward,
 };
 pub use kinds::key_shifts::marks::{KeyCompared, KeyRead};
 pub use kinds::key_shifts::reading::KeyReading;
@@ -114,11 +105,8 @@ pub use kinds::shapes::marks::{SHAPE_SHOWN, ShapeCompared};
 pub use kinds::solids::marks::SolidCompared;
 pub use kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
 pub use kinds::solids::solid_answer::{SolidAnswer, Stretch};
-pub use kinds::solids::solid_check::{COVERED, NEAR_MARKS, SolidCheck};
 pub use kinds::value_masses::marks::{MassesCompared, MassesReading};
-pub use kinds::value_masses::value_masses_read::{
-    BARE_LEFT, HATCH_GAP, MassesCheck, NEAR_MATCHED, VALUE_PEN,
-};
+pub use kinds::value_masses::value_masses_read::{BARE_LEFT, HATCH_GAP, MassesCheck, VALUE_PEN};
 pub use kinds::{
     Counted, DrawnCopy, Facts, Fill, Kept, Kind, Needs, Original, Pen, Picking, Skill, SkillLevel,
     ToolSet,

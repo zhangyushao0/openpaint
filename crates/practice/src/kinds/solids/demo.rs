@@ -4,17 +4,15 @@
 //! diagonals for the point; two lines from it touching the base) and a sphere (its box halved in
 //! height for the middle section; that section's diagonals and middles; its ellipse; a circle
 //! through the ends of the ellipse's long axis), each in its one frame (S98: the box printed
-//! grey), then compared as the exercise compares it: the exact solid red (its hidden part dashed)
-//! and only what is off, by `SolidCheck`'s own marks on the hand's ink (a cylinder's far end drawn
-//! a little narrow: the middles it misses ringed; a cone's second side drawn past its point: run
-//! on past it; V大's sphere circle near enough). The lines are `SolidTask`'s.
+//! grey), then compared as the exercise compares it (S145): the exact solid red over the hand's
+//! ink (its hidden part dashed), for the eye (a cylinder's far end drawn a little narrow, a cone's
+//! second side drawn past its point, V大's sphere circle near). The lines are `SolidTask`'s.
 
 use crate::demos::demo::{
-    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Script, clearest, line, off_marks, wobbled,
+    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Script, clearest, line, wobbled,
 };
 use crate::geometry::ellipse::{Ellipse, EllipseGuide};
 use crate::kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
-use crate::kinds::solids::solid_check::SolidCheck;
 use crate::maths::path::Point;
 
 /// The examples' seeds: a cylinder's, a cone's, a sphere's.
@@ -42,7 +40,6 @@ pub(crate) fn solid(solid: Solid) -> Option<Demo> {
     );
     let mut script = Script::new();
     given_box(&mut script, &task);
-    let mut drawn = Vec::new();
     match solid {
         Solid::Cylinder => {
             for (index, square) in task.squares.iter().enumerate() {
@@ -61,33 +58,33 @@ pub(crate) fn solid(solid: Solid) -> Option<Demo> {
                     );
                     middles(&mut script, square);
                 }
-                // The far end a little narrow: Compare rings the middles it misses.
+                // The far end a little narrow: Compare's red shows it apart from the ink.
                 let exact = square.exact;
                 let narrow = Ellipse {
                     axes: [exact.axes[0] - DRAWN_OFF, exact.axes[1]],
                     ..exact
                 };
                 let shown = if index == 0 { exact } else { narrow };
-                drawn.push(ink_ellipse(&mut script, &shown, index));
+                ink_ellipse(&mut script, &shown, index);
             }
             script.step();
-            drawn.extend(ink_sides(&mut script, &task.answer.sides, false));
+            ink_sides(&mut script, &task.answer.sides, false);
         }
         Solid::Cone => {
             let base = task.squares.first()?;
             script.step();
             construct(&mut script, &[diagonals(&base.corners), middle_lines(base)]);
             middles(&mut script, base);
-            drawn.push(ink_ellipse(&mut script, &base.exact, 0));
+            ink_ellipse(&mut script, &base.exact, 0);
             script.step();
             construct(&mut script, &[diagonals(&task.top?)]);
             script.draw(On::Copy, Marker::Pencil, Drawn::Dot(task.point?));
             script.step();
-            drawn.extend(ink_sides(&mut script, &task.answer.sides, true));
+            ink_sides(&mut script, &task.answer.sides, true);
         }
-        Solid::Sphere => drawn.push(sphere(&mut script, &task)?),
+        Solid::Sphere => sphere(&mut script, &task)?,
     }
-    Some(compared(script, &task, drawn))
+    Some(compared(script, &task))
 }
 
 /// How clear `task` is as an example on the card (`clearest`).
@@ -107,8 +104,8 @@ fn score(task: &SolidTask) -> f64 {
 }
 
 /// A sphere's steps: the box halved in height, the section's diagonals and middles, its ellipse,
-/// the circle through the ends of its long axis; the circle as drawn.
-fn sphere(script: &mut Script, task: &SolidTask) -> Option<Vec<Point>> {
+/// the circle through the ends of its long axis.
+fn sphere(script: &mut Script, task: &SolidTask) -> Option<()> {
     let section = task.squares.first()?;
     let halving = task.halving();
     script.step();
@@ -143,7 +140,8 @@ fn sphere(script: &mut Script, task: &SolidTask) -> Option<Vec<Point>> {
         axes: [radius; 2],
         angle: 0.0,
     };
-    Some(ink_ellipse(script, &circle, 1))
+    ink_ellipse(script, &circle, 1);
+    Some(())
 }
 
 /// The box as the exercise gives it in its one frame (S98): its horizon, its edges printed grey,
@@ -178,17 +176,15 @@ fn middles(script: &mut Script, square: &EllipseGuide) {
     );
 }
 
-/// `exact` drawn with Draw as a hand draws it, a little off; the line drawn.
-fn ink_ellipse(script: &mut Script, exact: &Ellipse, turn: usize) -> Vec<Point> {
+/// `exact` drawn with Draw as a hand draws it, a little off.
+fn ink_ellipse(script: &mut Script, exact: &Ellipse, turn: usize) {
     let drawn = wobbled(&exact.outline(PIECES), STRAY, 0.4 + turn as f64);
-    script.draw(On::Copy, Marker::Ink, Drawn::Line(drawn.clone()));
-    drawn
+    script.draw(On::Copy, Marker::Ink, Drawn::Line(drawn));
 }
 
 /// `sides` ruled with Draw, a hair off (the last, when `past`, aimed `DRAWN_OFF` beside its first
-/// end, a cone's point); the lines drawn.
-fn ink_sides(script: &mut Script, sides: &[[Point; 2]], past: bool) -> Vec<Vec<Point>> {
-    let mut drawn = Vec::new();
+/// end, a cone's point).
+fn ink_sides(script: &mut Script, sides: &[[Point; 2]], past: bool) {
     for (turn, [a, b]) in sides.iter().enumerate() {
         let off = if turn % 2 == 0 { OFF } else { -OFF };
         let mut ruled = vec![[a[0] + off, a[1] - off], [b[0] - off, b[1] + off]];
@@ -197,15 +193,12 @@ fn ink_sides(script: &mut Script, sides: &[[Point; 2]], past: bool) -> Vec<Vec<P
             let across = [(a[1] - b[1]) / long, (b[0] - a[0]) / long];
             ruled[0] = [a[0] + DRAWN_OFF * across[0], a[1] + DRAWN_OFF * across[1]];
         }
-        script.draw(On::Copy, Marker::Ink, Drawn::Line(ruled.clone()));
-        drawn.push(ruled);
+        script.draw(On::Copy, Marker::Ink, Drawn::Line(ruled));
     }
-    drawn
 }
 
-/// Compare: the exact solid red, its hidden part dashed, and what the exercise's check finds off
-/// in `drawn`.
-fn compared(script: Script, task: &SolidTask, drawn: Vec<Vec<Point>>) -> Demo {
+/// Compare: the exact solid red, its hidden part dashed.
+fn compared(script: Script, task: &SolidTask) -> Demo {
     let mut marks: Vec<(On, Marker, Drawn)> = Vec::new();
     for stretch in task.answer.outlines.iter().flatten() {
         let pen = if stretch.hidden {
@@ -218,7 +211,5 @@ fn compared(script: Script, task: &SolidTask, drawn: Vec<Vec<Point>>) -> Demo {
     for [a, b] in &task.answer.sides {
         marks.push((On::Copy, Marker::Answer, line(*a, *b)));
     }
-    let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
-    marks.extend(off_marks(&SolidCheck::of(task, (&lines, &[])).off));
     script.compare(DemoLayout::Single, marks)
 }

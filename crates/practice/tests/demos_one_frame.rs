@@ -1,25 +1,17 @@
-//! The demonstrations of the kinds built in one frame (S97): a box's and free boxes' Compare the
-//! points ringed red and only the edge drawn off run on past its point, nothing blue, their
-//! vanishing points in the room the card gives; an ellipse's rings only on the middles it misses;
-//! a value scale of nine numbered in the order of halving and painted a round at a time, its
-//! uneven cell outlined with its even one.
+//! The demonstrations of the kinds built in one frame (S97): a box's Compare the exact box red and
+//! its points ringed, free boxes' the horizon run on, nothing read from the ink and nothing blue
+//! (S145), their vanishing points in the room the card gives; an ellipse's the exact one alone; a
+//! value scale of nine numbered in the order of halving and painted a round at a time, its uneven
+//! cell outlined with its even one.
 
 use openpaint_practice::{
     BoxView, CELLS, Carve, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind, Marker, On,
-    PAST, Point, ScaleTone, Solid, Trick, WIDE_REACH, distance,
+    Point, ScaleTone, Solid, Trick, WIDE_REACH,
 };
 
 fn demo(kind: Kind) -> Demo {
     kind.how(CELLS)
         .unwrap_or_else(|| panic!("{kind:?} has no demonstration"))
-}
-
-/// How far the line from `from` to `to` passes `p` short of `to`, and how far off it `p` lies.
-fn passing([from, to]: [Point; 2], p: Point) -> (f64, f64) {
-    let (d, long) = ([to[0] - from[0], to[1] - from[1]], distance(from, to));
-    let along = ((p[0] - from[0]) * d[0] + (p[1] - from[1]) * d[1]) / long;
-    let off = ((p[0] - from[0]) * d[1] - (p[1] - from[1]) * d[0]).abs() / long;
-    (long - along, off)
 }
 
 /// The box and free pages whose demonstrations show a box in perspective: two-point, and (S142)
@@ -31,62 +23,61 @@ const BOXES: [Kind; 4] = [
     Kind::FreeBoxes(Horizon::LowUp),
 ];
 
+/// A demonstration's Compare marks by pen: red rings, red lines, dashed red run-ons, faint lines.
+fn compared(demo: &Demo) -> [usize; 4] {
+    let last = demo.steps[demo.steps.len() - 1];
+    let at = demo.marks.iter().filter(|m| m.from >= last);
+    let count = |pen: Marker, ring: bool| {
+        (at.clone())
+            .filter(|m| m.pen == pen && matches!(m.drawn, Drawn::Ring(_)) == ring)
+            .count()
+    };
+    [
+        count(Marker::Answer, true),
+        count(Marker::Answer, false),
+        count(Marker::Missed, false),
+        count(Marker::Faint, false),
+    ]
+}
+
 #[test]
-fn a_box_s_compare_rings_its_points_and_runs_on_only_the_edge_drawn_off() {
+fn a_box_s_compare_lays_its_answer_and_rings_its_points_and_free_boxes_run_the_horizon_on() {
     for kind in BOXES {
-        let demo = demo(kind);
-        let red_rings: Vec<Point> = (demo.marks.iter())
-            .filter_map(|m| match m.drawn {
-                Drawn::Ring(p) if m.pen == Marker::Answer => Some(p),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(red_rings.len(), 2, "{kind:?}");
-        let missed: Vec<[Point; 2]> = (demo.marks.iter())
-            .filter(|m| m.pen == Marker::Missed)
-            .filter_map(|m| match &m.drawn {
-                Drawn::Line(points) => Some([points[0], points[points.len() - 1]]),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(missed.len(), 1, "{kind:?}");
-        let (past, off) = (red_rings.into_iter())
-            .map(|p| passing(missed[0], p))
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .expect("its point");
-        assert!((past - PAST).abs() < 1e-9, "{kind:?}: {past}");
-        assert!(off > 0.01, "{kind:?}: misses its point by {off}");
+        let [rings, red, missed, faint] = compared(&demo(kind));
+        assert_eq!(missed, 0, "{kind:?}: nothing run on from the ink");
+        match kind {
+            Kind::Box(_) => {
+                // Its visible edges red (seven across the horizon, the hidden dashed), its two
+                // points ringed.
+                assert_eq!((rings, faint), (2, 0), "{kind:?}");
+                assert!(red >= 7, "{kind:?}: {red}");
+            }
+            _ => assert_eq!(
+                (rings, red, faint),
+                (0, 0, 1),
+                "{kind:?}: the horizon run on"
+            ),
+        }
     }
 }
 
 #[test]
-fn an_ellipses_compare_rings_only_the_middles_it_misses() {
-    let demo = demo(Kind::Ellipse(Guide::Plane));
-    let rings = (demo.marks.iter())
-        .filter(|m| m.pen == Marker::Answer && matches!(m.drawn, Drawn::Ring(_)))
-        .count();
-    assert!((1..4).contains(&rings), "{rings}");
+fn an_ellipses_compare_lays_the_exact_one_alone() {
+    assert_eq!(compared(&demo(Kind::Ellipse(Guide::Plane))), [0, 1, 0, 0]);
 }
 
 /// What a demonstration's Compare marks beside its red answer (S98): rings and dashed red lines.
 fn off_marks(demo: &Demo) -> (usize, usize) {
-    let rings = (demo.marks.iter())
-        .filter(|m| m.pen == Marker::Answer && matches!(m.drawn, Drawn::Ring(_)))
-        .count();
-    let missed = demo
-        .marks
-        .iter()
-        .filter(|m| m.pen == Marker::Missed)
-        .count();
+    let [rings, _, missed, _] = compared(demo);
     (rings, missed)
 }
 
-/// S98: the tricks, the solids, an object and the estimates compared as their exercises are, by
-/// their own checks on the example's ink: what the hand drew off on purpose is marked, a ring or
-/// an edge run on (its point ringed), and nothing else; a trick's and a solid's givens printed in
-/// their one frame.
+/// S98: the tricks and the estimates compared as their exercises are, by their own checks on the
+/// example's ink: what the hand drew off on purpose is marked, a ring or an edge run on, and
+/// nothing else; the solids and the object lay their answer alone, the hand's ink drawn off on
+/// purpose beside it (S145); a trick's and a solid's givens printed in their one frame.
 #[test]
-fn the_tricks_solids_objects_and_estimates_mark_only_what_the_hand_drew_off() {
+fn the_tricks_and_estimates_mark_what_the_hand_drew_off_and_the_solids_lay_their_answer() {
     let expected = [
         (Kind::Flat(Estimate::Point), (1, 0)),
         (Kind::Flat(Estimate::Proportion), (1, 0)),
@@ -96,19 +87,24 @@ fn the_tricks_solids_objects_and_estimates_mark_only_what_the_hand_drew_off() {
         (Kind::Space(Trick::Thirds), (1, 0)),
         (Kind::Space(Trick::Step), (1, 0)),
         (Kind::Space(Trick::Mirror), (1, 0)),
-        (Kind::Solid(Solid::Cone), (1, 1)),
     ];
     for (kind, marks) in expected {
         assert_eq!(off_marks(&demo(kind)), marks, "{kind:?}");
     }
-    // The cylinder's far end drawn narrow: the middles it falls short of ringed, nothing run on.
-    let (rings, missed) = off_marks(&demo(Kind::Solid(Solid::Cylinder)));
-    assert!((1..=4).contains(&rings) && missed == 0, "{rings} {missed}");
-    // V大's circle lies within a pen's width of the sphere's outline: nothing marked.
-    assert_eq!(off_marks(&demo(Kind::Solid(Solid::Sphere))), (0, 0));
-    // The object's first edge drawn beside its place: its corners ringed or the edge run on.
-    let (rings, missed) = off_marks(&demo(Kind::Object(Carve::Cut)));
-    assert!(rings + missed >= 1 && rings <= 3, "{rings} {missed}");
+    for kind in [
+        Kind::Solid(Solid::Cylinder),
+        Kind::Solid(Solid::Cone),
+        Kind::Solid(Solid::Sphere),
+        Kind::Object(Carve::Cut),
+    ] {
+        let [rings, red, missed, _] = compared(&demo(kind));
+        assert_eq!(
+            (rings, missed),
+            (0, 0),
+            "{kind:?}: nothing read from the ink"
+        );
+        assert!(red >= 1, "{kind:?}: the answer laid");
+    }
     for kind in [Kind::Space(Trick::Centre), Kind::Solid(Solid::Cylinder)] {
         let demo = demo(kind);
         assert_eq!(demo.layout, DemoLayout::Single, "{kind:?}: one frame");

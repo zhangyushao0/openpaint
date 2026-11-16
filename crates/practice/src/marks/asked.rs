@@ -25,8 +25,7 @@ pub trait Copied {
     fn holds(&self) -> bool;
     /// The colours laid in the frame, in the order they lie.
     fn picks(&self) -> Vec<Rgb8>;
-    /// Its drawn lines (the sketch pen's left out), and once compared those before its first
-    /// Compare and the corrections after it.
+    /// Its drawn lines (the sketch pen's left out).
     fn drawn(&self) -> DrawnCopy;
     /// A division's lines drawn with the levels' pens, each with its level (S95).
     fn division(&self) -> Vec<(Level, Vec<Point>)>;

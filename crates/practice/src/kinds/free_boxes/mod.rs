@@ -1,18 +1,16 @@
-//! Free boxes (`Kind::FreeBoxes`, S84): boxes drawn freely on a horizon, checked by the rules
-//! alone and judged by eye (S114). Their page is `geometry/perspective/page.rs`; its How
-//! `demo.rs`.
+//! Free boxes (`Kind::FreeBoxes`, S84): boxes drawn freely on a horizon, judged by eye (S114);
+//! nothing is read from the strokes (S145, D123): Compare runs the page's horizon on across the
+//! sheet. Their page is `geometry/perspective/page.rs`; its How `demo.rs`.
 //!
 //! A lesson (a page of three or four boxes, about 3 minutes, at every level): the first level its
 //! horizon in the middle, high, then low by the lesson, the boxes two-point; the second (S142) a
 //! three-point page, the eye looking down from a high horizon or up from a low one in turn, two
-//! faint guides leading to its third point; the third the same pages with the horizon alone, the
-//! third point the learner's own, found from their uprights (`third.rs`). Each look has its own
-//! How (a topic of its own).
+//! faint guides leading to its third point (`marks::guides`); the third the same pages with the
+//! horizon alone, the third point the learner's own. Each look has its own How (a topic of its
+//! own).
 
 pub(crate) mod demo;
 pub(crate) mod marks;
-pub(crate) mod perspective_free;
-pub(crate) mod third;
 
 use crate::course::picker::turned;
 use crate::demos::demo::Demo;
@@ -20,13 +18,14 @@ use crate::geometry::perspective::{Direction, Horizon, Look, PerspectiveBox};
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
-use crate::marks::compared::{Compared, DrawnCopy};
+use crate::marks::asked::{Asked, Compare};
+use crate::marks::compared::Comparison;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, boxed};
+use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sheets::exercise::Exercise;
 use std::sync::Arc;
-use third::Uprights;
 
 pub(crate) struct FreeBoxes;
 
@@ -116,22 +115,13 @@ impl Described for FreeBoxes {
 pub struct FreePage(pub PerspectiveBox, pub Horizon);
 
 impl FreePage {
-    /// Where the page's uprights head: vertical where its eye looks level; for its third point,
-    /// given or the learner's own.
+    /// The third point a guided three-point page gives (its guides lead to it); none on a page
+    /// whose eye looks level or whose third point is the learner's own.
     #[must_use]
-    pub fn uprights(&self) -> Uprights {
+    pub fn given_third(&self) -> Option<Point> {
         let Self(example, horizon) = self;
-        let Some(third) = example.vanishing[Direction::Vertical.index()] else {
-            return Uprights::Plumb;
-        };
-        match horizon.look() {
-            Look::Level => Uprights::Plumb,
-            _ if horizon.guided() => Uprights::Given(third),
-            look => Uprights::Found {
-                below: look == Look::Down,
-                page: third,
-            },
-        }
+        let third = example.vanishing[Direction::Vertical.index()]?;
+        (horizon.look() != Look::Level && horizon.guided()).then_some(third)
     }
 }
 
@@ -140,7 +130,12 @@ impl Original for FreePage {
         marks::givens(self)
     }
 
-    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::FreeCompared::of(self, copy))
+    /// Once anything lies in the copy's frame, the page's horizon run on across the sheet; the
+    /// copy's strokes are never read (D123).
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        let compared = || marks::FreeCompared {
+            horizon: self.0.horizon,
+        };
+        (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
     }
 }

@@ -1,7 +1,7 @@
-//! A hand drawing boxes, for the tests of the edges found and the perspective checks: each edge
-//! a stroke as a hand makes it (overshooting its corners, bowing a little, wobbling slowly, a
-//! tremor on every sample), some drawn twice, some corners drawn in one stroke with the next edge;
-//! a box built on paper from its vanishing points; a box made smaller and moved along its horizon.
+//! A hand drawing boxes, for the tests of the edges found and of what is off on an estimate or a
+//! point in space: each edge a stroke as a hand makes it (overshooting its corners, bowing a
+//! little, wobbling slowly, a tremor on every sample), some drawn twice, some corners drawn in one
+//! stroke with the next edge.
 
 use openpaint_practice::{Direction, EDGES, PerspectiveBox, Point, Random, distance};
 
@@ -132,14 +132,6 @@ pub fn to_complete(exact: &PerspectiveBox) -> Vec<(Point, Point, Direction)> {
         .collect()
 }
 
-/// Every edge of `exact`, chained as `to_complete`'s.
-pub fn all_edges(exact: &PerspectiveBox) -> Vec<(Point, Point, Direction)> {
-    chained(&EDGES)
-        .into_iter()
-        .map(|(a, b, d)| (exact.corners[a], exact.corners[b], d))
-        .collect()
-}
-
 /// `edges` reordered (and turned) so each starts where the one before ended when one does.
 fn chained(edges: &[(usize, usize, Direction)]) -> Vec<(usize, usize, Direction)> {
     let mut left = edges.to_vec();
@@ -154,101 +146,4 @@ fn chained(edges: &[(usize, usize, Direction)]) -> Vec<(usize, usize, Direction)
         out.push(if turned { (b, a, d) } else { (a, b, d) });
     }
     out
-}
-
-/// A two-point box built on paper from its vanishing points `left` and `right` (on one horizon):
-/// its front edge `[top, bottom]`, its sides reaching `reach` of the way to each point. Corners as
-/// `PerspectiveBox` numbers them; the front corner given the top one.
-pub fn from_points(
-    left: Point,
-    right: Point,
-    front: [Point; 2],
-    reach: [f64; 2],
-) -> PerspectiveBox {
-    let toward = |p: Point, to: Point, share: f64| {
-        [p[0] + (to[0] - p[0]) * share, p[1] + (to[1] - p[1]) * share]
-    };
-    let [top, bottom] = front;
-    let l_bottom = toward(bottom, left, reach[0]);
-    let r_bottom = toward(bottom, right, reach[1]);
-    // The corners above them: where the verticals through them cross the lines from the top.
-    let up = |at: Point, to: Point| {
-        let t = (at[0] - top[0]) / (to[0] - top[0]);
-        [at[0], top[1] + t * (to[1] - top[1])]
-    };
-    let (l_top, r_top) = (up(l_bottom, left), up(r_bottom, right));
-    let back_bottom = crossing(r_bottom, left, l_bottom, right);
-    let back_top = crossing(r_top, left, l_top, right);
-    PerspectiveBox {
-        corners: [
-            bottom,
-            r_bottom,
-            top,
-            r_top,
-            l_bottom,
-            back_bottom,
-            l_top,
-            back_top,
-        ],
-        horizon: left[1],
-        vanishing: [Some(left), Some(right), None],
-        front: 2,
-    }
-}
-
-/// A three-point box built on paper from its vanishing points `left` and `right` (on one horizon)
-/// and `third`: its front edge `[top, bottom]` (heading for `third`), its sides reaching `reach` of
-/// the way to each point, its uprights on the lines to `third`.
-pub fn from_three_points(
-    [left, right, third]: [Point; 3],
-    front: [Point; 2],
-    reach: [f64; 2],
-) -> PerspectiveBox {
-    let toward = |p: Point, to: Point, share: f64| {
-        [p[0] + (to[0] - p[0]) * share, p[1] + (to[1] - p[1]) * share]
-    };
-    let [top, bottom] = front;
-    let l_bottom = toward(bottom, left, reach[0]);
-    let r_bottom = toward(bottom, right, reach[1]);
-    let l_top = crossing(l_bottom, third, top, left);
-    let r_top = crossing(r_bottom, third, top, right);
-    let back_bottom = crossing(r_bottom, left, l_bottom, right);
-    let back_top = crossing(r_top, left, l_top, right);
-    PerspectiveBox {
-        corners: [
-            bottom,
-            r_bottom,
-            top,
-            r_top,
-            l_bottom,
-            back_bottom,
-            l_top,
-            back_top,
-        ],
-        horizon: left[1],
-        vanishing: [Some(left), Some(right), Some(third)],
-        front: 2,
-    }
-}
-
-/// Where the line from `a` to `p` crosses the line from `b` to `q`.
-fn crossing(a: Point, p: Point, b: Point, q: Point) -> Point {
-    let r = [p[0] - a[0], p[1] - a[1]];
-    let s = [q[0] - b[0], q[1] - b[1]];
-    let across = r[0] * s[1] - r[1] * s[0];
-    let t = ((b[0] - a[0]) * s[1] - (b[1] - a[1]) * s[0]) / across;
-    [a[0] + t * r[0], a[1] + t * r[1]]
-}
-
-/// `exact` made `scale` as large about its horizon's point at the frame's middle and moved across
-/// to `x`, its horizon kept: every point `p` to `[x + scale (p.x - 0.5), h + scale (p.y - h)]`.
-pub fn placed(exact: &PerspectiveBox, x: f64, scale: f64) -> PerspectiveBox {
-    let h = exact.horizon;
-    let map = |p: Point| [x + scale * (p[0] - 0.5), h + scale * (p[1] - h)];
-    PerspectiveBox {
-        corners: exact.corners.map(map),
-        horizon: h,
-        vanishing: exact.vanishing.map(|v| v.map(map)),
-        front: exact.front,
-    }
 }

@@ -1,13 +1,13 @@
 //! Free boxes' demonstration (`demos/demo.rs`, week 2): two points on the horizon, a front
-//! upright, its edges towards the points, the rest, then compared as the exercise compares it
-//! (S97): an edge that misses its point drawn on past it, the points ringed red. A page that looks
-//! down or up (S142) is shown on a three-point example, its guides given faint: its uprights lead
-//! to the third point they show.
+//! upright, its edges towards the points, the rest (one a little off), then compared as the
+//! exercise compares it (S145): the horizon run on, faint, for the eye. A page that looks down or
+//! up (S142) is shown on a three-point example, its guides given faint: its uprights lead to the
+//! third point they show.
 
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line};
-use crate::demos::demo_space::{horizon, point, red_rings, rule_edges, ruled, within_reach};
+use crate::demos::demo_space::{horizon, point, rule_edges, ruled, within_reach};
 use crate::geometry::perspective::{Direction, EDGES, Horizon, Look, PerspectiveBox};
-use crate::kinds::free_boxes::third::guides;
+use crate::kinds::free_boxes::marks::guides;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const FREE_SEED: u64 = 0xDE30_5EED_0008;
@@ -54,15 +54,10 @@ pub(crate) fn free_boxes(look: Look) -> Demo {
     };
     let near = edges(&[(0, 1), (2, 3), (0, 4), (2, 6)]);
     let far = edges(&[(1, 3), (4, 6), (5, 7), (1, 5), (3, 7), (4, 5), (6, 7)]);
-    let mut compared = rule_edges(&mut script, &example, &near, (0, None));
+    rule_edges(&mut script, &example, &near, (0, None));
     script.step();
-    // The last of the far edges drawn a little off: it alone is drawn on at Compare.
-    compared.extend(rule_edges(
-        &mut script,
-        &example,
-        &far,
-        (1, Some(far.len() - 1)),
-    ));
-    compared.extend(red_rings([left, right].into_iter().flatten()));
-    script.compare(DemoLayout::Wide, compared)
+    // The last of the far edges drawn a little off, as a hand's may be.
+    rule_edges(&mut script, &example, &far, (1, Some(far.len() - 1)));
+    let run_on = (On::Copy, Marker::Faint, horizon(example.horizon));
+    script.compare(DemoLayout::Wide, vec![run_on])
 }

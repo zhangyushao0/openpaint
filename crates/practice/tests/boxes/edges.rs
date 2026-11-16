@@ -4,9 +4,7 @@
 //! that are found, the share of edges found that were drawn, and how far a found edge's direction
 //! lies from the one drawn. Run with `--nocapture` to read the figures.
 
-use openpaint_practice::{
-    BoxView, Edge, PerspectiveBox, Point, SHORTEST, corrected, distance, edges,
-};
+use openpaint_practice::{BoxView, Edge, PerspectiveBox, Point, SHORTEST, distance, edges};
 
 use crate::hand::{Hand, Manner, to_complete};
 
@@ -169,20 +167,6 @@ fn edges_a_face_apart_stay_two() {
         vec![[0.2, 0.48], [0.6, 0.495]],
     ]);
     assert_eq!(meeting.len(), 2, "{meeting:?}");
-}
-
-#[test]
-fn a_correction_takes_the_place_of_the_edge_it_redraws() {
-    let earlier = found(&[vec![[0.2, 0.5], [0.6, 0.47]], vec![[0.2, 0.5], [0.2, 0.2]]]);
-    let correction = found(&[vec![[0.21, 0.5], [0.6, 0.5]]]);
-    let kept = corrected(earlier, correction.clone());
-    assert_eq!(kept.len(), 2, "{kept:?}");
-    assert_eq!(kept[0], correction[0], "the correction");
-    assert!(
-        kept.iter()
-            .any(|e| (e.ends[0][0] - e.ends[1][0]).abs() < 1e-9),
-        "the vertical"
-    );
 }
 
 #[test]

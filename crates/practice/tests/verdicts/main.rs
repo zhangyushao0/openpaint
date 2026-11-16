@@ -1,7 +1,7 @@
-//! A result from each kind (S119): every comparison says who judges it. Where an exact answer
-//! does, a steady hand copying it is `Clean`, one part off past the tolerance `Near`, several
-//! `Redo`, and a copy stopped half-way `Incomplete`; where only the eye can, `Eye`. Boxes, solids
-//! and objects are tried with their own hands (`boxes/verdict.rs`, `solids/`, `objects/`).
+//! A result from each kind (S119, S145): every comparison says who judges it. Where the app reads
+//! a direct measure (a colour, an area's or a cell's colour, a mark, one line where one is asked), a
+//! steady hand copying it is `Clean`, one part off past the tolerance `Near`, several `Redo`, and a
+//! copy stopped half-way `Incomplete`; where the copy is drawn or painted freely, `Eye` (D123).
 
 mod drawn;
 mod eye;
@@ -34,7 +34,6 @@ impl Copied for Laid {
     fn drawn(&self) -> DrawnCopy {
         DrawnCopy {
             all: self.lines.clone(),
-            corrected: None,
         }
     }
 
@@ -71,10 +70,7 @@ pub fn shown(compare: Compare) -> Comparison {
 
 /// `exercise`'s copy drawn as `lines` checked as geometry, its verdict.
 pub fn checked(exercise: &Exercise, lines: Vec<Vec<Point>>) -> Verdict {
-    let copy = DrawnCopy {
-        all: lines,
-        corrected: None,
-    };
+    let copy = DrawnCopy { all: lines };
     let compared = exercise.original().check(&copy);
     compared.expect("checked as geometry").verdict()
 }

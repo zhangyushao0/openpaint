@@ -155,11 +155,7 @@ impl PracticeSheet {
             .ok_or_else(nothing)?
             .exercise
             .clone();
-        let copy = CopyOn {
-            artwork,
-            frame,
-            corrected_from: self.record.first(index).and_then(|r| r.corrected_from),
-        };
+        let copy = CopyOn { artwork, frame };
         let asked = Asked {
             exercise: &exercise,
             original: &*original,

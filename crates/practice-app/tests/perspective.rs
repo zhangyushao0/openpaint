@@ -1,8 +1,8 @@
-//! Week 2's perspective on a practice sheet (S84): a box completed from its front corner, drawn
-//! with the pens and compared as geometry (an edge that misses the exact box's vanishing point
-//! drawn on past it, never aligned; its construction on request, S97), a page of free boxes read
-//! box by box, and an ellipse fitted to the lines drawn, then to the corrections alone; no numbers
-//! kept.
+//! Week 2's perspective on a practice sheet (S84, S145): a box completed from its front corner,
+//! drawn with the pens; Compare lays the exact box over it (its vanishing points ringed, never
+//! aligned; its construction on request, S97) and waits for the learner's verdict; a page of free
+//! boxes compared by its horizon run on; an ellipse compared by the exact one laid. Nothing read
+//! from the strokes, no numbers kept, the eye's choice kept once (D123).
 
 mod support;
 
@@ -14,10 +14,11 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, EllipseGuide, Exercise, Frame,
-    FreeCompared, FreePage, Guide, Horizon, Kind, PerspectiveBox, Point, Roundness,
+    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, EllipseGuide, Exercise, Figure,
+    Frame, FreeCompared, FreePage, Guide, Horizon, Judge, Kind, LinePen, Outcome, PerspectiveBox,
+    Point, SheetMark, Verdict,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, SheetSession};
+use openpaint_practice_app::{Judged, Pen, PracticeIntent, PracticePens, SheetSession};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -87,6 +88,41 @@ fn compared<T: Compared + Clone>(session: &SheetSession) -> Option<T> {
     practice.compared.as_ref()?.downcast::<T>().cloned()
 }
 
+/// The overlay's marks: its lines in `pen` (whole, dashed) and its rings.
+fn laid(session: &SheetSession, pen: LinePen) -> [usize; 3] {
+    let overlay = session.projection().overlay.unwrap_or_default();
+    let lines = |dashed: bool| {
+        let line = |mark: &&SheetMark| matches!(&mark.drawn, Figure::Line { pen: p, dashed: d, .. } if *p == pen && *d == dashed);
+        overlay.iter().filter(line).count()
+    };
+    let rings = (overlay.iter()).filter(|mark| matches!(mark.drawn, Figure::Ring(_)));
+    [lines(false), lines(true), rings.count()]
+}
+
+/// The eye's three asked, nothing chosen yet; the learner's `outcome` then kept with the record,
+/// once.
+fn judged_once(session: &mut SheetSession, index: usize, outcome: Outcome) {
+    let waiting = Judged {
+        verdict: Verdict::Eye,
+        result: None,
+    };
+    assert_eq!(
+        session.projection().judged,
+        Some(waiting),
+        "the eye's to judge"
+    );
+    practise(session, PracticeIntent::Judge(outcome));
+    let kept = Some((outcome, Judge::Eye));
+    assert_eq!(session.projection().judged.and_then(|j| j.result), kept);
+    let again = session.practise(PracticeIntent::Judge(Outcome::Clean), 1_791_500_100);
+    assert!(again.is_err(), "once");
+    let record = session
+        .sheet_mut()
+        .save_request()
+        .expect("the record changed");
+    assert_eq!(record.laid(index).and_then(|laid| laid.result), kept);
+}
+
 /// The opened sheet's box completed (the nine edges but the front corner's, one of them a little
 /// off) and compared; its copy's frame.
 fn completed(session: &mut SheetSession) -> Frame {
@@ -114,7 +150,7 @@ fn completed(session: &mut SheetSession) -> Frame {
 }
 
 #[test]
-fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
+fn a_box_is_completed_and_compare_lays_the_exact_box_for_the_eye() {
     let mut session = opened();
     let practice = session.projection();
     let two_point = Kind::Box(BoxView::TwoPoint);
@@ -123,23 +159,23 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered, "geometry is never aligned");
     let frame = completed(&mut session);
-    let Some(BoxCompared { check, .. }) = compared(&session) else {
-        panic!("the box's check")
+    let Some(BoxCompared { exact }) = compared(&session) else {
+        panic!("the box laid")
     };
-    assert_eq!(check.edges.len(), 9);
     assert_eq!(
-        check.edges.iter().filter(|e| !e.on).count(),
-        1,
-        "the one off"
+        exact,
+        PerspectiveBox::generate(BoxView::TwoPoint, 0x5EED_0084)
     );
-    // Only the edge that misses its point is drawn on (S97).
-    let extended: Vec<bool> = check.edges.iter().map(|e| e.off.is_some()).collect();
-    let missed: Vec<bool> = check.edges.iter().map(|e| !e.on).collect();
-    assert_eq!(extended, missed);
+    // The exact box over the copy: every edge red (the hidden dashed), its two points ringed,
+    // nothing of the copy run on.
+    let hidden = exact.hidden().iter().filter(|h| **h).count();
+    assert_eq!(laid(&session, LinePen::Answer), [12 - hidden, hidden, 2]);
+    let [run_on, dashed, _] = laid(&session, LinePen::Off);
+    assert_eq!((run_on, dashed), (0, 0), "nothing of the copy run on");
     let practice = session.projection();
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Correct));
     assert!(session.practise(PracticeIntent::Aligned(true), 1).is_err());
-    // A correction takes the check away; Compare again counts, no numbers kept.
+    // A correction takes the comparison away; Compare again counts, no numbers kept.
     draw(&mut session, &frame, &[[0.4, 0.4], [0.45, 0.47]]);
     assert!(compared::<BoxCompared>(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
@@ -155,6 +191,7 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
         ),
         (2, 0)
     );
+    judged_once(&mut session, 0, Outcome::Near);
 }
 
 /// Construction (S97): off at each Compare, on when asked, off again when tapped again; none
@@ -195,7 +232,7 @@ fn a_compared_box_s_construction_shows_on_request() {
 }
 
 #[test]
-fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
+fn free_boxes_are_compared_by_their_horizon_run_on_for_the_eye() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     let practice = session.projection();
@@ -218,18 +255,18 @@ fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
         }
     }
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(FreeCompared { check, .. }) = compared(&session) else {
-        panic!("the page's check")
+    let Some(FreeCompared { horizon }) = compared(&session) else {
+        panic!("the page compared")
     };
-    assert_eq!(check.boxes.len(), 2);
-    for free in &check.boxes {
-        assert_eq!(free.meets.len(), 2, "two directions");
-        assert!(free.apart.is_empty() && free.narrow.is_empty());
-    }
+    assert_eq!(horizon, h);
+    // The horizon run on, faint, and nothing else: no ring, nothing of the copy.
+    assert_eq!(laid(&session, LinePen::Faint), [1, 0, 0]);
+    assert_eq!(laid(&session, LinePen::Answer), [0, 0, 0]);
+    judged_once(&mut session, 1, Outcome::Clean);
 }
 
 #[test]
-fn an_ellipse_is_fitted_then_its_correction_alone() {
+fn an_ellipse_is_compared_by_the_exact_one_laid_for_the_eye() {
     let mut session = opened();
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
     practise(&mut session, PracticeIntent::Next(VIEWPORT));
@@ -244,22 +281,27 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     else {
         panic!("an ellipse")
     };
-    let round = |e: &Ellipse| e.outline(48);
-    draw(&mut session, &frame, &round(&guide.exact));
-    practise(&mut session, PracticeIntent::Compare(true));
-    let Some(EllipseCompared { check, .. }) = compared(&session) else {
-        panic!("the ellipse's check")
-    };
-    assert!(check.fitted.is_some() && check.roundness.is_none() && check.sides.is_empty());
-    // Corrected flatter in blue: the fit is the correction's.
+    // Drawn flatter than the frame asks.
     let flatter = Ellipse {
         axes: [guide.exact.axes[0], guide.exact.axes[1] * 0.7],
         ..guide.exact
     };
-    draw(&mut session, &frame, &round(&flatter));
+    draw(&mut session, &frame, &flatter.outline(48));
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(EllipseCompared { check, .. }) = compared(&session) else {
-        panic!("the ellipse's check")
+    let Some(EllipseCompared { guide: laid_over }) = compared(&session) else {
+        panic!("the ellipse laid")
     };
-    assert_eq!(check.roundness, Some(Roundness::Flatter));
+    assert_eq!(laid_over, guide);
+    // The exact ellipse red, nothing ringed; the middles dotted only under Construction.
+    assert_eq!(laid(&session, LinePen::Answer), [1, 0, 0]);
+    let dots = |session: &SheetSession| {
+        let overlay = session.projection().overlay.unwrap_or_default();
+        (overlay.iter())
+            .filter(|mark| matches!(mark.drawn, Figure::Dot { .. }))
+            .count()
+    };
+    assert_eq!(dots(&session), 0);
+    practise(&mut session, PracticeIntent::Construction(true));
+    assert_eq!(dots(&session), 4);
+    judged_once(&mut session, 2, Outcome::Redo);
 }

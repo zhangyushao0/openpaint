@@ -5,12 +5,13 @@
 //! frames; in the Grey view both frames in grey and only the lightness failures outlined. The card
 //! (D108, shows rather than tells): a line after a red dot for each check that failed, Grey, the
 //! areas' chips (the failing ones outlined red), the hue and chroma disc with Gurney's mask, and the
-//! chosen area's lightness bar.
+//! chosen area's lightness bar. The checks guard what a shift must keep, not whether it reads as
+//! one key: the marks are help and the learner's eye judges (S145, D123).
 
 use crate::kinds::key_shifts::key_shift::Tendency;
-use crate::kinds::key_shifts::key_shift_check::{KeyCheck, NEAR_AREAS};
+use crate::kinds::key_shifts::key_shift_check::KeyCheck;
 use crate::marks::card::{Arg, CardItem, Say};
-use crate::marks::compared::{Compared, Outcome, Seen, Verdict};
+use crate::marks::compared::{Compared, Seen, Verdict};
 use crate::marks::mark::{Figure, In, Place, SheetMark, Source};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
@@ -119,8 +120,8 @@ impl Compared for KeyCompared {
         items
     }
 
-    /// Once read: incomplete while an area is not painted; clean when no area is marked by any of
-    /// the three checks, near when `NEAR_AREAS` are, else redo. Unread, no verdict yet.
+    /// Once read: incomplete while an area is not painted, else the eye's, the marks its help
+    /// (D123). Unread, no verdict yet.
     fn verdict(&self) -> Verdict {
         let Some(read) = &self.read else {
             return Verdict::Incomplete;
@@ -128,10 +129,7 @@ impl Compared for KeyCompared {
         if read.colours.iter().any(Option::is_none) {
             return Verdict::Incomplete;
         }
-        let marked = (0..self.colours.len())
-            .filter(|area| read.check.marked(*area))
-            .count();
-        Verdict::App(Outcome::counting(marked, NEAR_AREAS))
+        Verdict::Eye
     }
 }
 

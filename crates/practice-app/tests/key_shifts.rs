@@ -1,8 +1,8 @@
 //! Key shifts on a practice sheet (S107): a crop beside an empty frame of its shape and its
 //! tendency; its original never picked, the copy's own paint picked; Compare reading the copy on
 //! the worker against the crop's areas and the tendency (what is off, the marked areas' outlines,
-//! both frames in grey), its numbers kept; the Grey view only while compared; a lesson of key
-//! shifts started once a pack holds crops.
+//! both frames in grey), its numbers kept, the learner's eye judging it (S145); the Grey view only
+//! while compared; a lesson of key shifts started once a pack holds crops.
 
 mod support;
 
@@ -11,11 +11,11 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Exercise, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack, PackItem,
-    PictureKind, SheetPicture, Skill, SkillLevel, Tendency, Tier, value,
+    Areas, Exercise, Figure, ItemRef, Judge, KeyCompared, KeyReading, Kind, Lean, Metric, Outcome,
+    Pack, PackItem, PictureKind, SheetPicture, Skill, SkillLevel, Tendency, Tier, Verdict, value,
 };
 use openpaint_practice_app::{
-    PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
+    Judged, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
     SheetSession, Start,
 };
 
@@ -184,11 +184,21 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     let result = session.projection().result;
     let metrics = result.expect("stored").metrics;
     assert_eq!(value(&metrics, Metric::KeyLightness), Some(1.0));
+    // Marked, the eye's still (S145): its three asked, nothing chosen for it.
+    let waiting = Judged {
+        verdict: Verdict::Eye,
+        result: None,
+    };
+    assert_eq!(session.projection().judged, Some(waiting));
     // The Grey view, until the comparison goes.
     practise(&mut session, PracticeIntent::Grey(true));
     let Some((_, true, true)) = overlay(&session) else {
         panic!("the Grey view, its frames in grey")
     };
+    // The learner's choice, once, kept with the exercise.
+    practise(&mut session, PracticeIntent::Judge(Outcome::Redo));
+    let kept = Some((Outcome::Redo, Judge::Eye));
+    assert_eq!(session.projection().judged.and_then(|j| j.result), kept);
     practise(&mut session, PracticeIntent::Fill(Color::WHITE));
     assert!(overlay(&session).is_none());
 }

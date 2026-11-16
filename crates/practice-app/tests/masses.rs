@@ -3,7 +3,8 @@
 //! shape, S99, in the grey chosen), compared by its copy read against the picture's answer on the
 //! runtime's worker
 //! (the answer's greys under the slider, the hatching where the copy differs, the share at the
-//! answer's value kept); a whole copy painted in colour blocks on a layer under its division, the
+//! answer's value kept), the learner's eye judging it (S145); a whole copy painted in colour
+//! blocks on a layer under its division, the
 //! division dimmed over them, a point of the blocks compared by the eyedropper; a lesson of value
 //! masses as the path starts it, only once a pack holds a composition whose masses read.
 
@@ -14,12 +15,12 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Needs, Pack, PackItem,
-    PictureKind, Skill, SkillLevel, Tier, Value, ValueMasses, value,
+    Exercise, ItemRef, Judge, Kind, Masses, MassesCompared, MassesReading, Metric, Needs, Outcome,
+    Pack, PackItem, PictureKind, Skill, SkillLevel, Tier, Value, ValueMasses, Verdict, value,
 };
 use openpaint_practice_app::{
-    BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent, PracticeLog,
-    PracticePens, PracticePick, SheetSession, Start, value_colour,
+    BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, Judged, Pen, PictureImage, PracticeIntent,
+    PracticeLog, PracticePens, PracticePick, SheetSession, Start, value_colour,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -165,12 +166,25 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
         .as_ref()
         .and_then(|c| c.downcast::<MassesCompared>());
     assert!(shown.is_some_and(|masses| masses.check.is_some()));
+    judged_once(&mut session);
     let record = session.sheet_mut().save_request().expect("compared");
-    let kept = value(
-        &record.first(0).expect("compared").metrics,
-        Metric::MassesMatched,
-    );
+    let first = record.first(0).expect("compared");
+    let kept = value(&first.metrics, Metric::MassesMatched);
     assert!(kept.is_some_and(|share| share > 0.99), "{kept:?}");
+}
+
+/// Read, its hatching help: the eye's three asked (S145), Accurate chosen, kept once.
+fn judged_once(session: &mut SheetSession) {
+    let waiting = Judged {
+        verdict: Verdict::Eye,
+        result: None,
+    };
+    assert_eq!(session.projection().judged, Some(waiting));
+    practise(session, PracticeIntent::Judge(Outcome::Clean));
+    let kept = session.projection().judged.and_then(|judged| judged.result);
+    assert_eq!(kept, Some((Outcome::Clean, Judge::Eye)));
+    let again = session.practise(PracticeIntent::Judge(Outcome::Redo), NOW);
+    assert!(again.is_err(), "once");
 }
 
 /// The layer named `name`: its place among the layers, its opacity and whether it is drawn on.

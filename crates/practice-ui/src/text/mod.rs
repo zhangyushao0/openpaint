@@ -2,7 +2,7 @@
 //! painting's (`openpaint_ui::text`, read through here too: its `Text`, `Words`, the pass's
 //! language and the words both share). The tables are split by where the words show (`course.rs`
 //! the path, a lesson's names, results and end; `sheet.rs`, `colour.rs`, `options.rs`,
-//! `perspective.rs`, `points.rs`, `solids.rs`, `objects.rs`, `division.rs`, `book.rs`,
+//! `perspective.rs`, `points.rs`, `division.rs`, `book.rs`,
 //! `names.rs`; each kind's name and How card in a file of its own under `kinds/`, S109b; a card's
 //! `Say` keys in `says.rs`, a reason's words in `reasons.rs`), words made with numbers are
 //! functions beside them. Screens write no
@@ -45,7 +45,6 @@ mod course;
 mod division;
 mod kinds;
 mod names;
-mod objects;
 mod options;
 mod perspective;
 mod points;
@@ -53,7 +52,6 @@ mod pomodoro;
 mod reasons;
 mod says;
 mod sheet;
-mod solids;
 
 pub(crate) use book::*;
 pub(crate) use colour::*;
@@ -62,7 +60,6 @@ pub(crate) use division::*;
 pub(crate) use kinds::*;
 pub use names::NAMES;
 pub(crate) use names::pack_title;
-pub(crate) use objects::*;
 pub(crate) use options::*;
 pub(crate) use perspective::*;
 pub(crate) use points::*;
@@ -70,7 +67,6 @@ pub(crate) use pomodoro::*;
 pub(crate) use reasons::reason;
 pub(crate) use says::said;
 pub(crate) use sheet::*;
-pub(crate) use solids::*;
 
 #[cfg(test)]
 mod tests {
@@ -90,13 +86,11 @@ mod tests {
             PRACTICE_UNITS,
             PRACTICE_SKILLS,
             PRACTICE_DIVISION,
-            PRACTICE_OBJECTS,
             PRACTICE_OPTIONS_TABLE,
             PRACTICE_PACKS_TABLE,
             PRACTICE_PERSPECTIVE,
             PRACTICE_POINTS,
             PRACTICE_POMODORO,
-            PRACTICE_SOLIDS,
             PRACTICE_NOTICES,
             names::PRACTICE_NAMES,
         ]

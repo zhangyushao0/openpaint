@@ -1,7 +1,7 @@
 //! A box's demonstration (`demos/demo.rs`, week 2): the given edges run on to their vanishing
 //! points on the horizon, lines back from the points to the far corners, the nine edges inked
-//! once, then compared as the exercise compares it (S97): the answer red, an edge that misses its
-//! point drawn on past it; nothing on what is right.
+//! once (one a little off), then compared as the exercise compares it (S145): the exact box red
+//! over the ink, its vanishing points ringed, for the eye.
 
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line};
 use crate::demos::demo_space::{horizon, point, red_rings, rule_edges, within_reach};
@@ -69,11 +69,11 @@ pub(crate) fn perspective_box() -> Demo {
         script.together(vec![left, right]);
     }
     script.step();
-    // One of the far edges drawn a little off: it alone is drawn on at Compare.
+    // One of the far edges drawn a little off: the red at Compare shows it apart from the ink.
     let off = missing
         .iter()
         .rposition(|(_, _, d)| *d != Direction::Vertical);
-    let missed = rule_edges(&mut script, &exact, &missing, (0, off));
+    rule_edges(&mut script, &exact, &missing, (0, off));
     let edges = exact.edges().into_iter().zip(exact.hidden());
     let mut compared: Vec<(On, Marker, Drawn)> = edges
         .map(|((a, b, _), hidden)| {
@@ -86,6 +86,5 @@ pub(crate) fn perspective_box() -> Demo {
         })
         .collect();
     compared.extend(red_rings(exact.vanishing.iter().flatten().copied()));
-    compared.extend(missed);
     script.compare(DemoLayout::Wide, compared)
 }

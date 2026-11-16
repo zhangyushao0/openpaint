@@ -1,11 +1,9 @@
 //! An ellipse's demonstration (`demos/demo.rs`, week 2): the diagonals, the four middles through
-//! the centre, passes in the air, one stroke, then compared as the exercise compares it (S97):
-//! the answer red, the middles it misses ringed.
+//! the centre, passes in the air, one stroke, then compared as the exercise compares it (S145):
+//! the exact ellipse red over the ink, for the eye.
 
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, clearest, line, wobbled};
-use crate::demos::demo_space::red_rings;
 use crate::geometry::ellipse::{Ellipse, EllipseGuide, Guide};
-use crate::kinds::ellipses::ellipse_check::EllipseCheck;
 
 /// The example's seed: never an exercise's but by a chance of one in 2^64.
 const ELLIPSE_SEED: u64 = 0xDE30_5EED_0009;
@@ -50,8 +48,7 @@ pub(crate) fn ellipse() -> Demo {
         script.draw(On::Copy, Marker::Air, Drawn::Line(pass));
     }
     script.step();
-    // The hand's ellipse a little wide, turned and to the left: its middles at the sides it falls
-    // short of or runs past are ringed.
+    // The hand's ellipse a little wide, turned and to the left: the red shows it apart.
     let exact = guide.exact;
     let drawn = Ellipse {
         centre: [exact.centre[0] - 0.02, exact.centre[1]],
@@ -59,9 +56,7 @@ pub(crate) fn ellipse() -> Demo {
         angle: exact.angle + 0.05,
     }
     .outline(PIECES);
-    script.draw(On::Copy, Marker::Ink, Drawn::Line(drawn.clone()));
-    let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Line(exact.outline(PIECES)))];
-    let check = EllipseCheck::of(&guide, &[&drawn]);
-    compared.extend(red_rings(check.sides.iter().map(|missed| missed.middle)));
+    script.draw(On::Copy, Marker::Ink, Drawn::Line(drawn));
+    let compared = vec![(On::Copy, Marker::Answer, Drawn::Line(exact.outline(PIECES)))];
     script.compare(DemoLayout::Single, compared)
 }

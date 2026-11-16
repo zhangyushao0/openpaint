@@ -1,7 +1,8 @@
-//! Painted kinds judged against their answer, through Compare and the reading of their pixels:
-//! a colour (its Oklab difference), a combination (its areas' mean difference and the weak
-//! contrasts made strong), a value scale (its uneven and reversed cells), value masses (what is
-//! hatched, the share matched, the share left bare) and a key shift (its areas marked).
+//! Painted kinds, through Compare and the reading of their pixels: judged against their answer, a
+//! colour (its Oklab difference), a combination (its areas' mean difference and the weak contrasts
+//! made strong) and a value scale (its uneven and reversed cells); value masses (what is hatched)
+//! and a key shift (its areas marked) read and marked, the eye judging once they are complete
+//! (S145, D123: one reading of several, rules a shift must keep).
 
 use std::sync::Arc;
 
@@ -161,7 +162,7 @@ fn painted_masses(fit: &PictureFit, paint: impl Fn(Point) -> Option<Value>) -> V
 }
 
 #[test]
-fn value_masses_are_near_with_a_corner_off_redo_with_half_and_incomplete_half_bare() {
+fn value_masses_are_the_eye_s_once_painted_hatched_where_off_and_incomplete_half_bare() {
     // A square landscape, so the frame is the picture.
     let (size, pixels) = Masses::generate(3, 1.0).picture(SIDE);
     assert_eq!(size, [SIDE, SIDE]);
@@ -187,27 +188,18 @@ fn value_masses_are_near_with_a_corner_off_redo_with_half_and_incomplete_half_ba
     let verdict = |paint: &dyn Fn(Point) -> Option<Value>| {
         read(&exercise, Some(&picture), &painted_masses(&fit, paint))
     };
-    assert_eq!(verdict(&|p| Some(answer.at(p))), Verdict::App(Clean));
-    let corner = |p: Point| {
-        let value = answer.at(p);
-        Some(if p[0] < 0.3 && p[1] < 0.3 {
-            other(value)
-        } else {
-            value
-        })
-    };
-    assert_eq!(verdict(&corner), Verdict::App(Near));
+    assert_eq!(verdict(&|p| Some(answer.at(p))), Verdict::Eye);
     let half = |p: Point| {
         let value = answer.at(p);
         Some(if p[0] < 0.5 { other(value) } else { value })
     };
-    assert_eq!(verdict(&half), Verdict::App(Redo));
+    assert_eq!(verdict(&half), Verdict::Eye, "hatched, the eye's still");
     let bare = |p: Point| (p[0] >= 0.5).then(|| answer.at(p));
     assert_eq!(verdict(&bare), Verdict::Incomplete);
 }
 
 #[test]
-fn a_key_shift_is_near_with_one_area_marked_redo_with_two_incomplete_with_one_bare() {
+fn a_key_shift_is_the_eye_s_once_every_area_is_painted_marked_or_not() {
     let areas =
         openpaint_practice::GeneratedAreas::generate(Arrangement::Patches, 0x5EED_0107).areas;
     let main = main_hue(&areas);
@@ -228,18 +220,14 @@ fn a_key_shift_is_near_with_one_area_marked_redo_with_two_incomplete_with_one_ba
     };
     let shifted = tendency.shifted(&areas);
     let verdict = |colours: &[Rgb8]| read(&exercise, Some(&picture), &painted(&areas, colours));
-    assert_eq!(verdict(&shifted), Verdict::App(Clean));
-    // Areas painted as they were: not toward the tendency.
-    let left = |count: usize| -> Vec<Rgb8> {
-        let mut copy = shifted.clone();
-        let unmoved = (0..areas.count()).filter(|a| shifted[*a] != areas.colours[*a]);
-        for area in unmoved.take(count) {
-            copy[area] = areas.colours[area];
-        }
-        copy
-    };
-    assert_eq!(verdict(&left(1)), Verdict::App(Near));
-    assert_eq!(verdict(&left(2)), Verdict::App(Redo));
+    assert_eq!(verdict(&shifted), Verdict::Eye);
+    // Areas painted as they were: not toward the tendency, marked, the eye's still.
+    let mut left = shifted.clone();
+    let unmoved = (0..areas.count()).filter(|a| shifted[*a] != areas.colours[*a]);
+    for area in unmoved.take(2) {
+        left[area] = areas.colours[area];
+    }
+    assert_eq!(verdict(&left), Verdict::Eye);
     let mut bare = shifted.clone();
     bare[0] = PAPER;
     assert_eq!(verdict(&bare), Verdict::Incomplete);

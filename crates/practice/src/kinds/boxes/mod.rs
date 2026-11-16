@@ -1,14 +1,14 @@
-//! Boxes to complete (`Kind::Box`, V大's 透视盒子): the check of a completed box's edges, and the
-//! How, tile and lessons of boxes. The box itself is `geometry/perspective/`.
+//! Boxes to complete (`Kind::Box`, V大's 透视盒子): the exact box laid over the copy at Compare
+//! for the learner's eye (S145, D123), and the How, tile and lessons of boxes. The box itself is
+//! `geometry/perspective/`.
 //!
 //! A lesson (a box about 2.5 minutes) holds two: the first level a two-point and a three-point
 //! box, their order in turn; the second a three-point box and a long one (S142, V大's long, flat
-//! or tall), their order in turn; the third a box drawn through, its hidden edges checked too
+//! or tall), their order in turn; the third a box drawn through, its hidden edges drawn too
 //! (Drawabox), and a long or a three-point box in turn, each of the two first in turn.
 
 pub(crate) mod demo;
 pub(crate) mod marks;
-pub(crate) mod perspective_check;
 
 use crate::course::picker::{laid, rotated, turned};
 use crate::demos::demo::Demo;
@@ -16,7 +16,8 @@ use crate::geometry::perspective::{BoxView, PerspectiveBox};
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
-use crate::marks::compared::{Compared, DrawnCopy};
+use crate::marks::asked::{Asked, Compare};
+use crate::marks::compared::Comparison;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
@@ -62,11 +63,7 @@ impl Described for Boxes {
         let Kind::Box(view) = exercise.kind else {
             return held(Blank);
         };
-        let exact = PerspectiveBox::generate(view, exercise.seed);
-        match view {
-            BoxView::Through => held(ThroughBox(exact)),
-            BoxView::TwoPoint | BoxView::ThreePoint | BoxView::Long => held(exact),
-        }
+        held(PerspectiveBox::generate(view, exercise.seed))
     }
 
     fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
@@ -95,28 +92,17 @@ impl Described for Boxes {
     }
 }
 
-/// A box to complete: the exact box, its front corner's three edges given.
+/// A box to complete (a box drawn through too, S142): the exact box, its front corner's three
+/// edges given.
 impl Original for PerspectiveBox {
     fn givens(&self) -> Vec<SheetMark> {
         marks::givens(self)
     }
 
-    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::BoxCompared::of(self, copy))
-    }
-}
-
-/// A box to draw through (S142): given as any box to complete, complete only with its three
-/// hidden edges too.
-#[derive(Debug)]
-pub struct ThroughBox(pub PerspectiveBox);
-
-impl Original for ThroughBox {
-    fn givens(&self) -> Vec<SheetMark> {
-        marks::givens(&self.0)
-    }
-
-    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::BoxCompared::through(&self.0, copy))
+    /// Once anything lies in the copy's frame, the exact box laid over it for the eye; the copy's
+    /// strokes are never read (D123).
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        let compared = || marks::BoxCompared { exact: *self };
+        (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
     }
 }

@@ -1,6 +1,6 @@
 {
   "walkthrough": [
-    "s107-key-shifts on a Chinese tablet, the same steps and canvas: the walk-through of key shifts (变调) with every word in Chinese as V大 says it. The practice options: 第 5 阶段 · 变调 and the 变调 tile, the note without crops: 色彩组合和变调都要临摹真实图片的局部. The How: 变调, its steps (先看倾向色：偏暖还是偏冷，纯还是灰 … 偏完各色仍要分得开) and its paragraph, the strip's 倾向色. The sheet: 倾向色 small and grey under the disc beside the empty frame; the locked crop's notice 变调的原图不能吸色. Compare: the card's lines (… 块明度偏亮, … 块没往倾向色走, … 块混成了一块), 看黑白, 色块 swatches, the disc and the lightness bar's numbers; nothing clipped. At the end 熟练 and 稳 lessons (S140): a crop of five areas, then of six or seven or the nearest held, its 倾向色 far from the crop's own hue.",
+    "s107-key-shifts on a Chinese tablet, the same steps and canvas: the walk-through of key shifts (变调) with every word in Chinese as V大 says it. The practice options: 第 5 阶段 · 变调 and the 变调 tile, the note without crops: 色彩组合和变调都要临摹真实图片的局部. The How: 变调, its steps (先看倾向色：偏暖还是偏冷，纯还是灰 … 偏完各色仍要分得开) and its one sentence on hues drawing closer, the strip's 倾向色. The sheet: 倾向色 small and grey under the disc beside the empty frame; the locked crop's notice 变调的原图不能吸色. Compare: the card's lines (… 块明度偏亮, … 块没往倾向色走, … 块混成了一块), 看黑白, 色块 swatches, the disc and the lightness bar's numbers, then 准, 差一点, 重来; nothing clipped. At the end 熟练 and 稳 lessons (S140): a crop of five areas, then of six or seven or the nearest held, its 倾向色 far from the crop's own hue.",
     "Not here: the author's hand on the tablet."
   ],
   "screen": [2880, 1800],
@@ -47,6 +47,7 @@
     { "tap": { "at": "Undo" } },
     { "tap": { "at": "Compare" } },
     { "screenshot": { "name": "key-compared-again" } },
+    { "tap": { "at": "Again" } },
     { "tap": { "at": "Finish" } },
     { "screenshot": { "name": "key-lesson-done" } },
     { "tap": { "at": "One more" } },

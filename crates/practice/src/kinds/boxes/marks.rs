@@ -1,19 +1,15 @@
-//! A box's marks (S84, S97, S98): in its one frame the horizon, labelled, and its front corner's
-//! three edges, printed grey. Compared, over the copy, the exact box in see-through red (its hidden
-//! edges dashed), its vanishing points ringed, and only what is off: an edge that misses its point
-//! drawn on dashed red past it, a leaning vertical's true vertical. Construction lays every
-//! corner's line to its vanishing points and the horizon run on across the sheet, faint. The card:
-//! how many edges miss, or that none was found.
-
-use std::sync::Arc;
+//! A box's marks (S84, S97, S98, S145): in its one frame the horizon, labelled, and its front
+//! corner's three edges, printed grey. Compared, over the copy, the exact box in see-through red
+//! (its hidden edges dashed) and its vanishing points ringed: the answer's own, never a reading of
+//! the copy. Construction lays every corner's line to its vanishing points and the horizon run on
+//! across the sheet, faint. The learner's eye judges (D123): the copy's strokes are never read,
+//! and the card asks Accurate, Almost or Again after Compare.
 
 use crate::geometry::perspective::PerspectiveBox;
-use crate::kinds::DrawnCopy;
-use crate::kinds::boxes::perspective_check::{BoxCheck, EDGES_TO_ADD, THROUGH_TO_ADD};
-use crate::marks::card::{CardItem, Say};
+use crate::marks::card::CardItem;
 use crate::marks::compared::{Compared, Seen, Verdict};
-use crate::marks::drawing::{counted, edges_of, off_marks, run_on, segment};
-use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
+use crate::marks::drawing::{run_on, segment};
+use crate::marks::mark::{Figure, In, LinePen, SheetMark};
 
 /// The horizon and the front corner's edges, printed grey in the one frame.
 pub(crate) fn givens(exact: &PerspectiveBox) -> Vec<SheetMark> {
@@ -23,33 +19,10 @@ pub(crate) fn givens(exact: &PerspectiveBox) -> Vec<SheetMark> {
     std::iter::once(horizon).chain(given).collect()
 }
 
-/// A completed box compared: the edges it is complete with beside the three given (nine for a
-/// box drawn through).
+/// A box compared: the exact box laid over the copy for the eye.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoxCompared {
     pub exact: PerspectiveBox,
-    pub check: BoxCheck,
-    pub to_add: usize,
-}
-
-impl BoxCompared {
-    pub fn of(exact: &PerspectiveBox, copy: &DrawnCopy) -> Arc<dyn Compared> {
-        Self::adding(exact, EDGES_TO_ADD, copy)
-    }
-
-    /// A box drawn through, its hidden edges too.
-    pub fn through(exact: &PerspectiveBox, copy: &DrawnCopy) -> Arc<dyn Compared> {
-        Self::adding(exact, THROUGH_TO_ADD, copy)
-    }
-
-    fn adding(exact: &PerspectiveBox, to_add: usize, copy: &DrawnCopy) -> Arc<dyn Compared> {
-        let check = BoxCheck::of(exact, &edges_of(copy));
-        Arc::new(Self {
-            exact: *exact,
-            check,
-            to_add,
-        })
-    }
 }
 
 impl Compared for BoxCompared {
@@ -73,25 +46,15 @@ impl Compared for BoxCompared {
         }
         let rings = exact.vanishing.iter().flatten();
         marks.extend(rings.map(|p| SheetMark::cut(In::Copy, Figure::Ring(*p))));
-        let off: Vec<_> = (self.check.edges.iter())
-            .filter_map(|edge| edge.off)
-            .collect();
-        marks.extend(off_marks(&off, Clip::Sheet));
         marks
     }
 
     fn card(&self, _seen: &Seen<'_>) -> Vec<CardItem> {
-        if self.check.edges.is_empty() {
-            return vec![CardItem::Says(Say::plain("no-edges"))];
-        }
-        let counts = counted(&self.check.edges, 0);
-        vec![
-            CardItem::Says(Say::counting("off", &counts)),
-            CardItem::Construction,
-        ]
+        vec![CardItem::Construction]
     }
 
+    /// The eye judges the copy against the box laid over it (D123).
     fn verdict(&self) -> Verdict {
-        self.check.verdict(&self.exact, self.to_add)
+        Verdict::Eye
     }
 }

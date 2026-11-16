@@ -17,7 +17,6 @@
 //! The world: y up, z away from the eye. Frame units on the picture.
 
 use crate::geometry::ellipse::{Ellipse, EllipseGuide};
-use crate::geometry::ellipse_fit::placed;
 use crate::geometry::perspective_eye::projected;
 use crate::maths::path::Point;
 use crate::maths::vector::{Vector, add, dot, sub, times};
@@ -245,4 +244,18 @@ fn sphere_outline(centre: Vector, radius: f64, view: View) -> Ellipse {
         angle: 0.0,
     };
     Ellipse::of_conic(placed(image, view.offset, view.scale)).unwrap_or(fallback)
+}
+
+/// The conic `[a, b, c, d, e, f]` of points centred on `centre` and divided by `scale`, as a conic
+/// of the points themselves.
+fn placed([a, b, c, d, e, f]: [f64; 6], [mx, my]: Point, s: f64) -> [f64; 6] {
+    let s2 = s * s;
+    [
+        a / s2,
+        b / s2,
+        c / s2,
+        (-2.0 * a * mx - b * my) / s2 + d / s,
+        (-2.0 * c * my - b * mx) / s2 + e / s,
+        (a * mx * mx + b * mx * my + c * my * my) / s2 - (d * mx + e * my) / s + f,
+    ]
 }

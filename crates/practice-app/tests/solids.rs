@@ -1,7 +1,7 @@
-//! Solids on a practice sheet (S93): a cylinder found in its box, its construction with Sketch
-//! never read, its ends and sides drawn with Draw and compared against the exact solid (each end
-//! fitted, the sides read, the error kept at the first Compare), an end corrected in place of what
-//! it redraws.
+//! Solids on a practice sheet (S93, S145): a cylinder found in its box, its construction with
+//! Sketch, its ends and sides drawn with Draw; Compare lays the exact solid over the copy (its
+//! hidden part dashed, V大's construction on request) and the learner's eye judges it: nothing read
+//! from the strokes, nothing kept but the choice (D123); an end corrected and compared again.
 
 mod support;
 
@@ -13,10 +13,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Ellipse, Exercise, FRAME, Frame, Kind, Metric, PEN_WIDTH, Point, Solid, SolidTask, distance,
-    resample, value,
+    Ellipse, Exercise, FRAME, Figure, Frame, Judge, Kind, LinePen, Outcome, PEN_WIDTH, Point,
+    Solid, SolidCompared, SolidTask, Verdict, resample,
 };
-use openpaint_practice_app::{Pen, PracticeIntent, PracticePens, SheetSession};
+use openpaint_practice_app::{Judged, Pen, PracticeIntent, PracticePens, SheetSession};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -72,16 +72,22 @@ fn practise(session: &mut SheetSession, intent: PracticeIntent) {
     session.practise(intent, 1_791_900_000).expect("practised");
 }
 
-/// The solid's check over the copy.
-fn checked(session: &SheetSession) -> openpaint_practice::SolidCheck {
-    let practice = session.projection();
-    let compared = practice.compared.as_ref().expect("compared");
-    let solid = compared.downcast::<openpaint_practice::SolidCompared>();
-    solid.expect("the solid's check").check.clone()
+/// The overlay's red lines: whole and dashed; and whether anything is ringed.
+fn red(session: &SheetSession) -> ([usize; 2], bool) {
+    let overlay = session.projection().overlay.expect("compared");
+    let of = |dashed: bool| {
+        (overlay.iter())
+            .filter(|mark| {
+                matches!(&mark.drawn, Figure::Line { pen, dashed: d, .. } if *pen == LinePen::Answer && *d == dashed)
+            })
+            .count()
+    };
+    let ringed = (overlay.iter()).any(|mark| matches!(mark.drawn, Figure::Ring(_)));
+    ([of(false), of(true)], ringed)
 }
 
 #[test]
-fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
+fn a_cylinder_is_constructed_drawn_and_compare_lays_the_exact_one_for_the_eye() {
     // The pen the red answer is as thick as: the Draw pen's width on a sheet's frame.
     assert!((f64::from(openpaint_practice_app::INK_DIAMETER) / FRAME - PEN_WIDTH).abs() < 1e-12);
     let mut session = opened();
@@ -94,9 +100,9 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
     assert!(!practice.aligned_offered);
     let frame = practice.sheet.pairs[0].copy;
     let original = practice.original.as_deref().expect("in hand");
-    let task = original.downcast::<SolidTask>().expect("a solid");
+    let task = original.downcast::<SolidTask>().expect("a solid").clone();
     let [near, far] = [task.answer.ellipses[0], task.answer.ellipses[1]];
-    // The near end's diagonals with Sketch, never read; its ellipse drawn a tenth too wide.
+    // The near end's diagonals with Sketch; its ellipse drawn a tenth too wide.
     practise(&mut session, PracticeIntent::Pen(Pen::Sketch));
     for [a, b] in openpaint_practice::diagonals(&task.squares[0].corners) {
         draw(&mut session, &frame, &[a, b]);
@@ -112,35 +118,32 @@ fn a_cylinder_is_constructed_drawn_compared_and_an_end_corrected() {
         draw(&mut session, &frame, side);
     }
     practise(&mut session, PracticeIntent::Compare(true));
-    let check = checked(&session);
-    let fitted = check.curves[0].fitted.expect("the near end fitted");
-    assert!(
-        (fitted.axes[0] / near.axes[0] - 1.1).abs() < 0.02,
-        "{fitted:?}"
-    );
-    let far_fit = check.curves[1].fitted.expect("the far end fitted");
-    assert!(distance(far_fit.centre, far.centre) < 0.003);
-    assert!(check.sides.iter().all(|side| !side.is_empty()));
-    let pen = session.projection().pen;
-    assert_eq!(pen.map(|(pen, _)| pen), Some(Pen::Correct));
-    let first = value(&check.metrics, Metric::SolidOff).expect("measured");
-    assert!(first > 0.0);
-    // The near end corrected: read alone in place of the first try, the first error kept.
+    let practice = session.projection();
+    let compared = practice.compared.as_ref().expect("compared");
+    let laid = compared
+        .downcast::<SolidCompared>()
+        .expect("the solid laid");
+    assert_eq!(laid.task, task);
+    // The exact cylinder red, its far end's hidden half dashed; nothing ringed or run on.
+    let ([whole, dashed], ringed) = red(&session);
+    assert!(whole >= 4 && dashed >= 1 && !ringed, "{whole} {dashed}");
+    assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Correct));
+    let waiting = Judged {
+        verdict: Verdict::Eye,
+        result: None,
+    };
+    assert_eq!(practice.judged, Some(waiting), "the eye's to judge");
+    // The near end corrected and compared again; nothing read or kept but the compares.
     draw(&mut session, &frame, &near.outline(120));
     practise(&mut session, PracticeIntent::Compare(true));
-    let check = checked(&session);
-    let fitted = check.curves[0].fitted.expect("the correction fitted");
-    assert!(
-        (fitted.axes[0] / near.axes[0] - 1.0).abs() < 0.01,
-        "{fitted:?}"
-    );
-    let now = value(&check.metrics, Metric::SolidOff).expect("measured");
-    assert!(now < first, "{now} against {first}");
+    practise(&mut session, PracticeIntent::Judge(Outcome::Clean));
     let record = session
         .sheet_mut()
         .save_request()
         .expect("the record changed");
     let result = record.first(0).expect("compared");
     assert_eq!(record.laid(0).map_or(0, |l| l.compares), 2);
-    assert_eq!(value(&result.metrics, Metric::SolidOff), Some(first));
+    assert!(result.metrics.is_empty(), "nothing read");
+    let kept = record.laid(0).and_then(|laid| laid.result);
+    assert_eq!(kept, Some((Outcome::Clean, Judge::Eye)));
 }

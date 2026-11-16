@@ -1,10 +1,13 @@
 //! What only the eye judges says `Eye` whatever was drawn: lines, groups, single shapes (the
-//! overlay is the feedback), free boxes (their rules, no answer), divisions, whole copies and long
-//! colour copies (no answer), and a painted kind whose areas or masses no pack holds now.
+//! overlay is the feedback), free boxes (no answer), boxes, ellipses, solids, objects and
+//! structure rotation (their exact answer laid, the copy never read: S145, D123), divisions, whole
+//! copies and long colour copies (no answer), and a painted kind whose areas or masses no pack
+//! holds now. Value masses and key shifts read with their answers: `painted.rs`.
 
 use openpaint_practice::{
-    Arrangement, BoxView, Combination, Exercise, Horizon, ItemRef, Kind, Lean, LineTier,
-    PictureFit, ScaleTone, SheetPicture, Tendency, Tier, Verdict,
+    Arrangement, Asked, BoxView, Carve, Combination, Compare, Copied, DrawnCopy, Estimate,
+    Exercise, Guide, Horizon, ItemRef, Kind, Lean, Level, LineTier, PictureFit, Point, Rgb8,
+    Rotation, ScaleTone, SheetPicture, Solid, Tendency, Tier, Trick, Verdict,
 };
 
 use crate::{Laid, compare, shown, steady};
@@ -31,6 +34,12 @@ fn what_only_the_eye_judges_says_eye_however_it_was_drawn() {
         (Kind::FreeBoxes(Horizon::ALL[0]), None),
         (Kind::Study, Some(&picture)),
     ];
+    // The drawn kinds whose exact answer Compare lays for the eye (S145).
+    kinds.extend(BoxView::ALL.map(|view| (Kind::Box(view), None)));
+    kinds.extend(Guide::ALL.map(|guide| (Kind::Ellipse(guide), None)));
+    kinds.extend(Solid::ALL.map(|solid| (Kind::Solid(solid), None)));
+    kinds.extend(Carve::ALL.map(|carve| (Kind::Object(carve), None)));
+    kinds.push((Kind::Rotation(Rotation::ALL[0]), None));
     for tier in [Tier::ALL[0], Tier::ALL[3]] {
         kinds.extend([
             (Kind::Shape(tier), Some(&picture)),
@@ -67,17 +76,72 @@ fn what_only_the_eye_judges_says_eye_however_it_was_drawn() {
         let compared = compare(&exercise, picture, &laid).map(shown);
         let compared = compared.unwrap_or_else(|| panic!("{kind:?}: compared"));
         assert_eq!(compared.verdict(), Verdict::Eye, "{kind:?}");
+        // A drawn copy laid over by its answer: nothing read, nothing kept (codes 47, 48 no more).
+        let laid_over = matches!(
+            kind,
+            Kind::Box(_) | Kind::Ellipse(_) | Kind::Solid(_) | Kind::Object(_) | Kind::Rotation(_)
+        );
+        assert!(!laid_over || compared.metrics().is_empty(), "{kind:?}");
+    }
+}
+
+/// A copy that holds something but must never be read.
+struct NeverRead;
+
+impl Copied for NeverRead {
+    fn holds(&self) -> bool {
+        true
+    }
+
+    fn picks(&self) -> Vec<Rgb8> {
+        panic!("a drawn copy judged by eye is never read")
+    }
+
+    fn drawn(&self) -> DrawnCopy {
+        panic!("a drawn copy judged by eye is never read")
+    }
+
+    fn division(&self) -> Vec<(Level, Vec<Point>)> {
+        panic!("a drawn copy judged by eye is never read")
+    }
+}
+
+/// S145: boxes (drawn through too), ellipses, solids and objects lay their answer without reading
+/// a stroke of the copy, at every variant.
+#[test]
+fn the_drawn_kinds_laid_over_by_their_answer_never_read_the_copy() {
+    let mut kinds: Vec<Kind> = BoxView::ALL.map(Kind::Box).to_vec();
+    kinds.extend(Guide::ALL.map(Kind::Ellipse));
+    kinds.extend(Solid::ALL.map(Kind::Solid));
+    kinds.extend(Carve::ALL.map(Kind::Object));
+    kinds.extend(Horizon::ALL.map(Kind::FreeBoxes));
+    for kind in kinds {
+        for seed in 0..5 {
+            let exercise = Exercise::generated(kind, seed);
+            let original = exercise.original();
+            let asked = Asked {
+                exercise: &exercise,
+                original: &*original,
+                picture: None,
+                copy: &NeverRead,
+                choices: openpaint_practice::Choices::default(),
+            };
+            let Some(Compare::Checked(shown)) = original.compare(&asked) else {
+                panic!("{kind:?}: laid as geometry")
+            };
+            assert_eq!(shown.verdict(), Verdict::Eye, "{kind:?}");
+        }
     }
 }
 
 #[test]
 fn a_kind_the_app_judges_never_says_eye() {
-    // Whatever is drawn, a box, an ellipse, an estimate's, a scale's or a combination's comparison
-    // is the app's or incomplete.
+    // Whatever is drawn, an estimate's, a point in space's, a scale's or a combination's
+    // comparison is the app's or incomplete: each reads a direct measure.
     let kinds = [
-        Kind::Box(BoxView::ALL[0]),
-        Kind::Box(BoxView::ALL[1]),
-        Kind::Ellipse(openpaint_practice::Guide::ALL[0]),
+        Kind::Flat(Estimate::ALL[0]),
+        Kind::Flat(Estimate::ALL[2]),
+        Kind::Space(Trick::ALL[0]),
         Kind::Scale(ScaleTone::Grey, 5),
         Kind::Areas(Arrangement::ALL[0]),
     ];

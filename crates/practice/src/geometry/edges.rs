@@ -1,5 +1,5 @@
-//! Straight edges found in a hand's lines (S84): what a perspective check extends. Each line is
-//! read at even steps and split where it turns (Douglas–Peucker: where it leaves the chord between
+//! Straight edges found in a hand's lines (S84): the last lines drawn as `marks` reads them. Each
+//! line is read at even steps and split where it turns (Douglas–Peucker: where it leaves the chord between
 //! its ends by more than `SPLIT`), neighbouring runs that turn but a little joined again while
 //! together still straight, and each run fitted by a straight line (total least squares) and kept
 //! only if it is straight along its whole length: a curve is no edge. Strokes along one edge are
@@ -43,9 +43,6 @@ const DOUBLE_APART: [f64; 2] = [0.008, 0.025];
 const DOUBLE_APART_SHARE: f64 = 0.1;
 const DOUBLE_GAP: f64 = 0.03;
 const REDRAW_SHARE: f64 = 0.5;
-/// A correction redraws an edge it runs within this angle (degrees) of and this near.
-const REDRAWN_ANGLE: f64 = 10.0;
-const REDRAWN_APART: f64 = 0.03;
 /// The shortest edge kept: 20 pixels of a 400-pixel frame.
 pub const SHORTEST: f64 = 0.05;
 /// The shortest run looked at.
@@ -150,27 +147,6 @@ pub fn edges(lines: &[&[Point]]) -> Vec<Edge> {
         .collect();
     found.sort_by(|a, b| b.length().total_cmp(&a.length()));
     found
-}
-
-/// The edges of a copy corrected after a Compare: the `corrections` and the `earlier` edges none
-/// of them redraws. A correction redraws an edge when it runs within `REDRAWN_ANGLE` of it, its
-/// middle within `REDRAWN_APART` of the edge's line, over at least half the shorter's length:
-/// the latest try counts, not one averaged with the first.
-#[must_use]
-pub fn corrected(earlier: Vec<Edge>, corrections: Vec<Edge>) -> Vec<Edge> {
-    let redraws = |c: &Edge, e: &Edge| {
-        let (d, m) = (e.direction(), c.middle());
-        let along = |p: Point| (p[0] - e.ends[0][0]) * d[0] + (p[1] - e.ends[0][1]) * d[1];
-        let off = ((m[0] - e.ends[0][0]) * d[1] - (m[1] - e.ends[0][1]) * d[0]).abs();
-        let (a, b) = (along(c.ends[0]), along(c.ends[1]));
-        let shared = a.max(b).min(e.length()) - a.min(b).max(0.0);
-        let angle = turn(c.direction(), d);
-        angle.min(180.0 - angle) <= REDRAWN_ANGLE
-            && off <= REDRAWN_APART
-            && shared >= 0.5 * c.length().min(e.length())
-    };
-    let kept = (earlier.into_iter()).filter(|e| !corrections.iter().any(|c| redraws(c, e)));
-    corrections.iter().copied().chain(kept).collect()
 }
 
 /// `points`'s least-squares line; none for fewer than two points or no extent.

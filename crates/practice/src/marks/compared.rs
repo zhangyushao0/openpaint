@@ -35,26 +35,11 @@ pub struct Seen<'a> {
     pub probe: Option<(Rgb8, Rgb8)>,
 }
 
-/// Lines, each a run of points in frame units.
-pub type Lines = Vec<Vec<Point>>;
-
-/// A drawn copy's lines in its frame (frame units, the sketch pen's left out): every one, and,
-/// once it was compared, those before its first Compare and the corrections after it.
+/// A drawn copy's lines in its frame (frame units, the sketch pen's left out), read only where one
+/// stroke is asked (an estimate's, a point in space's; D123).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DrawnCopy {
     pub all: Vec<Vec<Point>>,
-    pub corrected: Option<(Lines, Lines)>,
-}
-
-impl DrawnCopy {
-    /// Its lines before its first Compare and the corrections after it (every line and none
-    /// before one), as lines to read.
-    pub(crate) fn split(&self) -> (Vec<&[Point]>, Vec<&[Point]>) {
-        match &self.corrected {
-            Some((first, corrections)) => (read(first), read(corrections)),
-            None => (read(&self.all), Vec::new()),
-        }
-    }
 }
 
 /// An exercise compared, held by the app as it comes: equal only to itself.
@@ -172,11 +157,6 @@ pub trait Compared: std::any::Any + Debug + Send + Sync {
     fn named_area(&self) -> Option<usize> {
         None
     }
-}
-
-/// `pieces` as lines to read.
-fn read(pieces: &[Vec<Point>]) -> Vec<&[Point]> {
-    pieces.iter().map(Vec::as_slice).collect()
 }
 
 impl Comparison {

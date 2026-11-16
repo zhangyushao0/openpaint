@@ -1,7 +1,7 @@
 //! Objects simplified into boxes (`Kind::Object`, S94): an object's design, body, exact answer,
 //! construction, rules and picture, and its How. An object is V大's box simplified, so it builds
-//! on the solids (`solids/`): its answer is a solid's kind (`SolidAnswer`) and its check theirs
-//! (`SolidCheck::of_object`).
+//! on the solids (`solids/`): its answer is a solid's kind (`SolidAnswer`), laid over the copy at
+//! Compare for the learner's eye (S145, D123).
 //!
 //! A lesson holds one object (about 4.5 minutes): the first level each carve in turn,
 //! the second a cut or a top drawn in, slanted planes, the third a round part or a
@@ -26,8 +26,8 @@ use crate::demos::demo::Demo;
 use crate::kinds::{
     Blank, Described, Facts, Kind, Original, SkillLevel, ToolSet, Turn, held, place,
 };
-use crate::marks::asked::Painted;
-use crate::marks::compared::{Compared, DrawnCopy};
+use crate::marks::asked::{Asked, Compare, Painted};
+use crate::marks::compared::Comparison;
 use crate::marks::mark::SheetMark;
 use crate::marks::tile::{TileMark, arc, boxed};
 use crate::maths::path::Point;
@@ -126,8 +126,11 @@ impl Original for ObjectTask {
         marks::givens(self)
     }
 
-    fn check(&self, copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
-        Some(marks::ObjectCompared::of(self, copy))
+    /// Once anything lies in the copy's frame, the exact visible edges laid over it for the eye;
+    /// the copy's strokes are never read (D123).
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        let compared = || marks::ObjectCompared { task: self.clone() };
+        (asked.held()).then(|| Compare::Checked(Comparison::of(compared())))
     }
 
     /// Its picture, `OBJECT_SIDE` square (S94).
