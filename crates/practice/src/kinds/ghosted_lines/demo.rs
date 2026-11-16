@@ -4,6 +4,7 @@
 //! ghosted from the shoulder three times, one sure stroke, the other pairs alike; a plane's edges
 //! from corner to corner, its diagonals, then through their crossing a line toward where each
 //! pair of opposite edges meet, ghosted on toward them first. Compare lays the exact lines red.
+//! Each example shows with paper round it, as the sheet's frame keeps round its lines (S158k).
 
 use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line, wobbled};
 use crate::kinds::ghosted_lines::ghosted::{Ghosted, GhostedTask};
@@ -17,14 +18,21 @@ const STRAY: f64 = 0.004;
 /// How far a pass in the air strays, and the superimposed strokes' fraying at the far end.
 const AIR: f64 = 0.012;
 const FRAY: f64 = 0.007;
+/// The paper shown round an example's lines and dots, frame units.
+const MARGIN: f64 = 0.1;
 
-/// `ghosted`'s demonstration.
+/// `ghosted`'s demonstration, its example with `MARGIN` of paper round it.
 pub(crate) fn ghosted(ghosted: Ghosted) -> Demo {
     let task = GhostedTask::generate(ghosted, derived(SEED, 0));
-    match ghosted {
+    let demo = match ghosted {
         Ghosted::Superimposed => superimposed(&task),
         Ghosted::Pairs => pairs(&task),
         Ghosted::Plane => plane(&task),
+    };
+    let grown = |[low, high]: [Point; 2]| [low.map(|v| v - MARGIN), high.map(|v| v + MARGIN)];
+    Demo {
+        view: demo.view.map(grown),
+        ..demo
     }
 }
 

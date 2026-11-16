@@ -5,7 +5,8 @@
 //! read on the worker from the picture's own pixels: its five views (`VIEWS`, as
 //! `ContrastView::ALL`), each laid over the picture as its reading brought it (a veil of paper
 //! where that contrast is weak, or the picture squinted), the marks redrawn over it in their pens'
-//! colours as a division's are; the card the views, one shown, and what was chosen in the chips'
+//! colours as a division's are, along the curve the canvas drew them on (`curved`, S158k); the
+//! card the views, one shown, and what was chosen in the chips'
 //! words. Nothing is scored: the eye judges once a 强 mark lies in the frame.
 
 use super::contrast::{ContrastView, Contrasts};
@@ -15,7 +16,7 @@ use crate::marks::card::{Arg, CardItem, Choices, Say};
 use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::colour::Rgb8;
-use crate::maths::path::Point;
+use crate::maths::path::{Point, distance};
 use crate::records::metric::Metrics;
 
 /// The contrasts the strongest place may live by, as the card's chips show them: 明度, 虚实, 纯度,
@@ -129,7 +130,7 @@ impl Compared for AnalysisCompared {
         marks.extend(self.lines.iter().map(|(level, points)| SheetMark {
             on: In::Copy,
             drawn: Figure::Line {
-                points: points.clone(),
+                points: curved(points),
                 pen: LinePen::Level(*level),
                 dashed: false,
             },
@@ -177,4 +178,70 @@ impl Compared for AnalysisCompared {
             Verdict::Incomplete
         }
     }
+}
+
+/// A redrawn mark's pieces at most this long, frame units.
+const CURVE_STEP: f64 = 0.004;
+
+/// The curve a stroke through the pen's samples `points` follows on the canvas, in straight pieces
+/// at most `CURVE_STEP` long (S158k): the renderer's centripetal Catmull-Rom spline through every
+/// sample, a mirrored one standing in past either end, so a mark redrawn over a view is as smooth
+/// as it was drawn, however few samples a quick ring left.
+fn curved(points: &[Point]) -> Vec<Point> {
+    let Some(&first) = points.first() else {
+        return Vec::new();
+    };
+    let mirrored =
+        |about: Point, other: Point| [2.0 * about[0] - other[0], 2.0 * about[1] - other[1]];
+    let mut out = vec![first];
+    for (j, pair) in points.windows(2).enumerate() {
+        let [b, c] = [pair[0], pair[1]];
+        let a = j
+            .checked_sub(1)
+            .map_or_else(|| mirrored(b, c), |k| points[k]);
+        let d = points.get(j + 2).copied().unwrap_or_else(|| mirrored(c, b));
+        let span = centripetal([a, b, c, d]);
+        let pieces = (distance(b, c) / CURVE_STEP).ceil().clamp(1.0, 64.0);
+        out.extend((1..=pieces as usize).map(|k| bezier(&span, k as f64 / pieces)));
+    }
+    out
+}
+
+/// The centripetal Catmull-Rom span from `p[1]` to `p[2]` as a cubic Bézier (Barry and Goldman's
+/// tangents, knot steps the square roots of the chords), as `render/src/curve` builds it.
+fn centripetal([p0, p1, p2, p3]: [Point; 4]) -> [Point; 4] {
+    let [a, b, c] = [(p0, p1), (p1, p2), (p2, p3)].map(|(p, q)| distance(p, q).sqrt());
+    if b < 1e-6 {
+        return [p1, p1, p2, p2];
+    }
+    let tangent = |[p, q, r]: [Point; 3], [before, after]: [f64; 2]| -> Point {
+        if before < 1e-6 {
+            return [0.0; 2];
+        }
+        [0, 1].map(|k| {
+            let slope =
+                (q[k] - p[k]) / before - (r[k] - p[k]) / (before + after) + (r[k] - q[k]) / after;
+            slope * b
+        })
+    };
+    let start = tangent([p0, p1, p2], [a, b]);
+    let end = if c < 1e-6 {
+        [0.0; 2]
+    } else {
+        tangent([p1, p2, p3], [b, c])
+    };
+    let along = |p: Point, t: Point, by: f64| [p[0] + t[0] * by, p[1] + t[1] * by];
+    [
+        p1,
+        along(p1, start, 1.0 / 3.0),
+        along(p2, end, -1.0 / 3.0),
+        p2,
+    ]
+}
+
+/// The point of the cubic Bézier `span` at `t`.
+fn bezier(span: &[Point; 4], t: f64) -> Point {
+    let s = 1.0 - t;
+    let weights = [s * s * s, 3.0 * s * s * t, 3.0 * s * t * t, t * t * t];
+    [0, 1].map(|k| weights.iter().zip(span).map(|(w, p)| w * p[k]).sum())
 }

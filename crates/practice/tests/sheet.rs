@@ -1,6 +1,7 @@
 //! The sheet (S75, S99): pairs three a row, apart and inside; a picture's frames of its shape,
-//! its longer side a frame's, in its pair's place; a picture filling its frame; a colour copy's
-//! one pair shaped as its picture.
+//! its longer side a frame's, in its pair's place; a picture under its marks one frame, as large as
+//! its pair's place holds it (S158k); a picture filling its frame; a colour copy's one pair shaped
+//! as its picture.
 
 use openpaint_practice::{
     Exercise, FRAME, ItemRef, Kind, Layout, Pack, PackItem, PictureFit, PictureKind, Purpose,
@@ -157,6 +158,58 @@ fn a_sheet_s_frames_follow_the_pictures_its_packs_held() {
     // A colour copy's sheet is laid by its picture's size as it was when it began.
     let copy = Sheet::copy(2, (5, 0), item("tall")).framed(&[pack]);
     assert_eq!(Layout::of_sheet(&copy), Layout::study([600, 800]));
+}
+
+#[test]
+fn a_picture_under_its_marks_takes_its_pair_s_whole_place_in_one_frame() {
+    let item = ItemRef {
+        pack: "test-frames".to_owned(),
+        item: "harbour".to_owned(),
+    };
+    let mut planned = schedule::first(5);
+    planned.exercises[0].0 = Exercise {
+        picture: Some(item.clone()),
+        ..Exercise::generated(Kind::Analysis(Tier::Simple), 9)
+    };
+    let pack = |size: [u32; 2]| Pack {
+        id: item.pack.clone(),
+        title: "Test frames".to_owned(),
+        items: vec![PackItem {
+            id: item.item.clone(),
+            kind: PictureKind::Composition,
+            tier: Tier::Simple,
+            size,
+            title: "Harbour".to_owned(),
+            credit: None,
+            outline: None,
+            masses: None,
+            areas: None,
+        }],
+    };
+    let record = Sheet::begun(1, (Purpose::Day, 0), planned);
+    // The place a pair of square frames takes: both frames and the gap between.
+    let place = Layout::pair_at(0, None);
+    let [left, right] = [place.original.origin[0], place.copy.origin[0] + FRAME];
+    for (size, wide) in [
+        ([1200, 900], [FRAME * 4.0 / 3.0, FRAME]),
+        ([3000, 1000], [right - left, (right - left) / 3.0]),
+    ] {
+        let sheet = Layout::of_sheet(&record.clone().framed(&[pack(size)]));
+        let pair = sheet.pairs[0];
+        assert_eq!(pair.original, pair.copy, "one frame");
+        let frame = pair.copy;
+        assert!(
+            (0..2).all(|k| (frame.size[k] - wide[k]).abs() < 1e-9),
+            "{size:?}: {frame:?}"
+        );
+        // In the middle of its place, where the view centres on it.
+        assert!((pair.centre()[0] - (left + right) / 2.0).abs() < 1e-9);
+        assert!((pair.centre()[1] - place.copy.middle()[1]).abs() < 1e-9);
+        // Larger than a picture's pair of frames would lay it.
+        assert!(frame.unit() > Layout::pair_at(0, Some(size)).copy.unit());
+        // Every other exercise keeps its pair.
+        assert_eq!(sheet.pairs[1], Layout::of_sheet(&record).pairs[1]);
+    }
 }
 
 #[test]

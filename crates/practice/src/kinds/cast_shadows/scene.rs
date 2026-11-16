@@ -25,6 +25,15 @@ const SIDE: [f64; 2] = [0.84, 0.9];
 const EYE: [f64; 2] = [2.2, 3.0];
 /// The room above the horizon, a share of how far below it the scene reaches.
 const HORIZON_ROOM: f64 = 0.1;
+/// Under a sun beyond the picture the shadows run toward the eye, as long as a box is tall over
+/// the sun's slant, and the sun's point must stay on the paper above the frame: so its boxes lie
+/// low and broad (their sides across, their height), the eye lower over the ground, the farther
+/// box beside the nearer and the pin behind it; the boxes then stand in the frame as large as under
+/// the other lights (S158k).
+const FRONT_BOX: [[f64; 2]; 2] = [[1.0, 1.5], [0.45, 0.7]];
+const FRONT_EYE: [f64; 2] = [1.6, 2.2];
+const FRONT_ASIDE: [f64; 2] = [1.9, 2.5];
+const FRONT_PIN: [[f64; 2]; 2] = [[1.8, 2.6], [-1.0, -0.3]];
 
 /// Where the light comes from: the sun parallel to the picture (入门), beyond it or behind the eye
 /// (熟练), a lamp, its nearer box's shadow climbing the farther in `Climbing` (稳).
@@ -130,6 +139,10 @@ fn placed(throw: Throw, random: &mut Random, near: [f64; 2], ground: f64) -> ([f
                 near[0] + x.signum() * random.range(1.5, 2.3),
                 near[1] + random.range(1.6, 2.2),
             ],
+            _ if throw == Throw::Front => [
+                near[0] + random.sign() * random.range(FRONT_ASIDE[0], FRONT_ASIDE[1]),
+                near[1] + random.range(-0.5, 1.0),
+            ],
             _ => [
                 near[0] + random.sign() * random.range(2.0, 2.8),
                 near[1] + random.range(-0.5, 1.0),
@@ -170,45 +183,20 @@ fn placed(throw: Throw, random: &mut Random, near: [f64; 2], ground: f64) -> ([f
 /// view framing the boxes, their shadows, the light's givens and the horizon.
 fn laid(throw: Throw, random: &mut Random) -> ShadowTask {
     let yaw = random.range(25.0, 65.0).to_radians();
-    let ground = -random.range(EYE[0], EYE[1]);
-    let near = [random.range(-0.5, 0.5), random.range(4.2, 5.0)];
-    let sides = |random: &mut Random, high: f64| {
-        [
-            random.range(0.6, 1.1),
-            random.range(0.6, high),
-            random.range(0.6, 1.1),
-        ]
+    let eye = if throw == Throw::Front {
+        FRONT_EYE
+    } else {
+        EYE
     };
-    let mut first = sides(random, 1.2);
-    let mut second = sides(random, 1.1);
-    if throw == Throw::Side && random.unit() < 0.5 {
-        // A block lying.
-        second = [
-            random.range(0.9, 1.4),
-            random.range(0.25, 0.4),
-            random.range(0.6, 1.0),
-        ];
-    }
-    if throw == Throw::Climbing {
-        // The nearer small and low, the farther wide and tall: the shadow climbs the side and
-        // stays on it.
-        first = [
-            random.range(0.5, 0.65),
-            random.range(0.75, 0.9),
-            random.range(0.5, 0.65),
-        ];
-        second = [
-            random.range(1.1, 1.4),
-            random.range(1.0, 1.2),
-            random.range(1.1, 1.4),
-        ];
-    }
+    let ground = -random.range(eye[0], eye[1]);
+    let near = [random.range(-0.5, 0.5), random.range(4.2, 5.0)];
+    let [first, second] = sized(throw, random);
     let (far, light) = placed(throw, random, near, ground);
     let corners: Vec<[Vector; 8]> = [(near, first), (far, second)]
         .iter()
         .map(|([x, z], size)| box_corners([*x, ground + size[1] / 2.0, *z], yaw, *size))
         .collect();
-    let pin = (!throw.lamp()).then(|| standing(random, &corners, ground));
+    let pin = (!throw.lamp()).then(|| standing(random, &corners, (ground, throw)));
     let view = framed(&corners, (pin, &light, ground), random);
     let boxes = corners.iter().map(|c| seen_box(c, yaw, view)).collect();
     let pinned = pin.and_then(|pin| {
@@ -228,6 +216,31 @@ fn laid(throw: Throw, random: &mut Random) -> ShadowTask {
         points,
         shadows,
     }
+}
+
+/// The two boxes' width, height and depth, nearer first, laid from `random`: under a sun beyond
+/// the picture both low and broad (`FRONT_BOX`); else of a size, under a sun parallel to the
+/// picture the farther perhaps a block lying, under a climbing shadow the nearer small and low,
+/// the farther wide and tall, so the shadow climbs its side and stays on it.
+fn sized(throw: Throw, random: &mut Random) -> [[f64; 3]; 2] {
+    let ranged = |random: &mut Random, [across, high]: [[f64; 2]; 2]| {
+        [across, high, across].map(|[low, top]| random.range(low, top))
+    };
+    if throw == Throw::Front {
+        return [0; 2].map(|_| ranged(random, FRONT_BOX));
+    }
+    let mut boxes = [1.2, 1.1].map(|high| ranged(random, [[0.6, 1.1], [0.6, high]]));
+    if throw == Throw::Side && random.unit() < 0.5 {
+        // A block lying.
+        boxes[1] = [[0.9, 1.4], [0.25, 0.4], [0.6, 1.0]].map(|[low, top]| random.range(low, top));
+    }
+    if throw == Throw::Climbing {
+        boxes = [
+            ranged(random, [[0.5, 0.65], [0.75, 0.9]]),
+            ranged(random, [[1.1, 1.4], [1.0, 1.2]]),
+        ];
+    }
+    boxes
 }
 
 /// The view framing the boxes of `corners`, their shadows under `light` on the ground at `ground`,
@@ -289,14 +302,20 @@ fn seen_box(corners: &[Vector; 8], yaw: f64, view: View) -> PerspectiveBox {
 }
 
 /// A pin on the ground laid from `random` beside the boxes `corners`: to one side of them, before
-/// the nearer.
-fn standing(random: &mut Random, corners: &[[Vector; 8]], ground: f64) -> Pin {
+/// the nearer; under a sun beyond the picture behind it, so its shadow running toward the eye stays
+/// short of the boxes'.
+fn standing(random: &mut Random, corners: &[[Vector; 8]], (ground, throw): (f64, Throw)) -> Pin {
     let middle = |c: &[Vector; 8]| [0, 2].map(|k| c.iter().map(|p| p[k]).sum::<f64>() / 8.0);
     let [a, b] = [middle(&corners[0]), middle(&corners[1])];
+    let [aside, before] = if throw == Throw::Front {
+        FRONT_PIN
+    } else {
+        [[1.4, 2.4], [0.2, 1.2]]
+    };
     let foot = [
-        (a[0] + b[0]) / 2.0 + random.sign() * random.range(1.4, 2.4),
+        (a[0] + b[0]) / 2.0 + random.sign() * random.range(aside[0], aside[1]),
         ground,
-        a[1].min(b[1]) - random.range(0.2, 1.2),
+        a[1].min(b[1]) - random.range(before[0], before[1]),
     ];
     Pin::at(foot, random.range(0.5, 0.8))
 }

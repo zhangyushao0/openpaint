@@ -1,6 +1,6 @@
 {
   "walkthrough": [
-    "s156-intersections on a Chinese tablet, the same steps: the walk-through of form intersections (穿插) with every word in Chinese. The How: 画两个形体相交的线, 找出一个形体穿进另一个形体的交线：先找穿插点，再连成线, its steps 把每条边延长到另一个形体的面上，朝着它的消失点, 边和面相交的地方，就是穿插点, 用勾线笔沿着面把这些点连起来, 叠图对比, and its paragraph. The bar 穿插 1/2, the pens 草稿笔, 勾线笔, 修正笔; the horizon 视平线; the card 穿插 1, 看画法, 准, 差一点, 重来; the lesson's end 穿插, 再来一课, 今天到这儿; the path's unit 8, 第 8 单元 · 穿插与创作, its tiles 截面线, 穿插, 对比小稿.",
+    "s156-intersections on a Chinese tablet, the same steps: the walk-through of form intersections (穿插) with every word in Chinese. The How: 画两个形体相交的线, 找出一个形体穿进另一个形体的交线：先找穿插点，再连成线, its steps 把每条边延长到另一个形体的面上，朝着它的消失点, 边和面相交的地方，就是穿插点, 用勾线笔沿着面把这些点连起来, 叠图对比, and its paragraph; level 2's How 圆柱和盒子穿插, its steps 在面上按这个面的透视画出圆柱所在的正方形和它的对角线, 过对角线的交点找出各边的中点, 用勾线笔画出经过四个中点的椭圆; level 3's 两个圆的形体穿插, its steps 用草稿笔画几个同时切过两个形体的截面, 每个截面上，两个形体的线交叉的地方就是交线上的一点, 用勾线笔顺着形体的圆把这些点连起来 (S158k). The bar 穿插 1/2, the pens 草稿笔, 勾线笔, 修正笔; the horizon 视平线; the card 穿插 1, 看画法, 准, 差一点, 重来; the lesson's end 穿插, 再来一课, 今天到这儿; the path's unit 8, 第 8 单元 · 穿插与创作, its tiles 截面线, 穿插, 对比小稿.",
     "Not here: the author's hand and eye on the tablet."
   ],
   "screen": [2880, 1800],
@@ -40,6 +40,9 @@
     { "screenshot": { "name": "intersections-lesson-done" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "skill": "intersections", "level": 2 } },
+    { "screenshot": { "name": "intersections-level-two-how-mid", "after_ms": 3000 } },
+    { "screenshot": { "name": "intersections-level-two-how", "after_ms": 6000 } },
+    { "tap": { "at": "Got it" } },
     { "screenshot": { "name": "intersections-level-two" } },
     { "stroke": { "points": [[1450, 940, 0.8], [1550, 940, 0.8]] } },
     { "tap": { "at": "Compare" } },
@@ -53,6 +56,9 @@
     { "screenshot": { "name": "intersections-level-two-second" } },
     { "tap": { "at": "Home" } },
     { "lesson": { "skill": "intersections", "level": 3 } },
+    { "screenshot": { "name": "intersections-level-three-how-mid", "after_ms": 3000 } },
+    { "screenshot": { "name": "intersections-level-three-how", "after_ms": 6000 } },
+    { "tap": { "at": "Got it" } },
     { "screenshot": { "name": "intersections-level-three" } },
     { "stroke": { "points": [[1450, 940, 0.8], [1550, 940, 0.8]] } },
     { "tap": { "at": "Compare" } },

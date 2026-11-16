@@ -15,7 +15,7 @@
 
 mod picture;
 
-pub use picture::{LAID_SIDE, PICTURE_LAYER};
+pub use picture::{LAID_SCALE, PICTURE_LAYER};
 pub(crate) use picture::{Under, laid_under, pictures_laid};
 
 use openpaint_core::{Artwork, ArtworkCommand, CoreError, LayerCommand, LayerId, LayerName};

@@ -8,7 +8,9 @@
 //!
 //! A lesson holds two pairs (about 3 minutes each); the levels: a box into a box, both drawn
 //! through; a cylinder through a box's face or a box into a cylinder's side; two cylinders or a
-//! ball sunk into a cylinder, only what the eye sees of them printed.
+//! ball sunk into a cylinder, only what the eye sees of them printed. Each level is a topic of its
+//! own, its How on an example of its forms (S158k): pierce points on the boxes, a cylinder's
+//! ellipse in its square on a box's face, sections across two cylinders.
 
 pub(crate) mod demo;
 pub(crate) mod forms;
@@ -40,7 +42,12 @@ use meeting::{IntersectionTask, Meeting};
 
 pub(crate) struct Intersections;
 
-const FACTS: [Facts; 1] = [Facts::of("intersections", ToolSet::DRAWING, 180).constructed()];
+/// Its topics: two boxes (入门), a cylinder and a box (熟练), two round forms (稳).
+const FACTS: [Facts; 3] = [
+    Facts::of("intersections", ToolSet::DRAWING, 180).constructed(),
+    Facts::of("intersections-cylinder", ToolSet::DRAWING, 180).constructed(),
+    Facts::of("intersections-round", ToolSet::DRAWING, 180).constructed(),
+];
 /// The variants each level takes in turn, a lesson's two in their order.
 const FIRST: [Meeting; 2] = [Meeting::ALL[0], Meeting::ALL[1]];
 const SECOND: [Meeting; 2] = [Meeting::ALL[2], Meeting::ALL[3]];
@@ -66,6 +73,14 @@ impl Described for Intersections {
         (Meeting::ALL.get(usize::from(variant))).map(|meeting| Kind::Intersection(*meeting))
     }
 
+    fn topic(&self, kind: Kind) -> &'static Facts {
+        match kind {
+            Kind::Intersection(Meeting::CylinderIntoBox | Meeting::BoxIntoCylinder) => &FACTS[1],
+            Kind::Intersection(Meeting::Cylinders | Meeting::Sphere) => &FACTS[2],
+            _ => &FACTS[0],
+        }
+    }
+
     fn generate(&self, exercise: &Exercise) -> Arc<dyn Original> {
         let Kind::Intersection(meeting) = exercise.kind else {
             return held(Blank);
@@ -73,8 +88,11 @@ impl Described for Intersections {
         held(IntersectionTask::generate(meeting, exercise.seed))
     }
 
-    fn how(&self, _kind: Kind, _cells: usize) -> Option<Demo> {
-        demo::intersections()
+    fn how(&self, kind: Kind, _cells: usize) -> Option<Demo> {
+        let Kind::Intersection(meeting) = kind else {
+            return None;
+        };
+        Some(demo::intersections(meeting))
     }
 
     /// Two pairs, the level's variants, the first first on even turns.

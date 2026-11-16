@@ -4,7 +4,7 @@ use openpaint_practice::{
     AnalysisCompared, AnalysisReading, Arg, Asked, CONTRASTS, CardItem, Choices, Compare,
     ContrastView, Contrasts, Copied, DISTRIBUTIONS, DrawnCopy, Exercise, Figure, ItemRef, Kind,
     Learner, Level, Metric, Pack, PackItem, PictureFit, PictureKind, Pictures, Point, Rgb8, Seen,
-    SheetPicture, Skill, SkillLevel, Source, Standing, Tier, VIEWS, Verdict, schedule,
+    SheetPicture, Skill, SkillLevel, Source, Standing, Tier, VIEWS, Verdict, distance, schedule,
 };
 
 /// A copy holding these marks, by their pens' levels.
@@ -231,4 +231,47 @@ fn without_its_picture_read_compare_lays_no_view() {
             .contains(&CardItem::Views(&VIEWS))
     );
     assert_eq!(read.comparison.marks(&seen(0)).len(), 1, "the mark alone");
+}
+
+#[test]
+fn a_quick_ring_of_few_samples_is_redrawn_as_smooth_as_it_was_drawn() {
+    // Twelve samples round a ring, as a quick stroke leaves them.
+    let samples: Vec<Point> = (0..=12)
+        .map(|k| {
+            let turn = std::f64::consts::TAU * f64::from(k) / 12.0;
+            [0.5 + 0.15 * turn.cos(), 0.5 + 0.1 * turn.sin()]
+        })
+        .collect();
+    let marks = Marked(vec![(Level::Main, samples.clone())]);
+    let Some(Compare::Read(reading)) = compared(&marks, Choices::default()) else {
+        panic!("read on the worker")
+    };
+    let read = reading.read([10, 10], &[255; 400], [255; 3], None);
+    let redrawn = read.comparison.marks(&seen(0));
+    let Figure::Line { points, .. } = &redrawn[0].drawn else {
+        panic!("a line")
+    };
+    // Through every sample, in short pieces, never turning sharply between two.
+    for sample in &samples {
+        let near = points
+            .iter()
+            .map(|p| distance(*p, *sample))
+            .fold(f64::MAX, f64::min);
+        assert!(near < 1e-9, "{sample:?} {near}");
+    }
+    assert!(
+        points
+            .windows(2)
+            .all(|pair| distance(pair[0], pair[1]) <= 0.0041)
+    );
+    let heading = |a: Point, b: Point| (b[1] - a[1]).atan2(b[0] - a[0]);
+    let turns = points.windows(3).map(|t| {
+        let turn = heading(t[1], t[2]) - heading(t[0], t[1]);
+        turn.sin().atan2(turn.cos()).abs().to_degrees()
+    });
+    let sharpest = turns.fold(0.0, f64::max);
+    assert!(
+        sharpest < 5.0,
+        "{sharpest} degrees; the samples alone turn 30"
+    );
 }

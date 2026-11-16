@@ -40,7 +40,7 @@ mod shown;
 pub use crate::book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::copies::{CopyShown, PictureShown};
 pub use crate::layers::{
-    BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LAID_SIDE, LINES_LAYER, PICTURE_LAYER,
+    BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LAID_SCALE, LINES_LAYER, PICTURE_LAYER,
 };
 pub use crate::lesson::{End, Judged, LessonRow, LessonShown, OneMore, PairShown};
 pub use crate::log::{PracticeLog, Refit};

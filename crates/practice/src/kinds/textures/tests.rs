@@ -2,7 +2,7 @@
 //! shadow lies where its ball blocks the sun, by a ray test of the balls alone; a groove's shadow
 //! lies inside it under the rim toward the sun, by its cross-section; the answer painted is matched whole with no mark
 //! over light; an outline drawn round every form lies over light; at 稳 the side toward the light
-//! keeps only its biggest shadows.
+//! keeps only its biggest shadows; a shadow the frame cuts is neither asked for nor missed (S158k).
 
 use std::f64::consts::PI;
 
@@ -189,7 +189,10 @@ fn at_the_third_level_the_side_toward_the_light_keeps_its_biggest_shadows() {
             let task = TextureTask::generate(texture, seed);
             let shadows = task.shadows(SIZE);
             let toward = |k: usize| (shadows.middle(k)[0] >= 0.5) == texture.from_right;
-            let lit_side: Vec<usize> = (0..shadows.blobs.len()).filter(|k| toward(*k)).collect();
+            let whole = |k: &usize| !near_edge(&shadows.blobs[*k], shadows.size, false);
+            let lit_side: Vec<usize> = (0..shadows.blobs.len())
+                .filter(|k| toward(*k) && whole(k))
+                .collect();
             let kept: Vec<usize> = lit_side
                 .iter()
                 .copied()
@@ -207,12 +210,51 @@ fn at_the_third_level_the_side_toward_the_light_keeps_its_biggest_shadows() {
                     .into_iter()
                     .all(|k| shadows.blobs[*k].len() <= least_kept)
             );
-            // The other side keeps every one.
+            // The other side keeps every one the frame leaves whole.
             assert!(
                 (0..shadows.blobs.len())
-                    .filter(|k| !toward(*k))
+                    .filter(|k| !toward(*k) && whole(k))
                     .all(|k| shadows.asked[k])
             );
         }
     }
+}
+
+/// Whether `blob` (pixels of a grid `[w, h]`, `SIZE`'s) comes within half a pen of the grid's
+/// edge, or touches it (`touching`).
+fn near_edge(blob: &[usize], [w, h]: [usize; 2], touching: bool) -> bool {
+    let reach = if touching {
+        1
+    } else {
+        (DARKEST_PEN / 2.0 * f64::from(SIZE[0])).ceil() as usize
+    };
+    blob.iter().any(|at| {
+        let (x, y) = (at % w, at / w);
+        x < reach || y < reach || x + reach >= w || y + reach >= h
+    })
+}
+
+#[test]
+fn a_shadow_the_frame_cuts_is_not_asked_for_nor_ringed_missed() {
+    let mut cut = 0;
+    for task in strips() {
+        let shadows = task.shadows(SIZE);
+        let edge: Vec<usize> = (0..shadows.blobs.len())
+            .filter(|k| near_edge(&shadows.blobs[*k], shadows.size, true))
+            .collect();
+        cut += edge.len();
+        assert!(
+            edge.iter().all(|k| !shadows.asked[*k]),
+            "{:?}",
+            task.texture
+        );
+        // Its pixels lie outside the answer, and a copy leaving it bare misses nothing.
+        let answer = shadows.answer();
+        assert!((edge.iter()).all(|k| shadows.blobs[*k].iter().all(|at| !answer[*at])));
+        let (check, _) = task.read((SIZE, &painted(|at| answer[at])));
+        let middles: Vec<_> = edge.iter().map(|k| shadows.middle(*k)).collect();
+        assert!(check.missed.iter().all(|at| !middles.contains(at)));
+        assert_eq!(check.matched, check.shadows, "{:?}", task.texture);
+    }
+    assert!(cut > 0, "some strip's shadow runs past the frame");
 }

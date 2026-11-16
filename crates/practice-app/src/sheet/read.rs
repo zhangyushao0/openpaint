@@ -7,7 +7,8 @@
 //! colour areas are compared one at a time, the area's outline marked on both frames; a value
 //! scale is filled a cell at a time, the cell in hand (Fill fills it, then the next; the pen
 //! touching a cell takes it, S100); the pictures a reading brings are laid by its marks (a key
-//! shift's frames in grey on asking, its Grey view, S107). The eyedropper is `pick.rs`.
+//! shift's frames in grey on asking, its Grey view, S107, read once its picture is, S158k). The
+//! eyedropper is `pick.rs`.
 
 use std::sync::Arc;
 
@@ -238,8 +239,20 @@ impl PracticeSheet {
         )
     }
 
-    /// The copy's pixels to read, once: the runtime takes it.
+    /// The copy's pixels to read, once: the runtime takes it. A reading that brings both frames in
+    /// grey waits for its picture as read for the screen (S158k): its Grey view shows the original
+    /// in grey however soon Compare was tapped; one that cannot be read reads without.
     pub fn read_request(&mut self) -> Option<ReadJob> {
+        let job = self.painting_state.job.as_ref()?;
+        if job.original.is_none() && job.reading.greys() {
+            let index = self.current()?;
+            if let Some(picture) = self.sheet.pictures.get(index).and_then(Option::as_ref) {
+                let read = self.images.iter().find(|(item, _)| *item == picture.item);
+                let (_, image) = read?;
+                let image = image.clone();
+                self.painting_state.job.as_mut()?.original = image;
+            }
+        }
         self.painting_state.job.take()
     }
 

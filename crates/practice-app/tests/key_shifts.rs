@@ -2,7 +2,8 @@
 //! tendency; its original never picked, the copy's own paint picked; Compare reading the copy on
 //! the worker against the crop's areas and the tendency (what is off, the marked areas' outlines,
 //! both frames in grey), its numbers kept, the learner's eye judging it (S145); the Grey view only
-//! while compared; a lesson of key shifts started once a pack holds crops.
+//! while compared, the copy read once its crop is (S158k); a lesson of key shifts started once a
+//! pack holds crops.
 
 mod support;
 
@@ -204,6 +205,50 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     assert_eq!(session.projection().judged.and_then(|j| j.result), kept);
     practise(&mut session, PracticeIntent::Fill(Color::WHITE));
     assert!(overlay(&session).is_none());
+}
+
+#[test]
+fn compare_before_the_crop_is_read_waits_for_it_so_the_grey_view_greys_the_original() {
+    let mut session = opened(&[crops()]);
+    let item = session.sheet_mut().picture_request().expect("its picture");
+    practise(&mut session, PracticeIntent::Fill(Color::BLACK));
+    practise(&mut session, PracticeIntent::Compare(true));
+    assert!(
+        session.sheet_mut().read_request().is_none(),
+        "waits for its crop"
+    );
+    let image = PictureImage {
+        size: SIZE,
+        pixels: bands(SIZE, BANDS),
+    };
+    session.sheet_mut().picture_read(item, Some(image));
+    let job = session
+        .sheet_mut()
+        .read_request()
+        .expect("read with its crop");
+    assert!(job.original.is_some());
+    let pixels = PictureImage {
+        size: job.size,
+        pixels: bands(job.size, BANDS),
+    };
+    session.sheet_mut().read(job.sequence, job.run(&pixels));
+    practise(&mut session, PracticeIntent::Grey(true));
+    let practice = session.projection();
+    let pictures = practice.read_pictures.as_ref().expect("read");
+    assert_eq!(pictures.len(), 2, "the copy and the crop in grey");
+    let grey = |p: &PictureImage| p.pixels.chunks(4).all(|c| c[0] == c[1] && c[1] == c[2]);
+    assert!(pictures.iter().all(grey));
+    // A crop that cannot be read is read without it.
+    let mut lost = opened(&[crops()]);
+    let item = lost.sheet_mut().picture_request().expect("its picture");
+    practise(&mut lost, PracticeIntent::Fill(Color::BLACK));
+    practise(&mut lost, PracticeIntent::Compare(true));
+    lost.sheet_mut().picture_read(item, None);
+    let job = lost
+        .sheet_mut()
+        .read_request()
+        .expect("read without its crop");
+    assert!(job.original.is_none());
 }
 
 #[test]

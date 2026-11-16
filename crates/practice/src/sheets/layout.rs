@@ -10,7 +10,8 @@
 //! longer side the frame's length, so one edge measures both; every other kind's frames are
 //! square. Each pair keeps its place on the sheet (its square slot), the frames of a picture's
 //! shape held together in the middle of it, so the sheet's size and every other pair's frames
-//! never depend on the pictures.
+//! never depend on the pictures; a picture laid under its marks has one frame, the pair's whole
+//! place its room (`under_at`, abstract analysis, S158k).
 
 use crate::maths::path::Point;
 use crate::records::sheet::{Laid, Sheet};
@@ -211,9 +212,7 @@ impl Layout {
     /// slot's middle from top to bottom.
     #[must_use]
     pub fn pair_at(slot: usize, picture: Option<[u32; 2]>) -> Pair {
-        let (column, row) = ((slot % COLUMNS) as f64, (slot / COLUMNS) as f64);
-        let x = EDGE + column * (PAIR_WIDTH + COLUMN_GAP);
-        let y = EDGE + row * ROW;
+        let [x, y] = Self::slot_at(slot);
         let size = picture.map_or([FRAME; 2], |size| {
             PictureFit::of(size).size.map(|side| side * FRAME)
         });
@@ -228,6 +227,31 @@ impl Layout {
                 size,
             },
         }
+    }
+
+    /// The one frame of slot `slot` for a picture of `picture` pixels laid under its marks
+    /// (`Facts::under`, S158k), both the pair's: as large as the slot holds it, in its middle.
+    #[must_use]
+    pub fn under_at(slot: usize, picture: Option<[u32; 2]>) -> Pair {
+        let [x, y] = Self::slot_at(slot);
+        let [w, h] = picture.map_or([1.0; 2], |size| PictureFit::of(size).size);
+        let scale = (PAIR_WIDTH / w).min(FRAME / h);
+        let size = [w * scale, h * scale];
+        let [left, top] = [PAIR_WIDTH - size[0], FRAME - size[1]].map(|room| room / 2.0);
+        let frame = Frame {
+            origin: [x + left, y + top],
+            size,
+        };
+        Pair {
+            original: frame,
+            copy: frame,
+        }
+    }
+
+    /// Slot `slot`'s top left, canvas pixels.
+    fn slot_at(slot: usize) -> Point {
+        let (column, row) = ((slot % COLUMNS) as f64, (slot / COLUMNS) as f64);
+        [EDGE + column * (PAIR_WIDTH + COLUMN_GAP), EDGE + row * ROW]
     }
 
     /// A day's sheet of `rows` rows.
@@ -260,7 +284,11 @@ impl Layout {
             return layout;
         }
         let pairs = (sheet.exercises())
-            .map(|laid| Self::pair_at(usize::from(laid.slot), frame(laid)))
+            .map(|laid| {
+                let under = laid.exercise.kind.facts().under;
+                let at = if under { Self::under_at } else { Self::pair_at };
+                at(usize::from(laid.slot), frame(laid))
+            })
             .collect();
         Self {
             size: Self::used(sheet),

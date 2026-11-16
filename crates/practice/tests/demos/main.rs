@@ -17,7 +17,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 50] = [
+const STEPS: [(Kind, usize); 52] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -65,6 +65,8 @@ const STEPS: [(Kind, usize); 50] = [
     (Kind::FreeBoxes(Horizon::Path), 4),
     (Kind::Contour(Bend::Gentle), 4),
     (Kind::Intersection(Meeting::Edge), 4),
+    (Kind::Intersection(Meeting::CylinderIntoBox), 4),
+    (Kind::Intersection(Meeting::Cylinders), 4),
     (Kind::Ghosted(Ghosted::Superimposed), 3),
     (Kind::Ghosted(Ghosted::Pairs), 4),
     (Kind::Ghosted(Ghosted::Plane), 4),

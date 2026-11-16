@@ -147,3 +147,33 @@ fn compare_lays_the_same_answer_whatever_the_copy_holds() {
     let off = laid(&Lines(vec![vec![[0.1, 0.9], [0.8, 0.2]]]));
     assert_eq!(exact, off);
 }
+
+/// The larger box's longer side on the picture (frame units), over seeds.
+fn box_sizes(throw: Throw) -> (f64, f64) {
+    let sizes: Vec<f64> = (0..2 * SEEDS)
+        .map(|seed| {
+            let task = ShadowTask::generate(throw, seed);
+            assert!(task.keeps(), "{throw:?} {seed}");
+            let side = |corners: &[Point; 8], k: usize| {
+                let values = corners.iter().map(|c| c[k]);
+                values.clone().fold(f64::NEG_INFINITY, f64::max)
+                    - values.fold(f64::INFINITY, f64::min)
+            };
+            (task.boxes.iter())
+                .map(|seen| side(&seen.corners, 0).max(side(&seen.corners, 1)))
+                .fold(0.0, f64::max)
+        })
+        .collect();
+    let mean = sizes.iter().sum::<f64>() / sizes.len() as f64;
+    (mean, sizes.iter().copied().fold(f64::INFINITY, f64::min))
+}
+
+#[test]
+fn a_front_sun_s_boxes_stand_as_large_as_under_the_other_suns() {
+    let (front, least) = box_sizes(Throw::Front);
+    for other in [Throw::Side, Throw::Behind] {
+        let (mean, _) = box_sizes(other);
+        assert!(front >= 0.9 * mean, "{front} against {other:?}'s {mean}");
+    }
+    assert!(least >= 0.18, "the smallest {least}");
+}

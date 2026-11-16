@@ -1,6 +1,7 @@
 //! Where a practice sheet shows (`mod.rs`): every view of a pair fits its row (`Layout::row_rect`,
 //! exactly a one-row sheet), so a quick pinch fits the row in hand and the zoom's limits are a
-//! row's whatever the sheet's size. It opens on the shown pair, large but with room round it,
+//! row's whatever the sheet's size. It opens on the shown pair, large but with room round it (a
+//! picture under its marks, its pair's one frame, larger, S158k),
 //! Next glides to the next pair at the zoom kept, a finished lesson shows the rows used (the
 //! paper laid ahead below them left out), and One more glides to the next lesson's first pair at
 //! the zoom the view had before Finish; always in the room left of `PRACTICE_ROOM`, where the
@@ -21,8 +22,10 @@ pub const PRACTICE_ROOM: f32 = 416.0;
 /// its height.
 const PAIR_WIDTH: f32 = 0.85;
 const FRAME_HEIGHT: f32 = 0.45;
-/// A colour copy's frames take at most this share of the room's height.
+/// A colour copy's frames take at most this share of the room's height; a picture under its marks
+/// (abstract analysis, S158k) this.
 const STUDY_HEIGHT: f32 = 0.8;
+const UNDER_HEIGHT: f32 = 0.55;
 
 impl PracticeSheet {
     /// On to the next exercise, the view gliding to its pair within `viewport` at its zoom (its
@@ -74,9 +77,12 @@ impl PracticeSheet {
         let ([width, height], _) = room(viewport);
         let pair_width = (pair.copy.origin[0] + pair.copy.size[0] - pair.original.origin[0]) as f32;
         let frame_height = pair.copy.size[1] as f32;
-        // A colour copy's pair fills the room: it is the whole sheet.
+        // A colour copy's pair fills the room: it is the whole sheet; a picture under its marks
+        // is its pair's one frame, as large as its place on the sheet (S158k).
         let tall = if self.record.is_copy() {
             STUDY_HEIGHT
+        } else if self.facts(index).is_some_and(|facts| facts.under) {
+            UNDER_HEIGHT
         } else {
             FRAME_HEIGHT
         };

@@ -143,8 +143,9 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142), a path page and a funnel too
-    // (S156l). Ghosted lines hold three (S156h), value masses two: three values and Notan.
-    assert_eq!(topics().len(), 54);
+    // (S156l). Ghosted lines hold three (S156h), value masses two: three values and Notan; form
+    // intersections three, one a level (S158k).
+    assert_eq!(topics().len(), 56);
 }
 
 #[test]
@@ -188,10 +189,10 @@ fn a_topic_s_facts_say_what_it_is() {
         assert_eq!(facts.beside, key == "cold-warm", "{key}");
     }
     let constructed = topics().into_iter().filter(|facts| facts.constructed);
-    // The twenty-four built from given parts (light on form's three and cast shadows, S153; colour
-    // under light's two, S154; form intersections, S156k; ghosted lines' three, S156h), the free
-    // scribble's one frame (S122), abstract analysis's, its picture under the marks (S112), and a
-    // contrast thumbnail's, its shapes printed in it (S154); an organic arrow's, a funnel's and a
-    // path page's (S156l).
-    assert_eq!(constructed.count(), 30);
+    // The twenty-six built from given parts (light on form's three and cast shadows, S153; colour
+    // under light's two, S154; form intersections' three, S156k, S158k; ghosted lines' three,
+    // S156h), the free scribble's one frame (S122), abstract analysis's, its picture under the
+    // marks (S112), and a contrast thumbnail's, its shapes printed in it (S154); an organic
+    // arrow's, a funnel's and a path page's (S156l).
+    assert_eq!(constructed.count(), 32);
 }

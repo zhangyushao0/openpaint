@@ -3,8 +3,9 @@
 //! hard-edged, every halftone a step lighter than the shadow at least, so the eye tells shading
 //! from shadow. The shadow family (a form turned away, or its ray to the sun blocked) is a mask;
 //! the answer is its blobs, its connected parts once those narrower than `WIDE` pens are opened
-//! away (a sliver along a plate's edge is no shadow to paint). At 稳 the half toward the light
-//! keeps only the biggest third of its blobs: the answer itself sparse there.
+//! away (a sliver along a plate's edge is no shadow to paint), less those the frame cuts (S158k: a
+//! form half outside it is not one to tell). At 稳 the half toward the light keeps only the biggest
+//! third of its blobs asked: the answer itself sparse there.
 
 use crate::kinds::objects::object_picture::lit_picture;
 use crate::kinds::textures::field::{Bumps, Texture, tried, tries};
@@ -37,8 +38,8 @@ pub struct TextureTask {
 }
 
 /// The answer's shadows on a grid of `size` pixels over the strip: the shadow family's mask, each
-/// blob's pixels (row by row) and whether the answer asks for it (all but at 稳 the small ones
-/// toward the light).
+/// blob's pixels (row by row) and whether the answer asks for it (all but those the frame cuts and,
+/// at 稳, the small ones toward the light).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextureShadows {
     pub size: [usize; 2],
@@ -125,12 +126,14 @@ impl TextureTask {
                 self.shade(p).is_some_and(|(_, _, lit)| !lit)
             })
             .collect();
-        let opened = wider(&dark, size, WIDE / 2.0 * DARKEST_PEN * unit);
+        let radius = WIDE / 2.0 * DARKEST_PEN * unit;
+        let opened = wider(&dark, size, radius);
         let blobs = parts(&opened, size);
+        let reach = radius.ceil() as usize;
         let mut shadows = TextureShadows {
             size,
             shadow: dark,
-            asked: vec![true; blobs.len()],
+            asked: (blobs.iter()).map(|blob| !cut(blob, size, reach)).collect(),
             blobs,
         };
         if self.texture.bumps == Bumps::Dense {
@@ -139,11 +142,11 @@ impl TextureTask {
         shadows
     }
 
-    /// `shadows` toward the light kept to the biggest third of them.
+    /// `shadows` asked toward the light kept to the biggest third of them.
     fn sparse(&self, shadows: &mut TextureShadows) {
         let right = self.texture.from_right;
         let mut lit_side: Vec<usize> = (0..shadows.blobs.len())
-            .filter(|k| (shadows.middle(*k)[0] >= 0.5) == right)
+            .filter(|k| shadows.asked[*k] && (shadows.middle(*k)[0] >= 0.5) == right)
             .collect();
         lit_side.sort_by_key(|k| std::cmp::Reverse(shadows.blobs[*k].len()));
         for k in lit_side.iter().skip(lit_side.len().div_ceil(3)) {
@@ -159,6 +162,15 @@ impl TextureTask {
         let inside = (shadows.blobs.iter()).all(|blob| !along_edge(blob, grid));
         (FEWEST..=MOST).contains(&shadows.blobs.len()) && inside
     }
+}
+
+/// Whether the frame cuts `blob` (pixels of a grid `[w, h]`): some of it within `reach` pixels of
+/// the grid's edge (half a pen: the answer's opening keeps a shadow the frame cuts that close).
+fn cut(blob: &[usize], [w, h]: [usize; 2], reach: usize) -> bool {
+    blob.iter().any(|at| {
+        let (x, y) = (at % w, at / w);
+        x < reach || y < reach || x + reach >= w || y + reach >= h
+    })
 }
 
 /// Whether more than half the outline of `blob` (pixels of a grid `[w, h]`) lies on the grid's

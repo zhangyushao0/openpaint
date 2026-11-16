@@ -3,10 +3,10 @@
 //! exercise's strokes) and kept locked, so a pen, a fill or the eraser never reach it and it is
 //! never the layer drawn on. Each exercise whose kind lays its picture under (`Facts::under`)
 //! places its pack picture there as one transform edit, the picture as read for the screen
-//! reduced to `LAID_SIDE` on its longer side and placed into its frame, lifting only that frame's
-//! rectangle, so a second picture never clears the first. The session amends it into the version
-//! shown: never an undo step. The k-th edit is the sheet's k-th such exercise; one whose picture
-//! could not be read keeps its place with a clear patch.
+//! reduced to `LAID_SCALE` pixels a canvas pixel of its frame and placed into it, lifting only that
+//! frame's rectangle, so a second picture never clears the first. The session amends it into the
+//! version shown: never an undo step. The k-th edit is the sheet's k-th such exercise; one whose
+//! picture could not be read keeps its place with a clear patch.
 
 use std::sync::Arc;
 
@@ -19,9 +19,9 @@ use crate::pictures::PictureImage;
 
 /// The picture layer's name, as the app gives it (stored in English, shown in the language).
 pub const PICTURE_LAYER: &str = "Picture";
-/// The longest side a picture is laid at under the marks, in pixels: twice a lesson's frame, the
-/// 2x view tier's resolution.
-pub const LAID_SIDE: u32 = 800;
+/// The pixels a picture is laid at under the marks a canvas pixel of its frame, at most: the 2x
+/// view tier's resolution (S158k: its frame as large as its place on the sheet holds it).
+pub const LAID_SCALE: f64 = 2.0;
 /// How much larger than a clear patch the place it keeps is.
 const CLEAR_SCALE: f32 = 64.0;
 
@@ -101,7 +101,7 @@ fn picture_layer(artwork: &Artwork) -> Result<(Artwork, LayerId), CoreError> {
 fn patched(canvas: CanvasSize, under: &Under) -> Result<(Patch, Placement), CoreError> {
     let [_, [w, h]] = under.place;
     let (size, pixels) = match &under.image {
-        Some(image) => reduced(image, [canvas.width(), canvas.height()]),
+        Some(image) => reduced(image, [w, h], [canvas.width(), canvas.height()]),
         None => {
             let side = |length: f32| ((length / CLEAR_SCALE).ceil() as u32).max(1);
             let size = [side(w), side(h)];
@@ -118,12 +118,14 @@ fn patched(canvas: CanvasSize, under: &Under) -> Result<(Patch, Placement), Core
     Ok((patch, placement))
 }
 
-/// `image` premultiplied, as a patch holds its pixels, its longer side reduced to `LAID_SIDE`
-/// where longer (and within a canvas of `room`), each pixel the mean of those it covers.
-fn reduced(image: &PictureImage, room: [u32; 2]) -> ([u32; 2], Vec<u8>) {
+/// `image` premultiplied, as a patch holds its pixels, reduced to `LAID_SCALE` pixels a canvas
+/// pixel of its place `[w, h]` where larger (and within a canvas of `room`), each pixel the mean of
+/// those it covers.
+fn reduced(image: &PictureImage, [w, h]: [f32; 2], room: [u32; 2]) -> ([u32; 2], Vec<u8>) {
     let [width, height] = image.size.map(|side| side.max(1));
     let shares = [
-        f64::from(LAID_SIDE) / f64::from(width.max(height)),
+        LAID_SCALE * f64::from(w) / f64::from(width),
+        LAID_SCALE * f64::from(h) / f64::from(height),
         f64::from(room[0]) / f64::from(width),
         f64::from(room[1]) / f64::from(height),
         1.0,
