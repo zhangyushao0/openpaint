@@ -7,8 +7,8 @@ use openpaint_app::{Gallery, ImageSource, LibraryAnswer, PortError};
 use openpaint_practice::Purpose;
 use openpaint_practice_app::{Options, OptionsFile, OptionsIntent, OptionsRequest, PracticeLog};
 
-use super::jobs::{PracticeJob, copy_job};
-use super::lesson::lesson_job;
+use super::jobs::PracticeJob;
+use super::lesson::{copy_job, lesson_job, life_job};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
@@ -64,11 +64,12 @@ pub(crate) fn options_job(
             return lesson_job(log, (start, Purpose::Day), seeds, now);
         }
         OptionsRequest::Copy(picture) => return copy_job(log, &picture, seeds, now),
+        OptionsRequest::FromLife(photo) => return life_job(log, &photo, seeds, now),
         OptionsRequest::RenameCopy(sheet, title) => PracticeJob::Rename(sheet, title),
         OptionsRequest::RemoveCopy(sheet) => {
             let copy = (log.of_canvas(sheet))
                 .filter(|copy| copy.is_copy())
-                .ok_or(RuntimeError::NotNow("a colour copy of that sheet"))?;
+                .ok_or(RuntimeError::NotNow("a project of that sheet"))?;
             PracticeJob::Remove(copy.clone())
         }
         OptionsRequest::RemovePicture(item) => PracticeJob::RemovePicture(item),

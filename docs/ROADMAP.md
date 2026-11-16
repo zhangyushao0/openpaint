@@ -47,8 +47,7 @@ Units 1 to 5 are built, laid out as a path since S122, timed by the Pomodoro sin
 Unit 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis (S112, done), structure rotation (S113, done); each joins unit 5 as a skill after the key shifts.
 
 Units 5 to 8 and the foundation they complete, as the author accepted them on mocks: units 5 to 8 (2026-11-15), the ten foundation additions (2026-11-16, "按你推荐来吧"), who judges and progress from the learner's own judgements (2026-11-16). Each builder's contract is its item in the designs of those days, kept by the main session; one builder at a time, one proof each, in this order. For every builder: the app scores only direct measures, whatever reads free strokes lays its exact answer for the eye (D123), and no screen explains the app's workings (D118's guard).
-- Done: A abstract analysis (S112a to S112c), B structure rotation (S113), V drawn copies judged by eye (S145), the screens' words (S146), C re-tests and progress from the learner's judgements (S147, its pairs inside a Pomodoro and One more's re-test S148).
-- M. Drawing from life (写生), an optional project from unit 2: the photo taken first, drawn with it hidden, laid aligned at Compare, the eye judges; the first lesson's scribble becomes its first "before".
+- Done: A abstract analysis (S112a to S112c), B structure rotation (S113), V drawn copies judged by eye (S145), the screens' words (S146), C re-tests and progress from the learner's judgements (S147, its pairs inside a Pomodoro and One more's re-test S148), M drawing from life (S151).
 - D. Unit 6: gamut masks (Gurney), the app judges.
 - I. Unit 6: light on form (the families the app's, inner tones as help; the pen 最暗) and cast shadows (answer laid); the light, rays from any point, the sphere's hit, the lit picture.
 - E. Unit 7: placement from a floor plan (V大's distribution method), answer laid.
@@ -168,6 +167,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-09 Brush editor and sets: StreamLine on the strip's pen strokes; the paper's values, the first size and opacity, removing a curve point; renaming and adding sets, dragging a brush onto a set word, importing and exporting brushes (Procreate's); a set longer than the screen runs off the panel; the picker's height follows its set.
 - 2026-11-16 Abstract analysis on the tablet (1.26.0, a real composition): the picture sits right of the sheet's middle at about 30 % of its width, the left half empty (larger would ring more easily); the Strong ring redrawn over a view is a polygon where the live stroke was smooth.
 - 2026-11-16 Structure rotation: an object is generated on the frame loop (2 to 23 ms, at most 184 ms on the dev machine); the tablet's time is unread (STATUS).
+- 2026-11-16 S151: a long colour copy's Compare still asks Accurate, Almost or Again (its comparison the eye's) though nothing reads a project's result: `Verdict::Nobody` as a drawing from life's, if the author agrees; a photo for a drawing from life is one of My pictures, so shape lessons take it too.
 
 ## Done
 
@@ -182,3 +182,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S148 2026-11-16 1.27.0: blind pairs where the learner pauses — in a Pomodoro the block's end asks one, the least sure of its lessons' skills (an end re-test's own there), never a lesson's end the chain passed; asked once shown; One more and the chain lay a due start re-test. D124 amended.
 - S149 2026-11-16 1.28.0: every skill practised on the book's Progress page — lines and combined lines, never judged in the author's library, were missing; a skill with nothing judged is named in course order over a bare line until a result or a pair gives its curve; a day alone a dot over its date. D124 amended.
 - S150 2026-11-16 1.28.0: a blind pair of any two compared copies, judged or not, a unit's full lessons of before S124 among them — the author's October lines, never judged, can be the older copy; the pair is then their judgement. D124.
+- S151 2026-11-16 1.28.0: drawing from life (写生), a project from unit 2 (the path's card, New copy…) against a photo of one's own, hidden until Compare, laid in place or aligned, no result, lesson or seal; the first lesson draws what is in front of the learner, the book's "before". D105, D123.

@@ -24,6 +24,7 @@ use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH}
 
 use super::mark_draw::{Widths, draw};
 use super::mark_lines::At;
+use crate::palette::{COVER, COVER_EYE};
 use crate::text::{self as t, Words};
 
 /// An original line's width, in canvas pixels, and the least it shows at, in points.
@@ -275,6 +276,10 @@ pub(crate) fn pictured(
     (frame, scale): (&Frame, f32),
     pictures: &SheetPictures,
 ) {
+    if practice.covered && practice.current == Some(index) {
+        covered(painter, at, frame);
+        return;
+    }
     let at = |p: [f64; 2]| at.of(p);
     let picture = practice.sheet.pictures.get(index).and_then(Option::as_ref);
     let grounded = picture.and_then(|p| pictures.grounded(&p.item));
@@ -316,4 +321,39 @@ pub(crate) fn pictured(
         width,
     );
     painter.add(TextShape::new(below, galley, INK_SECONDARY).with_angle(angle));
+}
+
+/// A closed eye's lid (a cubic's four points) and its three lashes, in 400ths of a frame's
+/// longer side from its middle (the mock's).
+const LID: [[f64; 2]; 4] = [[-22.0, 0.0], [-12.0, 10.0], [12.0, 10.0], [22.0, 0.0]];
+const LASHES: [[[f64; 2]; 2]; 3] = [
+    [[-14.0, 7.0], [-18.0, 13.0]],
+    [[0.0, 9.0], [0.0, 16.0]],
+    [[14.0, 7.0], [18.0, 13.0]],
+];
+
+/// An original's frame covered while its photo is out of sight (S151): paper a shade darker, a
+/// closed eye in its middle, both as large to the frame as the view shows it.
+fn covered(painter: &egui::Painter, at: At<'_>, frame: &Frame) {
+    let corners = frame.corners().map(|p| at.of(p));
+    painter.add(Shape::convex_polygon(corners.to_vec(), COVER, Stroke::NONE));
+    let ([x, y], unit) = (frame.middle(), frame.unit() / FRAME);
+    let point = |[dx, dy]: [f64; 2]| at.of([x + dx * unit, y + dy * unit]);
+    // The frame's longer side on screen, and the eye's line a 200th of it.
+    let side = corners[0].distance(corners[1]) * (frame.unit() / frame.size[0]) as f32;
+    let stroke = Stroke::new((side / 200.0).max(1.0), COVER_EYE);
+    let [a, b, c, d] = LID;
+    let lid = (0..=16).map(|k| {
+        let t = f64::from(k) / 16.0;
+        let s = 1.0 - t;
+        let weights = [s * s * s, 3.0 * s * s * t, 3.0 * s * t * t, t * t * t];
+        point([0, 1].map(|axis| {
+            let ends = [a[axis], b[axis], c[axis], d[axis]];
+            (ends.iter().zip(weights)).map(|(end, w)| end * w).sum()
+        }))
+    });
+    painter.add(Shape::line(lid.collect(), stroke));
+    for [from, to] in LASHES {
+        painter.line_segment([point(from), point(to)], stroke);
+    }
 }

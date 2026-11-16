@@ -1,27 +1,29 @@
-//! The long colour copies and the pictures a copy can be begun of, as the home and the practice
-//! options show them (`log/copies.rs` keeps them): each copy with its name and picture, and every
-//! picture of the packs kept (S83), the packs' by tier and the user's own after them, each with
-//! its credit, its tier and how often lessons and copies used it (what removing one of the
-//! user's own would leave without its reference).
+//! The projects (long colour copies, drawings from life) and the pictures one can be begun of, as
+//! the home and the practice options show them (`log/copies.rs` keeps them): each with its name
+//! and picture, and every picture of the packs kept (S83), the packs' by tier and the user's own
+//! after them, each with its credit, its tier and how often lessons, copies and drawings from life
+//! used it (what removing one of the user's own would leave without its reference).
 
 use std::sync::Arc;
 
-use openpaint_practice::{ItemRef, Pack, PictureKind, Sheet, Tier, lessons};
+use openpaint_practice::{ItemRef, OnSheet, Pack, PictureKind, Sheet, Tier, lessons};
 
 use openpaint_app::ProjectId;
 use openpaint_app::Title;
 
-/// A long colour copy as the practice options list it.
+/// A project as the practice options list it: a long colour copy, or a drawing from life.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopyShown {
     /// Its sheet, which opens it.
     pub sheet: ProjectId,
-    /// Its number among the copies.
+    /// Its number among the projects of its sort.
     pub number: u32,
-    /// Its name: its sheet's title ("Colour copy n" until renamed).
+    /// Its name: its sheet's title ("Colour copy n", "Drawing from life n" until renamed).
     pub name: Title,
     /// Its picture, while a pack kept holds it (none: removed).
     pub picture: Option<ItemRef>,
+    /// A drawing from life (S151), else a colour copy.
+    pub from_life: bool,
 }
 
 /// A picture of a pack kept, as the practice options show it.
@@ -35,18 +37,33 @@ pub struct PictureShown {
     /// One of the user's own.
     pub personal: bool,
     pub outline: bool,
-    /// The colour copies begun of it, and the lessons that showed it.
+    /// The colour copies begun of it, the lessons that showed it and the drawings from life
+    /// drawn against it (S151).
     pub copies: u32,
     pub lessons: u32,
+    pub drawings: u32,
 }
 
-/// The pictures of `packs` as the options show them, with how many lessons of `records` used
-/// each.
+/// What used a picture: a lesson, a colour copy or a drawing from life.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Use {
+    Lesson,
+    Copy,
+    Life,
+}
+
+/// The pictures of `packs` as the options show them, with how many lessons, copies and drawings
+/// from life of `records` used each.
 pub(crate) fn pictures_shown(packs: &[Pack], records: &[Sheet]) -> Arc<[PictureShown]> {
     let lessons = lessons(records);
-    let uses = |item: &ItemRef, copies: bool| -> u32 {
+    let used = |on: &OnSheet<'_>| match (on.is_copy(), on.sheet.drawn_from_life()) {
+        (false, _) => Use::Lesson,
+        (true, false) => Use::Copy,
+        (true, true) => Use::Life,
+    };
+    let uses = |item: &ItemRef, by: Use| -> u32 {
         let count = (lessons.iter())
-            .filter(|on| on.is_copy() == copies)
+            .filter(|on| used(on) == by)
             .filter(|on| {
                 (on.lesson.exercises.iter())
                     .any(|laid| laid.exercise.picture.as_ref() == Some(item))
@@ -70,8 +87,9 @@ pub(crate) fn pictures_shown(packs: &[Pack], records: &[Sheet]) -> Arc<[PictureS
                     .map(|credit| credit.attribution.clone()),
                 personal: pack.personal(),
                 outline: found.outline.is_some(),
-                copies: uses(&item, true),
-                lessons: uses(&item, false),
+                copies: uses(&item, Use::Copy),
+                lessons: uses(&item, Use::Lesson),
+                drawings: uses(&item, Use::Life),
                 item,
             });
         }

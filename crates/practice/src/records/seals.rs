@@ -4,7 +4,8 @@
 //! when: no days in a row, quotas or reminders (the author, 2026-10-28).
 //!
 //! `FirstLesson`, `TenLessons` and `FiftyLessons` count lessons finished (a skill's, a full one,
-//! the first; a copy's never) and `Unit(n)` is earned when every skill of unit n has its first
+//! the first; a project's never), `FirstCopy` the first long colour copy begun (a drawing from
+//! life is none), and `Unit(n)` is earned when every skill of unit n has its first
 //! dot (the learner as the records tell it, `course/learner.rs`). A compared exercise counts
 //! toward lines or colours as its kind's facts say (`Facts::counted`).
 
@@ -84,10 +85,10 @@ impl Tally {
         }
     }
 
-    /// Adds `record`'s time, and a long colour copy begun.
+    /// Adds `record`'s time, and a long colour copy begun (a drawing from life none, S151).
     fn add_time(&mut self, record: &Sheet) {
         self.seconds += seconds(&record.spans);
-        if record.is_copy() {
+        if record.is_copy() && !record.drawn_from_life() {
             self.copies += u32::from(record.canvas != 0);
         }
     }

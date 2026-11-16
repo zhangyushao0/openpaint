@@ -1,13 +1,15 @@
 //! Progress seen in the practice book: beside the calendar (S89) the first lesson's single line
 //! beside the latest's, each its original in thin see-through red with the copy as first drawn in
-//! ink over it, the lesson named under each, and the seals earned, stamped in vermilion; on the
-//! Progress page (S147) each skill's curve (`curves.rs`). Only what there is shows: no axes, no
-//! legends.
+//! ink over it, the lesson named under each; under them, once a drawing from life was begun
+//! (S151), the first lesson's drawing of what lay in front of the learner beside the first and
+//! the latest drawing from life, each as first drawn in a frame of its shape, named under it; and
+//! the seals earned, stamped in vermilion; on the Progress page (S147) each skill's curve
+//! (`curves.rs`). Only what there is shows: no axes, no legends.
 
 mod curves;
 
 use egui::{Align2, Pos2, Rect, Shape, Stroke, TextStyle, Vec2};
-use openpaint_practice::Point;
+use openpaint_practice::{LineShown, Point};
 use openpaint_practice_app::BookProjection;
 
 use openpaint_ui::components::paint_sheet;
@@ -23,11 +25,14 @@ pub(super) use curves::{cards_wanted, curves};
 const FRAME: f32 = 148.0;
 const SEAL: f32 = 60.0;
 
-/// The lines and the seals beside the calendar, in `rect`.
+/// The lines, the drawings from life after the first lesson's drawing (S151) and the seals beside
+/// the calendar, in `rect`.
 pub(super) fn beside(ui: &egui::Ui, rect: Rect, book: &BookProjection) {
     let mut top = rect.top();
-    if !book.book.lines.is_empty() {
-        top = paint_lines(ui, Pos2::new(rect.left(), top), book) + 3.0 * SPACE;
+    for row in [&book.book.lines, &book.book.life] {
+        if !row.is_empty() {
+            top = paint_lines(ui, (Pos2::new(rect.left(), top), row), book) + 3.0 * SPACE;
+        }
     }
     let per_row = ((rect.width() / (SEAL + 2.0 * SPACE)).floor() as usize).max(1);
     let language = t::language(ui.ctx());
@@ -48,17 +53,19 @@ pub(super) fn beside(ui: &egui::Ui, rect: Rect, book: &BookProjection) {
     }
 }
 
-/// The lines shown from `at`, side by side; returns the bottom of their row.
-fn paint_lines(ui: &egui::Ui, at: Pos2, book: &BookProjection) -> f32 {
-    let language = t::language(ui.ctx());
+/// The lines or drawings `row` shows from `at`, side by side, each in a frame of its shape;
+/// returns the bottom of their row.
+fn paint_lines(ui: &egui::Ui, (at, row): (Pos2, &[LineShown]), book: &BookProjection) -> f32 {
     let small = TextStyle::Small.resolve(ui.style());
     let mut bottom = at.y;
-    for (place, shown) in book.book.lines.iter().enumerate() {
+    for (place, shown) in row.iter().enumerate() {
         let min = at + Vec2::new(place as f32 * (FRAME + 3.0 * SPACE), 0.0);
-        let frame = Rect::from_min_size(min, Vec2::splat(FRAME));
-        paint_sheet(ui.painter(), None, frame, egui::Color32::WHITE);
         let read = (book.read.get(&shown.record))
             .and_then(|read| read.lines.iter().find(|line| line.index == shown.index));
+        // A drawing from life's frame is its photo's shape, at the slot's top.
+        let extent = read.map_or([1.0, 1.0], |line| line.extent.map(|side| side as f32));
+        let frame = Rect::from_min_size(min, Vec2::new(extent[0], extent[1]) * FRAME);
+        paint_sheet(ui.painter(), None, frame, egui::Color32::WHITE);
         if let Some(line) = read {
             let painter = ui.painter().with_clip_rect(frame);
             let to = |p: &Point| frame.min + Vec2::new(p[0] as f32, p[1] as f32) * FRAME;
@@ -73,7 +80,7 @@ fn paint_lines(ui: &egui::Ui, at: Pos2, book: &BookProjection) -> f32 {
                 ));
             }
         }
-        let caption = t::lesson_number(language, shown.number);
+        let caption = caption(ui.ctx(), book, shown);
         let under = frame.center_bottom() + Vec2::new(0.0, SPACE / 2.0);
         ui.painter().text(
             under,
@@ -82,7 +89,19 @@ fn paint_lines(ui: &egui::Ui, at: Pos2, book: &BookProjection) -> f32 {
             small.clone(),
             INK_SECONDARY,
         );
-        bottom = frame.bottom() + 3.0 * SPACE;
+        bottom = bottom.max(frame.bottom() + 3.0 * SPACE);
     }
     bottom
+}
+
+/// What names `shown` under its frame: a project's name (a drawing from life's, S151), else its
+/// lesson's number.
+fn caption(ctx: &egui::Context, book: &BookProjection, shown: &LineShown) -> String {
+    let named = book
+        .record(shown.record)
+        .and_then(|record| record.copy.as_ref());
+    match named {
+        Some(title) => t::shown_name(ctx, title.as_str()).into_owned(),
+        None => t::lesson_number(t::language(ctx), shown.number),
+    }
 }

@@ -1,16 +1,17 @@
 //! The practice book (S89, S122) as pure math, all of it from the records: the lessons finished,
 //! the days practised by the device's local day with their time and their records, the lessons
-//! whose first single line shows side by side (the first and the latest), the seals earned, and
-//! how much was done in all. Progress counts what was done, never days in a row; each skill's
-//! curve is `progress/` (S147, the colour's first picks' line before it). Lessons are every
-//! sheet's but a copy's (`lessons.rs`); days and time are the sheets', each day with the
+//! whose first single line shows side by side (the first and the latest), the drawings from life
+//! after the first lesson's drawing (S151: its "before", then the first and the latest), the seals
+//! earned, and how much was done in all. Progress counts what was done, never days in a row; each
+//! skill's curve is `progress/` (S147, the colour's first picks' line before it). Lessons are
+//! every sheet's but a project's (`lessons.rs`); days and time are the sheets', each day with the
 //! Pomodoro's blocks completed on it (S124).
 
 use crate::kinds::Kept;
 use crate::records::blocks::Block;
 use crate::records::lessons::{OnSheet, lessons, number};
 use crate::records::seals::{Earned, earned};
-use crate::records::sheet::Sheet;
+use crate::records::sheet::{Laid, Picked, Sheet};
 use crate::records::time::{by_day, seconds};
 
 /// The practice book's contents.
@@ -24,6 +25,10 @@ pub struct Book {
     pub days: Vec<Day>,
     /// The first lesson with a single line compared, and the latest such one when it is another.
     pub lines: Vec<LineShown>,
+    /// Once a drawing from life was begun (S151): the first lesson's drawing of what lay in front
+    /// of the learner, its "before", where there is one, then the first drawing from life and the
+    /// latest when it is another.
+    pub life: Vec<LineShown>,
     /// The seals earned, in the order they were.
     pub seals: Vec<Earned>,
 }
@@ -71,6 +76,7 @@ impl Book {
             seconds: ordered.iter().map(|record| seconds(&record.spans)).sum(),
             days: sealed(days(&ordered, offset), blocks),
             lines: lines(records, &taken),
+            life: life(records),
             seals: earned(records),
         }
     }
@@ -126,19 +132,51 @@ fn sealed(mut days: Vec<Day>, blocks: &[Block]) -> Vec<Day> {
 /// The first lesson's first single line compared, and the latest lesson's when it is another,
 /// each numbered among the lessons of `all`, its index its sheet's.
 fn lines(all: &[Sheet], taken: &[OnSheet<'_>]) -> Vec<LineShown> {
-    let shown = |lesson: &OnSheet<'_>| {
-        let index = (lesson.lesson.exercises.iter()).position(|laid| {
-            laid.first.is_some() && laid.exercise.kind.facts().kept == Kept::Line
-        })?;
-        let index = lesson.first_exercise() + index;
-        Some(LineShown {
-            record: lesson.sheet.id,
-            number: number(all, lesson.sheet, lesson.index),
-            index: u32::try_from(index).unwrap_or(u32::MAX),
-        })
+    let line = |laid: &Laid| laid.first.is_some() && laid.exercise.kind.facts().kept == Kept::Line;
+    let shown = |lesson: &OnSheet<'_>| kept_in(all, lesson, line);
+    first_and_latest(
+        taken.iter().find_map(shown),
+        taken.iter().rev().find_map(shown),
+    )
+}
+
+/// The first lesson's drawing (its "before", where the first lesson was taken) and the first and
+/// latest drawings from life of `all`, each numbered among its own; none until a drawing from life
+/// was begun (S151).
+fn life(all: &[Sheet]) -> Vec<LineShown> {
+    let every = lessons(all);
+    let drawing = |laid: &Laid| laid.exercise.kind.facts().kept == Kept::Drawing;
+    let drawn = |lesson: &&OnSheet<'_>| lesson.sheet.drawn_from_life() && lesson.sheet.canvas != 0;
+    let first = every
+        .iter()
+        .filter(drawn)
+        .find_map(|on| kept_in(all, on, drawing));
+    let latest = (every.iter().rev().filter(drawn)).find_map(|on| kept_in(all, on, drawing));
+    let Some(first) = first else {
+        return Vec::new();
     };
-    let first = taken.iter().find_map(shown);
-    let latest = taken.iter().rev().find_map(shown);
+    let before = (every.iter())
+        .filter(|on| on.lesson.picked == Picked::First)
+        .find_map(|on| kept_in(all, on, drawing));
+    before
+        .into_iter()
+        .chain(first_and_latest(Some(first), latest))
+        .collect()
+}
+
+/// `lesson`'s first exercise `kept` keeps, numbered among the lessons alike of `all`.
+fn kept_in(all: &[Sheet], lesson: &OnSheet<'_>, kept: impl Fn(&Laid) -> bool) -> Option<LineShown> {
+    let index = lesson.lesson.exercises.iter().position(kept)?;
+    let index = lesson.first_exercise() + index;
+    Some(LineShown {
+        record: lesson.sheet.id,
+        number: number(all, lesson.sheet, lesson.index),
+        index: u32::try_from(index).unwrap_or(u32::MAX),
+    })
+}
+
+/// `first`, and `latest` after it when it is another.
+fn first_and_latest(first: Option<LineShown>, latest: Option<LineShown>) -> Vec<LineShown> {
     match (first, latest) {
         (Some(first), Some(latest)) if latest != first => vec![first, latest],
         (Some(first), _) => vec![first],

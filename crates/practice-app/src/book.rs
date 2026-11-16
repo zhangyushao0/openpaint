@@ -6,7 +6,8 @@
 //!
 //! A sheet read keeps what the book shows of it: its strokes and fills as marks for a small
 //! picture of it, each single line's original and first copy (the strokes before its first
-//! Compare, the sketch pen's left out) and each colour's original and first pick (the eye's own,
+//! Compare, the sketch pen's left out), each drawing kept as first drawn (S151: the first lesson's,
+//! a drawing from life's) and each colour's original and first pick (the eye's own,
 //! before any correction), whatever version wrote its record; the originals as the sheet printed
 //! them (S120d), no generator run.
 
@@ -93,12 +94,15 @@ pub enum Mark {
     Fill { rect: [[f32; 2]; 2], colour: Rgb8 },
 }
 
-/// A single line compared: its original and the copy as first drawn, in frame units.
+/// A single line compared: its original and the copy as first drawn, in frame units; or a drawing
+/// (S151: the first lesson's, a drawing from life's) as first drawn, no original. Its frame's width
+/// and height in frame units (1 along the longer side).
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineRead {
     pub index: u32,
     pub original: Vec<Vec<Point>>,
     pub copy: Vec<Vec<Point>>,
+    pub extent: Point,
 }
 
 impl SheetRead {
@@ -112,20 +116,23 @@ impl SheetRead {
         let mut lines = Vec::new();
         let mut colours = Vec::new();
         for (index, (laid, given)) in record.exercises().zip(printed).enumerate() {
-            let (Some(result), Some(pair)) = (&laid.first, sheet.pairs.get(index)) else {
+            let Some(pair) = sheet.pairs.get(index) else {
                 continue;
             };
+            // As first drawn: before its first Compare, or all of it while never compared.
+            let corrected = laid.first.as_ref().and_then(|first| first.corrected_from);
+            let first = corrected.map_or(ALL_STROKES, |from| 0..from);
+            let read = |original| LineRead {
+                index: u32::try_from(index).unwrap_or(u32::MAX),
+                original,
+                copy: line_pieces(artwork, &pair.copy, first.clone()),
+                extent: pair.copy.extent(),
+            };
+            let compared = laid.first.is_some();
             match (laid.exercise.kind.facts().kept, ink(given), swatch(given)) {
-                (Kept::Line, Some(original), _) => {
-                    let first = result.corrected_from.map_or(ALL_STROKES, |from| 0..from);
-                    let copy = line_pieces(artwork, &pair.copy, first);
-                    lines.push(LineRead {
-                        index: u32::try_from(index).unwrap_or(u32::MAX),
-                        original,
-                        copy,
-                    });
-                }
-                (Kept::Pick, _, Some(original)) => {
+                (Kept::Line, Some(original), _) if compared => lines.push(read(original)),
+                (Kept::Drawing, _, _) => lines.push(read(Vec::new())),
+                (Kept::Pick, _, Some(original)) if compared => {
                     let laid = colour_copy(artwork, &pair.copy);
                     if let Some(first) = laid.picks.first() {
                         colours.push((original, *first));

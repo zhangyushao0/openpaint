@@ -11,7 +11,8 @@ use openpaint_practice_app::{PracticeLog, SheetSession, Start};
 use openpaint_practice_store::{Packs, append};
 use openpaint_store::DisplayCache;
 
-use super::jobs::{PracticeDone, PracticeJob, run, seed};
+use super::jobs::{PracticeDone, PracticeJob, run};
+use super::lesson::seed;
 use crate::canvas::Canvas;
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Kept, Storage, loaded};

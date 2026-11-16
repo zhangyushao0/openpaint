@@ -266,10 +266,11 @@ impl PracticeSheet {
 }
 
 /// The result a first comparison keeps: its outcome where the app judges it (S119); none where
-/// the eye does, or while no verdict is honest yet (a painted copy's until its pixels are read).
+/// the eye does, or while no verdict is honest yet (a painted copy's until its pixels are read),
+/// or where none is had at all (a drawing from life, S151).
 pub(super) const fn judged(verdict: Verdict) -> Option<(Outcome, Judge)> {
     match verdict {
         Verdict::App(outcome) => Some((outcome, Judge::App)),
-        Verdict::Eye | Verdict::Incomplete => None,
+        Verdict::Eye | Verdict::Incomplete | Verdict::Nobody => None,
     }
 }

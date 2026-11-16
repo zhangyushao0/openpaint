@@ -38,7 +38,8 @@ texts! { PRACTICE_COURSE;
     REDO_RESULT = "Again", "重来";
     YOUR_EYE = "How close is it?", "你看这一题";
     ENOUGH = "That's all for today", "今天到这儿";
-    FIRST_STEP_SCRIBBLE = "Scribble in the frame: light, then hard.", "在框里随便画几笔，轻一点、重一点都试试。";
+    FIRST_STEP_IN_FRONT = "Draw something in front of you in the frame: a cup, a key, your hand.",
+        "在框里画一样你面前的东西：杯子、钥匙、你的手都行。";
     FIRST_STEP_COPY = "Copy the line on the left in the frame on the right.",
         "照着左边的线，在右边的框里画一条。";
     FIRST_STEP_COMPARE = "Tap Compare, see where it is off, then Next.",

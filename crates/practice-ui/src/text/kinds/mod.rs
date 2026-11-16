@@ -24,6 +24,7 @@ mod free_boxes;
 mod key_shifts;
 mod lines;
 mod objects;
+mod observation;
 mod points_in_space;
 mod rotations;
 mod scales;
@@ -39,6 +40,7 @@ pub(crate) use abstract_analysis::{
     analysis_chosen, analysis_spread, choice_word,
 };
 pub(crate) use key_shifts::{GREY_VIEW, TENDENCY, lightness_off, merged, not_toward};
+pub(crate) use observation::{LIFE_DRAWINGS, LIFE_EXERCISE, LIFE_NEW, life_subject};
 pub(crate) use study::STUDY_EXERCISE;
 pub(crate) use value_masses::{DARK_PEN, LIGHT_PEN, MIDDLE_PEN};
 
@@ -46,7 +48,8 @@ pub(crate) use value_masses::{DARK_PEN, LIGHT_PEN, MIDDLE_PEN};
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct How {
     pub(crate) heading: Text,
-    /// What it trains; none for the colour copy, which has no demonstration.
+    /// What it trains; none for a kind without a demonstration (a colour copy, a drawing from
+    /// life).
     pub(crate) trains: Option<Text>,
     /// One per step of its demonstration (a value scale's own Compare only: its others are made
     /// for the row in hand, `how_steps`).
@@ -83,7 +86,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 21] = [
+const KINDS: [&[KindWords]; 22] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -105,6 +108,7 @@ const KINDS: [&[KindWords]; 21] = [
     &free::WORDS,
     &abstract_analysis::WORDS,
     &rotations::WORDS,
+    &observation::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -173,6 +177,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         key_shifts::PRACTICE_KEY_SHIFTS,
         lines::PRACTICE_LINES,
         objects::PRACTICE_OBJECTS_HOW,
+        observation::PRACTICE_LIFE,
         points_in_space::PRACTICE_POINTS_IN_SPACE,
         rotations::PRACTICE_ROTATIONS,
         scales::PRACTICE_SCALES,

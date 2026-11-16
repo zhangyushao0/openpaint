@@ -1,5 +1,5 @@
-//! A free scribble's words (S122): the first lesson's first exercise. The skeleton's least, its
-//! name under its key; S122c: its How and the first lesson's card.
+//! The first lesson's drawing's words (S122, S151): its first exercise, something in front of the
+//! learner drawn in one frame. Its name under its key; its How is the first lesson's card.
 
 use super::{How, KindWords, words};
 
@@ -14,5 +14,5 @@ const FREE: How = How {
 };
 
 texts! { PRACTICE_FREE;
-    FREE_EXERCISE = "Free scribble", "随手画";
+    FREE_EXERCISE = "Something in front of you", "眼前的东西";
 }

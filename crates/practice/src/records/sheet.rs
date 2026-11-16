@@ -43,7 +43,9 @@ pub struct Sheet {
 pub enum Purpose {
     /// The day's practice: its lessons, each from a new row.
     Day,
-    /// A long colour copy (V大's 色彩临摹): one exercise, never finished, in no lesson's count.
+    /// A project of its own beside the lessons, kept until removed: a long colour copy (V大's
+    /// 色彩临摹) or a drawing from life (写生, S151, its exercise's kind telling which). One
+    /// exercise, never finished, in no lesson's count.
     Copy,
     /// A test lesson the device chore started (`practice-test`): a day's sheet in all else.
     Test,
@@ -71,7 +73,8 @@ pub enum Picked {
     /// first `warm_up` exercises the warm-up. Stored as 3; none is laid since S124 (the Pomodoro
     /// took its place), an old record's still reads and is named as before.
     Full { unit: u8, warm_up: u8 },
-    /// The first lesson (S122): a free scribble, a straight line, an arc. Stored as 4.
+    /// The first lesson (S122): a drawing of something in front of the learner (S151), a straight
+    /// line, an arc. Stored as 4.
     First,
     /// A unit's re-test (S147, `course/retest.rs`): one exercise of each of its skills, the same
     /// tasks at its start and, once its seal is earned, at its `end`. Stored as 5.
@@ -170,12 +173,24 @@ impl Sheet {
     /// A long colour copy of `picture`, the `id`th of all sheets, seeded `seed`, begun at
     /// `started`.
     #[must_use]
-    pub fn copy(id: u64, (seed, started): (u64, u64), picture: ItemRef) -> Self {
-        let copy = Exercise {
+    pub fn copy(id: u64, seeded: (u64, u64), picture: ItemRef) -> Self {
+        Self::project(Kind::Study, id, seeded, picture)
+    }
+
+    /// A drawing from life against `photo` (S151, one of the user's own pictures), the `id`th of
+    /// all sheets, seeded `seed`, begun at `started`: a project as a colour copy is.
+    #[must_use]
+    pub fn from_life(id: u64, seeded: (u64, u64), photo: ItemRef) -> Self {
+        Self::project(Kind::Observation, id, seeded, photo)
+    }
+
+    /// A project of `kind` of `picture`: one exercise on a sheet of its own.
+    fn project(kind: Kind, id: u64, (seed, started): (u64, u64), picture: ItemRef) -> Self {
+        let exercise = Exercise {
             picture: Some(picture),
-            ..Exercise::generated(Kind::Study, seed)
+            ..Exercise::generated(kind, seed)
         };
-        Self::laid_out(id, (Purpose::Copy, started), Picked::Chosen, vec![copy])
+        Self::laid_out(id, (Purpose::Copy, started), Picked::Chosen, vec![exercise])
     }
 
     /// A lesson as planned (S122, `schedule`), the `id`th of all sheets, on a sheet for `purpose`
@@ -314,9 +329,18 @@ impl Sheet {
         self.lesson()?.finished
     }
 
-    /// Whether it is a long colour copy.
+    /// Whether it is a project of its own: a long colour copy or a drawing from life.
     #[must_use]
     pub fn is_copy(&self) -> bool {
         self.purpose == Purpose::Copy
+    }
+
+    /// Whether it is a drawing from life (S151): a project whose picture, the photo, stays out of
+    /// sight until compared (`Facts::hidden`).
+    #[must_use]
+    pub fn drawn_from_life(&self) -> bool {
+        let hidden =
+            (self.exercises().next()).is_some_and(|laid| laid.exercise.kind.facts().hidden);
+        self.is_copy() && hidden
     }
 }

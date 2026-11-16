@@ -23,6 +23,7 @@ impl PracticeSheet {
             sheet: Arc::clone(&self.sheet),
             revealed: self.revealed(),
             original: current.and_then(|index| self.original(index).cloned()),
+            covered: self.covered(),
             copy: self.record.is_copy(),
             current,
             last: current.is_some_and(|index| self.ends(index)),

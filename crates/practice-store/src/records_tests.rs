@@ -126,7 +126,7 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     // The first exercise: its kind after the lesson's exercise in hand and count.
     let kind = picked + 3 + 2 + 4;
     let mut unknown = bytes.clone();
-    unknown[kind] = 23;
+    unknown[kind] = 24;
     assert!(
         decode_sheet(&key, &unknown).is_err(),
         "a kind no version wrote yet"
@@ -305,4 +305,15 @@ fn a_skill_s_lesson_a_test_s_and_a_long_colour_copy_round_trip_as_what_they_are(
     let read = round_trip(&copy).expect("read");
     assert!(read.is_copy() && read.lesson().and_then(Lesson::unit).is_none());
     assert_eq!(read, copy);
+    // A drawing from life (S151): a copy's purpose, its exercise of kind 23, no new byte.
+    let photo = ItemRef {
+        pack: "personal".to_owned(),
+        item: "mine-0badf00d".to_owned(),
+    };
+    let mut life = Sheet::from_life(11, (6, NOON), photo);
+    life.laid_mut(0).expect("the drawing").frame = [1600, 1200];
+    assert_eq!(encode_sheet(&life)[1 + 8 + 8], 2, "a copy's purpose");
+    let read = round_trip(&life).expect("read");
+    assert!(read.drawn_from_life() && !copy.drawn_from_life());
+    assert_eq!(read, life);
 }

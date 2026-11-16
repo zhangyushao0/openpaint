@@ -94,6 +94,7 @@ pub use kinds::objects::object_construction::Stage;
 pub use kinds::objects::object_design::Carve;
 pub use kinds::objects::object_picture::{PAPER_SHADE, SHADE_STEP};
 pub use kinds::objects::object_rules::LEAST_EDGE;
+pub use kinds::observation::ObservedCompared;
 pub use kinds::points_in_space::marks::SpaceCompared;
 pub use kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 pub use kinds::points_in_space::space_check::{NEAR_FACE, SpaceCheck};

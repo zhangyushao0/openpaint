@@ -16,3 +16,7 @@ pub(crate) const VERMILION: Color32 = Color32::from_rgb(184, 58, 38);
 pub(crate) const VERMILION_INK: Color32 = Color32::from_rgb(162, 48, 31);
 /// The pencil the practice book draws what lies ahead with.
 pub(crate) const PENCIL: Color32 = Color32::from_rgb(189, 186, 177);
+/// A photo's frame covered while a drawing from life is made (S151): paper a shade darker than
+/// the sheet, and the closed eye on it in a darker pencil.
+pub(crate) const COVER: Color32 = Color32::from_rgb(244, 241, 235);
+pub(crate) const COVER_EYE: Color32 = Color32::from_rgb(169, 164, 155);

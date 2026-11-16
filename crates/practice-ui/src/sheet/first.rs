@@ -1,6 +1,6 @@
 //! The first lesson's How (S122): in place of a kind's, whichever of its three exercises is in
-//! hand: "First lesson", its exercises and minutes, three short numbered steps (scribble, copy a
-//! line, Compare), and Got it.
+//! hand: "First lesson", its exercises and minutes, three short numbered steps (draw something in
+//! front of you, S151; copy a line; Compare), and Got it.
 
 use openpaint_ui::components::{card_step, card_text, text_button};
 use openpaint_ui::design::{INK, SPACE};
@@ -15,7 +15,7 @@ pub(crate) fn first_how(ui: &mut egui::Ui) -> bool {
     card_text(ui, Words::made(&t::exercises_line(language, FIRST)), true);
     ui.add_space(SPACE);
     let steps = [
-        t::FIRST_STEP_SCRIBBLE,
+        t::FIRST_STEP_IN_FRONT,
         t::FIRST_STEP_COPY,
         t::FIRST_STEP_COMPARE,
     ];

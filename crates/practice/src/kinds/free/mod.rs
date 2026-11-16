@@ -1,13 +1,14 @@
-//! A free scribble (`Kind::Free`, S122): the first lesson's first exercise, one empty frame the
-//! hand draws in as it likes to meet the pen (about half a minute). It has no original (`Blank`:
-//! it gives nothing), compares nothing (`Facts::compared` false: no Compare, Next alone) and ends
-//! with no result; it is no skill (`Skill::of`), so no level, dot or redo counts it and it lays no
-//! lesson. Its one frame is the copy's (constructed), its tile a loop of scribble; it has no How
-//! (nothing is copied).
+//! The first lesson's drawing (`Kind::Free`, S122, S151): its first exercise, one empty frame in
+//! which the learner draws something in front of them, meeting the pen (about half a minute). It
+//! has no original (`Blank`: it gives nothing), compares nothing (`Facts::compared` false: no
+//! Compare, Next alone) and ends with no result; it is no skill (`Skill::of`), so no level, dot or
+//! redo counts it and it lays no lesson. The practice book keeps it as the "before" of the first
+//! drawing from life (`Kept::Drawing`, `observation/`). Its one frame is the copy's
+//! (constructed), its tile a loop of scribble; it has no How of its own (the first lesson's).
 
 use std::sync::Arc;
 
-use crate::kinds::{Blank, Described, Facts, Kind, Original, ToolSet, held};
+use crate::kinds::{Blank, Described, Facts, Kept, Kind, Original, ToolSet, held};
 use crate::marks::tile::{TileMark, curve};
 use crate::sheets::exercise::Exercise;
 
@@ -15,7 +16,8 @@ pub(crate) struct Free;
 
 const FACTS: [Facts; 1] = [Facts::of("free", ToolSet::DRAWING, 30)
     .constructed()
-    .uncompared()];
+    .uncompared()
+    .kept(Kept::Drawing)];
 
 impl Described for Free {
     fn code(&self) -> u8 {

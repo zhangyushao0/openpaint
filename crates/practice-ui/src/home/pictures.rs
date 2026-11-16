@@ -1,5 +1,6 @@
 //! The practice options' pictures (S83): New copy's picker (the packs' pictures of a tier, or the
-//! user's own, each with its credit: tapped, a long colour copy of it begins), My pictures (each
+//! user's own, each with its credit: tapped, a long colour copy of it begins; or the user's own on
+//! Drawing from life, tapped, a drawing from life against it begins, S151), My pictures (each
 //! with its tier and whether it has an outline; tapped, its page: its tier chosen again, Remove…
 //! asking first and saying what the lessons and copies that used it keep), and adding one (its
 //! tier first, then the system's picker). Their small pictures come from the runtime's worker as
@@ -18,7 +19,7 @@ use openpaint_ui::components::{
 };
 use openpaint_ui::design::{Icon, SPACE};
 
-use super::options::{Page, Removal, Tapped, note, row_picture, scrolled};
+use super::options::{Page, Removal, Shelf, Tapped, note, row_picture, scrolled};
 use crate::text::{self as t, Words};
 
 /// A picture page's picture, in points.
@@ -89,69 +90,88 @@ fn title(ctx: &egui::Context, picture: &PictureShown) -> String {
     t::shown_name(ctx, &picture.title).into_owned()
 }
 
-/// New copy's picker: the tiers that hold pictures and My pictures to choose from, then the
-/// pictures of the one chosen, `room` points of them showing at once.
+/// New copy's picker: the tiers that hold pictures, My pictures and Drawing from life to choose
+/// from, then the pictures of the one chosen, `room` points of them showing at once: a colour
+/// copy of the one tapped begins, or on Drawing from life a drawing from life against it (S151),
+/// Add my picture… after them there.
 pub(super) fn picker(
     ui: &mut egui::Ui,
-    (tier, room): (Option<Tier>, f32),
+    (shelf, room): (Shelf, f32),
+    path: &PathProjection,
+    pictures: &mut OptionsPictures,
+) -> Option<Tapped> {
+    ui.heading(Words::from(t::CHOOSE_PICTURE).shown(ui.ctx()));
+    let tabs: Vec<Shelf> = (Tier::ALL.into_iter().map(Shelf::Tier))
+        .chain([Shelf::Mine])
+        .filter(|tab| path.pictures_of(tab.tier()).next().is_some())
+        .chain([Shelf::Life])
+        .collect();
+    let word = |tab: &Shelf| match tab {
+        Shelf::Tier(tier) => t::tier(*tier),
+        Shelf::Mine => t::MY_PICTURES,
+        Shelf::Life => t::LIFE_EXERCISE,
+    };
+    let words: Vec<(Words<'_>, bool, bool)> = (tabs.iter())
+        .map(|tab| (word(tab).into(), *tab == shelf, true))
+        .collect();
+    let chosen = word_columns(ui, "picture tiers", &words, Lead::None)
+        .map(|at| Tapped::Page(Page::Picker(tabs[at])));
+    let rows = scrolled(ui, room - 3.0 * openpaint_ui::design::TOUCH_TARGET, |ui| {
+        let tapped = shelf_rows(ui, shelf, path, pictures);
+        let add =
+            shelf == Shelf::Life && menu_row(ui, t::ADD_PICTURE, Words::EMPTY, true).clicked();
+        tapped.or_else(|| add.then_some(Tapped::Page(Page::Add)))
+    });
+    rows.or(chosen)
+}
+
+/// The pictures of `shelf` as rows; the one tapped begins a colour copy of it, or on Drawing from
+/// life a drawing from life against it.
+fn shelf_rows(
+    ui: &mut egui::Ui,
+    shelf: Shelf,
     path: &PathProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
     let language = t::language(ui.ctx());
-    ui.heading(Words::from(t::CHOOSE_PICTURE).shown(ui.ctx()));
-    let tabs: Vec<Option<Tier>> = (Tier::ALL.into_iter().map(Some))
-        .chain([None])
-        .filter(|tab| path.pictures_of(*tab).next().is_some())
-        .collect();
-    let words: Vec<(Words<'_>, bool, bool)> = (tabs.iter())
-        .map(|tab| {
-            (
-                tab.map_or(t::MY_PICTURES, t::tier).into(),
-                *tab == tier,
-                true,
-            )
-        })
-        .collect();
-    let mut chosen = word_columns(ui, "picture tiers", &words, Lead::None)
-        .map(|at| Tapped::Page(Page::Picker(tabs[at])));
-    let rows = scrolled(ui, room - 3.0 * openpaint_ui::design::TOUCH_TARGET, |ui| {
-        let mut tapped = None;
-        let shown: Vec<&PictureShown> = path.pictures_of(tier).collect();
-        if shown.is_empty() {
-            note(ui, t::NO_PICTURES_HERE.into(), true);
+    let mut tapped = None;
+    let shown: Vec<&PictureShown> = path.pictures_of(shelf.tier()).collect();
+    if shown.is_empty() {
+        note(ui, t::NO_PICTURES_HERE.into(), true);
+    }
+    let life = shelf == Shelf::Life;
+    for picture in shown {
+        let name = title(ui.ctx(), picture);
+        // One's own shows its tier (the tabs say the official ones'), then whether copied.
+        let tier = (picture.personal).then(|| t::tier(picture.tier).get(language));
+        let copied = (picture.copies > 0 && !life).then(|| t::COPIED_BEFORE.get(language));
+        let note = [tier, copied]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" · ");
+        let row = picture_row(
+            ui,
+            &PictureRow {
+                label: Words::named(&picture.title, &name),
+                note: &note,
+                credit: picture.credit.as_deref(),
+                picture: pictures.texture(&picture.item),
+                enabled: true,
+            },
+        );
+        pictures.want(ui, &picture.item, row.rect);
+        if row.clicked() {
+            let item = picture.item.clone();
+            let begun = if life {
+                OptionsIntent::FromLife(item)
+            } else {
+                OptionsIntent::Copy(item)
+            };
+            tapped = Some(Tapped::Options(begun, true));
         }
-        for picture in shown {
-            let name = title(ui.ctx(), picture);
-            // One's own shows its tier (the tabs say the official ones'), then whether copied.
-            let tier = (picture.personal).then(|| t::tier(picture.tier).get(language));
-            let copied = (picture.copies > 0).then(|| t::COPIED_BEFORE.get(language));
-            let note = [tier, copied]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(" · ");
-            let row = picture_row(
-                ui,
-                &PictureRow {
-                    label: Words::named(&picture.title, &name),
-                    note: &note,
-                    credit: picture.credit.as_deref(),
-                    picture: pictures.texture(&picture.item),
-                    enabled: true,
-                },
-            );
-            pictures.want(ui, &picture.item, row.rect);
-            if row.clicked() {
-                tapped = Some(Tapped::Options(
-                    OptionsIntent::Copy(picture.item.clone()),
-                    true,
-                ));
-            }
-        }
-        tapped
-    });
-    chosen = rows.or(chosen);
-    chosen
+    }
+    tapped
 }
 
 /// My pictures: each with its tier and whether it has an outline (tapped, its page; its bin
@@ -210,7 +230,7 @@ pub(super) fn mine(
 
 /// Removing `picture` asks first, saying what the lessons and copies that used it keep.
 fn removal(ctx: &egui::Context, picture: &PictureShown) -> Tapped {
-    let uses = (picture.lessons, picture.copies);
+    let uses = (picture.lessons, picture.copies, picture.drawings);
     Tapped::Remove(Removal::Picture(
         picture.item.clone(),
         title(ctx, picture),

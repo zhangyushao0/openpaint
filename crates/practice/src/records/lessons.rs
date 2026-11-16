@@ -75,7 +75,7 @@ impl<'a> OnSheet<'a> {
         self.lesson.finished
     }
 
-    /// Whether it is a long colour copy.
+    /// Whether it is a project's: a long colour copy's or a drawing from life's.
     #[must_use]
     pub fn is_copy(&self) -> bool {
         self.sheet.is_copy()
@@ -107,14 +107,19 @@ pub fn lessons<'a>(sheets: impl IntoIterator<Item = &'a Sheet>) -> Vec<OnSheet<'
 
 /// Lesson `lesson` of `sheet`'s number in `all` (`sheet` among them or not), from 1: its place
 /// among every lesson but a copy's (the learner's lessons: a row's label on the sheet, "lesson n ·
-/// skill"), a copy's among the copies.
+/// skill"), a colour copy's among the colour copies, a drawing from life's among the drawings
+/// (S151).
 #[must_use]
 pub fn number(all: &[Sheet], sheet: &Sheet, lesson: usize) -> u32 {
     let Some(this) = OnSheet::of(sheet, lesson) else {
         return 1;
     };
+    let alike = |other: &OnSheet<'_>| {
+        other.is_copy() == this.is_copy()
+            && other.sheet.drawn_from_life() == this.sheet.drawn_from_life()
+    };
     let earlier = (lessons(all).iter())
-        .filter(|other| other.order() < this.order() && other.is_copy() == this.is_copy())
+        .filter(|other| other.order() < this.order() && alike(other))
         .count();
     u32::try_from(earlier + 1).unwrap_or(u32::MAX)
 }

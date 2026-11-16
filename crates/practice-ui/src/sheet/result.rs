@@ -2,7 +2,8 @@
 //! after its mark (a dot, a ring half filled, an empty ring). Where the app judges, the one it
 //! found is ringed in ink and the comparison's items under it say why; where the eye judges, a
 //! short prompt, then the three as words to tap (`PracticeIntent::Judge`), the one chosen ringed
-//! from then on. Nothing while no verdict is honest yet; a scribble has none.
+//! from then on. Nothing while no verdict is honest yet; the first lesson's drawing and a drawing
+//! from life have none (S151).
 
 use egui::{Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 use openpaint_practice::{Outcome, Verdict};
@@ -26,7 +27,7 @@ const MARK: f32 = 7.0;
 pub(crate) fn result_row(ui: &mut egui::Ui, judged: Judged, taps: &mut Vec<PracticeIntent>) {
     let kept = judged.result.map(|(outcome, _)| outcome);
     let shown = match (judged.verdict, kept) {
-        (Verdict::Incomplete, _) => return,
+        (Verdict::Incomplete | Verdict::Nobody, _) => return,
         (Verdict::App(outcome), _) => Some(outcome),
         (Verdict::Eye, kept) => kept,
     };

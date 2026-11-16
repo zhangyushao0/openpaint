@@ -37,10 +37,8 @@ use crate::storage::{Job, Storage};
 
 pub(crate) use compare::CompareWorker;
 pub(crate) use day::{appended, one_more};
-pub(crate) use jobs::{
-    PracticeDone, PracticeJob, copy_job, gallery_list, run, seed, sheet_printed, stopped,
-};
-pub(crate) use lesson::lesson_job;
+pub(crate) use jobs::{PracticeDone, PracticeJob, gallery_list, run, sheet_printed, stopped};
+pub(crate) use lesson::{copy_job, lesson_job, seed};
 pub(crate) use options::{chosen, dispatch_options, submit_options};
 
 use crate::frame::Runtime;

@@ -141,13 +141,17 @@ pub(crate) fn remove_named(language: Language, name: &str) -> String {
     }
 }
 
-/// What removing a picture of one's own leaves, by how many lessons and colour copies used it.
-pub(crate) fn picture_goes(language: Language, (lessons, copies): (u32, u32)) -> String {
+/// What removing a picture of one's own leaves, by how many lessons, colour copies and drawings
+/// from life (S151) used it.
+pub(crate) fn picture_goes(
+    language: Language,
+    (lessons, copies, drawings): (u32, u32, u32),
+) -> String {
     let gone = match language {
         Language::English => "It goes from this tablet for good.",
         Language::Chinese => "它会从这台平板上永久删除。",
     };
-    if lessons == 0 && copies == 0 {
+    if lessons == 0 && copies == 0 && drawings == 0 {
         return match language {
             Language::English => format!("{gone} No lesson or copy used it."),
             Language::Chinese => format!("{gone}没有课或临摹用过它。"),
@@ -161,6 +165,7 @@ pub(crate) fn picture_goes(language: Language, (lessons, copies): (u32, u32)) ->
             let parts: Vec<String> = [
                 plural(lessons, "lesson", "lessons"),
                 plural(copies, "colour copy", "colour copies"),
+                plural(drawings, "drawing from life", "drawings from life"),
             ]
             .into_iter()
             .flatten()
@@ -171,6 +176,7 @@ pub(crate) fn picture_goes(language: Language, (lessons, copies): (u32, u32)) ->
             let parts: Vec<String> = [
                 (lessons > 0).then(|| format!("{lessons} 课")),
                 (copies > 0).then(|| format!("{copies} 幅色彩临摹")),
+                (drawings > 0).then(|| format!("{drawings} 幅写生")),
             ]
             .into_iter()
             .flatten()

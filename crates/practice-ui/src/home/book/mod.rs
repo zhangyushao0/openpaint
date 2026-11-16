@@ -152,11 +152,13 @@ impl HomePart {
         }
     }
 
-    /// Asks the store for the sheets the page shows (the lines' lessons, the day's) not read
+    /// Asks the store for the sheets the page shows (the lines' lessons, the drawings from life
+    /// and the first lesson before them, the day's) not read
     /// or asked yet; on the Progress page for the curves while none are fitted for the records
     /// as they stand, and for the re-test pairs' copies (S147).
     fn ask_sheets(&mut self, book: &BookProjection, taps: &mut Vec<OptionsIntent>) {
-        let mut wanted: Vec<u64> = book.book.lines.iter().map(|line| line.record).collect();
+        let shown = book.book.lines.iter().chain(&book.book.life);
+        let mut wanted: Vec<u64> = shown.map(|line| line.record).collect();
         if let Some(day) = self.book.day.and_then(|(day, _)| book.book.day(day)) {
             wanted.extend(&day.records);
         }

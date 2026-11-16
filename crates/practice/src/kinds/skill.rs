@@ -1,8 +1,8 @@
 //! A skill and its levels (S122): what the path shows as a tile with three dots and a lesson
 //! practises. A skill is a kind's folder, named by its stored code (`Described::code`), so the
 //! flow and the screens hold one without knowing which kind it is: 19 of the folders are skills
-//! (`course/unit.rs` lists them by unit); a long colour copy and the first lesson's free scribble
-//! are none, and a generated combination (old records) counts as a combination.
+//! (`course/unit.rs` lists them by unit); a long colour copy, a drawing from life and the first
+//! lesson's drawing are none, and a generated combination (old records) counts as a combination.
 //!
 //! A level is how hard a skill's lesson is laid (入门, 熟练, 稳): harder variants, mixing or
 //! volume, as its folder's `Described::lesson` says. It is stored with every exercise
@@ -55,7 +55,8 @@ impl SkillLevel {
 }
 
 impl Skill {
-    /// The skill `kind` practises; none for a long colour copy and a free scribble.
+    /// The skill `kind` practises; none for a project (a colour copy, a drawing from life) and the
+    /// first lesson's drawing.
     #[must_use]
     pub fn of(kind: Kind) -> Option<Self> {
         let folder = match kind.code().0 {

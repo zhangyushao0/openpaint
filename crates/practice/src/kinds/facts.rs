@@ -29,6 +29,9 @@ pub enum Kept {
     Line,
     /// Its original and the first colour laid (a colour).
     Pick,
+    /// The drawing as first drawn, before its first Compare (S151): the first lesson's drawing of
+    /// what lay in front of the learner and a drawing from life, its "before" and its "after".
+    Drawing,
 }
 
 /// What a compared exercise counts toward among the seals (`records/seals.rs`).
@@ -69,6 +72,9 @@ pub struct Facts {
     /// Whether its pack picture lies under the marks in its one frame, on a locked layer of the
     /// sheet ("Picture", never an undo step, never picked; abstract analysis, S112).
     pub under: bool,
+    /// Whether its original's frame is covered until its first Compare: drawn with the picture out
+    /// of sight (a drawing from life, its photo, S151).
+    pub hidden: bool,
     pub seconds: u16,
 }
 
@@ -89,6 +95,7 @@ impl Facts {
             counted: Counted::Nothing,
             grounded: false,
             under: false,
+            hidden: false,
             seconds,
         }
     }
@@ -96,6 +103,13 @@ impl Facts {
     pub(crate) const fn under(self) -> Self {
         Self {
             under: true,
+            ..self
+        }
+    }
+
+    pub(crate) const fn hidden(self) -> Self {
+        Self {
+            hidden: true,
             ..self
         }
     }

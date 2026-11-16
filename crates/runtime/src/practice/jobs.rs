@@ -5,9 +5,8 @@
 //! (S83), and a test lesson or copy removed so (`test.rs`); a pack imported, a picture of the
 //! user's own added (`files.rs`), removed or moved to another tier in their pack; a picture read
 //! for the screen; what a sheet's exercises printed, read when it opens and for the book (S120d).
-//! And the job a colour copy of the picture chosen starts with, seeded from the strokes' seed
-//! source (fixed in the harness), its sheet the size its layout asks (a lesson's: `lesson.rs`).
-//! And the home's list, which leaves the practice sheets out (D112).
+//! The jobs a lesson or a project starts with are `lesson.rs`'s. And the home's list, which leaves
+//! the practice sheets out (D112).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -17,18 +16,15 @@ use openpaint_core::Artwork;
 use openpaint_practice::{
     BlindPair, CopyRef, Given, Givens, ItemRef, Pack, Progress, Sheet, Tier, TimerWrite,
 };
-use openpaint_practice_app::{CopyCard, PictureImage, PracticeLog, Refit, SheetRead, stored_card};
+use openpaint_practice_app::{CopyCard, PictureImage, Refit, SheetRead, stored_card};
 use openpaint_practice_store::{
     Packs, append, forget_blocks, forget_pairs, printed, put_pair, remove, save, save_timer,
     sheets, start, trim,
 };
 use openpaint_store::DisplayCache;
 
-use super::lesson::started;
 use super::{day, files};
-use crate::error::RuntimeError;
-use crate::seeds::Seeds;
-use crate::storage::{Done, Job, Kept, Loaded};
+use crate::storage::{Done, Kept, Loaded};
 
 pub(crate) enum PracticeJob {
     /// A new sheet: its artwork `sheet`, titled `title`, as a new project that becomes the open
@@ -368,31 +364,4 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
         PracticeJob::AddPicture(..) => PracticeDone::PictureAdded(Err(error)),
         PracticeJob::Picture(item) => PracticeDone::Picture(item.clone(), None),
     })
-}
-
-/// The job that begins a long colour copy of `picture` (the user chose it) from the packs of
-/// `log`, seeded from `seeds`, at `now`.
-///
-/// # Errors
-/// `NotNow` when no pack kept holds the picture.
-pub(crate) fn copy_job(
-    log: &PracticeLog,
-    picture: &ItemRef,
-    seeds: &mut Seeds,
-    now: u64,
-) -> Result<Job, RuntimeError> {
-    let seed = seed(seeds);
-    let (copy, title) =
-        (log.begin_copy(picture, seed, now)).ok_or(RuntimeError::NotNow("a picture to copy"))?;
-    log::info!(
-        "colour copy {} of {}/{}",
-        copy.id,
-        picture.pack,
-        picture.item
-    );
-    started(log, copy, title)
-}
-
-pub(crate) fn seed(seeds: &mut Seeds) -> u64 {
-    u64::from(seeds.next()) << 32 | u64::from(seeds.next())
 }

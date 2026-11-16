@@ -80,8 +80,8 @@ pub enum Kind {
     /// A crop painted again shifted toward a tendency the exercise gives (V大's 变调, S107,
     /// `key_shifts/`).
     KeyShift(Tendency),
-    /// A free scribble in one empty frame: the first lesson's first exercise, nothing given,
-    /// nothing compared, no result (S122, `free/`).
+    /// A drawing in one empty frame of something in front of the learner: the first lesson's
+    /// first exercise, nothing given, nothing compared, no result (S122, S151, `free/`).
     Free,
     /// A composition's picture of a tier analysed over it: its strongest place ringed, by what
     /// contrast it lives, the second and the weak, how strength is spread (V大's 抽象对比分析, S112,
@@ -90,6 +90,9 @@ pub enum Kind {
     /// One of unit 4's objects shown at one angle, drawn at another: turned about its upright,
     /// seen from another height (V大's 结构翻转, S113, `rotations/`).
     Rotation(Rotation),
+    /// A real object drawn from life from one seat, the photo taken from it hidden until Compare
+    /// (写生, S151): a project beside the lessons, never one of their exercises (`observation/`).
+    Observation,
 }
 
 impl Kind {
@@ -100,7 +103,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 22), its
+    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 23), its
     /// variant its description's (`Described::variant`). A code names one generator for good; a
     /// changed generator is a new code.
     #[must_use]

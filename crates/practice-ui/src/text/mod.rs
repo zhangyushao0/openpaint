@@ -144,7 +144,7 @@ mod tests {
             drill_line(language, &offer),
             copy_date(language, 20_769),
         ]);
-        shown.extend([(0, 0), (2, 1)].map(|uses| picture_goes(language, uses)));
+        shown.extend([(0, 0, 0), (2, 1, 1)].map(|uses| picture_goes(language, uses)));
         shown.extend((1..=8).map(|unit| unit_title(language, unit)));
         let seals = [Seal::Unit(2), Seal::TenLessons];
         shown.extend(seals.map(|seal| seal_lines(language, seal).concat()));

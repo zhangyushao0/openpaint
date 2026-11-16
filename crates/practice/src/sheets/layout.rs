@@ -240,8 +240,12 @@ impl Layout {
     pub fn of_sheet(sheet: &Sheet) -> Self {
         let frame = |laid: &Laid| (laid.frame != [0, 0]).then(|| laid.frame.map(u32::from));
         if sheet.is_copy() {
-            let picture = sheet.exercises().next().and_then(frame);
-            return Self::study(picture.unwrap_or([1, 1]));
+            let laid = sheet.exercises().next();
+            // Painted in the full interface for hours, a colour copy's frames are large; a drawing
+            // from life is drawn with the exercise's pens, sized for a lesson's frame (S151).
+            let full = laid.is_some_and(|laid| laid.exercise.kind.facts().tools.full);
+            let side = if full { STUDY_SIDE } else { FRAME };
+            return Self::project(laid.and_then(frame).unwrap_or([1, 1]), side);
         }
         let pairs = (sheet.exercises())
             .map(|laid| Self::pair_at(usize::from(laid.slot), frame(laid)))
@@ -318,8 +322,15 @@ impl Layout {
     /// picture's shape, their longer side `STUDY_SIDE`.
     #[must_use]
     pub fn study(picture: [u32; 2]) -> Self {
+        Self::project(picture, STUDY_SIDE)
+    }
+
+    /// A project's sheet for a picture of `picture` pixels: one pair of frames of the picture's
+    /// shape, their longer side `side`.
+    #[must_use]
+    pub fn project(picture: [u32; 2], side: f64) -> Self {
         let [width, height] = picture.map(|side| f64::from(side.max(1)));
-        let scale = STUDY_SIDE / width.max(height);
+        let scale = side / width.max(height);
         let size = [(width * scale).round(), (height * scale).round()];
         let original = Frame {
             origin: [EDGE, EDGE],
@@ -336,12 +347,14 @@ impl Layout {
         }
     }
 
-    /// The long colour copy's sheet `study` laid on a canvas of `size` pixels, read back from the
+    /// A project's sheet (`study`, `project`) laid on a canvas of `size` pixels, read back from the
     /// canvas: the same frames whatever became of the picture.
     #[must_use]
     pub fn study_on(size: [u32; 2]) -> Self {
         let [width, height] = size.map(f64::from);
         let frame = [(width - 2.0 * EDGE - PAIR_GAP) / 2.0, height - 2.0 * EDGE];
-        Self::study(frame.map(|side| side.round().max(1.0) as u32))
+        let frame = frame.map(|side| side.round().max(1.0));
+        let side = frame[0].max(frame[1]);
+        Self::project(frame.map(|side| side as u32), side)
     }
 }

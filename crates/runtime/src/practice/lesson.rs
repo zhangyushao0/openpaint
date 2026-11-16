@@ -3,15 +3,16 @@
 //! (`openpaint_practice_app::Start`), the lesson the log starts (`PracticeLog::start`: the next
 //! one offered, the review, a skill's, a unit's full lesson, the first), seeded from the strokes'
 //! seed source, on a sheet for the day or a test, onto today's sheet where that takes it
-//! (`day.rs`).
+//! (`day.rs`); and a project begun the same way on a sheet of its own: a long colour copy of a
+//! picture chosen, a drawing from life against a photo of one's own (S151).
 
 use openpaint_app::{GalleryIntent, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{Givens, Layout, Purpose, Sheet};
+use openpaint_practice::{Givens, ItemRef, Layout, Purpose, Sheet};
 use openpaint_practice_app::{PracticeLog, Start};
 
 use super::day;
-use super::jobs::{PracticeJob, seed};
+use super::jobs::PracticeJob;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::seeds::Seeds;
@@ -58,6 +59,52 @@ pub(crate) fn lesson_job(
     );
     let job = started(log, lesson, title)?;
     Ok(day::onto_day(log, job, purpose == Purpose::Day))
+}
+
+/// The job that begins a long colour copy of `picture` (the user chose it) from the packs of
+/// `log`, seeded from `seeds`, at `now`.
+///
+/// # Errors
+/// `NotNow` when no pack kept holds the picture.
+pub(crate) fn copy_job(
+    log: &PracticeLog,
+    picture: &ItemRef,
+    seeds: &mut Seeds,
+    now: u64,
+) -> Result<Job, RuntimeError> {
+    let seed = seed(seeds);
+    let (copy, title) =
+        (log.begin_copy(picture, seed, now)).ok_or(RuntimeError::NotNow("a picture to copy"))?;
+    log::info!(
+        "colour copy {} of {}/{}",
+        copy.id,
+        picture.pack,
+        picture.item
+    );
+    started(log, copy, title)
+}
+
+/// The job that begins a drawing from life against `photo` (S151: one of the user's own
+/// pictures, chosen) from the packs of `log`, seeded from `seeds`, at `now`.
+///
+/// # Errors
+/// `NotNow` when the user's own pictures hold no such photo.
+pub(crate) fn life_job(
+    log: &PracticeLog,
+    photo: &ItemRef,
+    seeds: &mut Seeds,
+    now: u64,
+) -> Result<Job, RuntimeError> {
+    let seed = seed(seeds);
+    let (drawing, title) = (log.begin_from_life(photo, seed, now))
+        .ok_or(RuntimeError::NotNow("a photo of one's own"))?;
+    log::info!("drawing from life {} of {}", drawing.id, photo.item);
+    started(log, drawing, title)
+}
+
+/// A seed for a new sheet from the strokes' seed source.
+pub(crate) fn seed(seeds: &mut Seeds) -> u64 {
+    u64::from(seeds.next()) << 32 | u64::from(seeds.next())
 }
 
 impl Runtime {

@@ -3,8 +3,10 @@
 //! on a pencilled line, the one shown ringed in ink, those open in ink and the rest in pencil, each
 //! a tap away (a unit not open yet is entered all the same); under them the unit shown, its skills
 //! as tiles (`components/skill_tile.rs`: each skill's three dots, the next lesson's ringed, one
-//! lacking its pictures greyed with what it lacks; a tile tapped starts its lesson), the seals
-//! earned and Practice book; beside them the next lesson and the review on the side.
+//! lacking its pictures greyed with what it lacks; a tile tapped starts its lesson), from unit 2
+//! a drawing from life's quiet card under them (S151: the subject the unit suggests, New… opening
+//! New copy's Drawing from life), the seals earned and Practice book; beside them the next lesson
+//! and the review on the side.
 
 use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Stroke, TextStyle, UiBuilder, Vec2};
 use openpaint_app::Language;
@@ -14,7 +16,8 @@ use openpaint_ui::components::{
     ISLAND_TOP, Place, UNDER_ISLANDS, controls, island, paper, text_button,
 };
 use openpaint_ui::design::{
-    INK, INK_SECONDARY, Outline, PANEL, SPACE, TOUCH_TARGET, paint_mark, panel_frame,
+    CORNER, DIVIDER, INK, INK_SECONDARY, Outline, PANEL, SPACE, TOUCH_TARGET, paint_mark,
+    panel_frame,
 };
 
 use super::column::{label, next_lesson, review};
@@ -30,6 +33,9 @@ const RING: f32 = 18.0;
 const SIDE: f32 = 400.0;
 const TILE: f32 = 260.0;
 const SEAL: f32 = 56.0;
+/// A drawing from life's card's width at most and its glyph's size, in points.
+const LIFE_CARD: f32 = 560.0;
+const GLYPH: Vec2 = Vec2::new(72.0, 44.0);
 
 /// The path page's state while the home shows.
 #[derive(Debug, Default)]
@@ -74,6 +80,8 @@ enum Tapped {
     Unit(u8),
     Start(Start, Rect),
     Book(Rect),
+    /// A drawing from life's New… (S151).
+    Life(Rect),
 }
 
 impl HomePart {
@@ -118,6 +126,10 @@ impl HomePart {
             Some(Tapped::Book(from)) => {
                 self.path.close();
                 self.book.open(from);
+            }
+            Some(Tapped::Life(from)) => {
+                self.path.close();
+                self.practice.open_on_life(from);
             }
             None => {}
         }
@@ -259,11 +271,82 @@ fn unit_skills(
     if skills.is_empty() {
         label(&mut column, t::UNIT_IN_THE_MAKING);
     }
+    if unit >= 2 {
+        column.add_space(SPACE);
+        tapped = life_card(&mut column, unit).map(Tapped::Life).or(tapped);
+    }
     let foot = Rect::from_min_max(
         Pos2::new(rect.left(), rect.bottom() - SEAL - SPACE),
         rect.max,
     );
     seals_and_book(ui, foot, path).or(tapped)
+}
+
+/// A drawing from life's quiet card under the unit's tiles (S151, from unit 2): a book and a cup
+/// in ink, its name over the subject the unit suggests, and New…; where New… lies once tapped.
+fn life_card(ui: &mut egui::Ui, unit: u8) -> Option<Rect> {
+    let width = ui.available_width().min(LIFE_CARD);
+    let margin = egui::Margin::symmetric((2.5 * SPACE) as i8, (2.0 * SPACE) as i8);
+    let frame = egui::Frame::NONE
+        .stroke(Stroke::new(1.25, DIVIDER))
+        .corner_radius(CORNER)
+        .inner_margin(margin);
+    let shown = frame.show(ui, |ui| {
+        ui.set_width(width - 5.0 * SPACE);
+        ui.horizontal(|ui| {
+            let (glyph, _) = ui.allocate_exact_size(GLYPH, egui::Sense::hover());
+            still_life(ui.painter(), glyph);
+            ui.add_space(2.0 * SPACE);
+            ui.vertical(|ui| {
+                label(ui, t::LIFE_EXERCISE);
+                ui.label(Words::from(t::life_subject(unit)).shown(ui.ctx()));
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let new = text_button(ui, t::LIFE_NEW, true);
+                new.clicked().then_some(new.rect)
+            })
+            .inner
+        })
+        .inner
+    });
+    shown.inner
+}
+
+/// A book lying and a cup on it, in the glyph's units (`GLYPH`): the book's faces, the cup's sides.
+const BOOK: [&[[f32; 2]]; 2] = [
+    &[
+        [6.0, 40.0],
+        [6.0, 20.0],
+        [30.0, 14.0],
+        [30.0, 34.0],
+        [6.0, 40.0],
+    ],
+    &[[6.0, 20.0], [16.0, 16.0], [40.0, 10.0], [30.0, 14.0]],
+];
+const CUP: [[[f32; 2]; 2]; 2] = [[[46.0, 14.0], [46.0, 38.0]], [[66.0, 14.0], [66.0, 38.0]]];
+
+/// The card's glyph in `rect`: the book and the cup, the cup's rim an ellipse and its foot the
+/// ellipse's near half.
+fn still_life(painter: &egui::Painter, rect: Rect) {
+    let ink = Stroke::new(1.5, INK);
+    let at = |[x, y]: [f32; 2]| rect.min + Vec2::new(x, y);
+    for line in BOOK {
+        painter.add(egui::Shape::line(
+            line.iter().copied().map(at).collect(),
+            ink,
+        ));
+    }
+    for [top, foot] in CUP {
+        painter.line_segment([at(top), at(foot)], ink);
+    }
+    let round = |turn: f32, y: f32| {
+        let angle = std::f32::consts::PI * turn;
+        at([56.0 + 10.0 * angle.cos(), y + 3.5 * angle.sin()])
+    };
+    let rim = (0..=24).map(|k| round(k as f32 / 12.0, 14.0)).collect();
+    painter.add(egui::Shape::line(rim, ink));
+    let foot = (0..=12).map(|k| round(k as f32 / 12.0, 38.0)).collect();
+    painter.add(egui::Shape::line(foot, ink));
 }
 
 /// The seals earned along `foot`, then Practice book.

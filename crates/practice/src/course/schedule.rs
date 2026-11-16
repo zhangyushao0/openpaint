@@ -173,7 +173,8 @@ fn review_held(seed: u64, standing: &Standing<'_>) -> Option<(Skill, SkillLevel,
     Some((skill, level, exercises.collect()))
 }
 
-/// The first lesson seeded `seed` (`Picked::First`), about two minutes: a free scribble, a
+/// The first lesson seeded `seed` (`Picked::First`), about two minutes: a drawing of something
+/// in front of the learner (S151: the "before" of the first drawing from life), a
 /// straight line, an arc; exercise `i` seeded `derived(seed, i)`.
 #[must_use]
 pub fn first(seed: u64) -> Planned {

@@ -45,11 +45,12 @@ fn every_kind() -> Vec<Kind> {
     }));
     kinds.push(Kind::Study);
     kinds.push(Kind::Free);
+    kinds.push(Kind::Observation);
     kinds
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_two() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_three() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -58,10 +59,12 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_two() 
     }
     codes.sort_unstable();
     codes.dedup();
-    assert_eq!(codes, (1..=22).collect::<Vec<u8>>());
+    assert_eq!(codes, (1..=23).collect::<Vec<u8>>());
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
-    assert_eq!(Kind::of_code(23, 0), None);
+    // A drawing from life (S151) is kind 23; no kind is 24.
+    assert_eq!(Kind::Observation.code(), (23, 0));
+    assert_eq!(Kind::of_code(24, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -98,7 +101,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 31);
+    assert_eq!(topics().len(), 32);
     // The retired generated combinations go by the combinations' topic.
     let generated = Kind::Areas(Arrangement::ALL[0]).facts();
     assert_eq!(generated, Kind::Crop(Tier::Simple).facts());
@@ -106,7 +109,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
 
 #[test]
 fn a_topic_s_facts_say_what_it_is() {
-    let aligned = ["line", "combined", "shape"];
+    let aligned = ["line", "combined", "shape", "observation"];
     for facts in topics() {
         let key = facts.key;
         assert_eq!(facts.aligned, aligned.contains(&key), "{key}");

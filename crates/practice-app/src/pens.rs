@@ -57,7 +57,9 @@ const VALUE: (&str, f32, f32) = (HARD_PAINT, (VALUE_PEN * FRAME) as f32, 1.0);
 /// big blocks.
 #[must_use]
 pub fn copy_brush(opening: &Practising) -> Option<(BrushKey, f32)> {
-    let copy = opening.record.is_copy();
+    let full = (opening.record.exercises().next())
+        .is_some_and(|laid| laid.exercise.kind.facts().tools.full);
+    let copy = opening.record.is_copy() && full;
     let frame = opening.view.pairs.first().filter(|_| copy)?.copy;
     let (_, big, _, _) = BIG;
     let size = (big * (frame.unit() / FRAME) as f32).min(MAX_BRUSH_SIZE);

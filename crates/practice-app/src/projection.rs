@@ -119,7 +119,10 @@ pub struct PracticeProjection {
     pub revealed: usize,
     /// The shown exercise's original, made by its generator (the only one made; none once done).
     pub original: Option<Arc<dyn Original>>,
-    /// Whether it is a long colour copy's sheet.
+    /// The shown exercise's original's frame is covered: its photo out of sight until its first
+    /// Compare (a drawing from life, S151).
+    pub covered: bool,
+    /// Whether it is a project's sheet: a long colour copy's or a drawing from life's.
     pub copy: bool,
     /// The exercise shown, an index into the sheet's; none once the lesson is done.
     pub current: Option<usize>,

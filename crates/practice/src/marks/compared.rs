@@ -137,6 +137,9 @@ pub enum Verdict {
     /// No verdict is honest yet: the copy does not cover what the exercise asks, or its pixels
     /// are still being read.
     Incomplete,
+    /// No result at all, asked or kept: a drawing from life, which the eye looks at against its
+    /// photo (S151).
+    Nobody,
 }
 
 /// An exercise compared.

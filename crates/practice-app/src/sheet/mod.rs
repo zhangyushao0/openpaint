@@ -10,9 +10,10 @@
 //! result chosen by eye and the lesson's end (`lesson.rs`; its blind pairs and extra drill,
 //! `pairs.rs`), the time (`time.rs`) and the
 //! notices; what the screen draws (`projected.rs`); the lesson's pictures as the store reads
-//! them. A long colour copy is a sheet of one pair, the full interface always showing (painted
-//! with the toolbox's own brushes, S104) and no Next. The record changes here and goes to the
-//! store whenever it did (`save_request`).
+//! them. A project is a sheet of one pair and no Next: a long colour copy with the full interface
+//! always showing (painted with the toolbox's own brushes, S104), a drawing from life with the
+//! drawing pens and its photo covered until its first Compare (S151). The record changes here and
+//! goes to the store whenever it did (`save_request`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -157,11 +158,13 @@ impl PracticeSheet {
         } = opening;
         let sheet = Arc::new(view);
         let asking = pairs::Asking::of(&record);
+        let full =
+            (record.exercises().next()).is_some_and(|laid| laid.exercise.kind.facts().tools.full);
         let mut practice = Self {
             asking,
             told,
             seen: HashSet::new(),
-            all_tools: record.is_copy(),
+            all_tools: record.is_copy() && full,
             hidden: true,
             time_saved: seconds(&record.spans),
             record,
@@ -303,6 +306,15 @@ impl PracticeSheet {
         self.clip.as_ref()
     }
 
+    /// Whether the shown exercise's original is covered: its kind keeps it out of sight until its
+    /// first Compare (a drawing from life's photo, S151).
+    fn covered(&self) -> bool {
+        let open = self
+            .current()
+            .filter(|index| self.record.first(*index).is_none());
+        open.is_some() && self.shown_facts().is_some_and(|facts| facts.hidden)
+    }
+
     /// Pairs shown: up to the one shown, or all once the lesson is done.
     fn revealed(&self) -> usize {
         match self.current() {
@@ -348,7 +360,7 @@ impl PracticeSheet {
             PracticeIntent::Pen(pen) => self.choose(pen)?,
             PracticeIntent::AllTools(on) => {
                 // A long colour copy has no tools of its own (S104).
-                if !on && self.record.is_copy() {
+                if !on && self.shown_facts().is_some_and(|facts| facts.tools.full) {
                     return Err(unavailable(Availability::NothingLeft));
                 }
                 self.all_tools = on;

@@ -1,5 +1,6 @@
 //! The practice options on the home (the path, the practice options and the practice book): a
-//! lesson of the path (S122) or a long colour copy of a chosen picture, each opened at once; a
+//! lesson of the path (S122), a long colour copy of a chosen picture or a drawing from life
+//! against a photo of one's own (S151), each opened at once; a
 //! copy renamed or removed (S83); a pack imported and a picture of the user's
 //! own added at a tier (S80), each through a picker that takes its turn with the gallery's own
 //! dialogs (`Gallery::choose`); one of the user's pictures removed or moved to another tier; the
@@ -32,6 +33,9 @@ pub enum OptionsIntent {
     /// A new long colour copy of the picture chosen, opened at once (the practice options' New
     /// copy; one begun is opened by its sheet).
     Copy(ItemRef),
+    /// A new drawing from life against the photo chosen among the user's own pictures, opened at
+    /// once (S151: the path page's card, New copy's Drawing from life).
+    FromLife(ItemRef),
     /// A colour copy's name: its sheet's title.
     RenameCopy { sheet: ProjectId, title: Title },
     /// A colour copy removed with its sheet, for good; asked only after the user confirmed it.
@@ -61,6 +65,8 @@ pub enum OptionsRequest {
     Lesson(Start),
     /// A new long colour copy of the picture given and its sheet, which becomes the open one.
     Copy(ItemRef),
+    /// A new drawing from life against the photo given and its sheet, which becomes the open one.
+    FromLife(ItemRef),
     /// A colour copy's sheet titled anew.
     RenameCopy(ProjectId, Title),
     /// A colour copy removed, its record and its sheet.
@@ -82,7 +88,7 @@ impl OptionsRequest {
     /// gallery until the sheet opens, and failing it is a sheet not made.
     #[must_use]
     pub const fn opens(&self) -> bool {
-        matches!(self, Self::Lesson(_) | Self::Copy(_))
+        matches!(self, Self::Lesson(_) | Self::Copy(_) | Self::FromLife(_))
     }
 }
 
@@ -140,6 +146,7 @@ impl Options {
             }
             OptionsIntent::Lesson(start) => OptionsRequest::Lesson(start),
             OptionsIntent::Copy(picture) => OptionsRequest::Copy(picture),
+            OptionsIntent::FromLife(photo) => OptionsRequest::FromLife(photo),
             OptionsIntent::RenameCopy { sheet, title } => OptionsRequest::RenameCopy(sheet, title),
             OptionsIntent::RemoveCopy(sheet) => OptionsRequest::RemoveCopy(sheet),
             OptionsIntent::RemovePicture(picture) => OptionsRequest::RemovePicture(picture.item),

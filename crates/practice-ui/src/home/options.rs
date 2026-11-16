@@ -4,8 +4,10 @@
 //! `pictures.rs`); Import practice pack… and Add my picture… (a tier first, then the system's
 //! picker); the long colour copies (S82), each with its picture and name, to open, or on its page to
 //! rename or remove (`copies.rs`), and New copy…, a picker of the packs' pictures by tier and the
-//! user's own; and the Pomodoro's switch Break chime (S124). Removing asks first, as the home's
-//! delete does. Back goes to the first page; Close or a tap outside closes them.
+//! user's own, and of the user's own for a drawing from life (S151), the drawings from life listed
+//! as the copies once there are some; and the Pomodoro's switch Break chime (S124). Removing asks
+//! first, as the home's delete does. Back goes to the first page; Close or a tap outside closes
+//! them.
 
 use egui::{Align, Layout, Rect};
 use openpaint_app::{GalleryIntent, Intent, ProjectId};
@@ -13,12 +15,13 @@ use openpaint_practice::{ItemRef, Tier};
 use openpaint_practice_app::{OptionsIntent, PathProjection, TimerIntent, TimerShown};
 
 use openpaint_ui::components::{
-    ListRow, Naming, Placement, RowPicture, UNDER_ISLANDS, card_text, dialog_of_width, list_row,
-    menu_row, section, switch_row, text_button,
+    Naming, Placement, RowPicture, UNDER_ISLANDS, card_text, dialog_of_width, menu_row, section,
+    switch_row, text_button,
 };
-use openpaint_ui::design::{DIALOG_WIDTH, Icon, LAYER_PICTURE, SPACE, TOUCH_TARGET};
+use openpaint_ui::design::{DIALOG_WIDTH, LAYER_PICTURE, SPACE, TOUCH_TARGET};
 
 use super::HomePart;
+use super::copies::{copies, drawings};
 use super::pictures::OptionsPictures;
 use crate::text::{self as t, Words};
 
@@ -30,8 +33,8 @@ const CHROME_ROOM: f32 = 4.0 * TOUCH_TARGET;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Page {
     Main,
-    /// New copy's picker: the packs' pictures of a tier, or the user's own (`None`).
-    Picker(Option<Tier>),
+    /// New copy's picker on one of its shelves.
+    Picker(Shelf),
     /// My pictures, one of them, and adding one (its tier first).
     Mine,
     Picture(ItemRef),
@@ -40,13 +43,33 @@ pub(super) enum Page {
     Copy(ProjectId),
 }
 
+/// New copy's shelves: the packs' pictures of a tier and the user's own, each tapped beginning a
+/// colour copy, and the user's own again, each tapped beginning a drawing from life (S151).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Shelf {
+    Tier(Tier),
+    Mine,
+    Life,
+}
+
+impl Shelf {
+    /// The tier whose pictures it holds, the user's own (`None`).
+    pub(super) const fn tier(self) -> Option<Tier> {
+        match self {
+            Self::Tier(tier) => Some(tier),
+            Self::Mine | Self::Life => None,
+        }
+    }
+}
+
 /// What waits for the user's answer before it goes for good.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Removal {
-    /// A colour copy (its sheet) and its name as shown.
+    /// A project (its sheet) and its name as shown.
     Copy(ProjectId, String),
-    /// A picture of one's own, its title as shown, and how many lessons and copies used it.
-    Picture(ItemRef, String, (u32, u32)),
+    /// A picture of one's own, its title as shown, and how many lessons, colour copies and
+    /// drawings from life used it.
+    Picture(ItemRef, String, (u32, u32, u32)),
 }
 
 /// The home's taps, the practice options' and the timer's.
@@ -97,6 +120,11 @@ impl PracticeOptions {
     /// Opens them on their first page, grown from `card`.
     pub(super) fn open(&mut self, card: Rect) {
         self.shown = Some((card, Page::Main));
+    }
+
+    /// Opens them on New copy's Drawing from life, grown from `card` (the path page's card, S151).
+    pub(super) fn open_on_life(&mut self, card: Rect) {
+        self.shown = Some((card, Page::Picker(Shelf::Life)));
     }
 
     /// Closes them and any dialog of theirs as Cancel would. Returns whether one was open.
@@ -215,7 +243,7 @@ fn page_of(
             ui.heading(Words::from(t::PRACTICE_OPTIONS).shown(ui.ctx()));
             scrolled(ui, room, |ui| main_page(ui, (path, timer), pictures))
         }
-        Page::Picker(tier) => super::pictures::picker(ui, (*tier, room), path, pictures),
+        Page::Picker(shelf) => super::pictures::picker(ui, (*shelf, room), path, pictures),
         Page::Mine => super::pictures::mine(ui, room, path, pictures),
         Page::Picture(item) => super::pictures::picture(ui, item, path, pictures),
         Page::Add => super::pictures::add(ui),
@@ -233,7 +261,8 @@ pub(super) fn scrolled<R>(ui: &mut egui::Ui, room: f32, add: impl FnOnce(&mut eg
         .inner
 }
 
-/// The first page: the packs, the colour copies and the Pomodoro's Break chime.
+/// The first page: the packs, the colour copies, the drawings from life once there are some, and
+/// the Pomodoro's Break chime.
 fn main_page(
     ui: &mut egui::Ui,
     (path, timer): (&PathProjection, &TimerShown),
@@ -241,6 +270,7 @@ fn main_page(
 ) -> Option<Tapped> {
     let chosen = packs(ui, path);
     let chosen = copies(ui, path, pictures).or(chosen);
+    let chosen = drawings(ui, path, pictures).or(chosen);
     section(ui, t::POMODORO);
     let chime = switch_row(ui, t::BREAK_CHIME, timer.chime, true).clicked();
     let chime = chime.then_some(Tapped::Timer(TimerIntent::Chime(!timer.chime)));
@@ -273,59 +303,6 @@ fn packs(ui: &mut egui::Ui, path: &PathProjection) -> Option<Tapped> {
     }
     if menu_row(ui, t::ADD_PICTURE, Words::EMPTY, true).clicked() {
         chosen = Some(Tapped::Page(Page::Add));
-    }
-    chosen
-}
-
-/// The long colour copies, each with its picture and name (tapped, it opens; its options button
-/// shows its page), and New copy… while there are pictures; returns what was tapped.
-fn copies(
-    ui: &mut egui::Ui,
-    path: &PathProjection,
-    pictures: &mut OptionsPictures,
-) -> Option<Tapped> {
-    let language = t::language(ui.ctx());
-    let mut chosen = None;
-    section(ui, t::COLOUR_COPIES);
-    for copy in &path.copies {
-        let shown = t::shown_name(ui.ctx(), copy.name.as_str());
-        let picture = copy.picture.as_ref().and_then(|item| path.picture(item));
-        let detail = picture.map_or(t::PICTURE_REMOVED.get(language), |p| p.title.as_str());
-        let texture = copy
-            .picture
-            .as_ref()
-            .and_then(|item| pictures.texture(item));
-        let row = list_row(
-            ui,
-            &ListRow {
-                key: egui::Id::new(("colour copy", copy.sheet.get())),
-                label: Words::named(copy.name.as_str(), &shown),
-                detail,
-                indent: 0.0,
-                lead: None,
-                picture: Some(row_picture(texture)),
-                selected: false,
-                icon: Icon::More,
-                icon_label: t::COPY_OPTIONS,
-                enabled: true,
-                lifted: None,
-            },
-        );
-        if let Some(item) = &copy.picture {
-            pictures.want(ui, item, row.row.rect);
-        }
-        if row.icon.clicked() {
-            chosen = Some(Tapped::Page(Page::Copy(copy.sheet)));
-        } else if row.row.clicked() {
-            let open = GalleryIntent::Open(copy.sheet);
-            chosen = Some(Tapped::Intent(open, true));
-        }
-    }
-    let any = !path.pictures.is_empty();
-    if menu_row(ui, t::NEW_COPY, Words::EMPTY, any).clicked() {
-        let first =
-            (Tier::ALL.into_iter()).find(|tier| path.pictures_of(Some(*tier)).next().is_some());
-        chosen = Some(Tapped::Page(Page::Picker(first)));
     }
     chosen
 }
