@@ -102,6 +102,8 @@ pub use kinds::objects::object_rules::LEAST_EDGE;
 pub use kinds::points_in_space::marks::SpaceCompared;
 pub use kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 pub use kinds::points_in_space::space_check::{NEAR_FACE, SpaceCheck};
+pub use kinds::rotations::marks::RotationCompared;
+pub use kinds::rotations::rotation::{Rotation, RotationTask, Turning};
 pub use kinds::scales::marks::{ScaleCompared, ScaleReading};
 pub use kinds::scales::scale::{
     CELLS, EVEN_ROW, FIRST_CELLS, FIRST_SCALES, NEAR_UNEVEN, NEAR_UNEVEN_LONG, ROW, ScaleCheck,

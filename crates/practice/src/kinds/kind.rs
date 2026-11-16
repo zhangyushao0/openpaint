@@ -19,6 +19,7 @@ use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::lines::line::LineTier;
 use crate::kinds::objects::object_design::Carve;
 use crate::kinds::points_in_space::space::Trick;
+use crate::kinds::rotations::rotation::Rotation;
 use crate::kinds::scales::scale::ScaleTone;
 use crate::kinds::solids::solid::Solid;
 use crate::marks::tile::TileMark;
@@ -85,6 +86,9 @@ pub enum Kind {
     /// contrast it lives, the second and the weak, how strength is spread (V大's 抽象对比分析, S112,
     /// `abstract_analysis/`).
     Analysis(Tier),
+    /// One of unit 4's objects shown at one angle, drawn at another: turned about its upright,
+    /// seen from another height (V大's 结构翻转, S113, `rotations/`).
+    Rotation(Rotation),
 }
 
 impl Kind {
@@ -95,7 +99,7 @@ impl Kind {
             .unwrap_or(KINDS[0])
     }
 
-    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 21), its
+    /// The kind and its variant as stored: each kind's code is its place in `KINDS` (1 to 22), its
     /// variant its description's (`Described::variant`). A code names one generator for good; a
     /// changed generator is a new code.
     #[must_use]

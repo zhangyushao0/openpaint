@@ -11,6 +11,11 @@
 //! top and clear of the blocks, no visible edge under `LEAST_EDGE` (40 pixels of a frame), no two
 //! running together, each change showing at least two corners, and every visible edge a step of
 //! shade the eye sees (`object_picture.rs`).
+//!
+//! The look is the eye's on the box (`Look`): how far it is turned, where it lies against the
+//! eye's level, and, kept from another look, its height and distance. A structure rotation
+//! (S113, `rotations/`) looks at one design twice: the picture's view keeps every rule, the view it
+//! asks drawn only those its answer needs (`Rules::Drawn`).
 
 use crate::geometry::ellipse::EllipseGuide;
 use crate::geometry::perspective::{PerspectiveBox, Place};
@@ -41,6 +46,46 @@ const DISTANCE: [f64; 2] = [2.2, 4.0];
 const BELOW: f64 = 0.7;
 const ACROSS: f64 = 0.9;
 
+/// How the eye looks at an object's box: turned `yaw` (radians) from the eye's line, where it lies
+/// against the eye's level, and its middle's height against the eye and its distance where kept
+/// from another look (laid by `place` otherwise).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Look {
+    pub(crate) yaw: f64,
+    pub(crate) place: Place,
+    pub(crate) kept: Option<[f64; 2]>,
+}
+
+impl Look {
+    /// A look laid from `random` as unit 4's objects lay theirs: turned 25 to 65 degrees, below
+    /// the eye mostly and always with a post (`post`), else across it or above it.
+    pub(crate) fn laid(random: &mut Random, post: bool) -> Self {
+        let yaw = random.range(25.0, 65.0).to_radians();
+        let roll = random.unit();
+        let place = if post || roll < BELOW {
+            Place::Below
+        } else if roll < ACROSS {
+            Place::Across
+        } else {
+            Place::Above
+        };
+        Self {
+            yaw,
+            place,
+            kept: None,
+        }
+    }
+}
+
+/// Which rules a view of an object keeps: every one where its picture shows it (`Pictured`); where
+/// it is only drawn and compared (`Drawn`, a structure rotation's asked view) its box's and its
+/// edges', and at least one change showing two corners, never the bare box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Rules {
+    Pictured,
+    Drawn,
+}
+
 /// An object to simplify into its box, generated the same for the same carve and seed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObjectTask {
@@ -49,6 +94,9 @@ pub struct ObjectTask {
     pub seen: PerspectiveBox,
     /// Its visible edges and outlines (`whole` false: hidden stretches are not drawn).
     pub answer: SolidAnswer,
+    /// Its straight edges and side outlines where its own parts hide them (S113: what a
+    /// structure rotation's answer shows dashed; unit 4's objects show none).
+    pub hidden: Vec<[Point; 2]>,
     /// A round part's ends, each its square with its exact ellipse and middles (S93's).
     pub squares: Vec<EllipseGuide>,
     /// V大's construction, the biggest change's stage first.
@@ -118,53 +166,70 @@ impl ObjectTask {
 /// rule.
 fn laid(carve: Carve, random: &mut Random, two: bool) -> Option<ObjectTask> {
     let design = designed(carve, random, two)?;
-    let post = design.changes.iter().any(|change| change.turned.is_some());
-    let (seen_box, placed, view, lights) = looked(design.size, random, post);
-    let body = Body::of(&design, placed);
-    let early =
-        seen_box.keeps(false) && spaced(&design) && creased(&body) && stands(&design, &body);
-    if !early {
-        return None;
-    }
-    let (mut task, wanted) = built(carve, &design, (seen_box, body, view, lights[0]));
-    let at_fractions = (wanted.iter())
-        .flat_map(|want| want.corners.iter().chain(want.ends.iter().flatten()))
-        .all(|p| p.iter().all(|v| fraction(*v)));
-    if !(at_fractions && task.drawable() && shown(&task, &wanted)) {
-        return None;
-    }
-    // Lit from the other side when every edge does not show so.
-    lights.into_iter().find_map(|light| {
-        task.light = light;
-        task.legible().then(|| task.clone())
-    })
+    let look = Look::laid(random, design.posted());
+    ObjectTask::seen_by(carve, &design, look, random, Rules::Pictured).map(|(task, _)| task)
 }
 
-/// The box `size` seen by the eye looking level, laid from `random`: the box fitted in the frame,
-/// where it lies in the world, the view, and the lights it may be lit by (from the left or the
-/// right, above; the sequence's first).
+impl ObjectTask {
+    /// The object `design` (of `carve`) seen by `look`, the rest of the view laid from `random`,
+    /// with its middle's height against the eye and its distance; none when it breaks a rule of
+    /// `rules`.
+    pub(crate) fn seen_by(
+        carve: Carve,
+        design: &Design,
+        look: Look,
+        random: &mut Random,
+        rules: Rules,
+    ) -> Option<(Self, [f64; 2])> {
+        let post = design.posted();
+        let (seen_box, placed, view, lights, kept) = looked(design.size, (look, post), random);
+        let body = Body::of(design, placed);
+        let early =
+            seen_box.keeps(false) && spaced(design) && creased(&body) && stands(design, &body);
+        if !early {
+            return None;
+        }
+        let (mut task, wanted) = built(carve, design, (seen_box, body, view, lights[0]));
+        let at_fractions = (wanted.iter())
+            .flat_map(|want| want.corners.iter().chain(want.ends.iter().flatten()))
+            .all(|p| p.iter().all(|v| fraction(*v)));
+        let shows = match rules {
+            Rules::Pictured => shown(&task, &wanted),
+            Rules::Drawn => (0..wanted.len()).any(|k| shown(&task, &wanted[k..=k])),
+        };
+        if !(at_fractions && task.drawable() && shows) {
+            return None;
+        }
+        if rules == Rules::Drawn {
+            return Some((task, kept));
+        }
+        // Lit from the other side when every edge does not show so.
+        lights.into_iter().find_map(|light| {
+            task.light = light;
+            task.legible().then(|| (task.clone(), kept))
+        })
+    }
+}
+
+/// The box `size` seen by the eye looking level by `look`, the rest laid from `random`: the box
+/// fitted in the frame, where it lies in the world, the view, the lights it may be lit by (from
+/// the left or the right, above; the sequence's first), and its middle's height and distance.
 fn looked(
     size: [f64; 3],
+    (Look { yaw, place, kept }, post): (Look, bool),
     random: &mut Random,
-    post: bool,
-) -> (PerspectiveBox, Placed, View, [Vector; 2]) {
-    let yaw = random.range(25.0, 65.0).to_radians();
-    let roll = random.unit();
-    let place = if post || roll < BELOW {
-        Place::Below
-    } else if roll < ACROSS {
-        Place::Across
-    } else {
-        Place::Above
-    };
-    let depth = random.range(DISTANCE[0], DISTANCE[1]);
-    // Near enough the eye's level that the horizon stays in the frame.
-    let height = match place {
-        Place::Below if post => -(size[1] / 2.0 + random.range(0.6, 1.3)),
-        Place::Below => -(size[1] / 2.0 + random.range(0.1, 0.6)),
-        Place::Across => random.range(-0.3, 0.3) * size[1],
-        Place::Above => size[1] / 2.0 + random.range(0.1, 0.5),
-    };
+) -> (PerspectiveBox, Placed, View, [Vector; 2], [f64; 2]) {
+    let [height, depth] = kept.unwrap_or_else(|| {
+        let depth = random.range(DISTANCE[0], DISTANCE[1]);
+        // Near enough the eye's level that the horizon stays in the frame.
+        let height = match place {
+            Place::Below if post => -(size[1] / 2.0 + random.range(0.6, 1.3)),
+            Place::Below => -(size[1] / 2.0 + random.range(0.1, 0.6)),
+            Place::Across => random.range(-0.3, 0.3) * size[1],
+            Place::Above => size[1] / 2.0 + random.range(0.1, 0.5),
+        };
+        [height, depth]
+    });
     let middle = [random.range(-0.2, 0.2) * depth, height, depth];
     let world = box_corners(middle, yaw, size);
     let image = world.map(projected);
@@ -194,7 +259,8 @@ fn looked(
         ))
     };
     let lights = [light(from_left), light(!from_left)];
-    (seen_box, placed, View { scale, offset }, lights)
+    let view = View { scale, offset };
+    (seen_box, placed, view, lights, [height, depth])
 }
 
 /// The object of `design` as `body` in the box `seen_box`: its answer and construction, and what
@@ -211,6 +277,7 @@ fn built(
         stages: construction(&seen_box, &wanted),
         seen: seen_box,
         answer: found.answer,
+        hidden: found.hidden,
         squares: found.guides,
         body,
         view,
@@ -274,22 +341,44 @@ fn claims(change: &Change, corner: Local) -> bool {
             .is_some_and(|turned| turned.block.holds(corner))
 }
 
-/// A plain object, the generator's last resort (never met by a seed tested): the box with a step
-/// taken out of its top front, in a box laid from a fixed sequence.
-fn plain(carve: Carve) -> ObjectTask {
+impl ObjectTask {
+    /// The object `design` (of `carve`) seen by `look`, the rest laid from `random`, whatever rule
+    /// it breaks (a generator's last resort), with its middle's height and distance.
+    pub(crate) fn plainly(
+        carve: Carve,
+        design: &Design,
+        look: Look,
+        random: &mut Random,
+    ) -> (Self, [f64; 2]) {
+        let post = design.posted();
+        let (seen_box, placed, view, lights, kept) = looked(design.size, (look, post), random);
+        let body = Body::of(design, placed);
+        (
+            built(carve, design, (seen_box, body, view, lights[0])).0,
+            kept,
+        )
+    }
+}
+
+/// A plain design, a generator's last resort: the box with a step taken out of its top front.
+pub(crate) fn plain_design() -> Design {
     let step = crate::kinds::objects::object_design::Block {
         low: [0.0, 0.5, 0.0],
         high: [1.0, 1.0, 0.5],
     };
-    let design = Design {
+    Design {
         changes: vec![Change {
             out: vec![step],
             ..Change::default()
         }],
         size: [1.0; 3],
-    };
-    let (seen_box, placed, view, lights) =
-        looked(design.size, &mut Random::new(0x000B_1EC7), false);
-    let body = Body::of(&design, placed);
-    built(carve, &design, (seen_box, body, view, lights[0])).0
+    }
+}
+
+/// A plain object, the generator's last resort (never met by a seed tested): the plain design in a
+/// box laid from a fixed sequence.
+fn plain(carve: Carve) -> ObjectTask {
+    let mut random = Random::new(0x000B_1EC7);
+    let look = Look::laid(&mut random, false);
+    ObjectTask::plainly(carve, &plain_design(), look, &mut random).0
 }

@@ -3,8 +3,8 @@
 
 use openpaint_practice::{
     BoxView, CELLS, Carve, Combination, Demo, DemoLayout, Drawn, Estimate, Guide, Horizon, Kind,
-    Lightness, LineTier, Marker, ObjectTask, On, Point, Purity, ScaleTone, Solid, Tier, Tone,
-    Trick, distance, meet,
+    Lightness, LineTier, Marker, ObjectTask, On, Point, Purity, Rotation, ScaleTone, Solid, Tier,
+    Tone, Trick, distance, meet,
 };
 
 const COLOUR: Tone = Tone {
@@ -13,7 +13,7 @@ const COLOUR: Tone = Tone {
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Kind, usize); 27] = [
+const STEPS: [(Kind, usize); 28] = [
     (Kind::Line(LineTier::Arc), 4),
     (Kind::Combined(Combination::Joined), 4),
     (Kind::Shape(Tier::Entry), 5),
@@ -34,6 +34,7 @@ const STEPS: [(Kind, usize); 27] = [
     (Kind::Solid(Solid::Cone), 4),
     (Kind::Solid(Solid::Sphere), 5),
     (Kind::Object(Carve::Cut), 5),
+    (Kind::Rotation(Rotation::ALL[1]), 5),
     (Kind::Division(Tier::Simple), 4),
     (Kind::WholeCopy(Tier::Simple), 3),
     (Kind::ValueMasses(Tier::Simple), 4),
@@ -58,7 +59,13 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
             demo.layout,
             DemoLayout::Single | DemoLayout::Wide | DemoLayout::Row
         );
-        let lone = ["objects", "division", "whole-copy", "value-masses"];
+        let lone = [
+            "objects",
+            "structure-rotation",
+            "division",
+            "whole-copy",
+            "value-masses",
+        ];
         let lone = cropped || lone.contains(&kind.facts().key);
         assert_eq!(demo.view.is_some(), lone, "{kind:?}");
     }

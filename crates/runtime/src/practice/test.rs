@@ -30,7 +30,8 @@ use crate::storage::Job;
 /// key, `Skill::key`), as the refusal of another name says it.
 const SKILLS: &str = "a skill of line, combined, colour, shape, combination, scale, box, \
                       free-boxes, ellipse, estimates, points-in-space, solids, objects, division, \
-                      value-masses, whole-copy, key-shift or abstract-analysis, at level 1, 2 or 3";
+                      value-masses, whole-copy, key-shift, abstract-analysis or \
+                      structure-rotation, at level 1, 2 or 3";
 
 /// The lesson of the skill keyed `key` at `level` (1 to 3), or at the learner's level without
 /// one.

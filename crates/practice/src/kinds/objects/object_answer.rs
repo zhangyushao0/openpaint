@@ -35,12 +35,15 @@ const SEEN: f64 = 1e-6;
 const ONE_LINE: f64 = 1e-8;
 
 /// An object as the eye sees it: the answer, the corners at the ends of the edges it shows (the
-/// box's own coordinates), and each round part's ends as squares with their ellipses.
+/// box's own coordinates), each round part's ends as squares with their ellipses, and its straight
+/// edges and side outlines where its own parts hide them (S113), each a pixel and a half long at
+/// least.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Seen {
     pub(crate) answer: SolidAnswer,
     pub(crate) corners: Vec<Local>,
     pub(crate) guides: Vec<EllipseGuide>,
+    pub(crate) hidden: Vec<[Point; 2]>,
 }
 
 /// A line of the object that may show.
@@ -90,6 +93,7 @@ impl Line {
 /// `body` as the eye sees it through `view`.
 pub(crate) fn seen(body: &Body, view: View) -> Seen {
     let mut straight: Vec<[Point; 2]> = Vec::new();
+    let mut hidden: Vec<[Point; 2]> = Vec::new();
     let mut corners: Vec<Local> = Vec::new();
     let steps = |line: &Line| {
         let long = (0..8)
@@ -104,6 +108,11 @@ pub(crate) fn seen(body: &Body, view: View) -> Seen {
         let creased = runs(steps(&line), (0.0, line.span()), |t| line.shows(body, t));
         for [from, to] in creased {
             let shown = runs(steps(&line), (from, to), |t| visible(body, line.at(t)));
+            hidden.extend(
+                gaps(&shown, [from, to])
+                    .map(|[a, b]| [a, b].map(|t| view.at(line.at(t))))
+                    .filter(|[a, b]| distance(*a, *b) >= STEP),
+            );
             if shown.is_empty() {
                 continue;
             }
@@ -132,7 +141,15 @@ pub(crate) fn seen(body: &Body, view: View) -> Seen {
         },
         corners: distinct(corners),
         guides,
+        hidden: merged(hidden),
     }
+}
+
+/// The stretches of `[from, to]` between the `shown` runs (in order, within it).
+fn gaps(shown: &[[f64; 2]], [from, to]: [f64; 2]) -> impl Iterator<Item = [f64; 2]> {
+    let starts = std::iter::once(from).chain(shown.iter().map(|run| run[1]));
+    let ends = shown.iter().map(|run| run[0]).chain(std::iter::once(to));
+    starts.zip(ends).filter(|(a, b)| b > a).map(|(a, b)| [a, b])
 }
 
 /// Every line of `body` that may show: its hulls' edges and its round parts' outlines.

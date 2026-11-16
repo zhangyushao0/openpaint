@@ -120,6 +120,53 @@ pub(crate) struct Design {
     pub(crate) size: [f64; 3],
 }
 
+impl Design {
+    /// Whether a round part stands on it (a post: seen from above, its ends no slivers).
+    pub(crate) fn posted(&self) -> bool {
+        self.changes.iter().any(|change| change.turned.is_some())
+    }
+
+    /// The same object turned about its upright by `quarters` quarter turns (S113), as the box's
+    /// own coordinates of another corner at the front: a quarter takes `(a, c)` to `(1 - c, a)`,
+    /// its width and depth swapped; never mirrored. A round part keeps its axis's place (a post
+    /// stands; a lying one never comes, `object_changes::on_top`).
+    pub(crate) fn turned(&self, quarters: u8) -> Self {
+        (0..quarters % 4).fold(self.clone(), |design, _| design.quarter())
+    }
+
+    fn quarter(&self) -> Self {
+        let turn = |p: Local| [1.0 - p[2], p[1], p[0]];
+        let block = |b: &Block| {
+            let (low, high) = (turn(b.low), turn(b.high));
+            Block {
+                low: std::array::from_fn(|k| low[k].min(high[k])),
+                high: std::array::from_fn(|k| low[k].max(high[k])),
+            }
+        };
+        let changes = (self.changes.iter())
+            .map(|change| Change {
+                out: change.out.iter().map(block).collect(),
+                cuts: (change.cuts.iter())
+                    .map(|cut| Cut {
+                        through: cut.through.map(turn),
+                        off: turn(cut.off),
+                    })
+                    .collect(),
+                turned: change.turned.map(|turned| Turned {
+                    block: block(&turned.block),
+                    axis: [2, 1, 0][turned.axis.min(2)],
+                    ..turned
+                }),
+            })
+            .collect();
+        let [width, height, depth] = self.size;
+        Self {
+            changes,
+            size: [depth, height, width],
+        }
+    }
+}
+
 /// A design of `carve` laid from `random`, of two changes when `two` (a round part's alone);
 /// none when no footprint fits or the sides a round part asks fall outside the box's
 /// proportions (the caller lays another).

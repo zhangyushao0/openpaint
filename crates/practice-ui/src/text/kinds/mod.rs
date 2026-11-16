@@ -25,6 +25,7 @@ mod key_shifts;
 mod lines;
 mod objects;
 mod points_in_space;
+mod rotations;
 mod scales;
 mod shapes;
 mod solids;
@@ -83,7 +84,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 20] = [
+const KINDS: [&[KindWords]; 21] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -104,6 +105,7 @@ const KINDS: [&[KindWords]; 20] = [
     &key_shifts::WORDS,
     &free::WORDS,
     &abstract_analysis::WORDS,
+    &rotations::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -173,6 +175,7 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         lines::PRACTICE_LINES,
         objects::PRACTICE_OBJECTS_HOW,
         points_in_space::PRACTICE_POINTS_IN_SPACE,
+        rotations::PRACTICE_ROTATIONS,
         scales::PRACTICE_SCALES,
         shapes::PRACTICE_SHAPES,
         solids::PRACTICE_SOLIDS_HOW,

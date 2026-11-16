@@ -40,11 +40,11 @@ fn after(learner: &Learner, key: &str, level: SkillLevel, outcomes: &[Outcome]) 
 }
 
 #[test]
-fn the_units_hold_eighteen_skills_each_once_under_a_key_of_its_own() {
+fn the_units_hold_nineteen_skills_each_once_under_a_key_of_its_own() {
     let skills: Vec<Skill> = Skill::all().collect();
-    assert_eq!(skills.len(), 18);
+    assert_eq!(skills.len(), 19);
     let held: usize = UNITS.iter().map(|unit| unit.skills.len()).sum();
-    assert_eq!(held, 18);
+    assert_eq!(held, 19);
     let mut keys: Vec<&str> = skills.iter().map(|skill| skill.key()).collect();
     for (skill, key) in skills.iter().zip(&keys) {
         assert_eq!(Skill::of_key(key), Some(*skill), "{key}");
@@ -53,7 +53,7 @@ fn the_units_hold_eighteen_skills_each_once_under_a_key_of_its_own() {
     }
     keys.sort_unstable();
     keys.dedup();
-    assert_eq!(keys.len(), 18);
+    assert_eq!(keys.len(), 19);
     // A kind is its folder's skill; a long colour copy and the free scribble are none.
     assert_eq!(Skill::of(Kind::Line(LineTier::Hook)), Some(skill("line")));
     assert_eq!(
@@ -227,7 +227,7 @@ fn a_unit_opens_by_the_first_dots_of_the_unit_before_it() {
 fn a_unit_opens_only_after_the_one_before_it_opened_and_never_one_without_a_skill() {
     let pictures = Pictures::default();
     let fresh = Learner::default();
-    // Unit 5's one skill lacks its pack; that opens nothing past it on a fresh learner.
+    // Unit 5's colour skills lack their packs; that opens nothing past it on a fresh learner.
     assert!(skill("key-shift").lacks(&pictures).is_some());
     let open = |learner: &Learner| -> Vec<u8> {
         (1..=8)
@@ -236,7 +236,7 @@ fn a_unit_opens_only_after_the_one_before_it_opened_and_never_one_without_a_skil
     };
     assert_eq!(open(&fresh), [1]);
     // Every skill that can be practised without a pack with its first dot: units 1 to 5 open,
-    // unit 5 though its skill cannot be practised, and never 6 to 8.
+    // unit 5 though its colour skills cannot be practised, and never 6 to 8.
     let mut learner = fresh;
     for practised in Skill::all().filter(|skill| skill.lacks(&pictures).is_none()) {
         // Lessons until the window fills: as many as it takes a lesson's size.

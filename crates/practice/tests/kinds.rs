@@ -8,9 +8,9 @@ use std::sync::Arc;
 use openpaint_practice::{
     Areas, Arrangement, Asked, BoxView, Carve, Combination, Copied, DrawnCopy, Estimate, Exercise,
     Facts, Fill, Guide, Horizon, ItemRef, Kind, Lean, Learner, Level, Lightness, LineTier, Metric,
-    Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, ScaleTone,
-    SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick, ValueMasses,
-    schedule,
+    Pack, PackItem, Pen, PictureFit, PictureKind, Pictures, Point, Purity, Rgb8, Rotation,
+    ScaleTone, SheetPicture, Skill, SkillLevel, Solid, Standing, Tendency, Tier, Tone, Trick,
+    ValueMasses, schedule,
 };
 
 /// A kind of every variant the stores may hold.
@@ -25,6 +25,7 @@ fn every_kind() -> Vec<Kind> {
     kinds.extend(Trick::ALL.map(Kind::Space));
     kinds.extend(Solid::ALL.map(Kind::Solid));
     kinds.extend(Carve::ALL.map(Kind::Object));
+    kinds.extend(Rotation::ALL.map(Kind::Rotation));
     for tier in Tier::ALL {
         let tiered = [Kind::Shape, Kind::Crop, Kind::Division, Kind::WholeCopy];
         kinds.extend(tiered.map(|kind| kind(tier)));
@@ -48,7 +49,7 @@ fn every_kind() -> Vec<Kind> {
 }
 
 #[test]
-fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_one() {
+fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_two() {
     let mut codes = Vec::new();
     for kind in every_kind() {
         let (code, variant) = kind.code();
@@ -57,10 +58,10 @@ fn every_kind_reads_back_from_its_stored_code_and_codes_run_one_to_twenty_one() 
     }
     codes.sort_unstable();
     codes.dedup();
-    assert_eq!(codes, (1..=21).collect::<Vec<u8>>());
+    assert_eq!(codes, (1..=22).collect::<Vec<u8>>());
     // The first lesson's free scribble (S122) is kind 20, its one variant 0.
     assert_eq!(Kind::Free.code(), (20, 0));
-    assert_eq!(Kind::of_code(22, 0), None);
+    assert_eq!(Kind::of_code(23, 0), None);
     assert_eq!(Kind::Analysis(Tier::Hard).code(), (21, 4));
     // Codes pinned for good: points in space, estimates, objects, compositions, crops.
     assert_eq!(Kind::Space(Trick::Mirror).code(), (12, 4));
@@ -97,7 +98,7 @@ fn every_topic_is_described_once_with_a_key_of_its_own() {
         assert!(alike.into_iter().all(|k| k.facts() == facts));
     }
     // Free boxes looking down and up are topics of their own (S142).
-    assert_eq!(topics().len(), 30);
+    assert_eq!(topics().len(), 31);
     // The retired generated combinations go by the combinations' topic.
     let generated = Kind::Areas(Arrangement::ALL[0]).facts();
     assert_eq!(generated, Kind::Crop(Tier::Simple).facts());
