@@ -21,7 +21,5 @@ texts! { PRACTICE_COMBINED_LINES;
         "用草稿笔定关键点：端点、转角、交接处";
     GROUP_STEP_2 = "The longest line first, with Draw", "用勾线笔先画最长的线";
     GROUP_STEP_3 = "Each other from where it meets, at its angle", "其余的线从交接处按角度画出";
-    GROUP_SAYS = "Compare, don't guess: the group lies over yours in red. In place shows where it \
-        lies, Aligned its shape alone. Correct in blue and compare again.",
-        "别凭感觉，要对比：整组原线条用红色叠在你的线上。“原位”看位置，“对齐”只比形状。用修正笔（蓝色）改，再对比。";
+    GROUP_SAYS = "Redraw with Correct and compare again.", "用修正笔改，再对比。";
 }

@@ -33,9 +33,6 @@ texts! { PRACTICE_DIVISIONS;
     DIVISION_STEP_3 = "Shorter still, blue", "再画更短的三级分割线，用蓝色";
     DIVISION_SAYS = "Spend about half the time on the red lines: at most five, as long as they \
         run, small turns ignored, a bent line's turning point found first; the canvas not zoomed \
-        in. There is no right or wrong, but others see roughly the same. Red, green and blue are \
-        the three levels; Compare lays the picture under your lines, the slider sets how \
-        strongly it shows, and the table counts each level's lines and how far they run on \
-        average.",
-        "一半左右的时间花在红色主分割线上：最多五条，尽量长，忽略小的转折，有弯折的长线先找转折点；不要放大画布。分割没有对错，但大家找到的大致相同。红、绿、蓝分别是主分割、次分割和三级分割；叠图对比把原图放在你的线条下面，滑块调节原图浓淡，表格列出每一级的条数和平均长度。";
+        in. Red, green and blue are the three levels.",
+        "一半左右的时间花在红色主分割线上：最多五条，尽量长，忽略小的转折，有弯折的长线先找转折点；不要放大画布。红、绿、蓝分别是主分割、次分割和三级分割。";
 }

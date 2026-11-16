@@ -30,9 +30,6 @@ texts! { PRACTICE_COLOURS;
         "眯眼，先定色相：在色环上找到色系";
     COLOUR_STEP_2 = "Lighter or darker", "再比明度：更亮还是更暗";
     COLOUR_STEP_3 = "Purer or greyer", "再比纯度：更纯还是更灰";
-    COLOUR_SAYS = "Compare: on the wheel yours is ringed in ink, the original in red; under it ΔE, \
-        how different they look (about 2 just noticeable), and its lightness, chroma and hue, \
-        each a bar from the original's red line to yours. Correct the longest first, two or three \
-        times.",
-        "叠图对比：色环上墨线圈出的是你的颜色，红圈是原图的颜色；下面的 ΔE 表示两者看起来差多少（约 2 刚能看出），再分明度、纯度、色相三行，每行的横条从原图颜色的红线画到你的颜色。先改差得最多的一项，改两三次。";
+    COLOUR_SAYS = "Correct what is furthest off first, two or three times.",
+        "先改差得最多的一项，改两三次。";
 }

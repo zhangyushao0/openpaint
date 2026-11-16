@@ -35,8 +35,7 @@ texts! { PRACTICE_ROTATIONS;
     ROTATION_SAYS = "In the picture, find where each part sits in its box: a half, a third, a \
         quarter of an edge. Then find the same points in the new box, every edge towards its \
         vanishing point; the big shapes first, details by feel. Where only the near upright is \
-        given, run the small box's edges on to find the vanishing points. Compare: the object \
-        from the new angle in red, the edges it hides dashed. Construction shows the box and its \
-        construction at the new angle. Correct in blue and compare again.",
-        "先在原图里看清每一块在盒子里的位置：在边的二分之一、三分之一还是四分之一处。再在新盒子里找到同样的点，每条边都朝向它的消失点；先保证大的形体，细节可以凭感觉。只给了最前面的竖边时，把小方块的边延长，找到消失点。叠图对比：红色是新角度下的单体，被挡住的边是红色虚线。点“看画法”，新角度下的盒子和作图会显示出来。用修正笔（蓝色）改，再对比。";
+        given, run the small box's edges on to find the vanishing points. Redraw a wrong one once \
+        with Correct.",
+        "先在原图里看清每一块在盒子里的位置：在边的二分之一、三分之一还是四分之一处。再在新盒子里找到同样的点，每条边都朝向它的消失点；先保证大的形体，细节可以凭感觉。只给了最前面的竖边时，把小方块的边延长，找到消失点。画错了用修正笔重画一次。";
 }

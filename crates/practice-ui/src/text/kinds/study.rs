@@ -12,7 +12,7 @@ const STUDY: How = How {
     heading: STUDY_EXERCISE,
     trains: None,
     steps: &[],
-    says: &[STUDY_1, STUDY_BRUSHES, STUDY_2, STUDY_3, STUDY_4],
+    says: &[STUDY_1, STUDY_BRUSHES, STUDY_2, STUDY_3],
 };
 
 texts! { PRACTICE_STUDY;
@@ -33,8 +33,4 @@ texts! { PRACTICE_STUDY;
     STUDY_3 = "Bring every part to the same finish; zoom in and work a part as if it were the \
         whole picture. Keep weak contrasts weak.",
         "各处的完成度要一致；放大画局部时，把局部当成一张完整的画来画。弱对比别画强。";
-    STUDY_4 = "Compare lays the original over your copy in place, as strongly as the slider \
-        sets; the eyedropper on any point then shows both colours there on the wheel and in the \
-        table.",
-        "叠图对比把原图原位叠在你的临摹上，浓淡由滑块调节；这时用吸管点任意一处，色环和表格里显示原图和你在这一处的颜色。";
 }

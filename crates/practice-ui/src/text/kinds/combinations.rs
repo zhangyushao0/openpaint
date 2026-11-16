@@ -19,7 +19,7 @@ const AREAS: How = How {
         AREAS_STEP_5,
         COMPARE_STEP,
     ],
-    says: &[AREAS_SAYS],
+    says: &[],
 };
 
 texts! { PRACTICE_COMBINATIONS;
@@ -33,10 +33,4 @@ texts! { PRACTICE_COMBINATIONS;
     AREAS_STEP_4 = "Small: the edges, the weak contrast kept weak", "用小笔收边，弱对比别画强";
     AREAS_STEP_5 = "Soft: only where the picture's edge is soft",
         "柔边笔只用在原图边缘柔和的地方";
-    AREAS_SAYS = "Big and Small lay the colour you picked however lightly you press. Compare lays \
-        the original over your copy, \
-        the slider setting how strongly; each chip, the original's colour over yours, shows its \
-        pair on the wheel and in the table, its area outlined in ink; a weak contrast made strong \
-        is red. Then the eyedropper compares any point.",
-        "大笔、小笔不管压感轻重，画出的都是选中的颜色。叠图对比把原图叠在你的临摹上，浓淡由滑块调节；每个色卡上半是原图的颜色、下半是你的，点一个色卡，这一对颜色就显示在色环和表格里，它的色块用墨线描边；画强了的弱对比标成红色。之后可以用吸管点任意一处来比较。";
 }

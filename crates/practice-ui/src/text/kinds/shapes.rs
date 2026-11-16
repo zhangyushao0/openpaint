@@ -28,8 +28,5 @@ texts! { PRACTICE_SHAPES;
     SHAPE_STEP_2 = "Block it in with long straight lines", "用长直线概括大形";
     SHAPE_STEP_3 = "Check a negative shape: the ground beside it", "检查负形：旁边的空白";
     SHAPE_STEP_4 = "The outline with Draw", "用勾线笔画出外轮廓";
-    SHAPE_SAYS = "Compare lays the picture's outline over yours in red, the picture faint under \
-        it: In place shows where you placed it, Aligned its shape alone. Correct in blue and \
-        compare again.",
-        "叠图对比把原图的外轮廓用红色叠在你的线上，下面淡淡的是原图：“原位”看你放的位置，“对齐”只比形状。用修正笔（蓝色）改，再对比。";
+    SHAPE_SAYS = "Redraw with Correct and compare again.", "用修正笔改，再对比。";
 }

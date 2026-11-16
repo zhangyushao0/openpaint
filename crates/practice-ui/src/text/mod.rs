@@ -34,8 +34,10 @@
 //! S124 took off the eye-judged result's note, One more's "on the next row of this sheet", the
 //! first lesson's "Nothing is scored here…", the practice options' notes on the packs, one's own
 //! pictures and the colour copies, the picker's and adding's hints, what Compare does in the
-//! outline lines and the notices (a test names each by its old key: `REMOVED`); a How's steps and
-//! paragraphs are the course's own (D108).
+//! outline lines and the notices (a test names each by its old key: `REMOVED`). S146 took off what
+//! every How said Compare and Construction draw, their tolerances, who judges, and the locked
+//! original's notice: a How says how to practise only, and a test refuses the words only a
+//! sentence on the app's workings uses (`MECHANICS`).
 
 pub(crate) use openpaint_ui::text::*;
 
@@ -110,6 +112,39 @@ mod tests {
         }
     }
 
+    /// Every word a practice screen shows in `language`: the tables' texts and the sentences made
+    /// with numbers.
+    fn shown(language: Language) -> Vec<String> {
+        let line = openpaint_practice::Skill::of_key("line").expect("lines");
+        let offer = openpaint_practice::Offer {
+            skill: line,
+            level: openpaint_practice::SkillLevel::Second,
+            exercises: 5,
+            minutes: 4,
+            redo: false,
+        };
+        let mut shown: Vec<String> = (every_text().into_iter())
+            .map(|text| text.get(language).to_owned())
+            .collect();
+        for kind in kinds::every_kind() {
+            shown.extend(how_steps(kind, CELLS, language));
+        }
+        shown.push(one_more_line(language, &offer));
+        shown.extend([(0, 0), (2, 1)].map(|uses| picture_goes(language, uses)));
+        shown.extend((1..=8).map(|unit| unit_title(language, unit)));
+        let seals = [Seal::Unit(2), Seal::TenLessons];
+        shown.extend(seals.map(|seal| seal_lines(language, seal).concat()));
+        shown.extend([
+            cells_uneven(language, 2),
+            lightness_off(language, 1, true),
+            not_toward(language, 2),
+            merged(language, 3, 1),
+        ]);
+        shown.extend(pomodoro::made(language));
+        shown.extend(reasons::made(language));
+        shown
+    }
+
     #[test]
     fn the_chinese_holds_no_retired_term() {
         let zh = Language::Chinese;
@@ -119,16 +154,7 @@ mod tests {
             .map(|pen| format!("{}画", pen.get(zh)))
             .chain(["一笔画".to_owned()])
             .collect();
-        let mut made: Vec<String> = (kinds::every_kind().into_iter())
-            .flat_map(|kind| how_steps(kind, CELLS, zh))
-            .collect();
-        made.push(picture_goes(zh, (2, 1)));
-        made.extend((1..=8).map(|unit| unit_title(zh, unit)));
-        made.extend([Seal::Unit(2), Seal::TenLessons].map(|seal| seal_lines(zh, seal).concat()));
-        made.extend(pomodoro::made(zh));
-        made.extend(reasons::made(zh));
-        let tables = every_text().into_iter().map(|text| text.get(zh).to_owned());
-        for chinese in tables.chain(made) {
+        for chinese in shown(zh) {
             let read = (drawing.iter()).fold(chinese.clone(), |read, verb| read.replace(verb, ""));
             for (term, instead) in RETIRED {
                 assert!(!read.contains(term), "{chinese}: {term}, now {instead}");
@@ -161,28 +187,70 @@ mod tests {
 
     #[test]
     fn no_sentence_s124_removed_comes_back() {
-        let line = openpaint_practice::Skill::of_key("line").expect("lines");
-        let offer = openpaint_practice::Offer {
-            skill: line,
-            level: openpaint_practice::SkillLevel::Second,
-            exercises: 5,
-            minutes: 4,
-            redo: false,
-        };
         for language in [Language::English, Language::Chinese] {
-            let mut shown: Vec<String> = (every_text().into_iter())
-                .map(|text| text.get(language).to_owned())
-                .collect();
-            shown.push(one_more_line(language, &offer));
-            shown.extend(pomodoro::made(language));
-            shown.extend(reasons::made(language));
-            for kind in kinds::every_kind() {
-                shown.extend(how_steps(kind, CELLS, language));
-            }
-            for text in &shown {
+            for text in shown(language) {
                 for (key, words) in REMOVED {
                     let gone = words[usize::from(language == Language::Chinese)];
                     assert!(!text.contains(gone), "{key} is back: {text}");
+                }
+            }
+        }
+    }
+
+    /// Words that only a sentence on the app's workings uses (D118, S146), each with what it
+    /// tells: what Compare or Construction draws and what its marks mean (legend), a tolerance
+    /// (threshold), a score (scoring), who judges (judging), what the app does later (later), the
+    /// app itself (app). A How says how to practise; the method's own words trip none of these.
+    const MECHANICS: [(&str, &str); 41] = [
+        ("叠图对比：", "legend"),
+        ("叠图对比把", "legend"),
+        ("叠图对比时", "legend"),
+        ("点“看画法”", "legend"),
+        ("红圈", "legend"),
+        ("红色是", "legend"),
+        ("红线", "legend"),
+        ("虚线", "legend"),
+        ("滑块", "legend"),
+        ("白纱", "legend"),
+        ("Compare:", "legend"),
+        ("Compare lays", "legend"),
+        ("Compare veils", "legend"),
+        ("Compare marks", "legend"),
+        ("Construction shows", "legend"),
+        ("Construction runs", "legend"),
+        ("Construction ticks", "legend"),
+        ("is ringed", "legend"),
+        ("ringed when", "legend"),
+        ("outlined", "legend"),
+        ("dashed", "legend"),
+        ("slider", "legend"),
+        ("笔宽", "threshold"),
+        ("pen's width", "threshold"),
+        ("刚能看出", "threshold"),
+        ("just noticeable", "threshold"),
+        ("ΔE", "threshold"),
+        ("打分", "scoring"),
+        ("判分", "scoring"),
+        ("score", "scoring"),
+        ("自己判断", "judging"),
+        ("靠你", "judging"),
+        ("用眼睛判断", "judging"),
+        ("to judge", "judging"),
+        ("judge its", "judging"),
+        ("judges", "judging"),
+        ("再出现", "later"),
+        ("come back", "later"),
+        ("comes back", "later"),
+        ("程序", "app"),
+        ("the app", "app"),
+    ];
+
+    #[test]
+    fn no_screen_explains_how_the_app_works() {
+        for language in [Language::English, Language::Chinese] {
+            for text in shown(language) {
+                for (fragment, tells) in MECHANICS {
+                    assert!(!text.contains(fragment), "{tells}: “{fragment}” in {text}");
                 }
             }
         }

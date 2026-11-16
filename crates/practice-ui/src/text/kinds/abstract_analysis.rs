@@ -26,11 +26,8 @@ texts! { PRACTICE_ANALYSIS;
     ANALYSIS_STEP_2 = "Ring the second places with Second, hatch the weak with Weak",
         "用「次」圈次要的，用「弱」涂弱的地方";
     ANALYSIS_SAYS = "On the card, choose by what contrast the strongest place draws the eye \
-        and how strength is spread, then Compare. Compare veils the picture in paper where the \
-        contrast you look at is weak: what stays clear is where that contrast lives, your marks \
-        over it. Squint shows the picture as a squinting eye sees it. Size, isolation and what \
-        the picture shows are yours to judge.",
-        "在卡片上选好最强处靠什么对比、强弱怎么分布，再叠图对比。叠图对比时，你看的那种对比弱的地方盖上一层白纱，留下来清楚的就是这种对比所在的地方，你的标记在上面。眯眼显示眯起眼睛看到的样子。大小、隔离和画的内容靠你自己判断。";
+        and how strength is spread, then Compare.",
+        "在卡片上选好最强处靠什么对比、强弱怎么分布，再叠图对比。";
     ANALYSIS_STRONGEST = "1  What draws you most", "1  最吸引你的地方";
     ANALYSIS_STRONGEST_HOW = "Ring it with Strong", "用「强」圈出来";
     ANALYSIS_BY = "2  By what contrast", "2  它靠什么对比";

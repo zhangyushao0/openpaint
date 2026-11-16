@@ -15,8 +15,8 @@ use openpaint_practice::{
     Pack, PackItem, PictureKind, SheetPicture, Skill, SkillLevel, Tendency, Tier, Verdict, value,
 };
 use openpaint_practice_app::{
-    Judged, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick,
-    SheetSession, Start,
+    Judged, PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, SheetSession,
+    Start,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -132,8 +132,11 @@ fn a_key_shift_shows_its_tendency_and_its_original_is_never_picked() {
     let pair = practice.sheet.pairs[0];
     let on = pair.original.to_canvas([0.1, 0.3]).map(|v| v as f32);
     assert_eq!(session.sheet_mut().pick(on), PracticePick::Refused);
-    let notice = session.projection().notice;
-    assert_eq!(notice, Some(PracticeNotice::OriginalLocked));
+    assert_eq!(
+        session.projection().notice,
+        None,
+        "refused without a word (S146)"
+    );
     // The copy's frame picks the canvas, compared or not.
     let mine = pair.copy.to_canvas([0.1, 0.3]).map(|v| v as f32);
     assert_eq!(session.sheet_mut().pick(mine), PracticePick::Canvas);

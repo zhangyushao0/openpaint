@@ -104,8 +104,7 @@ texts! { PRACTICE_OPTIONS_TABLE;
     RENAME_COPY = "Rename…", "重命名…";
     REMOVE = "Delete…", "删除…";
     PICTURE_REMOVED = "Picture deleted", "图片已删除";
-    COPY_GOES = "Your painting on it goes for good. Its picture stays.",
-        "你画的内容会永久删除，原图会保留。";
+    COPY_GOES = "Your painting on it goes for good.", "你画的内容会永久删除。";
     ADD_MY_PICTURE = "Add my picture", "添加我的图片";
     HOW_HARD = "How hard to copy", "临摹难度";
     WITH_OUTLINE = "With an outline", "有外轮廓";
@@ -180,13 +179,8 @@ pub(crate) fn picture_goes(language: Language, (lessons, copies): (u32, u32)) ->
         }
     };
     match language {
-        Language::English => format!(
-            "{gone} {users} used it: they keep your strokes, and where it lay they say “Picture \
-             deleted”."
-        ),
-        Language::Chinese => {
-            format!("{gone}有 {users}用过它：你画的都会保留，原来放图的地方会显示“图片已删除”。")
-        }
+        Language::English => format!("{gone} {users} used it."),
+        Language::Chinese => format!("{gone}有 {users}用过它。"),
     }
 }
 

@@ -1,6 +1,6 @@
 //! Key shifts on a practice sheet (S107, V大's 变调, week 5): the kind's names, the
-//! tendency's label, the card's lines after Compare (one per check that failed), the Grey view,
-//! the locked original's notice and the How card. In his terms: 变调, 倾向色, 明度, 纯度, 偏冷,
+//! tendency's label, the card's lines after Compare (one per check that failed), the Grey view
+//! and the How card. In his terms: 变调, 倾向色, 明度, 纯度, 偏冷,
 //! 偏暖, 对比色, 看黑白, 分得开.
 
 use super::{COMPARE_STEP, How, KindWords, words};
@@ -27,8 +27,6 @@ texts! { PRACTICE_KEY_SHIFTS;
     KEY_SHIFT_EXERCISE = "Key shift", "变调";
     TENDENCY = "Tendency", "倾向色";
     GREY_VIEW = "Grey", "看黑白";
-    ORIGINAL_LOCKED = "A key shift's original can't be picked: judge its colours by eye.",
-        "变调的原图不能吸色：用眼睛判断它的颜色。";
     SHIFT_THE_KEY = "Shift the key", "变调";
     KEY_TRAINS = "A crop painted again as if seen in another light: every colour moved \
         toward a tendency, its lightness kept.",

@@ -23,7 +23,7 @@ use crate::projection::{PracticeNotice, Probe};
 pub enum PracticePick {
     /// The canvas, as anywhere.
     Canvas,
-    /// Nothing: an original not compared yet.
+    /// Nothing: an original not compared yet, or one never picked.
     Refused,
     /// A compared swatch's colour, or a value scale's given end.
     Colour(Color),
@@ -65,9 +65,8 @@ impl PracticeSheet {
             })
         };
         if let Some(index) = over(false) {
-            // A key shift's original is never picked (S107): its colours are judged by eye.
+            // A key shift's original is never picked (S107), and no notice says so (S146).
             if !self.picks(index).original {
-                self.notice = Some(PracticeNotice::OriginalLocked);
                 return PracticePick::Refused;
             }
             if self.record.first(index).is_none() {
@@ -79,7 +78,6 @@ impl PracticeSheet {
         match over(true) {
             // A picture laid under the marks is an original too, never picked (S112).
             Some(index) if self.facts(index).is_some_and(|facts| facts.under) => {
-                self.notice = Some(PracticeNotice::OriginalLocked);
                 PracticePick::Refused
             }
             Some(index) => self.picked(index, point, false),

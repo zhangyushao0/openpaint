@@ -36,8 +36,8 @@ texts! { PRACTICE_COURSE;
     FIRST_STEP_SCRIBBLE = "Scribble in the frame: light, then hard.", "在框里随便画几笔，轻一点、重一点都试试。";
     FIRST_STEP_COPY = "Copy the line on the left in the frame on the right.",
         "照着左边的线，在右边的框里画一条。";
-    FIRST_STEP_COMPARE = "Tap Compare: the original lies over your line. See where it is off, \
-        then Next.", "点“叠图对比”，原图会叠在你的线上；差在哪，看一眼，再点“下一个”。";
+    FIRST_STEP_COMPARE = "Tap Compare, see where it is off, then Next.",
+        "点“叠图对比”，差在哪，看一眼，再点“下一个”。";
 }
 
 texts! { PRACTICE_UNITS;

@@ -24,9 +24,7 @@ texts! { PRACTICE_WHOLE_COPIES;
         "用勾线笔在上面画出大形，不画细节";
     WHOLE_COPY_SAYS = "Draw the line drawing over your division, dimmed under it; or, if your \
         shapes are strong, paint it in colour blocks over the division: Fill frame for the overall tone, Big for the big blocks, Small for edges \
-        and small areas, Soft only where the picture's own edge or gradient is soft. Compare lays \
-        the picture over your copy, your division hidden; the slider sets how strongly it shows, \
-        and the eyedropper compares a point of your blocks. The big shapes should be right; small \
-        local errors are fine.",
-        "用勾线笔在变淡的分割线上画线稿；抓形能力强的话，也可以在分割线上画色块：用“填满方框”铺整体色调，大笔画大色块，小笔收边、画小色块，柔边笔只用在原图边缘或渐变柔和的地方。叠图对比把原图叠在你的临摹上，分割线隐藏；滑块调节原图浓淡，吸管可以对比色块上的一点。大形要准，局部的小误差没关系。";
+        and small areas, Soft only where the picture's own edge or gradient is soft. The big \
+        shapes should be right; small local errors are fine.",
+        "用勾线笔在变淡的分割线上画线稿；抓形能力强的话，也可以在分割线上画色块：用“填满方框”铺整体色调，大笔画大色块，小笔收边、画小色块，柔边笔只用在原图边缘或渐变柔和的地方。大形要准，局部的小误差没关系。";
 }

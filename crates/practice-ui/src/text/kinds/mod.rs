@@ -1,7 +1,7 @@
 //! Each kind's words, a file a kind (S109b), in V大's terms as `text/mod.rs` says: its name (the
 //! bar, a compared exercise's heading where no skill names it), its How card (S92: its title, one
-//! line on what it trains, its steps, one per step of its demonstration, Compare the
-//! last, and once what Compare's marks mean, D108), and for a value scale the steps made for the
+//! line on what it trains, its steps, one per step of its demonstration, Compare the last, then
+//! how to practise, never what Compare draws, D118), and for a value scale the steps made for the
 //! row in hand. Each kind is registered here by its line in `KINDS`, its topics found by the key
 //! its description gives them (`openpaint_practice::Facts::key`, S109): the screens ask a kind's
 //! words by the kind in hand (S122). The words a kind's card, pens and notices say beside these
@@ -38,9 +38,7 @@ pub(crate) use abstract_analysis::{
     ANALYSIS_STRONGEST, ANALYSIS_STRONGEST_HOW, SECOND_MARK_PEN, STRONG_PEN, WEAK_PEN,
     analysis_chosen, analysis_spread, choice_word,
 };
-pub(crate) use key_shifts::{
-    GREY_VIEW, ORIGINAL_LOCKED, TENDENCY, lightness_off, merged, not_toward,
-};
+pub(crate) use key_shifts::{GREY_VIEW, TENDENCY, lightness_off, merged, not_toward};
 pub(crate) use study::STUDY_EXERCISE;
 pub(crate) use value_masses::{DARK_PEN, LIGHT_PEN, MIDDLE_PEN};
 
@@ -53,7 +51,8 @@ pub(crate) struct How {
     /// One per step of its demonstration (a value scale's own Compare only: its others are made
     /// for the row in hand, `how_steps`).
     pub(crate) steps: &'static [Text],
-    /// What Compare shows and how to correct: the card's paragraphs under the steps.
+    /// How to practise and correct: the card's paragraphs under the steps (D118: never what Compare
+    /// draws, who judges or what the app does).
     pub(crate) says: &'static [Text],
 }
 

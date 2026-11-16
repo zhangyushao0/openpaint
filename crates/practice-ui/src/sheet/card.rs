@@ -1,7 +1,7 @@
 //! What the practice card says: how to practise each kind (S92: its title, what it trains and
-//! its week, V大's way played on an example with its numbered steps, `demo.rs`, and once
-//! what Compare shows; Again and Got it; the first lesson's own, `first.rs`); a comparison, which
-//! shows rather than tells (D108): its title, its result among Accurate, Almost and Again
+//! its week, V大's way played on an example with its numbered steps, `demo.rs`, then how to
+//! practise, never what Compare shows, D118; Again and Got it; the first lesson's own,
+//! `first.rs`); a comparison, which shows rather than tells (D108): its title, its result among Accurate, Almost and Again
 //! (`result.rs`: the app's ringed first, the eye's three to choose from after the items), then the
 //! items its comparison gives whatever its kind (S109, `card_items.rs`): in place or aligned, a
 //! line of words, Construction, Grey, the slider, the areas' chips, colours on the wheel and in the
@@ -49,8 +49,8 @@ pub(crate) fn how_of(practice: &PracticeProjection, kind: Kind) -> HowOf {
 }
 
 /// A kind's How (S92): its title, what it trains and its week, its demonstration playing with
-/// its numbered steps (`demos`; a value scale's of the row in hand's cells), what Compare's marks
-/// mean, and Again beside Got it; returns whether Got it was tapped.
+/// its numbered steps (`demos`; a value scale's of the row in hand's cells), how to practise, and
+/// Again beside Got it; returns whether Got it was tapped.
 pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrations) -> bool {
     let how = t::how(of.kind());
     let steps = t::how_steps(of.kind(), of.cells(), language(ui.ctx()));

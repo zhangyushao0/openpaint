@@ -21,7 +21,6 @@ texts! { PRACTICE_LINES;
         "用草稿笔标出两端和最鼓处";
     LINE_STEP_2 = "Two passes in the air", "在空中比划两遍";
     LINE_STEP_3 = "One quick stroke with Draw", "用勾线笔一笔画出";
-    LINE_SAYS = "Compare lays the original over your line in red, in place or aligned (its shape \
-        alone). Don't erase: correct over it in blue and compare again, as often as you like.",
-        "叠图对比把原线条用红色叠在你的线上：“原位”看位置，“对齐”只比形状。不要擦，用修正笔（蓝色）直接在上面改，再对比，改几次都行。";
+    LINE_SAYS = "Don't erase: redraw over it with Correct and compare again.",
+        "不要擦，用修正笔直接在上面改，再对比。";
 }

@@ -89,8 +89,6 @@ pub enum PracticeNotice {
     DrawInCell,
     /// The eyedropper over an original not compared yet.
     PickAfterCompare,
-    /// The eyedropper over a key shift's original, which is never picked (S107).
-    OriginalLocked,
     /// The frame could not be filled: the layer is hidden or locked.
     CannotFill(LayerRefusal),
     /// The lesson is done.

@@ -18,8 +18,7 @@ use openpaint_practice::{
     PictureKind, Point, Source, Tier, resample, value,
 };
 use openpaint_practice_app::{
-    PICTURE_LAYER, Pen, PictureImage, PracticeIntent, PracticeNotice, PracticePens, PracticePick,
-    SheetSession,
+    PICTURE_LAYER, Pen, PictureImage, PracticeIntent, PracticePens, PracticePick, SheetSession,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -183,10 +182,7 @@ fn the_picture_lies_locked_under_the_marks_once_read_never_an_undo_step() {
     // The eyedropper never reads the picture under the marks.
     let at = frame.to_canvas([0.5, 0.5]).map(|v| v as f32);
     assert_eq!(session.sheet_mut().pick(at), PracticePick::Refused);
-    assert_eq!(
-        session.projection().notice,
-        Some(PracticeNotice::OriginalLocked)
-    );
+    assert_eq!(session.projection().notice, None, "refused without a word");
     // Undo takes the ring back, never the picture.
     session
         .dispatch(Intent::History(openpaint_app::HistoryIntent::Undo))
