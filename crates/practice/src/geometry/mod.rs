@@ -2,7 +2,7 @@
 //! straight edges and marks read where one stroke is asked, where an edge heads, and only what is
 //! off (S98), on which the geometric kinds (`kinds/`) build their answers (D123: a drawn copy's
 //! free strokes are never read against an answer); the light, a sun or a lamp, and the shadows it
-//! throws (S153).
+//! throws (S153); a smooth path in space with a frame along it, a swept form's spine (S155).
 
 pub(crate) mod edges;
 pub(crate) mod ellipse;
@@ -12,3 +12,4 @@ pub(crate) mod marks;
 pub(crate) mod off;
 pub(crate) mod perspective;
 pub(crate) mod perspective_eye;
+pub(crate) mod space_path;

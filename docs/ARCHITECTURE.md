@@ -122,6 +122,8 @@ pub fn edges(lines: &[&[Point]]) -> Vec<Edge>;  pub fn corrected(earlier, correc
 // Boxes, free boxes, ellipses, solids, objects, rotations: no check, the answer laid for the eye (D123)
 enum Light { Sun(Vector), Lamp(Vector) }  // geometry/light.rs (S153): shadows on a plane, a pin's sun,
                                           // vanishing points; the objects' Body casts rays and holds balls
+impl SpacePath { fn through(&[Vector]); fn at(s); fn samples(n, up, &[Turn]) -> Vec<Sample> }  // geometry/space_path/ (S155):
+                                          // centripetal Catmull-Rom, even by length, rotation-minimising frames
 ```
 
 Pure, no dependency (D98, D99, D103, D105, D107, D108, D111). Only `lib.rs` lies at the root, re-exporting what other crates use; the rest lies in folders, each `mod.rs` saying what it holds: the shared ones, which never reach into a kind, and `kinds/` with a folder a kind holding its generator, answer, check, reading, marks, How (`demo.rs`) and tile, and in its `mod.rs` its description in two halves (D111): `Described` and the original it generates, its own type behind `Original`. One line in `KINDS` registers it; only a folder matches on `Kind`'s variants; a kind builds on another only where the course does (objects on solids, combined lines on lines). Metric codes, outcome codes and kind codes are stored and never reused; the reader reads only what this version writes (D112; `records/metric.rs`, `kinds/kind.rs`).
