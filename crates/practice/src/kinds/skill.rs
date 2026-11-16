@@ -1,8 +1,8 @@
 //! A skill and its levels (S122): what the path shows as a tile with three dots and a lesson
 //! practises. A skill is a kind's folder, named by its stored code (`Described::code`), so the
-//! flow and the screens hold one without knowing which kind it is: 23 of the folders are skills
-//! (`course/unit.rs` lists them by unit); a long colour copy, a drawing from life and the first
-//! lesson's drawing are none.
+//! flow and the screens hold one without knowing which kind it is: 27 of the folders are skills
+//! (`course/unit.rs` lists them by unit); a long colour copy, a drawing from life, a cold-warm
+//! copy and the first lesson's drawing are none.
 //!
 //! A level is how hard a skill's lesson is laid (入门, 熟练, 稳): harder variants, mixing or
 //! volume, as its folder's `Described::lesson` says. It is stored with every exercise

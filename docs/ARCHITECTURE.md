@@ -85,13 +85,15 @@ pub enum Kind { Line(LineTier), Colour(Tone), Combined(Combination), Shape(Tier)
                 Ellipse(Guide), Flat(Estimate), Space(Trick), Solid(Solid),
                 Object(Carve), Division(Tier), WholeCopy(Tier), ValueMasses(Tier), Crop(Tier),
                 KeyShift(Tendency), Free, Analysis(Tier), Rotation(Rotation), Observation,
-                GamutMask(Mask), Placement(Placement), Light(Lit), Shadows(Throw) }
-                // (code 1..=27 but 5, variant)
+                GamutMask(Mask), Placement(Placement), Light(Lit), Shadows(Throw),
+                CurvedRotation(CurvedRotation), LitColour(LitColour), Texture(Texture),
+                Thumbnail(Emphasis), ColdWarm(Leans) }
+                // (code 1..=32 but 5, variant)
 pub struct Skill(u8);  pub enum SkillLevel { First, Second, Third }  // a kind's folder (D115)
 pub struct Exercise { kind: Kind, seed: u64, picture: Option<ItemRef> }  // original() -> Arc<dyn Original>
 trait Described { code, facts, variant, topic(Kind), generate(&Exercise), how(Kind, cells), lesson, window, glyph }
-pub trait Original { givens, check, compare, painted, answer, lines, swatch, picture, areas, scale, colour_at }
-pub struct Facts { key, aligned, compared, constructed, tools: ToolSet, picks: Picking, needs, kept, counted, grounded, seconds }
+pub trait Original { givens, printed(picture), check, compare, painted, answer, lines, swatch, picture, areas, scale, colour_at }
+pub struct Facts { key, aligned, compared, constructed, tools: ToolSet, picks: Picking, needs, kept, counted, grounded, under, hidden, shape, beside, seconds }
 impl FlatCheck { fn of(&Flat, lines) }  impl SpaceCheck { fn of(&SpaceTask, lines) }  // metrics
 impl ObjectTask { fn generate(Carve, seed); fn picture(side) -> Vec<u8>; fn surface(Point) }  // answer, stages
 impl DivisionCheck { fn of(&[(Level, Vec<Point>)], side) }  // lines joined, rows, metrics (S95)

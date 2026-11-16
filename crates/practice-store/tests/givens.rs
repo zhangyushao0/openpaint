@@ -1,6 +1,7 @@
 //! What a sheet printed, as bytes (S120a): every kind's givens and painted picture round-trip
-//! exactly for many seeds, alone and as a sheet's blob. Prints each kind's encoded size and a
-//! 36-exercise sheet's of the largest kind laid (`--nocapture`).
+//! exactly for many seeds (five where its generator paints its own picture, S154), alone and as a
+//! sheet's blob. Prints each kind's encoded size and a 36-exercise sheet's of the largest kind
+//! laid (`--nocapture`).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -13,7 +14,12 @@ use openpaint_practice_store::{
     decode_givens, decode_marks, decode_painted, encode_givens, encode_marks, encode_painted,
 };
 
+/// The landscapes in the test pack; the exercises printed of each kind's variant: many, and fewer
+/// where its generator paints its own picture (a lit form, a texture's strip: a second or more of
+/// rendering each).
 const SEEDS: u64 = 20;
+const SLOTS: u16 = 20;
+const PAINTED_SLOTS: u16 = 5;
 const PACK: &str = "test-compositions";
 
 /// Every kind a record may hold: each kind code's every stored variant.
@@ -48,21 +54,26 @@ fn compositions() -> Pack {
     }
 }
 
-/// What exercise `seed` of `kind` prints, its picture one of `packs`' where its kind copies one.
-fn printed(kind: Kind, seed: u64, packs: &[Pack]) -> Given {
+/// What exercise `seed` of `kind` prints, as `Given::printed` takes it, its picture one of
+/// `packs`' where its kind copies one: generated once, again only with the picture it copies; and
+/// whether its generator painted its picture itself.
+fn printed(kind: Kind, seed: u64, packs: &[Pack]) -> (Given, bool) {
     let mut exercise = Exercise::generated(kind, seed);
-    if exercise.original().picture().is_some() {
+    let mut original = exercise.original();
+    if original.picture().is_some() {
         exercise.picture = Some(ItemRef {
             pack: PACK.to_owned(),
             item: format!("land-{}", seed % SEEDS),
         });
+        original = exercise.original();
     }
-    let original = exercise.original();
     let picture = (exercise.picture.as_ref()).and_then(|item| SheetPicture::of(item, packs));
-    Given {
-        marks: original.givens(),
+    let given = Given {
+        marks: original.printed(picture.as_ref()),
         painted: original.painted(picture.as_ref()),
-    }
+    };
+    let own = given.painted.is_some() && exercise.picture.is_none();
+    (given, own)
 }
 
 /// `given` round-tripped alone and in a sheet's blob; its bytes in the blob (without the
@@ -95,9 +106,12 @@ fn every_kind_s_givens_and_painted_picture_round_trip_exactly() {
     let mut sizes = BTreeMap::<u8, (String, Vec<usize>)>::new();
     let mut by_kind: Vec<(Kind, usize)> = Vec::new();
     for kind in kinds {
+        let seed = |slot: u16| 0x5EED_0120_0000 + u64::from(slot);
+        let (first, own) = printed(kind, seed(0), &packs);
+        let slots = if own { PAINTED_SLOTS } else { SLOTS };
+        let rest = (1..slots).map(|slot| printed(kind, seed(slot), &packs).0);
         let mut total = 0;
-        for slot in 0..20_u16 {
-            let given = printed(kind, 0x5EED_0120_0000 + u64::from(slot), &packs);
+        for (slot, given) in (0..slots).zip(std::iter::once(first).chain(rest)) {
             painted += usize::from(given.painted.is_some());
             let bytes = round_trip(kind, slot, &given);
             total += bytes;
@@ -106,12 +120,12 @@ fn every_kind_s_givens_and_painted_picture_round_trip_exactly() {
             let row = sizes.entry(kind.code().0).or_insert((name, Vec::new()));
             row.1.push(bytes);
         }
-        by_kind.push((kind, total));
+        by_kind.push((kind, total / usize::from(slots)));
     }
     assert!(painted >= 60, "objects, value masses, combinations painted");
     print_sizes(&sizes);
     let (largest, _) = (by_kind.iter())
-        .max_by_key(|(_, total)| *total)
+        .max_by_key(|(_, mean)| *mean)
         .expect("kinds");
     sheet_of(*largest, &packs);
 }
@@ -131,7 +145,7 @@ fn print_sizes(sizes: &BTreeMap<u8, (String, Vec<usize>)>) {
 fn sheet_of(kind: Kind, packs: &[Pack]) {
     let sheet = Givens {
         slots: (0..36_u16)
-            .map(|slot| (slot, printed(kind, u64::from(slot), packs)))
+            .map(|slot| (slot, printed(kind, u64::from(slot), packs).0))
             .collect(),
     };
     let bytes = encode_givens(&sheet);
