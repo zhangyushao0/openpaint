@@ -27,7 +27,7 @@ const CLIPS: [Clip; 5] = [
     Clip::KeptOff,
     Clip::Inside,
 ];
-const PENS: [LinePen; 14] = [
+const PENS: [LinePen; 15] = [
     LinePen::Ink,
     LinePen::Printed,
     LinePen::PrintedHalf,
@@ -42,6 +42,7 @@ const PENS: [LinePen; 14] = [
     LinePen::Hatch(Value::Dark),
     LinePen::Hatch(Value::Middle),
     LinePen::Hatch(Value::Light),
+    LinePen::HatchDarkest,
 ];
 const SOURCES: [Source; 3] = [Source::Pack, Source::Painted, Source::PaintedOrPack];
 /// The first source code of a reading's pictures (`Source::Read`), by their place on, and how
@@ -337,6 +338,7 @@ fn write_pen(writer: &mut Writer, pen: LinePen) {
         LinePen::Hatch(Value::Dark) => 11,
         LinePen::Hatch(Value::Middle) => 12,
         LinePen::Hatch(Value::Light) => 13,
+        LinePen::HatchDarkest => 14,
     });
 }
 

@@ -128,7 +128,7 @@ pub(crate) fn differences(
 
 /// The steps of `differ` (over a grid of `[w, h]`) wider than a disc of `radius` steps: opened by
 /// the disc, which must lie inside the grid.
-fn wider(differ: &[bool], [w, h]: [usize; 2], radius: f64) -> Vec<bool> {
+pub(crate) fn wider(differ: &[bool], [w, h]: [usize; 2], radius: f64) -> Vec<bool> {
     let reach = radius.floor() as isize;
     let disc: Vec<[isize; 2]> = (-reach..=reach)
         .flat_map(|dy| (-reach..=reach).map(move |dx| [dx, dy]))

@@ -38,6 +38,8 @@ pub enum LinePen {
     Level(Level),
     /// Hatching where a copy's value differs from the answer's, in the answer's grey (S96).
     Hatch(Value),
+    /// Hatching where the answer holds the darkest grey (S153: a core shadow, a contact).
+    HatchDarkest,
 }
 
 /// Where a line may run.

@@ -135,7 +135,11 @@ impl PracticeSheet {
     /// geometry (S97: a box's, free boxes', an ellipse's; S98: an estimate's, a trick's, a solid's,
     /// an object's).
     pub(super) fn construction_offered(&self) -> bool {
-        matches!(self.compared, Some(Compared::Checked(_)))
+        // A painted copy's too where its card lays one (light on form's, S153).
+        matches!(
+            self.compared,
+            Some(Compared::Checked(_) | Compared::Painted(..))
+        )
     }
 
     /// Exercise `index`'s copy in `frame` of `artwork` as its kind compares it now: shown, fitted

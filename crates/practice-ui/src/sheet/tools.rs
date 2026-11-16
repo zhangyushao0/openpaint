@@ -37,7 +37,7 @@ use openpaint_ui::design::{Icon, SPACE, TOUCH_TARGET};
 use openpaint_ui::taps::push_once;
 
 use super::SheetTaps;
-use super::marks::{level_colour, value_colour};
+use super::marks::{colour, level_colour};
 use crate::text as t;
 
 /// All tools, in the left island after Gallery; none on a long colour copy, which shows the full
@@ -134,8 +134,8 @@ fn pens_tools(
     ui.horizontal(|ui| pens(ui, ("pens", tools.pens), practice, taps));
     let colour = if tools.greys() {
         (practice.pen)
-            .and_then(|(pen, _)| pen.value())
-            .and_then(|value| openpaint_practice_app::value_colour(value).ok())
+            .and_then(|(pen, _)| pen.grey())
+            .and_then(|grey| openpaint_practice_app::grey_colour(grey).ok())
     } else {
         projection.brush().map(|brush| brush.color)
     };
@@ -251,16 +251,17 @@ fn pens(
                 continue;
             }
             let word = text_choice(ui, group, t::pen_of(pen, marks), chosen == Some(pen));
-            // A division's level shows its colour under its word (S95), a grey its grey (S96).
+            // A division's level shows its colour under its word (S95), a grey its grey (S96, the
+            // darkest too, S153).
             let colour = (pen.level())
                 .map(level_colour)
-                .or_else(|| pen.value().map(value_colour));
+                .or_else(|| pen.grey().map(colour));
             if let Some(colour) = colour {
                 let rect = word.rect;
                 let under = rect.center().y + 1.4 * SPACE;
                 let ends = [rect.left() + 1.5 * SPACE, rect.right() - 1.5 * SPACE];
                 let line = ends.map(|x| egui::pos2(x, under));
-                let width = if pen.value().is_some() { 4.0 } else { 2.0 };
+                let width = if pen.grey().is_some() { 4.0 } else { 2.0 };
                 ui.painter()
                     .line_segment(line, egui::Stroke::new(width, colour));
             }

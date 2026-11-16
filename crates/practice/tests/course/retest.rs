@@ -65,7 +65,7 @@ fn a_unit_s_re_test_lays_the_same_tasks_at_its_start_and_its_end() {
     let unstarted = retest::retest(3, true, &[], &pictures).expect("an end without a start");
     assert_eq!(tasks(&unstarted), tasks(&start), "the same set without one");
     assert!(
-        retest::retest(6, false, &[], &pictures).is_none(),
+        retest::retest(8, false, &[], &pictures).is_none(),
         "a unit without a skill"
     );
 }

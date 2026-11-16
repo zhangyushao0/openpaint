@@ -49,7 +49,7 @@ pub use crate::options::{
 };
 pub use crate::pairs::{CardMark, CardSource, CopyCard, UNDER, stored_card};
 pub use crate::path::{OpenLesson, PathProjection, SkillShown, Start, UnitShown};
-pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
+pub use crate::pens::{INK_DIAMETER, PracticePens, copy_brush, grey_colour, value_colour};
 pub use crate::pictures::{FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded};
 pub use crate::pomodoro::{BlockEnd, BlockShown, Timed, TimerIntent, TimerShown, TimerTold};
 pub use crate::projection::{

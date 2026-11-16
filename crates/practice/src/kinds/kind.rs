@@ -11,11 +11,13 @@ use super::skill::SkillLevel;
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::Guide;
 use crate::geometry::perspective::{BoxView, Horizon};
+use crate::kinds::cast_shadows::scene::Throw;
 use crate::kinds::colours::colour_match::Tone;
 use crate::kinds::combined_lines::combined::Combination;
 use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::gamut_masks::mask::Mask;
 use crate::kinds::key_shifts::key_shift::Tendency;
+use crate::kinds::light_on_form::scene::Lit;
 use crate::kinds::lines::line::LineTier;
 use crate::kinds::objects::object_design::Carve;
 use crate::kinds::placements::placement::Placement;
@@ -97,6 +99,12 @@ pub enum Kind {
     /// A few pieces put on a ground in perspective where a plan seen from above says, at their
     /// heights (V大's 分布, S153, `placements/`).
     Placement(Placement),
+    /// A form on the ground in a sun a pin gives, painted in its light and shadow families and
+    /// their tones (明暗, S153, `light_on_form/`).
+    Light(Lit),
+    /// Boxes on the ground, the shadows a sun or a lamp throws from them drawn (投影, S153,
+    /// `cast_shadows/`).
+    Shadows(Throw),
 }
 
 impl Kind {

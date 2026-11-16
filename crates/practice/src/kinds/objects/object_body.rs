@@ -1,21 +1,30 @@
 //! An object in space (S94, `object.rs`): its design (`object_design.rs`) built in the world the
 //! eye sees, as convex hulls (the box's blocks left once the changes took theirs out, each cut by
-//! the changes' planes) and round parts (a cylinder or a cone in its block). What the eye's rays
-//! meet first (`Body::hit`), and whether a point lies in it, serve the exact visible edges
-//! (`object_answer.rs`) and the picture's depth test (`object_picture.rs`).
+//! the changes' planes), round parts (a cylinder or a cone in its block) and balls (S153). What a
+//! ray meets first (`Body::cast`, from any point; `Body::hit`, the eye's), and whether a point lies
+//! in it, serve the exact visible edges (`object_answer.rs`) and the picture's depth test
+//! (`object_picture.rs`); standing on the ground (`Scene`, S153), whether a point is lit.
 //!
 //! The world: y up, z away from the eye, which looks level from the origin.
 
 use crate::kinds::objects::object_design::{Block, Design, Local};
 use crate::kinds::objects::object_hull::{hull, minus, round};
-use crate::kinds::objects::object_rays::{hull_hit, round_hit, round_off, round_values};
+use crate::kinds::objects::object_rays::{
+    ball_hit, ground_hit, hull_hit, round_hit, round_off, round_values,
+};
 use crate::kinds::solids::solid_answer::Square;
 use crate::maths::vector::{Vector, add, dot, norm, sub, times};
 
 /// Within this of a surface (world units) a point lies on it.
 pub(crate) const TOUCH: f64 = 1e-7;
-/// A round part's surfaces are numbered from here, a hull's below.
+/// A round part's surfaces are numbered from here, a hull's below, a ball's from `BALL_SURFACES`;
+/// the ground is `GROUND` (S153).
 pub(crate) const ROUND_SURFACES: u32 = 1_000;
+pub(crate) const BALL_SURFACES: u32 = 2_000;
+pub(crate) const GROUND: u32 = 3_000;
+/// How far a shadow ray starts off its surface (world units): clear of the surface it leaves,
+/// far nearer than any part's thickness.
+const LIFT: f64 = 1e-9;
 
 /// What lies at a point of a surface (`Body::touching`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +88,13 @@ impl Round {
     }
 }
 
+/// A ball (S153): its centre and radius.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Ball {
+    pub(crate) centre: Vector,
+    pub(crate) radius: f64,
+}
+
 /// How the box lies in the world: its corner 0 and its width, height and depth as vectors.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Placed {
@@ -130,6 +146,7 @@ pub(crate) struct Body {
     pub(crate) placed: Placed,
     pub(crate) hulls: Vec<Hull>,
     pub(crate) rounds: Vec<Round>,
+    pub(crate) balls: Vec<Ball>,
 }
 
 impl Body {
@@ -172,18 +189,23 @@ impl Body {
             placed,
             hulls,
             rounds,
+            balls: Vec::new(),
         }
     }
 
     /// What the ray from the eye along `direction` meets first; `t` 1 at `direction` itself.
     pub(crate) fn hit(&self, direction: Vector) -> Option<Hit> {
-        let hulls = self
-            .hulls
-            .iter()
-            .filter_map(|hull| hull_hit(hull, direction));
+        self.cast(([0.0; 3], direction))
+    }
+
+    /// What the ray from `origin` along `d` meets first; `t` 1 at `origin + d` (S153).
+    pub(crate) fn cast(&self, (origin, d): (Vector, Vector)) -> Option<Hit> {
+        let hulls = (self.hulls.iter()).filter_map(|hull| hull_hit(hull, origin, d));
         let rounds = (self.rounds.iter().enumerate())
-            .filter_map(|(index, round)| round_hit(round, direction, index));
-        hulls.chain(rounds).min_by(|a, b| a.t.total_cmp(&b.t))
+            .filter_map(|(index, round)| round_hit(round, (origin, d), index));
+        let balls = (self.balls.iter().enumerate())
+            .filter_map(|(index, ball)| ball_hit(ball, (origin, d), index));
+        (hulls.chain(rounds).chain(balls)).min_by(|a, b| a.t.total_cmp(&b.t))
     }
 
     /// What lies at `p`: inside a part, or the parts whose surfaces pass through it (within
@@ -211,6 +233,12 @@ impl Body {
                 return Touch::Inside;
             }
         }
+        for ball in &self.balls {
+            let value = norm(sub(p, ball.centre)) - ball.radius;
+            if take(fold((f64::NEG_INFINITY, 0), value)) {
+                return Touch::Inside;
+            }
+        }
         Touch::Parts(parts)
     }
 
@@ -222,6 +250,53 @@ impl Body {
         };
         let in_round =
             |(index, round): (usize, &Round)| Some(index) != skip && round_off(round, p) <= margin;
-        self.hulls.iter().any(in_hull) || self.rounds.iter().enumerate().any(in_round)
+        let in_ball = |ball: &Ball| norm(sub(p, ball.centre)) - ball.radius <= margin;
+        self.hulls.iter().any(in_hull)
+            || self.rounds.iter().enumerate().any(in_round)
+            || self.balls.iter().any(in_ball)
+    }
+}
+
+/// An object standing on the ground (S153): what a ray meets first, the ground a surface of the
+/// scene (`GROUND`, its normal up), and whether a point is lit by a light.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Scene {
+    pub(crate) body: Body,
+    /// The ground's height (world y).
+    pub(crate) ground: f64,
+}
+
+impl Scene {
+    /// What the ray from `origin` along `d` meets first, the object or the ground.
+    pub(crate) fn cast(&self, (origin, d): (Vector, Vector)) -> Option<Hit> {
+        let body = self.body.cast((origin, d));
+        let ground = ground_hit(self.ground, (origin, d)).map(|t| Hit {
+            t,
+            normal: [0.0, 1.0, 0.0],
+            round: false,
+            surface: GROUND,
+        });
+        match (body, ground) {
+            (Some(body), Some(ground)) if ground.t < body.t => Some(ground),
+            (Some(body), _) => Some(body),
+            (None, ground) => ground,
+        }
+    }
+
+    /// Whether the point `p` of a surface facing `normal` is lit by the light lying `towards` it
+    /// (one long) `reach` away (`f64::INFINITY` for the sun): it faces the light and the ray
+    /// leaving it towards the light meets nothing of the object on its way.
+    pub(crate) fn lit(
+        &self,
+        (p, normal): (Vector, Vector),
+        (towards, reach): (Vector, f64),
+    ) -> bool {
+        if dot(normal, towards) <= 0.0 {
+            return false;
+        }
+        let from = add(p, times(normal, LIFT));
+        self.body
+            .cast((from, towards))
+            .is_none_or(|hit| hit.t >= reach)
     }
 }

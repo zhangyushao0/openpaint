@@ -10,7 +10,7 @@ use openpaint_core::{Color, StrokeStyle, StrokeTool};
 use openpaint_practice::Facts;
 
 use super::{PracticeSheet, unavailable};
-use crate::pens::value_colour;
+use crate::pens::grey_colour;
 use crate::projection::{Pen, PracticeNotice};
 use crate::refused::Refused;
 use openpaint_app::Availability;
@@ -86,7 +86,7 @@ impl PracticeSheet {
             .current()
             .ok_or(unavailable(Availability::NothingLeft))?;
         let compared = self.record.first(index).is_some();
-        let (level, valued) = (pen.level().is_some(), pen.value().is_some());
+        let (level, valued) = (pen.level().is_some(), pen.grey().is_some());
         let fits = match self.facts(index) {
             Some(facts) => facts.tools.offers(pen, compared),
             None => pen.paints(),
@@ -111,8 +111,8 @@ impl PracticeSheet {
     /// masses' grey chosen (S96), else `asked`.
     pub(crate) fn fill_colour(&self, asked: Color) -> Color {
         let greys = (self.shown_facts()).is_some_and(|facts| facts.tools.greys());
-        (greys.then(|| self.valuing.value()).flatten())
-            .and_then(|value| value_colour(value).ok())
+        (greys.then(|| self.valuing.grey()).flatten())
+            .and_then(|grey| grey_colour(grey).ok())
             .unwrap_or(asked)
     }
 

@@ -15,6 +15,7 @@
 
 pub(crate) mod abstract_analysis;
 pub(crate) mod boxes;
+pub(crate) mod cast_shadows;
 pub(crate) mod colours;
 pub(crate) mod combinations;
 pub(crate) mod combined_lines;
@@ -25,6 +26,7 @@ pub(crate) mod free;
 pub(crate) mod free_boxes;
 pub(crate) mod gamut_masks;
 pub(crate) mod key_shifts;
+pub(crate) mod light_on_form;
 pub(crate) mod lines;
 pub(crate) mod objects;
 pub(crate) mod observation;
@@ -51,10 +53,10 @@ pub(crate) use kind::{Described, Turn, place};
 pub use original::Original;
 pub(crate) use original::{Blank, held};
 pub use skill::{Skill, SkillLevel};
-pub use tools::{Fill, Pen, Picking, ToolSet};
+pub use tools::{DARKEST, DARKEST_PEN, Fill, Pen, Picking, ToolSet};
 
-/// Every kind, by its stored code (1 to 25, 5 free): its line here registers it.
-pub(crate) const KINDS: [&dyn Described; 24] = [
+/// Every kind, by its stored code (1 to 27, 5 free): its line here registers it.
+pub(crate) const KINDS: [&dyn Described; 26] = [
     &lines::Lines,
     &colours::Colours,
     &combined_lines::CombinedLines,
@@ -79,4 +81,6 @@ pub(crate) const KINDS: [&dyn Described; 24] = [
     &observation::Observation,
     &gamut_masks::GamutMasks,
     &placements::Placements,
+    &light_on_form::LightOnForm,
+    &cast_shadows::CastShadows,
 ];

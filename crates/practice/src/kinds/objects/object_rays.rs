@@ -1,8 +1,10 @@
-//! Where the eye's rays meet an object's parts (S94, `object_body.rs`): a convex hull entered
-//! through its planes, a cylinder or a cone through its ends' slab and its side; and how far a
-//! point lies past a round part's surfaces.
+//! Where rays meet an object's parts (S94, `object_body.rs`): a convex hull entered through its
+//! planes, a cylinder or a cone through its ends' slab and its side, a ball (S153); and how far a
+//! point lies past a round part's surfaces. A ray starts anywhere (S153: a shadow ray leaves a
+//! surface towards the light): the eye's start at the origin, and a ray from `origin` is the same
+//! test with each plane's offset and each round part's centre moved by it.
 
-use crate::kinds::objects::object_body::{Hit, Hull, ROUND_SURFACES, Round};
+use crate::kinds::objects::object_body::{BALL_SURFACES, Ball, Hit, Hull, ROUND_SURFACES, Round};
 use crate::maths::vector::{Vector, add, dot, norm, sub, times, unit};
 
 /// How far `p` lies outside `round` (negative inside).
@@ -26,18 +28,19 @@ pub(crate) fn round_values(round: &Round, p: Vector) -> [f64; 3] {
     [-along, along - round.length, radial - reach]
 }
 
-/// Where the ray along `d` enters `hull`.
-pub(crate) fn hull_hit(hull: &Hull, d: Vector) -> Option<Hit> {
+/// Where the ray from `origin` along `d` enters `hull`.
+pub(crate) fn hull_hit(hull: &Hull, origin: Vector, d: Vector) -> Option<Hit> {
     let (mut enter, mut leave, mut by) = (f64::NEG_INFINITY, f64::INFINITY, 0);
     for (k, plane) in hull.planes.iter().enumerate() {
+        let offset = plane.offset - dot(plane.normal, origin);
         let towards = dot(plane.normal, d);
         if towards.abs() < 1e-15 {
-            if plane.offset < 0.0 {
+            if offset < 0.0 {
                 return None;
             }
             continue;
         }
-        let t = plane.offset / towards;
+        let t = offset / towards;
         if towards < 0.0 {
             if t > enter {
                 (enter, by) = (t, k);
@@ -54,10 +57,10 @@ pub(crate) fn hull_hit(hull: &Hull, d: Vector) -> Option<Hit> {
     })
 }
 
-/// Where the ray along `d` enters `round`, the object's round part `index`: through its base's or
-/// top's slab and its side.
-pub(crate) fn round_hit(round: &Round, d: Vector, index: usize) -> Option<Hit> {
-    let centre = round.base.centre();
+/// Where the ray from `origin` along `d` enters `round`, the object's round part `index`: through
+/// its base's or top's slab and its side.
+pub(crate) fn round_hit(round: &Round, (origin, d): (Vector, Vector), index: usize) -> Option<Hit> {
+    let centre = sub(round.base.centre(), origin);
     let w = times(centre, -1.0);
     let (wa, da) = (dot(w, round.axis), dot(d, round.axis));
     // The slab between the base (0) and the top (`length`) along the axis.
@@ -87,7 +90,7 @@ pub(crate) fn round_hit(round: &Round, d: Vector, index: usize) -> Option<Hit> {
     };
     let (enter, leave) = interval(quadratic, (low, high), inside)?;
     (enter > 0.0 && enter <= leave).then(|| {
-        let at = times(d, enter);
+        let at = add(origin, times(d, enter));
         let on_end = (enter - low).abs() <= 1e-12 * enter.abs().max(1.0);
         let normal = if on_end {
             times(round.axis, if da > 0.0 { -1.0 } else { 1.0 })
@@ -101,6 +104,35 @@ pub(crate) fn round_hit(round: &Round, d: Vector, index: usize) -> Option<Hit> {
             surface: ROUND_SURFACES + (index * 4 + usize::from(on_end)) as u32,
         }
     })
+}
+
+/// Where the ray from `origin` along `d` enters `ball`, the object's ball `index` (S153): the
+/// nearer root of `|origin + t d - centre|² = r²`, in front of the start.
+pub(crate) fn ball_hit(ball: &Ball, (origin, d): (Vector, Vector), index: usize) -> Option<Hit> {
+    let w = sub(origin, ball.centre);
+    let [a, b, c] = [
+        dot(d, d),
+        2.0 * dot(w, d),
+        dot(w, w) - ball.radius * ball.radius,
+    ];
+    let disc = b * b - 4.0 * a * c;
+    if a <= 0.0 || disc < 0.0 {
+        return None;
+    }
+    let enter = (-b - disc.sqrt()) / (2.0 * a);
+    (enter > 0.0).then(|| Hit {
+        t: enter,
+        normal: unit(add(w, times(d, enter))),
+        round: true,
+        surface: BALL_SURFACES + index as u32,
+    })
+}
+
+/// Where the ray from `origin` along `d` meets the ground at the height `ground` from above (S153);
+/// none for a ray along it, away from it or starting under it.
+pub(crate) fn ground_hit(ground: f64, (origin, d): (Vector, Vector)) -> Option<f64> {
+    let t = (ground - origin[1]) / d[1];
+    (d[1] < 0.0 && origin[1] >= ground && t > 0.0).then_some(t)
 }
 
 /// Where in `[low, high]` the ray is `inside`: the breaks the quadratic's roots make, each piece

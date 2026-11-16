@@ -117,7 +117,7 @@ fn a_sheet_round_trips_and_damage_is_refused() {
     }
     // The first exercise: its kind after the lesson's exercise in hand and count.
     let kind = picked + 1 + 2 + 4;
-    for code in [5, 26] {
+    for code in [5, 28] {
         let mut unknown = bytes.clone();
         unknown[kind] = code;
         assert!(

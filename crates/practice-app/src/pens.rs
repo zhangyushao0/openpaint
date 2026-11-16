@@ -10,7 +10,8 @@
 //! a hard edge, the colour picked at full strength at any pressure (pressure sets only its size, a
 //! little), for blocks: Big for the big ones, Small for edges and small areas; Soft is the
 //! airbrush, only where the picture's own edge or gradient is soft. Value masses' Dark, Middle and
-//! Light (S96) are the hard tip in their three greys, a size for big masses.
+//! Light (S96) are the hard tip in their three greys, a size for big masses; Darkest (S153, light on
+//! form's core and contact) the hard tip in the darkest grey, narrower.
 //!
 //! No pen is the toolbox's brush: a user's brush edits never reach them, and a stroke keeps its
 //! recipe's snapshot, so strokes drawn before draw as they did. The hard tip is the toolbox's
@@ -21,7 +22,7 @@
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, MAX_BRUSH_SIZE, StrokeStyle};
-use openpaint_practice::{FRAME, Level, VALUE_PEN, Value};
+use openpaint_practice::{DARKEST, DARKEST_PEN, FRAME, Level, Rgb8, VALUE_PEN, Value};
 
 use crate::projection::Pen;
 use crate::sheet::Practising;
@@ -48,8 +49,10 @@ const BIG: (&str, f32, f32, [f32; 3]) = (HARD_PAINT, 64.0, 1.0, [0.5; 3]);
 const SMALL: (&str, f32, f32, [f32; 3]) = (HARD_PAINT, 20.0, 1.0, [0.5; 3]);
 const SOFT: (&str, f32, f32, [f32; 3]) = ("soft-tip", 100.0, 0.8, [0.5; 3]);
 /// Value masses' pens: the hard tip in each value's grey, as wide as Compare's tolerance
-/// (`VALUE_PEN` of a frame: 24 pixels), big for masses.
+/// (`VALUE_PEN` of a frame: 24 pixels), big for masses; the darkest's narrower (`DARKEST_PEN`: 10
+/// pixels, a core shadow's width).
 const VALUE: (&str, f32, f32) = (HARD_PAINT, (VALUE_PEN * FRAME) as f32, 1.0);
+const DARKEST_SIZE: f32 = (DARKEST_PEN * FRAME) as f32;
 
 /// What a long colour copy opens on (S104): the toolbox's Hard Paint, as large to the copy's frame
 /// as Big is to an exercise's (256 pixels on its 1,600-pixel frame); none on any other sheet. The
@@ -77,8 +80,9 @@ pub struct PracticePens {
     soft: StrokeStyle,
     /// A division's levels' (S95): the ink pen as Draw's, in each level's colour.
     levels: [StrokeStyle; 3],
-    /// Value masses' greys (S96), dark, middle, light.
+    /// Value masses' greys (S96), dark, middle, light; the darkest (S153).
     values: [StrokeStyle; 3],
+    darkest: StrokeStyle,
 }
 
 /// A division's level's colour as a stroke holds it.
@@ -92,7 +96,15 @@ fn level_colour(level: Level) -> Result<Color, CoreError> {
 /// # Errors
 /// Never for the three greys.
 pub fn value_colour(value: Value) -> Result<Color, CoreError> {
-    let [r, g, b] = value.grey().map(|c| f32::from(c) / 255.0);
+    grey_colour(value.grey())
+}
+
+/// A grey as a stroke or a fill holds it (S96, S153: the darkest too).
+///
+/// # Errors
+/// Never for a grey of 8-bit channels.
+pub fn grey_colour(grey: Rgb8) -> Result<Color, CoreError> {
+    let [r, g, b] = grey.map(|c| f32::from(c) / 255.0);
     Color::rgb(r, g, b)
 }
 
@@ -137,6 +149,12 @@ impl PracticePens {
                 grey(Value::Middle)?,
                 grey(Value::Light)?,
             ],
+            darkest: style((
+                key,
+                DARKEST_SIZE,
+                opacity,
+                DARKEST.map(|c| f32::from(c) / 255.0),
+            ))?,
             draw,
         })
     }
@@ -156,6 +174,7 @@ impl PracticePens {
             Pen::Dark => &self.values[0],
             Pen::Middle => &self.values[1],
             Pen::Light => &self.values[2],
+            Pen::Darkest => &self.darkest,
         }
     }
 

@@ -34,7 +34,8 @@ fn pen_lines() -> Vec<Figure> {
     ];
     let pens = (pens.into_iter())
         .chain(Level::ALL.map(LinePen::Level))
-        .chain(Value::ALL.map(LinePen::Hatch));
+        .chain(Value::ALL.map(LinePen::Hatch))
+        .chain([LinePen::HatchDarkest]);
     (pens.enumerate())
         .map(|(n, pen)| Figure::Line {
             points: vec![A, B, [0.5, f64::INFINITY]],
@@ -250,7 +251,7 @@ fn a_mark_s_unknown_code_is_refused_never_guessed() {
         at: [0.5; 2],
         pen: LinePen::Ink,
     });
-    assert_eq!(refused(&given, 7 + 16, 14), CORRUPT, "a pen");
+    assert_eq!(refused(&given, 7 + 16, 15), CORRUPT, "a pen");
     let laid = one(Figure::Picture {
         source: Source::Pack,
         place: Place::Frame,

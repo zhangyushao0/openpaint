@@ -127,6 +127,10 @@ impl Demonstrations {
         let (now, pass) = (ctx.input(|input| input.time), ctx.cumulative_pass_nr());
         let still = (self.playing.as_ref()).is_some_and(|p| p.of == of && p.pass + 1 >= pass);
         if !still {
+            // Another How's pictures are its own (two Hows may lay value masses' maps, S153).
+            if self.playing.as_ref().is_none_or(|playing| playing.of != of) {
+                self.pictures.clear();
+            }
             let Some(demo) = self.made(of) else {
                 self.playing = None;
                 return;

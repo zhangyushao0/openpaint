@@ -59,5 +59,6 @@ pub(crate) const fn pen(pen: Pen) -> Text {
         Pen::Dark => super::DARK_PEN,
         Pen::Middle => super::MIDDLE_PEN,
         Pen::Light => super::LIGHT_PEN,
+        Pen::Darkest => super::DARKEST_PEN,
     }
 }

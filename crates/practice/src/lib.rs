@@ -60,6 +60,9 @@ pub use kinds::abstract_analysis::marks::{
     AnalysisCompared, AnalysisReading, CONTRASTS, DISTRIBUTIONS, VIEWS,
 };
 pub use kinds::boxes::marks::BoxCompared;
+pub use kinds::cast_shadows::answer::{Corner, Shadows};
+pub use kinds::cast_shadows::marks::ShadowCompared;
+pub use kinds::cast_shadows::scene::{ShadowTask, Throw};
 pub use kinds::colours::bands::{DELTA_SPAN, NOTICEABLE, PART_SPAN};
 pub use kinds::colours::colour_match::{
     ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour,
@@ -90,6 +93,13 @@ pub use kinds::key_shifts::key_shift_check::{
 };
 pub use kinds::key_shifts::marks::{KeyCompared, KeyRead};
 pub use kinds::key_shifts::reading::KeyReading;
+pub use kinds::light_on_form::answer::{
+    CONTACT, CORE, CORE_STRIP, Grey, HALFTONE, LIGHT, Mass, REFLECTED, SOFT,
+};
+pub use kinds::light_on_form::marks::{LightCompared, LightReading};
+pub use kinds::light_on_form::read::{LightCheck, NEAR};
+pub use kinds::light_on_form::scene::{Form, LightTask, Lighting, Lit, Tones};
+pub use kinds::light_on_form::trace::Parting;
 pub use kinds::lines::line::{LineExercise, LineTier};
 pub use kinds::lines::marks::LinesCompared;
 pub use kinds::objects::OBJECT_SIDE;
@@ -122,8 +132,8 @@ pub use kinds::solids::solid_answer::{SolidAnswer, Stretch};
 pub use kinds::value_masses::marks::{MassesCompared, MassesReading};
 pub use kinds::value_masses::value_masses_read::{BARE_LEFT, HATCH_GAP, MassesCheck, VALUE_PEN};
 pub use kinds::{
-    Counted, DrawnCopy, Facts, Fill, Kept, Kind, Needs, Original, Pen, Picking, Skill, SkillLevel,
-    ToolSet,
+    Counted, DARKEST, DARKEST_PEN, DrawnCopy, Facts, Fill, Kept, Kind, Needs, Original, Pen,
+    Picking, Skill, SkillLevel, ToolSet,
 };
 pub use marks::asked::{Asked, Compare, Copied, Painted, Pixels, Read, Reading, Reads, ToFit};
 pub use marks::card::{Arg, CardItem, Choices, Say, WheelSize};

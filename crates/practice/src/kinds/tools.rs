@@ -7,6 +7,13 @@
 
 use crate::compositions::levels::Level;
 use crate::compositions::value_masses::Value;
+use crate::maths::colour::Rgb8;
+
+/// The darkest grey (S153, 最暗): a core shadow's and a contact's, darker than value masses' dark
+/// and never one of their values (their reading stays three greys); its pen's width, frame units
+/// (10 canvas pixels on a 400-pixel frame: a core shadow's width, a texture's small shadow).
+pub const DARKEST: Rgb8 = [28; 3];
+pub const DARKEST_PEN: f64 = 0.025;
 
 /// The pens an exercise's own tools offer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,6 +38,8 @@ pub enum Pen {
     Dark,
     Middle,
     Light,
+    /// The darkest grey (S153, 最暗), narrower: a core shadow's width, a contact's.
+    Darkest,
 }
 
 impl Pen {
@@ -44,6 +53,10 @@ impl Pen {
     pub const COPYING: [Self; 4] = [Self::Main, Self::Second, Self::Third, Self::Draw];
     /// Value masses' greys (S96).
     pub const VALUES: [Self; 3] = [Self::Dark, Self::Middle, Self::Light];
+    /// Two greys, the light and the dark (S153: light on form's first level, the families alone);
+    /// four, the darkest before value masses' three (its third, the core and the contact).
+    pub const TWO_TONES: [Self; 2] = [Self::Dark, Self::Light];
+    pub const FOUR_TONES: [Self; 4] = [Self::Darkest, Self::Dark, Self::Middle, Self::Light];
 
     /// Whether it paints in the colour picked.
     #[must_use]
@@ -59,6 +72,18 @@ impl Pen {
             Self::Middle => Some(Value::Middle),
             Self::Light => Some(Value::Light),
             _ => None,
+        }
+    }
+
+    /// The grey it paints, if it is a grey: value masses' three and the darkest (S153).
+    #[must_use]
+    pub const fn grey(self) -> Option<Rgb8> {
+        match self {
+            Self::Darkest => Some(DARKEST),
+            _ => match self.value() {
+                Some(value) => Some(value.grey()),
+                None => None,
+            },
         }
     }
 
@@ -161,6 +186,15 @@ impl ToolSet {
         history: true,
         ..Self::NONE
     };
+    /// As `GREYS` with two greys, the dark and the light, or with the darkest too (S153).
+    pub(crate) const TWO_GREYS: Self = Self {
+        pens: &Pen::TWO_TONES,
+        ..Self::GREYS
+    };
+    pub(crate) const FOUR_GREYS: Self = Self {
+        pens: &Pen::FOUR_TONES,
+        ..Self::GREYS
+    };
     /// The wheel and Fill frame: one flat colour, no pens (a colour).
     pub(crate) const COLOUR: Self = Self {
         wheel: true,
@@ -199,10 +233,10 @@ impl ToolSet {
         listed || (self.paints && pen.paints())
     }
 
-    /// Whether its pens are value masses' greys: its fill takes the grey chosen.
+    /// Whether its pens are greys: its fill takes the grey chosen.
     #[must_use]
     pub fn greys(&self) -> bool {
-        self.pens.iter().any(|pen| pen.value().is_some())
+        self.pens.iter().any(|pen| pen.grey().is_some())
     }
 
     /// Whether its pens draw a division's levels.

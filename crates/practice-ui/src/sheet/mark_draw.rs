@@ -10,7 +10,9 @@
 //! original's frame, or kept inside their own frame.
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Shape, Stroke};
-use openpaint_practice::{Clip, Figure, Frame, In, LinePen, Place, SheetMark, Source, within};
+use openpaint_practice::{
+    Clip, DARKEST, Figure, Frame, In, LinePen, Place, SheetMark, Source, within,
+};
 use openpaint_practice_app::PracticeProjection;
 
 use openpaint_ui::design::{DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH};
@@ -250,6 +252,7 @@ impl Drawing<'_> {
                 Stroke::new(overlay, Color32::from_rgb(r, g, b))
             }
             LinePen::Hatch(value) => Stroke::new(overlay * HATCH, value_colour(value)),
+            LinePen::HatchDarkest => Stroke::new(overlay * HATCH, colour(DARKEST)),
         }
     }
 
@@ -269,7 +272,7 @@ impl Drawing<'_> {
                     }
                 }
             }
-            (LinePen::Hatch(_), _) => {
+            (LinePen::Hatch(_) | LinePen::HatchDarkest, _) => {
                 for segment in points.windows(2) {
                     painter.line_segment([map(segment[0]), map(segment[1])], stroke);
                 }

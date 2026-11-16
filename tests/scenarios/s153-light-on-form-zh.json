@@ -1,0 +1,41 @@
+{
+  "walkthrough": [
+    "s153-light-on-form on a Chinese tablet, the same first steps with every word in Chinese: the bar 明暗 1/2; the How 画出形体的明暗, 已知光的方向，找出形体的亮面在哪里结束、暗面从哪里开始, its steps 找光的方向：从杆顶到影子尖, 用白填满方框：受光的地面和亮面, 用黑画背光的一侧，画到明暗交界线为止，再画投影, 叠图对比, and its paragraph; the pens 黑, 白, 填满方框; Compare's card 明暗 1, 差一点, the reason 明暗交界线偏向亮面了一点。, 原图浓淡, 看画法. Level 3: the pens 最黑, 黑, 灰, 白 and its How's steps 用灰画光擦过的灰面, 用最黑画明暗交界线和着地处的接触阴影."
+  ],
+  "screen": [2880, 1800],
+  "system_language": "chinese",
+  "density": 1.75,
+  "steps": [
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "light-on-form", "level": 1 } },
+    { "screenshot": { "name": "light-how-mid-zh", "after_ms": 3500 } },
+    { "screenshot": { "name": "light-how-end-zh" } },
+    { "expect": { "shown": ["Watch again", "Got it"], "absent": [] } },
+    { "tap": { "at": "Got it" } },
+    { "expect": { "shown": ["Dark", "Light", "Fill frame", "Undo", "Redo"], "absent": ["Middle", "Darkest", "Sketch", "Draw", "Correct"] } },
+    { "screenshot": { "name": "light-opened-zh" } },
+    { "tap": { "at": "Light" } },
+    { "tap": { "at": "Fill frame" } },
+    { "tap": { "at": "Dark" } },
+    { "stroke": { "points": [[1425, 882, 0.8], [1425, 1072, 0.8]] } },
+    { "stroke": { "points": [[1460, 864, 0.8], [1460, 1046, 0.8]] } },
+    { "stroke": { "points": [[1490, 849, 0.8], [1490, 1024, 0.8]] } },
+    { "stroke": { "points": [[1435, 1072, 0.8], [1580, 995, 0.8], [1638, 948, 0.8]] } },
+    { "stroke": { "points": [[1510, 1010, 0.8], [1570, 940, 0.8]] } },
+    { "stroke": { "points": [[1515, 965, 0.8], [1600, 935, 0.8]] } },
+    { "stroke": { "points": [[1380, 960, 0.8], [1380, 1050, 0.8]] } },
+    { "stroke": { "points": [[1360, 955, 0.8], [1360, 1045, 0.8]] } },
+    { "screenshot": { "name": "light-painted-zh" } },
+    { "tap": { "at": "Compare" } },
+    { "screenshot": { "name": "light-compared-zh", "after_ms": 1500 } },
+    { "tap": { "at": { "on": "Original shown", "fraction": [0.95, 0.5] } } },
+    { "screenshot": { "name": "light-compared-most-zh", "after_ms": 500 } },
+    { "tap": { "at": "Construction" } },
+    { "screenshot": { "name": "light-construction-zh", "after_ms": 500 } },
+    { "tap": { "at": "Home" } },
+    { "lesson": { "skill": "light-on-form", "level": 3 } },
+    { "screenshot": { "name": "light-level-three-how-zh", "after_ms": 10000 } },
+    { "tap": { "at": "Got it" } },
+    { "screenshot": { "name": "light-level-three-zh" } }
+  ]
+}

@@ -13,6 +13,7 @@ use super::{Language, Text};
 
 mod abstract_analysis;
 mod boxes;
+mod cast_shadows;
 mod colours;
 mod combinations;
 mod combined_lines;
@@ -23,6 +24,7 @@ mod free;
 mod free_boxes;
 mod gamut_masks;
 mod key_shifts;
+mod light_on_form;
 mod lines;
 mod objects;
 mod observation;
@@ -45,6 +47,7 @@ pub(crate) use abstract_analysis::{
 pub(crate) use gamut_masks::made as outside_mask_made;
 pub(crate) use gamut_masks::outside_mask;
 pub(crate) use key_shifts::{GREY_VIEW, TENDENCY, lightness_off, merged, not_toward};
+pub(crate) use light_on_form::{DARKEST_PEN, light_off};
 pub(crate) use observation::{LIFE_DRAWINGS, LIFE_EXERCISE, LIFE_NEW, life_subject};
 pub(crate) use study::STUDY_EXERCISE;
 pub(crate) use value_masses::{DARK_PEN, LIGHT_PEN, MIDDLE_PEN};
@@ -91,7 +94,7 @@ texts! { PRACTICE_HOW;
 }
 
 /// Every kind's topics' words: its line here registers them.
-const KINDS: [&[KindWords]; 24] = [
+const KINDS: [&[KindWords]; 26] = [
     &lines::WORDS,
     &combined_lines::WORDS,
     &shapes::WORDS,
@@ -116,6 +119,8 @@ const KINDS: [&[KindWords]; 24] = [
     &observation::WORDS,
     &gamut_masks::WORDS,
     &placements::WORDS,
+    &light_on_form::WORDS,
+    &cast_shadows::WORDS,
 ];
 
 /// `kind`'s words, by its topic's key.
@@ -195,6 +200,8 @@ pub(crate) fn tables() -> Vec<&'static [Text]> {
         whole_copies::PRACTICE_WHOLE_COPIES,
         gamut_masks::PRACTICE_GAMUT_MASKS,
         placements::PRACTICE_PLACEMENTS,
+        light_on_form::PRACTICE_LIGHT_ON_FORM,
+        cast_shadows::PRACTICE_CAST_SHADOWS,
     ]
 }
 

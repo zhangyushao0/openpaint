@@ -8,7 +8,9 @@
 //! (D107); a division its lines' counts and lengths per level, for its card's table and later
 //! trajectories (S95); value masses the share painted at the answer's value (S96); a key shift how
 //! many areas each of its checks marked (S107); abstract analysis what its card's choices held
-//! (S112). A code is never given to another metric; one this version does not know is refused.
+//! (S112); a gamut mask the areas painted outside it, light on form the share painted in its right
+//! family (S153). A code is never given to another metric; one this version does not know is
+//! refused.
 
 use crate::compositions::levels::Level;
 
@@ -66,10 +68,13 @@ pub enum Metric {
     ChosenShape,
     /// A gamut mask (S153): the areas painted outside the mask (`gamut_masks/check.rs`).
     MaskOutside,
+    /// Light on form (S153): the share of the frame painted in its right family, light or shadow
+    /// (`light_on_form/read.rs`).
+    LightFamilies,
 }
 
 impl Metric {
-    pub const ALL: [Self; 33] = [
+    pub const ALL: [Self; 34] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -103,6 +108,7 @@ impl Metric {
         Self::ChosenChips,
         Self::ChosenShape,
         Self::MaskOutside,
+        Self::LightFamilies,
     ];
 
     /// The code it is stored by; never reused.
@@ -142,6 +148,7 @@ impl Metric {
             Self::ChosenChips => 59,
             Self::ChosenShape => 60,
             Self::MaskOutside => 61,
+            Self::LightFamilies => 62,
         }
     }
 

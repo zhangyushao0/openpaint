@@ -41,11 +41,11 @@ fn after(learner: &Learner, key: &str, level: SkillLevel, outcomes: &[Outcome]) 
 }
 
 #[test]
-fn the_units_hold_twenty_one_skills_each_once_under_a_key_of_its_own() {
+fn the_units_hold_twenty_three_skills_each_once_under_a_key_of_its_own() {
     let skills: Vec<Skill> = Skill::all().collect();
-    assert_eq!(skills.len(), 21);
+    assert_eq!(skills.len(), 23);
     let held: usize = UNITS.iter().map(|unit| unit.skills.len()).sum();
-    assert_eq!(held, 21);
+    assert_eq!(held, 23);
     let mut keys: Vec<&str> = skills.iter().map(|skill| skill.key()).collect();
     for (skill, key) in skills.iter().zip(&keys) {
         assert_eq!(Skill::of_key(key), Some(*skill), "{key}");
@@ -54,7 +54,7 @@ fn the_units_hold_twenty_one_skills_each_once_under_a_key_of_its_own() {
     }
     keys.sort_unstable();
     keys.dedup();
-    assert_eq!(keys.len(), 21);
+    assert_eq!(keys.len(), 23);
     // A kind is its folder's skill; a long colour copy and the free scribble are none.
     assert_eq!(Skill::of(Kind::Line(LineTier::Hook)), Some(skill("line")));
     assert_eq!(
@@ -233,9 +233,9 @@ fn a_unit_opens_only_after_the_one_before_it_opened_and_never_one_without_a_skil
             .collect()
     };
     assert_eq!(open(&fresh), [1]);
-    // Every skill that can be practised without a pack with its first dot: units 1 to 7 open,
-    // unit 5 though its colour skills cannot be practised, unit 7 though unit 6's gamut masks
-    // cannot (S153), and never 8, which holds no skill.
+    // Every skill that can be practised without a pack with its first dot: units 1 to 7 open in
+    // course order, unit 5 though its colour skills cannot be practised, unit 6 though its gamut
+    // masks cannot (S153), and never 8, which holds no skill.
     let mut learner = fresh;
     for practised in Skill::all().filter(|skill| skill.lacks(&pictures).is_none()) {
         // Lessons until the window fills: as many as it takes a lesson's size.

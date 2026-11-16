@@ -3,7 +3,8 @@
 //! ray shown: lit from one side above, the tops lightest, the sides two values, a round part a
 //! little darker and shaded by its turn; no lines, no hidden parts, no horizon. Each pixel is
 //! its middle's surface, and where a neighbour's differs, the mean of 4 x 4 samples across it
-//! (the edges antialiased, the paper's share left clear).
+//! (the edges antialiased, the paper's share left clear): the lit picture, drawn over any surface
+//! (`lit_picture`, S153: the light's answer too).
 //!
 //! Every visible edge must show as a step of shade the eye sees (`legible`): across it, a pen's
 //! width either side, the shades differ by `SHADE_STEP` at least, or the object is laid again.
@@ -60,65 +61,10 @@ impl ObjectTask {
     /// alpha (the paper left clear).
     #[must_use]
     pub fn picture(&self, side: u32) -> Vec<u8> {
-        let side = side.max(1) as usize;
-        let pixel = 1.0 / side as f64;
-        let centre = |x: usize, y: usize| [(x as f64 + 0.5) * pixel, (y as f64 + 0.5) * pixel];
         // Only within the box's picture: beyond it lies paper.
         let low = [0, 1].map(|k| (self.seen.corners.iter()).fold(1.0_f64, |m, p| m.min(p[k])));
         let high = [0, 1].map(|k| (self.seen.corners.iter()).fold(0.0_f64, |m, p| m.max(p[k])));
-        let range = |k: usize| {
-            let from = ((low[k] / pixel).floor() as usize).saturating_sub(2);
-            let to = ((high[k] / pixel).ceil() as usize + 2).min(side);
-            from..to
-        };
-        let mut middles: Vec<Option<(u32, f64)>> = vec![None; side * side];
-        for y in range(1) {
-            for x in range(0) {
-                middles[y * side + x] = self.surface_at(centre(x, y));
-            }
-        }
-        let mut pixels = vec![0_u8; side * side * 4];
-        for y in range(1) {
-            for x in range(0) {
-                let own = middles[y * side + x].map(|(surface, _)| surface);
-                let other = |dx: isize, dy: isize| {
-                    let (nx, ny) = (x.checked_add_signed(dx), y.checked_add_signed(dy));
-                    let held = nx.zip(ny).filter(|(nx, ny)| *nx < side && *ny < side);
-                    held.and_then(|(nx, ny)| middles[ny * side + nx])
-                        .map(|(s, _)| s)
-                        != own
-                };
-                let edge = other(-1, 0) || other(1, 0) || other(0, -1) || other(0, 1);
-                let (shade, cover) = if edge {
-                    self.across(centre(x, y), pixel)
-                } else {
-                    middles[y * side + x].map_or((0.0, 0.0), |(_, shade)| (shade, 1.0))
-                };
-                let at = (y * side + x) * 4;
-                for k in 0..3 {
-                    pixels[at + k] = (shade * TINT[k] * 255.0).round().clamp(0.0, 255.0) as u8;
-                }
-                pixels[at + 3] = (cover * 255.0).round() as u8;
-            }
-        }
-        pixels
-    }
-
-    /// The mean shade of the object's samples across the pixel `pixel` wide about `centre`, and
-    /// the share of them on the object.
-    fn across(&self, centre: Point, pixel: f64) -> (f64, f64) {
-        let (mut sum, mut count) = (0.0, 0usize);
-        for j in 0..SAMPLES {
-            for i in 0..SAMPLES {
-                let at = |k: usize| ((k as f64 + 0.5) / SAMPLES as f64 - 0.5) * pixel;
-                if let Some(shade) = self.shade_at([centre[0] + at(i), centre[1] + at(j)]) {
-                    sum += shade;
-                    count += 1;
-                }
-            }
-        }
-        let cover = count as f64 / (SAMPLES * SAMPLES) as f64;
-        (if count > 0 { sum / count as f64 } else { 0.0 }, cover)
+        lit_picture((side, [low, high], TINT), |p| self.surface_at(p))
     }
 
     /// Whether every visible edge shows as a step of `SHADE_STEP` at least, looked at every `EVERY`
@@ -163,4 +109,73 @@ impl ObjectTask {
             });
         straight && round
     }
+}
+
+/// The lit picture of any surface (S153: an object's, the light's answer, later a sausage or a
+/// texture strip): `side` pixels square, one to its frame, RGBA, the colour not multiplied by the
+/// alpha (the paper left clear). `surface` gives a frame point's surface (an id that tells two
+/// apart) and shade (0 black, 1 white), none for the paper; the shade is drawn in `tint`. Only
+/// pixels within `[low, high]` (frame units, a pixel or two round) are drawn. Each pixel is its
+/// middle's surface, and where a neighbour's differs, the mean of `SAMPLES` x `SAMPLES` samples
+/// across it: the edges antialiased, the paper's share left clear.
+pub(crate) fn lit_picture(
+    (side, [low, high], tint): (u32, [Point; 2], [f64; 3]),
+    surface: impl Fn(Point) -> Option<(u32, f64)>,
+) -> Vec<u8> {
+    let side = side.max(1) as usize;
+    let pixel = 1.0 / side as f64;
+    let centre = |x: usize, y: usize| [(x as f64 + 0.5) * pixel, (y as f64 + 0.5) * pixel];
+    let range = |k: usize| {
+        let from = ((low[k] / pixel).floor().max(0.0) as usize).saturating_sub(2);
+        let to = ((high[k] / pixel).ceil().max(0.0) as usize + 2).min(side);
+        from..to
+    };
+    let mut middles: Vec<Option<(u32, f64)>> = vec![None; side * side];
+    for y in range(1) {
+        for x in range(0) {
+            middles[y * side + x] = surface(centre(x, y));
+        }
+    }
+    let mut pixels = vec![0_u8; side * side * 4];
+    for y in range(1) {
+        for x in range(0) {
+            let own = middles[y * side + x].map(|(id, _)| id);
+            let other = |dx: isize, dy: isize| {
+                let (nx, ny) = (x.checked_add_signed(dx), y.checked_add_signed(dy));
+                let held = nx.zip(ny).filter(|(nx, ny)| *nx < side && *ny < side);
+                held.and_then(|(nx, ny)| middles[ny * side + nx])
+                    .map(|(id, _)| id)
+                    != own
+            };
+            let edge = other(-1, 0) || other(1, 0) || other(0, -1) || other(0, 1);
+            let (shade, cover) = if edge {
+                across(&surface, centre(x, y), pixel)
+            } else {
+                middles[y * side + x].map_or((0.0, 0.0), |(_, shade)| (shade, 1.0))
+            };
+            let at = (y * side + x) * 4;
+            for k in 0..3 {
+                pixels[at + k] = (shade * tint[k] * 255.0).round().clamp(0.0, 255.0) as u8;
+            }
+            pixels[at + 3] = (cover * 255.0).round() as u8;
+        }
+    }
+    pixels
+}
+
+/// The mean shade of `surface`'s samples across the pixel `pixel` wide about `centre`, and the
+/// share of them on a surface.
+fn across(surface: &impl Fn(Point) -> Option<(u32, f64)>, centre: Point, pixel: f64) -> (f64, f64) {
+    let (mut sum, mut count) = (0.0, 0usize);
+    for j in 0..SAMPLES {
+        for i in 0..SAMPLES {
+            let at = |k: usize| ((k as f64 + 0.5) / SAMPLES as f64 - 0.5) * pixel;
+            if let Some((_, shade)) = surface([centre[0] + at(i), centre[1] + at(j)]) {
+                sum += shade;
+                count += 1;
+            }
+        }
+    }
+    let cover = count as f64 / (SAMPLES * SAMPLES) as f64;
+    (if count > 0 { sum / count as f64 } else { 0.0 }, cover)
 }

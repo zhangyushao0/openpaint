@@ -23,6 +23,7 @@ pub(crate) fn said(language: Language, say: &Say) -> String {
         "lightness-off" => super::lightness_off(language, count(0), word(1) == "lighter"),
         "not-toward" => super::not_toward(language, count(0)),
         "merged" => super::merged(language, count(0), count(1)),
+        "light-off" => super::light_off(language, word(0), word(1)),
         "no-edges" => plain(super::NO_EDGES),
         "no-mark" => plain(super::NO_MARK),
         "not-painted" => plain(super::NOT_PAINTED),

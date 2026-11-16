@@ -50,6 +50,7 @@ pub(crate) fn body(plan: &Plan, sight: &Sight) -> Body {
         },
         hulls,
         rounds,
+        balls: Vec::new(),
     }
 }
 
