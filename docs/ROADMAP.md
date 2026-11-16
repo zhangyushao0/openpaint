@@ -160,9 +160,9 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-11-16 Abstract analysis on the tablet (1.26.0, a real composition): the picture sits right of the sheet's middle at about 30 % of its width, the left half empty (larger would ring more easily); the Strong ring redrawn over a view is a polygon where the live stroke was smooth.
 - 2026-11-16 Structure rotation: an object is generated on the frame loop (2 to 23 ms, at most 184 ms on the dev machine); the tablet's time is unread (STATUS).
 - 2026-11-16 S151: a long colour copy's Compare still asks Accurate, Almost or Again (its comparison the eye's) though nothing reads a project's result: `Verdict::Nobody` as a drawing from life's, if the author agrees; a photo for a drawing from life is one of My pictures, so shape lessons take it too.
-- 2026-11-16 S156: an end re-test of four skills or more (units 1, 2, 7) runs its card past the screen's foot, One more and That's all for today under it (Home leaves): its answered pairs drawn smaller, or the card scrolling. A pair's card lays an exact answer only for estimates and points in space (`pairs.rs` reads `check`, which S145 left to those two): it could ask the kind's Compare as the sheet does.
 
 ## Done
 
 Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to S96, the G9 slices' full lines to S103 and the lines of S97 to S154, the recorder and S123: `docs/archive/ROADMAP-2026-11.md`.
 - S156 2026-11-16 1.30.0: the last batch — ghosted lines and a two-value Notan (S156h), organic arrows, funnels and path pages (S156l), contours and form intersections (S156k), all by eye, exact answers laid; the home shows a unit's every skill; the eight units complete. D123.
+- S157 2026-11-16 1.30.0: an end re-test's answered pairs half as wide, two a row (date under mark), One more and That's all for today on the screen for a unit's six; a pair's card lays what its kind's Compare lays, the exact answer of every eye-judged kind.

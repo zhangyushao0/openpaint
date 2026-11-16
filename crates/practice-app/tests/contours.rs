@@ -12,11 +12,11 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Bend, ContourCompared, ContourTask, Figure, Frame, Given, Judge, Kind, Layout, LinePen,
-    OBJECT_SIDE, Outcome, Point, Sheet, SheetMark, Skill, SkillLevel, Verdict,
+    Bend, ContourCompared, ContourTask, CopyRef, Figure, Frame, Given, Judge, Kind, Layout,
+    LinePen, OBJECT_SIDE, Outcome, Point, Sheet, SheetMark, Skill, SkillLevel, Verdict,
 };
 use openpaint_practice_app::{
-    Judged, Pen, PracticeIntent, PracticeLog, PracticePens, SheetSession, Start,
+    Judged, Pen, PracticeIntent, PracticeLog, PracticePens, SheetSession, Start, stored_card,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -174,4 +174,28 @@ fn compare_lays_the_sections_and_waits_for_the_learner_s_verdict() {
     let saved = session.sheet_mut().save_request();
     let result = saved.and_then(|sheet| sheet.laid(0).and_then(|laid| laid.result));
     assert_eq!(result, Some((Outcome::Near, Judge::Eye)));
+}
+
+/// A blind pair's card lays the sections' exact ellipses over the copy as Compare does, its
+/// strokes never read: the card asks the kind's Compare (S157).
+#[test]
+fn a_pair_s_card_lays_the_exact_sections() {
+    let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
+    let skill = Skill::of_key("contours").expect("the skill");
+    let (record, _) = (log.start(Start::At(skill, SkillLevel::First), 7, NOON)).expect("a lesson");
+    let record = Sheet {
+        canvas: 40,
+        ..record
+    };
+    let size = Layout::laid_ahead(&record);
+    let artwork = Artwork::new(CanvasSize::new(size[0], size[1]).expect("size"));
+    let printed = Given::of_sheet(&record, log.packs());
+    let copy = CopyRef {
+        sheet: record.id,
+        exercise: 0,
+    };
+    let card = stored_card((&artwork, &record, &printed), (log.packs(), None), copy, 0)
+        .expect("the copy's card");
+    assert!(!card.laid.is_empty(), "the exact sections");
+    assert!(card.laid.iter().all(|(line, _)| line.len() > 8), "ellipses");
 }

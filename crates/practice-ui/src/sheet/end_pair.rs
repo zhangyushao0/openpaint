@@ -4,8 +4,8 @@
 //! Answered, the buttons go: each card's date under it, the newer's in ink and the older's
 //! quieter, the one chosen outlined; no sentence. A unit's end re-test asks one pair a skill in
 //! turn, its skill named over it, each revealed with its result's mark before the date once
-//! answered, the next shown after it. And the extra drill's row (加练) when a lesson's end offers
-//! one.
+//! answered and drawn half as wide, two a row, the next asked under them. And the extra drill's
+//! row (加练) when a lesson's end offers one.
 
 use std::sync::Arc;
 
@@ -25,6 +25,16 @@ const TALL: f32 = 120.0 / 140.0;
 const GAP: f32 = 14.0;
 const DATE: f32 = 30.0;
 
+/// How a pair is drawn: a lesson's or a block's only pair (its dates alone); a re-test's across
+/// the card (each date after its result's mark); a re-test's answered, half as wide (the date in
+/// small type under the mark, where a long date still fits).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Drawn {
+    Single,
+    Marked,
+    Small,
+}
+
 /// An end's `pairs`, their copies' cards as read so far; the pair answered and its answer.
 pub(super) fn pairs(
     ui: &mut egui::Ui,
@@ -35,38 +45,53 @@ pub(super) fn pairs(
         return None;
     }
     rule(ui);
-    let several = pairs.len() > 1;
-    if !several {
+    if let [pair] = pairs {
         ui.label(egui::RichText::new(Words::from(t::WHICH_BETTER).shown(ui.ctx())).size(18.0));
+        return one(ui, pair, cards, Drawn::Single).map(|answer| (0, answer));
     }
-    let mut tapped = None;
-    for (at, pair) in pairs.iter().enumerate() {
-        if several {
-            let name = pair.skill.map_or(t::RETEST, t::skill_name);
-            ui.label(Words::from(name).shown(ui.ctx()));
-        }
-        let asked = one(ui, pair, cards, several);
-        if let Some(answer) = asked {
-            tapped = Some((u8::try_from(at).unwrap_or(u8::MAX), answer));
-        }
-        // In turn: the next pair once this one is answered.
-        if pair.answer.is_none() {
-            break;
-        }
+    // In turn: those answered half as wide, two a row, each under its skill, so that a unit's six
+    // leave One more on the screen; the next asked under them across the card.
+    let answered = pairs
+        .iter()
+        .take_while(|pair| pair.answer.is_some())
+        .count();
+    for row in pairs[..answered].chunks(2) {
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0 * GAP;
+            ui.columns(2, |columns| {
+                for (column, pair) in columns.iter_mut().zip(row) {
+                    named(column, pair);
+                    one(column, pair, cards, Drawn::Small);
+                }
+            });
+        });
     }
-    tapped
+    let asked = pairs.get(answered)?;
+    named(ui, asked);
+    let answer = one(ui, asked, cards, Drawn::Marked)?;
+    Some((u8::try_from(answered).unwrap_or(u8::MAX), answer))
 }
 
-/// `pair`'s two cards and its buttons or, answered, its dates (with its marks on a re-test's,
-/// `marked`); the answer tapped.
+/// `pair`'s skill over it (a re-test's).
+fn named(ui: &mut egui::Ui, pair: &PairShown) {
+    let name = pair.skill.map_or(t::RETEST, t::skill_name);
+    ui.label(Words::from(name).shown(ui.ctx()));
+}
+
+/// `pair`'s two cards and its buttons or, answered, its dates (with its marks on a re-test's);
+/// the answer tapped.
 fn one(
     ui: &mut egui::Ui,
     pair: &PairShown,
     cards: &[Arc<CopyCard>],
-    marked: bool,
+    drawn: Drawn,
 ) -> Option<Answer> {
     let width = (ui.available_width() - GAP) / 2.0;
-    let below = if pair.answer.is_some() { DATE } else { 0.0 };
+    let below = match (pair.answer, drawn) {
+        (None, _) => 0.0,
+        (Some(_), Drawn::Small) => DATE + 2.0 * MARK,
+        (Some(_), Drawn::Single | Drawn::Marked) => DATE,
+    };
     let size = Vec2::new(ui.available_width(), width * TALL + below);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let card = |copy: CopyRef| cards.iter().find(|card| card.copy == copy).map(|c| &**c);
@@ -75,39 +100,43 @@ fn one(
         Some(Answer::Right) => Some(1),
         Some(Answer::Alike) | None => None,
     };
-    let language = language(ui.ctx());
     for (side, copy) in pair.sides().into_iter().enumerate() {
         let left = rect.left() + side as f32 * (width + GAP);
         let frame =
             Rect::from_min_size(Pos2::new(left, rect.top()), Vec2::new(width, width * TALL));
         let shown = card(copy);
         paint_copy(ui, frame, shown, chosen == Some(side));
-        if pair.answer.is_none() {
-            continue;
+        if let Some(shown) = shown.filter(|_| pair.answer.is_some()) {
+            dated(ui, frame, shown, (copy == pair.asked.newer, drawn));
         }
-        let Some(shown) = shown else {
-            continue;
-        };
-        let newer = copy == pair.asked.newer;
-        let mut at = Pos2::new(frame.left(), frame.bottom() + DATE / 2.0);
-        if let Some(outcome) = shown.result.filter(|_| marked) {
-            paint_result(
-                ui.painter(),
-                (at + Vec2::new(MARK, 0.0), MARK),
-                outcome,
-                INK,
-            );
-            at.x += 2.0 * MARK + SPACE;
-        }
-        let date = t::copy_date(language, shown.day);
-        let ink = if newer { INK } else { INK_SECONDARY };
-        let font = TextStyle::Body.resolve(ui.style());
-        ui.painter().text(at, Align2::LEFT_CENTER, date, font, ink);
     }
     if pair.answer.is_some() {
         return None;
     }
     buttons(ui)
+}
+
+/// Under `frame`: its copy's result's mark on a re-test's and its date, the newer's in ink and
+/// the older's quieter; in a small pair the date in small type under the mark.
+fn dated(ui: &egui::Ui, frame: Rect, shown: &CopyCard, (newer, drawn): (bool, Drawn)) {
+    let mut at = Pos2::new(frame.left(), frame.bottom() + DATE / 2.0);
+    if let Some(outcome) = shown.result.filter(|_| drawn != Drawn::Single) {
+        let centre = at + Vec2::new(MARK, 0.0);
+        paint_result(ui.painter(), (centre, MARK), outcome, INK);
+        match drawn {
+            Drawn::Small => at.y += 2.0 * MARK + SPACE / 2.0,
+            Drawn::Single | Drawn::Marked => at.x += 2.0 * MARK + SPACE,
+        }
+    }
+    let date = t::copy_date(language(ui.ctx()), shown.day);
+    let ink = if newer { INK } else { INK_SECONDARY };
+    let style = if drawn == Drawn::Small {
+        TextStyle::Small
+    } else {
+        TextStyle::Body
+    };
+    let font = style.resolve(ui.style());
+    ui.painter().text(at, Align2::LEFT_CENTER, date, font, ink);
 }
 
 /// Left better, Same, Right better across the card, under the left card, between the two and

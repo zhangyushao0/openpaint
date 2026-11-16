@@ -2,16 +2,16 @@
 //! as the book reads a sheet: the exercise as its first Compare showed it, small. Its frame's shape;
 //! the paint strokes and fills laid in its frame before that Compare (the copy as first made, the
 //! sketch pen's lines with them); the original laid over in see-through red where it is lines (a
-//! line's, a group's), the exact answer where its kind lays one (hidden parts dashed), else its
-//! picture's outline; its pack picture under it faintly; a colour's swatch beside it. Kind-blind:
+//! line's, a group's), the exact answer where its kind's Compare lays one (hidden parts dashed),
+//! else its picture's outline; its pack picture under it faintly; a colour's swatch beside it. Kind-blind:
 //! what it lays is what the original and its picture say, never which kind it is.
 
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
 use openpaint_practice::{
-    CopyRef, DrawnCopy, Figure, Frame, Given, Layout, LinePen, Outcome, Pack, Point, Rgb8, Seen,
-    Sheet, SheetMark, SheetPicture, local_day,
+    Asked, Choices, Compare, Copied, CopyRef, DrawnCopy, Exercise, Figure, Frame, Given, Layout,
+    Level, LinePen, Outcome, Pack, Point, Rgb8, Seen, Sheet, SheetMark, SheetPicture, local_day,
 };
 
 use crate::copy::rgb8;
@@ -98,7 +98,7 @@ impl CopyCard {
             copy,
             extent: frame.extent(),
             marks,
-            laid: laid_over(&*original, source.picture),
+            laid: laid_over(&laid.exercise, &*original, source.picture),
             picture,
             swatch: printed.or_else(|| original.swatch()),
             day: local_day(at, offset),
@@ -130,15 +130,48 @@ pub fn stored_card(
     CopyCard::of(&source, copy, offset)
 }
 
-/// What lies over the copy in red: the original's lines, else the answer its kind lays (its
-/// check made without reading a stroke), else the picture's outline.
+/// A copy as a card asks its kind's Compare: something lies in its frame, no stroke or colour to
+/// read (the answer an eye-judged kind lays reads none, D123).
+struct Held;
+
+impl Copied for Held {
+    fn holds(&self) -> bool {
+        true
+    }
+    fn picks(&self) -> Vec<Rgb8> {
+        Vec::new()
+    }
+    fn drawn(&self) -> DrawnCopy {
+        DrawnCopy::default()
+    }
+    fn division(&self) -> Vec<(Level, Vec<Point>)> {
+        Vec::new()
+    }
+}
+
+/// What lies over `exercise`'s copy in red: the original's lines, else the answer its kind's
+/// Compare lays (as the sheet's, no stroke read), else the picture's outline.
 fn laid_over(
+    exercise: &Exercise,
     original: &dyn openpaint_practice::Original,
     picture: Option<&SheetPicture>,
 ) -> Vec<(Vec<Point>, bool)> {
     if let Some(lines) = original.lines() {
         return lines.iter().map(|line| (line.clone(), false)).collect();
     }
+    let asked = Asked {
+        exercise,
+        original,
+        picture,
+        copy: &Held,
+        choices: Choices::default(),
+    };
+    let compared = match original.compare(&asked) {
+        Some(Compare::Checked(shown) | Compare::Fitted(shown, _) | Compare::Made(shown)) => {
+            Some(shown)
+        }
+        Some(Compare::Read(_)) | None => None,
+    };
     let seen = Seen {
         construction: false,
         shown: UNDER,
@@ -149,8 +182,8 @@ fn laid_over(
         fit: None,
         probe: None,
     };
-    let answer: Vec<(Vec<Point>, bool)> = (original.check(&DrawnCopy::default()).iter())
-        .flat_map(|checked| checked.marks(&seen))
+    let answer: Vec<(Vec<Point>, bool)> = (compared.iter())
+        .flat_map(|shown| shown.0.marks(&seen))
         .filter(|mark| mark.on == openpaint_practice::In::Copy)
         .filter_map(|mark| match mark.drawn {
             Figure::Line {
