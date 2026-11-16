@@ -8,7 +8,7 @@
 use openpaint_app::Fitted;
 use openpaint_practice::{Block, BlockTally, Blocks, Givens, Layout, Length, Purpose, Sheet};
 use openpaint_practice_app::{
-    BlockShown, PracticeLog, PracticeNotice, SheetSession, Start, Timed, TimerIntent,
+    BlockShown, OneMore, PracticeLog, PracticeNotice, SheetSession, Timed, TimerIntent,
 };
 
 use super::{
@@ -43,7 +43,7 @@ pub(super) fn frame(log: &mut PracticeLog, session: &SheetSession, now: u64) {
 
 /// The exercise in hand drawn in, then Next on each exercise left of the lesson in hand, a frame
 /// a minute from `now`; the time then.
-fn finish(log: &mut PracticeLog, session: &mut SheetSession, mut now: u64) -> u64 {
+pub(super) fn finish(log: &mut PracticeLog, session: &mut SheetSession, mut now: u64) -> u64 {
     drawn(session);
     while shown(session).current.is_some() {
         now += 60;
@@ -54,20 +54,26 @@ fn finish(log: &mut PracticeLog, session: &mut SheetSession, mut now: u64) -> u6
 }
 
 /// The chain as the runtime lays it after a Next: the lesson the end offers, in place.
-fn chained(log: &mut PracticeLog, session: &mut SheetSession, now: u64) -> Option<Sheet> {
+pub(super) fn chained(
+    log: &mut PracticeLog,
+    session: &mut SheetSession,
+    now: u64,
+) -> Option<Sheet> {
     assert!(log.chains(session.sheet()), "a lesson ended with time left");
-    let offer = shown(session)
+    let next = shown(session)
         .end
         .and_then(|end| end.next)
         .expect("an offer");
     log.keep(record_of(session));
-    let (sheet, _) = log.start(Start::Skill(offer.skill), 7, now).expect("begun");
+    let (sheet, _) = log.start(next.start(), 7, now).expect("begun");
     let lesson = sheet.lessons.into_iter().last().expect("its lesson");
-    assert_eq!(
-        lesson.skill(),
-        Some(offer.skill),
-        "One more's offer honoured"
-    );
+    if let OneMore::Skill(offer) = next {
+        assert_eq!(
+            lesson.skill(),
+            Some(offer.skill),
+            "One more's offer honoured"
+        );
+    }
     let givens = Givens::of_lesson(&lesson, log.packs());
     let (record, _) = session.append_lesson((lesson, givens), log, &VIEWPORT)?;
     log.keep(record.clone());

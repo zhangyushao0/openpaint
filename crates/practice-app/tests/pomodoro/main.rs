@@ -22,6 +22,7 @@ use openpaint_practice_app::{
 mod away;
 mod block;
 mod clock;
+mod pairs;
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],

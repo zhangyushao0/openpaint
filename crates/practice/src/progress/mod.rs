@@ -23,7 +23,7 @@ use crate::records::sheet::Sheet;
 pub(crate) use fit::Better;
 pub(crate) use observe::scaled;
 
-pub use ask::{PairAsked, Within, ask, retest_pairs};
+pub use ask::{PairAsked, Within, ask, block_pairs, retest_pairs};
 
 /// How far apart, in days, the two days of a change are: the one nearest `CHANGE_DAYS` before the
 /// last, at least `CHANGE_LEAST`.

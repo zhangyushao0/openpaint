@@ -11,12 +11,12 @@
 
 use openpaint_app::Availability;
 use openpaint_practice::{
-    Laid, Lesson, Offer, Outcome, Picked, Skill, SkillLevel, Standing, Unit, Verdict, schedule,
-    sealed,
+    Laid, Lesson, Outcome, Picked, Sheet, Skill, SkillLevel, Standing, Unit, Verdict, retest,
+    schedule, sealed,
 };
 
 use super::{PracticeSheet, unavailable};
-use crate::lesson::{End, Judged, LessonShown};
+use crate::lesson::{End, Judged, LessonShown, OneMore};
 use crate::refused::Refused;
 
 impl PracticeSheet {
@@ -88,15 +88,16 @@ impl PracticeSheet {
             learner: &after,
         };
         let seconds = lesson.exercises.iter().map(|laid| laid.seconds).sum();
+        let sheets = self.with_this();
         Some(End {
             results,
             exercises: u8::try_from(lesson.exercises.len()).unwrap_or(u8::MAX),
             seconds,
             skill: (lesson.skill()).map(|skill| (skill, before.dots(skill), after.dots(skill))),
             sealed: sealed(&self.beside.others, &self.record),
-            next: one_more(lesson, &standing),
+            next: one_more(lesson, (&standing, &sheets)),
             pairs: self.pairs_shown(),
-            drill: self.drill(&standing),
+            drill: self.drill(&standing, &sheets),
         })
     }
 
@@ -138,17 +139,23 @@ impl PracticeSheet {
     }
 }
 
-/// The lesson One more starts after `lesson`, the learner after it standing as `standing`: the
-/// same skill again at its level where the lesson was a skill's of a unit past the learner's
-/// (entered by hand ahead of the path), else the path's next (`schedule::next`); a full lesson
-/// and the first lesson are never of a skill.
-fn one_more(lesson: &Lesson, standing: &Standing<'_>) -> Option<Offer> {
+/// The lesson One more starts after `lesson`, the learner after it standing as `standing` among
+/// `sheets`: the same skill again at its level where the lesson was a skill's of a unit past the
+/// learner's (entered by hand ahead of the path); else as Start would lay it, the unit's start
+/// re-test while it is due (S148), else the path's next (`schedule::next`); a full lesson and the
+/// first lesson are never of a skill.
+fn one_more(lesson: &Lesson, (standing, sheets): (&Standing<'_>, &[Sheet])) -> Option<OneMore> {
     let in_hand = standing.learner.unit(standing.pictures);
     let ahead = (lesson.skill())
         .filter(|skill| Unit::teaching(*skill).is_some_and(|unit| unit.number > in_hand));
-    match ahead {
-        Some(skill) => schedule::offer(skill, standing),
-        None => schedule::next(standing),
+    if let Some(skill) = ahead {
+        return schedule::offer(skill, standing).map(OneMore::Skill);
+    }
+    let due = retest::start_due(standing);
+    let retest = due.and_then(|unit| retest::offer(unit, false, sheets, standing.pictures));
+    match retest {
+        Some(retest) => Some(OneMore::Retest(retest)),
+        None => schedule::next(standing).map(OneMore::Skill),
     }
 }
 

@@ -1,10 +1,11 @@
-//! A lesson's end asks the learner's own eye (S147, 比一比): under a rule Which is better (哪张更好)
-//! over two earlier copies side by side, the same size, no date, no mark, and under them Left
-//! better, Same, Right better (左边好 · 差不多 · 右边好). Answered, the buttons go:
-//! each card's date under it, the newer's in ink and the older's quieter, the one chosen outlined;
-//! no sentence. A unit's end re-test asks one pair a skill in turn, its skill named over it, each
-//! revealed with its result's mark before the date once answered, the next shown after it. And
-//! the extra drill's row (加练) when the end offers one.
+//! An end asks the learner's own eye (S147, 比一比; a lesson's, or a Pomodoro's block's, S148):
+//! under a rule Which is better (哪张更好) over two earlier copies side by side, the same size, no
+//! date, no mark, and under them Left better, Same, Right better (左边好 · 差不多 · 右边好).
+//! Answered, the buttons go: each card's date under it, the newer's in ink and the older's
+//! quieter, the one chosen outlined; no sentence. A unit's end re-test asks one pair a skill in
+//! turn, its skill named over it, each revealed with its result's mark before the date once
+//! answered, the next shown after it. And the extra drill's row (加练) when a lesson's end offers
+//! one.
 
 use std::sync::Arc;
 
@@ -14,7 +15,7 @@ use openpaint_practice_app::{CopyCard, End, PairShown};
 use openpaint_ui::components::text_button;
 use openpaint_ui::design::{INK, INK_SECONDARY, SPACE, TOUCH_TARGET};
 
-use super::end::{EndTap, MARK, rule};
+use super::end::{MARK, rule};
 use crate::components::{paint_copy, paint_result};
 use crate::text::{self as t, Words, language};
 
@@ -24,25 +25,29 @@ const TALL: f32 = 120.0 / 140.0;
 const GAP: f32 = 14.0;
 const DATE: f32 = 30.0;
 
-/// The end's pairs in `end`, their copies' cards as read so far; what was tapped.
-pub(super) fn pairs(ui: &mut egui::Ui, end: &End, cards: &[Arc<CopyCard>]) -> Option<EndTap> {
-    if end.pairs.is_empty() {
+/// An end's `pairs`, their copies' cards as read so far; the pair answered and its answer.
+pub(super) fn pairs(
+    ui: &mut egui::Ui,
+    pairs: &[PairShown],
+    cards: &[Arc<CopyCard>],
+) -> Option<(u8, Answer)> {
+    if pairs.is_empty() {
         return None;
     }
     rule(ui);
-    let several = end.pairs.len() > 1;
+    let several = pairs.len() > 1;
     if !several {
         ui.label(egui::RichText::new(Words::from(t::WHICH_BETTER).shown(ui.ctx())).size(18.0));
     }
     let mut tapped = None;
-    for (at, pair) in end.pairs.iter().enumerate() {
+    for (at, pair) in pairs.iter().enumerate() {
         if several {
             let name = pair.skill.map_or(t::RETEST, t::skill_name);
             ui.label(Words::from(name).shown(ui.ctx()));
         }
         let asked = one(ui, pair, cards, several);
         if let Some(answer) = asked {
-            tapped = Some(EndTap::Pair(u8::try_from(at).unwrap_or(u8::MAX), answer));
+            tapped = Some((u8::try_from(at).unwrap_or(u8::MAX), answer));
         }
         // In turn: the next pair once this one is answered.
         if pair.answer.is_none() {

@@ -2,12 +2,15 @@
 //! sheet ("lesson n · skill"), the lesson in hand as the bar names it ("skill 3/5", "First lesson
 //! 2/3"), the result an exercise ends with (the app's verdict, or the three the user chooses from
 //! where the eye judges) and the lesson's end (each exercise's result, the skill's dots, the seals
-//! earned, the lesson One more starts, its blind pairs and extra drill, S147). What the flow fills
-//! them with is `sheet/lesson.rs` and `sheet/pairs.rs`.
+//! earned, the lesson One more starts or a due start re-test (S148), its blind pairs and extra
+//! drill, S147). What the flow fills them with is `sheet/lesson.rs` and `sheet/pairs.rs`.
 
 use openpaint_practice::{
-    Answer, CopyRef, Judge, Offer, Outcome, PairAsked, Seal, Sheet, Skill, SkillLevel, Verdict,
+    Answer, CopyRef, Judge, Offer, Outcome, PairAsked, Retest, Seal, Sheet, Skill, SkillLevel,
+    Verdict,
 };
+
+use crate::path::Start;
 
 /// A lesson on the sheet as its row's label names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,16 +94,37 @@ pub struct End {
     /// The seals the lesson earned.
     pub sealed: Vec<Seal>,
     /// The lesson One more starts, which its word names; none while nothing can be practised.
-    pub next: Option<Offer>,
-    /// The blind pairs it asks (S147): a skill's lesson's one, a unit's end re-test's one a skill,
-    /// each with its answer once given; a finished lesson opened again its answered ones.
+    pub next: Option<OneMore>,
+    /// The blind pairs asked where the learner pauses (S147, S148): at this end outside a
+    /// Pomodoro's block (a skill's lesson's one, a unit's end re-test's one a skill; a finished
+    /// lesson opened again its answered ones), or at the block's end that ended it; each with its
+    /// answer once given.
     pub pairs: Vec<PairShown>,
     /// An extra drill of its skill (S147): offered when its curve is sure the skill fell.
     pub drill: Option<Offer>,
 }
 
-/// A blind pair as a lesson's end shows it: its two copies, which shows on the left, the answer
-/// once given (then the dates show) and the skill its copies practise.
+/// What One more starts after a lesson (and a Pomodoro's chain lays): a skill's lesson, or a
+/// unit's start re-test while it is due, as Start would lay it (S148).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OneMore {
+    Skill(Offer),
+    Retest(Retest),
+}
+
+impl OneMore {
+    /// What starts it.
+    #[must_use]
+    pub const fn start(&self) -> Start {
+        match self {
+            Self::Skill(offer) => Start::Skill(offer.skill),
+            Self::Retest(retest) => Start::Retest(retest.unit, retest.end),
+        }
+    }
+}
+
+/// A blind pair as an end shows it: its two copies, which shows on the left, the answer once
+/// given (then the dates show) and the skill its copies practise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PairShown {
     pub asked: PairAsked,

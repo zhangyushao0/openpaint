@@ -1,6 +1,6 @@
 //! Practice's words, in English and Chinese side by side (D100), as the ui's tables hold the
 //! painting's (`openpaint_ui::text`, read through here too: its `Text`, `Words`, the pass's
-//! language and the words both share). The tables are split by where the words show (`course.rs`
+//! language and the words both share). The tables are split by where the words show (`course/`
 //! the path, a lesson's names, results and end; `sheet.rs`, `colour.rs`, `options.rs`,
 //! `perspective.rs`, `points.rs`, `division.rs`, `book.rs`,
 //! `names.rs`; each kind's name and How card in a file of its own under `kinds/`, S109b; a card's
@@ -73,6 +73,7 @@ pub(crate) use sheet::*;
 #[cfg(test)]
 mod tests {
     use openpaint_practice::{CELLS, Seal};
+    use openpaint_practice_app::OneMore;
 
     use super::*;
 
@@ -129,7 +130,6 @@ mod tests {
         for kind in kinds::every_kind() {
             shown.extend(how_steps(kind, CELLS, language));
         }
-        shown.push(one_more_line(language, &offer));
         let retest = openpaint_practice::Retest {
             unit: 3,
             end: true,
@@ -137,6 +137,8 @@ mod tests {
             minutes: 6,
         };
         shown.extend([
+            one_more_line(language, &OneMore::Skill(offer)),
+            one_more_line(language, &OneMore::Retest(retest.clone())),
             retest_name(language, 3),
             retest_line(language, &retest),
             drill_line(language, &offer),

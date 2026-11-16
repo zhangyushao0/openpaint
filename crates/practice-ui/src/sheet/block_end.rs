@@ -1,17 +1,21 @@
 //! A Pomodoro's block's end on its card (S124), in place of a lesson's end, over the rows drawn in
 //! the block: its length ("25 minutes") with its seal beside, a red square a little turned reading
 //! 番 over 茄 (FOCUS); "5 lessons · 19 exercises"; each result a mark, wrapping; under a rule each
-//! skill that gained a dot with the level it reached and its three dots; under another the
-//! break's ring with Break and the minutes left (the ring whole once it is over); Another pomodoro
-//! in its pill and That's all for today, which goes home.
+//! skill that gained a dot with the level it reached and its three dots; the blind pair it asks
+//! (S148, `end_pair.rs`: its lessons' ends showed none); under another rule the break's ring with
+//! Break and the minutes left (the ring whole once it is over); Another pomodoro in its pill and
+//! That's all for today, which goes home.
+
+use std::sync::Arc;
 
 use egui::{Align2, Pos2, Sense, TextStyle, Vec2};
-use openpaint_practice::Skill;
-use openpaint_practice_app::BlockEnd;
+use openpaint_practice::{Answer, Skill};
+use openpaint_practice_app::{BlockEnd, CopyCard, PairShown};
 use openpaint_ui::components::{pill_button, text_button};
 use openpaint_ui::design::{INK, INK_SECONDARY, SPACE};
 
 use super::end::{DOT, DOT_PITCH, level_of, result_marks, rule};
+use super::end_pair;
 use crate::components::{DOTS, Ring, paint_dots, paint_ring, paint_seal, seal_turn};
 use crate::text::{self as t, Language, language};
 
@@ -24,14 +28,17 @@ const BREAK_RING: f32 = 22.0;
 pub(crate) enum BlockTap {
     Another,
     Enough,
+    /// Blind pair `n` answered (S148).
+    Pair(u8, Answer),
 }
 
 /// The end of the block `end`, its break's minutes left and the share of it left while it counts
-/// (`rest`); what was tapped.
+/// (`rest`), the `pairs` it asks with their copies' `cards` as read so far; what was tapped.
 pub(crate) fn block_end_card(
     ui: &mut egui::Ui,
     end: &BlockEnd,
     rest: Option<(u32, f32)>,
+    (pairs, cards): (&[PairShown], &[Arc<CopyCard>]),
 ) -> Option<BlockTap> {
     let language = language(ui.ctx());
     head(ui, end, language);
@@ -47,9 +54,10 @@ pub(crate) fn block_end_card(
             skill_row(ui, *skill, language);
         }
     }
+    let answered = end_pair::pairs(ui, pairs, cards);
+    let mut tapped = answered.map(|(at, answer)| BlockTap::Pair(at, answer));
     rule(ui);
     break_row(ui, rest, language);
-    let mut tapped = None;
     if pill_button(ui, t::ANOTHER_POMODORO, true).clicked() {
         tapped = Some(BlockTap::Another);
     }

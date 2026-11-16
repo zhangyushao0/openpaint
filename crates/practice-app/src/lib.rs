@@ -42,7 +42,7 @@ pub use crate::copies::{CopyShown, PictureShown};
 pub use crate::layers::{
     BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LAID_SIDE, LINES_LAYER, PICTURE_LAYER,
 };
-pub use crate::lesson::{End, Judged, LessonRow, LessonShown, PairShown};
+pub use crate::lesson::{End, Judged, LessonRow, LessonShown, OneMore, PairShown};
 pub use crate::log::{PracticeLog, Refit};
 pub use crate::options::{
     MAX_PACK_BYTES, Options, OptionsFile, OptionsIntent, OptionsNotice, OptionsRequest,

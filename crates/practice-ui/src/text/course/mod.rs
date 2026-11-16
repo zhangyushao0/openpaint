@@ -1,11 +1,16 @@
 //! The path (S122): the home's column, the path page, a lesson's names on the sheet and its bar,
-//! an exercise's result and a lesson's end; the units' and the skills' names and the three levels
-//! (入门, 熟练, 稳). A skill's name goes by its key (`Skill::key`).
+//! an exercise's result and a lesson's end (its words made with numbers `end.rs`); the units' and
+//! the skills' names and the three levels (入门, 熟练, 稳). A skill's name goes by its key
+//! (`Skill::key`).
 
 use openpaint_practice::{Needs, Offer, Outcome, Retest, Skill, SkillLevel};
 use openpaint_practice_app::{LessonRow, OpenLesson};
 
 use super::{Language, Text};
+
+mod end;
+
+pub(crate) use end::*;
 
 texts! { PRACTICE_COURSE;
     PRACTICE = "Practice", "练习";
@@ -188,19 +193,6 @@ pub(crate) fn exercise_count(language: Language, count: u8) -> String {
     }
 }
 
-/// A lesson's end, how many exercises and how long they took: "5 exercises · 3 min 12 s",
-/// "5 题 · 3 分 12 秒"; under a minute only its seconds.
-pub(crate) fn lesson_took(language: Language, (count, seconds): (u8, u32)) -> String {
-    let (minutes, seconds) = (seconds / 60, seconds % 60);
-    let took = match language {
-        Language::English if minutes == 0 => format!("{seconds} s"),
-        Language::English => format!("{minutes} min {seconds} s"),
-        Language::Chinese if minutes == 0 => format!("{seconds} 秒"),
-        Language::Chinese => format!("{minutes} 分 {seconds} 秒"),
-    };
-    format!("{} · {took}", exercise_count(language, count))
-}
-
 /// The review's row:"Lines · 2 exercises", "线条 · 2 题".
 pub(crate) fn review_line(language: Language, offer: &Offer) -> String {
     let name = skill_name(offer.skill).get(language);
@@ -230,27 +222,6 @@ pub(crate) fn retest_line(language: Language, retest: &Retest) -> String {
     )
 }
 
-/// An extra drill's row: "Ellipses · 5 exercises", "椭圆 · 5 题".
-pub(crate) fn drill_line(language: Language, offer: &Offer) -> String {
-    review_line(language, offer)
-}
-
-/// A local day as a copy's date: "12 Nov", "11月12日".
-pub(crate) fn copy_date(language: Language, day: i64) -> String {
-    let date = openpaint_ui::dates::Date::of(day);
-    match language {
-        Language::English => format!("{} {}", date.day, &super::month_name(date.month)[..3]),
-        Language::Chinese => format!("{}月{}日", date.month, date.day),
-    }
-}
-
-/// What One more starts, under it: "Arcs · 5 exercises · about 4 min".
-pub(crate) fn one_more_line(language: Language, offer: &Offer) -> String {
-    let name = skill_name(offer.skill).get(language);
-    let counts = exercises_line(language, (offer.exercises, offer.minutes));
-    format!("{name} · {counts}")
-}
-
 /// The lesson in hand as the bar names it: "Lines 3/5", "First lesson 2/3", "Warm-up 1/3".
 pub(crate) fn in_hand(language: Language, name: Text, (place, of): (usize, usize)) -> String {
     format!("{} {place}/{of}", name.get(language))
@@ -277,15 +248,6 @@ pub(crate) fn lesson_done(language: Language, name: Text) -> String {
     match language {
         Language::English => format!("{} · lesson done", name.get(language)),
         Language::Chinese => format!("{} · 这一课画完了", name.get(language)),
-    }
-}
-
-/// A level reached at a lesson's end: "Up to “Fluent”", "到“熟练”了".
-pub(crate) fn level_reached(language: Language, reached: SkillLevel) -> String {
-    let word = level_word(reached).get(language);
-    match language {
-        Language::English => format!("Up to “{word}”"),
-        Language::Chinese => format!("到“{word}”了"),
     }
 }
 
@@ -347,10 +309,6 @@ mod tests {
             offer_line(Language::Chinese, &offer),
             "熟练 · 5 题 · 约 4 分钟"
         );
-        assert_eq!(
-            one_more_line(Language::English, &offer),
-            "Lines · 5 exercises · about 4 min"
-        );
         assert_eq!(unit_title(Language::Chinese, 1), "第 1 单元 · 线条与颜色");
         assert_eq!(unit_title(Language::English, 7), "Unit 7");
         let row = LessonRow {
@@ -371,22 +329,10 @@ mod tests {
             row_label(Language::Chinese, &retest),
             "第 3 课 · 复测 · 第 3 单元"
         );
-        assert_eq!(drill_line(Language::Chinese, &offer), "线条 · 5 题");
-        assert_eq!(copy_date(Language::Chinese, 20_769), "11月12日");
-        assert_eq!(copy_date(Language::English, 20_769), "12 Nov");
         assert_eq!(
             in_hand(Language::English, FIRST_LESSON, (2, 3)),
             "First lesson 2/3"
         );
-    }
-
-    #[test]
-    fn a_lesson_s_end_says_its_exercises_and_time() {
-        assert_eq!(
-            lesson_took(Language::English, (5, 192)),
-            "5 exercises · 3 min 12 s"
-        );
-        assert_eq!(lesson_took(Language::Chinese, (3, 45)), "3 题 · 45 秒");
     }
 
     #[test]

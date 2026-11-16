@@ -73,7 +73,8 @@ pub(crate) fn end_card(
         rule(ui);
         progress(ui, end);
     }
-    let mut tapped = end_pair::pairs(ui, end, cards);
+    let answered = end_pair::pairs(ui, &end.pairs, cards);
+    let mut tapped = answered.map(|(at, answer)| EndTap::Pair(at, answer));
     rule(ui);
     if let Some(next) = &end.next {
         if pill_button(ui, t::ONE_MORE, true).clicked() {

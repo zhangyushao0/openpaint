@@ -16,7 +16,7 @@ use openpaint_practice::{
     schedule,
 };
 use openpaint_practice_app::{
-    PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession, Start,
+    OneMore, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetSession, Start,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -214,7 +214,9 @@ fn the_end_shows_each_result_the_dot_earned_and_the_lesson_one_more_starts() {
     assert_eq!(end.results[0], (0, Some(Outcome::Clean)));
     assert!(end.results[1..].iter().all(|(_, result)| result.is_none()));
     assert_eq!(end.skill, Some((skill("line"), 0, 1)), "a level reached");
-    let offered = end.next.expect("the lesson One more starts");
+    let Some(OneMore::Skill(offered)) = end.next else {
+        panic!("the lesson One more starts");
+    };
     log.keep(record_of(&session));
     assert_eq!(
         log.path().next,
@@ -241,7 +243,9 @@ fn one_more_after_a_skill_of_a_unit_ahead_of_the_learner_s_offers_that_skill_aga
         next(&mut session);
     }
     let end = shown(&session).end.expect("the lesson's end");
-    let offered = end.next.expect("the lesson One more starts");
+    let Some(OneMore::Skill(offered)) = end.next else {
+        panic!("the lesson One more starts");
+    };
     assert_eq!(
         (offered.skill, offered.level),
         (skill("box"), SkillLevel::First)

@@ -1,5 +1,5 @@
 //! A practice sheet: the bar, the exercise's own tools and the card (each kind's words and How in
-//! `kinds/`, a lesson's names, results and end in `course.rs`), in V大's terms: 叠图对比, 原位,
+//! `kinds/`, a lesson's names, results and end in `course/`), in V大's terms: 叠图对比, 原位,
 //! 对齐; 热身.
 
 use openpaint_practice_app::Pen;

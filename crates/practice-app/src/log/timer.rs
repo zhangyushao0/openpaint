@@ -3,7 +3,9 @@
 //! the sheet in front (`tick`, before the UI pass, so the pass shows that tick's state), shows it
 //! (`timer`), applies the screens' timer intents (`time`, with the open sheet), lays the
 //! chain after a Next (`chains`), asks for the frame it wants (`wake`), keeps the screen on
-//! (`screen_on`), sounds the chime (`take_chime`) and stores what changed (`timer_request`).
+//! (`screen_on`), sounds the chime (`take_chime`) and stores what changed (`timer_request`). The
+//! open sheet is told each frame whether a block is in hand (`PracticeSheet::set_in_block`, from
+//! `timer`), and End has the block's end ask its pair (S148).
 
 use openpaint_app::Availability;
 use openpaint_practice::{Blocks, Sheet, TimerWrite};
@@ -82,6 +84,8 @@ impl PracticeLog {
                 // A lesson taken off leaves the one before it in hand: set beside the log again.
                 let beside = self.beside(&record);
                 sheet.sheet_mut().set_beside(beside);
+                // The block's end asks what its lessons' ends, never shown, did not (S148).
+                sheet.sheet_mut().ask_block(block.started, now);
                 self.pomodoro.complete();
                 // The log takes the sheet cut: its book, its seals and the block's end made again.
                 self.keep(record);

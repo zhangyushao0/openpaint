@@ -105,7 +105,7 @@ impl Book { fn of(records, offset) }  impl Tally { fn of(records); fn seals() ->
 pub struct First { at, corrected_from: Option<u64>, metrics }  pub struct Givens { slots: Vec<(u16, Given)> }  // Span { from, to }: UTC seconds
 impl Learner { fn of(sheets); fn with(&Lesson); fn dots(Skill); fn level(Skill); fn open(unit, &Pictures) }  // derived
 impl Progress { fn of(sheets, &[BlindPair], offset) }  impl SkillFit { fn curve(); fn change() }  // WHR, derived (D124)
-pub fn ask(Skill, (sheets, pairs), (today, offset), &Within) -> Option<PairAsked>;  // the least sure pair
+pub fn ask(&[Skill], (sheets, pairs), (today, offset), &Within) -> Option<PairAsked>;  // the least sure pair; block_pairs(since, ..) a block's end's (S148)
 pub fn align(original: &[&[Point]], copy: &[&[Point]]) -> Option<Fit>;  // Fit { scale, shift }
 pub fn align_shape(outline: &[&[Point]], copy: &[&[Point]]) -> Option<Fit>;
 pub fn outline(size: [u32; 2], rgba: &[u8]) -> Result<Outline, OutlineRefusal>;

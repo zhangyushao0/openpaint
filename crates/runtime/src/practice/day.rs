@@ -143,12 +143,13 @@ pub(crate) fn appended(
     }
 }
 
-/// The lesson One more starts from `canvas`'s sheet: what its end names (`End::next`, a skill of
-/// a unit ahead of the learner's again), the next lesson where it names none.
+/// The lesson One more starts from `canvas`'s sheet: what its end names (`End::next`: a skill's
+/// lesson, a skill of a unit ahead of the learner's again, a unit's due start re-test), the next
+/// lesson where it names none.
 pub(crate) fn named(canvas: &Canvas) -> Start {
     (canvas.sheet().map(SheetSession::projection))
         .and_then(|shown| shown.end?.next)
-        .map_or(Start::Next, |offer| Start::Skill(offer.skill))
+        .map_or(Start::Next, |next| next.start())
 }
 
 /// The extra drill `canvas`'s sheet's end offers (`End::drill`, S147): its skill's lesson; the next

@@ -2,8 +2,8 @@
 //! one blind pair of two earlier copies, never today's; skipped it stores nothing and its copies are
 //! not asked again that day; answered once it is kept for the store and its dates show; a finished lesson
 //! opened again shows its pair answered, else none. The extra drill shows only where the curve is
-//! sure the skill fell. A unit's re-test is offered and laid as the path says. And the fit takes
-//! well under a frame on a long history.
+//! sure the skill fell. A unit's re-test is offered and laid as the path says, a start re-test due
+//! by One more too (S148). And the fit takes well under a frame on a long history.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -14,7 +14,9 @@ use openpaint_practice::{
     Answer, BlindPair, CopyRef, Exercise, First, Given, Judge, Kind, Layout, LineTier, Outcome,
     Picked, Planned, Progress, Purpose, Sheet, Skill, SkillFit, SkillLevel, older_left,
 };
-use openpaint_practice_app::{PracticeIntent, PracticeLog, PracticePens, SheetSession, Start};
+use openpaint_practice_app::{
+    OneMore, PracticeIntent, PracticeLog, PracticePens, SheetSession, Start,
+};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -204,20 +206,7 @@ fn a_unit_s_end_re_test_is_offered_once_its_seal_is_earned_and_laid_as_its_set()
     assert!(log.path().retest.is_none());
     // Unit 1 sealed (each skill with its first dot): its end re-test offered beside the next
     // lesson, unit 2's start in the next lesson's place, which Start lays.
-    let clean = [Outcome::Clean; 6];
-    let colour = Kind::Colour(openpaint_practice::Tone::of_code(1).expect("a tone"));
-    let combined = Kind::Combined(openpaint_practice::Combination::ALL[0]);
-    let sealed = vec![
-        Sheet::begun(
-            1,
-            (Purpose::Day, NOON),
-            openpaint_practice::schedule::first(1),
-        ),
-        past(2, 1, &clean),
-        past_of(combined, (3, 1), &clean),
-        past_of(colour, (4, 2), &clean),
-    ];
-    let log = log_of(sealed, Vec::new(), 3);
+    let log = log_of(unit_one_sealed(), Vec::new(), 3);
     let path = log.path();
     let end = path.retest_end.expect("unit 1's end re-test");
     assert_eq!((end.unit, end.end, end.skills.len()), (1, true, 3));
@@ -249,6 +238,56 @@ fn a_unit_s_end_re_test_is_offered_once_its_seal_is_earned_and_laid_as_its_set()
     let laid: Vec<&Exercise> = sheet.exercises().map(|laid| &laid.exercise).collect();
     let planned: Vec<&Exercise> = set.exercises.iter().map(|(exercise, _)| exercise).collect();
     assert_eq!(laid, planned);
+}
+
+/// Unit 1 sealed by day 2 (the first lesson, then six clean exercises of each of its skills):
+/// unit 2 in hand, its start re-test due.
+fn unit_one_sealed() -> Vec<Sheet> {
+    let clean = [Outcome::Clean; 6];
+    let colour = Kind::Colour(openpaint_practice::Tone::of_code(1).expect("a tone"));
+    let combined = Kind::Combined(openpaint_practice::Combination::ALL[0]);
+    vec![
+        Sheet::begun(
+            1,
+            (Purpose::Day, NOON),
+            openpaint_practice::schedule::first(1),
+        ),
+        past(2, 1, &clean),
+        past_of(combined, (3, 1), &clean),
+        past_of(colour, (4, 2), &clean),
+    ]
+}
+
+#[test]
+fn one_more_lays_a_unit_s_start_re_test_while_it_is_due_as_start_would() {
+    let log = log_of(unit_one_sealed(), Vec::new(), 3);
+    let due = log.path().retest.expect("unit 2's start re-test due");
+    // A lesson of lines (unit 1's, practised on): One more names the re-test, Start's lesson.
+    let end = done_today(&log, 3, 5).projection().end.expect("the end");
+    assert_eq!(end.next, Some(OneMore::Retest(due)));
+    let start = end.next.as_ref().map(OneMore::start);
+    assert_eq!(start, Some(Start::Retest(2, false)));
+    let (laid, _) = (log.start(Start::Retest(2, false), 9, NOON + 3 * DAY)).expect("laid");
+    let (next, _) = log.start(Start::Next, 9, NOON + 3 * DAY).expect("Start's");
+    assert_eq!(laid.lessons, next.lessons, "as Start lays it");
+    // Begun once, it is due no more: One more names the path's next lesson again.
+    let mut sheets = unit_one_sealed();
+    let mut retest = laid.clone();
+    if let Some(lesson) = retest.lesson_mut() {
+        lesson.finished = Some(NOON + 3 * DAY + 600);
+    }
+    sheets.push(Sheet {
+        canvas: 905,
+        ..retest
+    });
+    let log = log_of(sheets, Vec::new(), 3);
+    assert!(log.path().retest.is_none());
+    let end = done_today(&log, 3, 6).projection().end.expect("the end");
+    assert!(
+        matches!(end.next, Some(OneMore::Skill(_))),
+        "{:?}",
+        end.next
+    );
 }
 
 /// A learner of 120 practice days, four results a day and a pair every second day reaching

@@ -110,7 +110,7 @@ impl PracticeBar {
             practice.comparing,
         );
         let card = match card_shown(shown, (block, practice.rolled_back)) {
-            Some(CardShown::BlockEnd) => self.block_end(ctx, block, opened, taps),
+            Some(CardShown::BlockEnd) => self.block_end(ctx, (practice, block), opened, taps),
             Some(CardShown::End) => Self::lesson_end(ctx, practice, opened, taps),
             Some(CardShown::How) => self.how(ctx, practice, opened, taps),
             Some(CardShown::Compared) => Some(
@@ -165,24 +165,29 @@ impl PracticeBar {
         Some(rect)
     }
 
-    /// A block's end on the card.
+    /// A block's end on the card, with the pairs the sheet asks at it (S148).
     fn block_end(
         &mut self,
         ctx: &egui::Context,
-        block: Option<&BlockShown>,
+        (practice, block): (&PracticeProjection, Option<&BlockShown>),
         opened: (Source, f32),
         taps: &mut SheetTaps<'_, '_>,
     ) -> Option<egui::Rect> {
         let Some(BlockShown::Ended { end, rest }) = block else {
             return None;
         };
+        let pairs = practice.end.as_ref().map_or(&[][..], |end| &end.pairs[..]);
+        let asked = (pairs, practice.cards.as_slice());
         let (tapped, rect) = card(ctx, "practice card", opened, |ui| {
-            block_end_card(ui, end, *rest)
+            block_end_card(ui, end, *rest, asked)
         });
         match (tapped, taps.lent.viewport) {
             (Some(BlockTap::Another), Some(viewport)) => {
                 push_once(taps.timer, TimerIntent::Another(viewport));
                 self.source = None;
+            }
+            (Some(BlockTap::Pair(at, answer)), _) => {
+                push_once(taps.sheet, PracticeIntent::Pair(at, answer));
             }
             (Some(BlockTap::Enough), _) => {
                 push_once(taps.lent.taps, Intent::Gallery(GalleryIntent::Show));

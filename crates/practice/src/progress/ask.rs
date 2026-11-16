@@ -10,9 +10,12 @@
 //! - Among those, the pair whose difference of abilities on its two days is least sure, the largest
 //!   posterior variance (ASAP's choice of the most informative comparison, Mikhailiuk et al. 2020,
 //!   simplified: the variance alone); ties the older nearest four weeks before the newer, then the
-//!   newest newer.
+//!   newest newer; among several skills (a block's) the same order over all their pairs.
 //! - A unit's end re-test asks one pair a skill (`retest_pairs`): its copy just drawn against the
 //!   start re-test's of the same task, or, where none was taken, the skill's first copy ever.
+//! - A Pomodoro's block asks at its end (S148; its lessons' ends show no card): a unit's end
+//!   re-test's pairs where it held one, else one pair among the skills its lessons practised
+//!   (`block_pairs`).
 
 use crate::kinds::Skill;
 use crate::packs::pictures::Pictures;
@@ -52,20 +55,74 @@ struct Candidate {
     level: u8,
 }
 
-/// The pair a lesson of `skill` ending on local day `today` asks, from `sheets` and `pairs` (days on
-/// a clock `offset` minutes from UTC); none when no two copies qualify.
+/// A pair's place in the choice: its spread, how near four weeks apart its copies are, its newer's
+/// day; the pair.
+type Ranked = (f64, i64, i64, PairAsked);
+
+/// The pair an end ending on local day `today` asks of `skills` (a lesson's one, a block's
+/// several), from `sheets` and `pairs` (days on a clock `offset` minutes from UTC); none when no
+/// two copies of one skill qualify.
 #[must_use]
 pub fn ask(
+    skills: &[Skill],
+    records: (&[Sheet], &[BlindPair]),
+    (today, offset): (i64, i32),
+    within: &Within<'_>,
+) -> Option<PairAsked> {
+    let ranked = (skills.iter()).filter_map(|skill| best(*skill, records, (today, offset), within));
+    ranked
+        .reduce(|held, key| if better(&key, &held) { key } else { held })
+        .map(|(_, _, _, asked)| asked)
+}
+
+/// The pairs the end of a Pomodoro's block begun at `since` asks (S148), its lessons those of
+/// `sheets` finished at or after it (no copy), and the lesson they are kept under
+/// (`BlindPair::lesson`): a unit's end re-test's, as its own end asks them (`retest_pairs`), where
+/// the block held one; else at most one of earlier copies, the least sure among the skills its
+/// lessons practised but the first lesson's (`ask`), under the block's last lesson. None when the
+/// block holds no lesson.
+#[must_use]
+pub fn block_pairs(
+    since: u64,
+    (sheets, pairs): (&[Sheet], &[BlindPair]),
+    (today, offset): (i64, i32),
+    within: &Within<'_>,
+) -> Option<((u64, u16), Vec<PairAsked>)> {
+    let all = lessons(sheets);
+    let held: Vec<&OnSheet<'_>> = (all.iter())
+        .filter(|on| !on.is_copy() && on.finished().is_some_and(|finished| finished >= since))
+        .collect();
+    let key = |on: &OnSheet<'_>| (on.sheet.id, u16::try_from(on.index).unwrap_or(u16::MAX));
+    let end = |on: &&&OnSheet<'_>| on.lesson.retest().is_some_and(|(_, end)| end);
+    let retested = held.iter().rev().find(end);
+    if let Some(on) = retested {
+        return Some((key(on), retest_pairs(on.sheet, on.index, sheets)));
+    }
+    let mut skills: Vec<Skill> = Vec::new();
+    let scored = held.iter().filter(|on| on.lesson.picked != Picked::First);
+    for laid in scored.flat_map(|on| &on.lesson.exercises) {
+        if let Some(skill) = Skill::of(laid.exercise.kind).filter(|skill| !skills.contains(skill)) {
+            skills.push(skill);
+        }
+    }
+    let last = held.last()?;
+    let asked = ask(&skills, (sheets, pairs), (today, offset), within);
+    Some((key(last), asked.into_iter().collect()))
+}
+
+/// The pair of `skill` an end on local day `today` would ask, ranked; none when no two copies
+/// qualify.
+fn best(
     skill: Skill,
     (sheets, pairs): (&[Sheet], &[BlindPair]),
     (today, offset): (i64, i32),
     within: &Within<'_>,
-) -> Option<PairAsked> {
+) -> Option<Ranked> {
     let all = candidates(skill, sheets, offset, within);
     let paired = |copy: CopyRef| pairs.iter().filter(|pair| pair.holds(copy)).count();
     let newer = (all.iter())
         .filter(|c| (today - NEWER.1..=today - NEWER.0).contains(&c.day) && paired(c.copy) == 0);
-    let mut best: Option<(f64, i64, i64, PairAsked)> = None;
+    let mut best: Option<Ranked> = None;
     let mut fitted: Option<Option<SkillFit>> = None;
     for new in newer {
         let older = (all.iter()).filter(|old| {
@@ -90,18 +147,20 @@ pub fn ask(
                 .unwrap_or(0.0);
             let near = -(new.day - FOUR_WEEKS - old.day).abs();
             let key = (spread, near, new.day, asked);
-            let better = best.as_ref().is_none_or(|held| {
-                let (s, n, d, a) = held;
-                key.0 > *s + 1e-9
-                    || ((key.0 - *s).abs() <= 1e-9
-                        && (key.1, key.2, ord(asked)) > (*n, *d, ord(*a)))
-            });
-            if better {
+            if best.as_ref().is_none_or(|held| better(&key, held)) {
                 best = Some(key);
             }
         }
     }
-    best.map(|(_, _, _, asked)| asked)
+    best
+}
+
+/// Whether `key` is chosen over `held`: a spread larger by more than a hair, else nearer four
+/// weeks apart, then a newer newer, then the higher copies.
+fn better(key: &Ranked, held: &Ranked) -> bool {
+    let (s, n, d, a) = held;
+    key.0 > *s + 1e-9
+        || ((key.0 - *s).abs() <= 1e-9 && (key.1, key.2, ord(key.3)) > (*n, *d, ord(*a)))
 }
 
 /// A pair's order among ties: the lower copies last.

@@ -1,12 +1,13 @@
 //! One headless pass of each Pomodoro state on the sheet, on fixtures (S124): the bar's ring
 //! counting, held and at the time (End in place of Next), its menu, a lesson's end hidden while a
-//! block runs, and the block's end with and without a dot gained, during the break and after it.
+//! block runs, and the block's end with and without a dot gained, during the break and after it,
+//! and with the blind pair it asks (S148).
 
 use std::sync::Arc;
 
 use egui::Rect;
-use openpaint_practice::{BlockTally, Length, Outcome, Skill};
-use openpaint_practice_app::{BlockEnd, BlockShown, TimerIntent};
+use openpaint_practice::{Answer, BlockTally, CopyRef, Length, Outcome, PairAsked, Skill};
+use openpaint_practice_app::{BlockEnd, BlockShown, PairShown, TimerIntent};
 
 use super::bar::{CardShown, card_shown};
 use super::block_end::{BlockTap, block_end_card};
@@ -200,7 +201,7 @@ fn a_block_s_end_shows_its_length_counts_dots_seal_and_break() {
     ] {
         let end = block(true);
         let (map, shapes) = drawn(&ctx, (1.0, language, Vec::new()), |ui| {
-            block_end_card(ui, &end, Some((4, 0.8)));
+            block_end_card(ui, &end, Some((4, 0.8)), (&[], &[]));
         });
         let seen = words(&shapes);
         for word in shown {
@@ -211,7 +212,7 @@ fn a_block_s_end_shows_its_length_counts_dots_seal_and_break() {
         assert_on_screen(&map, t::ENOUGH.id());
     }
     let (_, shapes) = drawn(&ctx, (2.0, Language::English, Vec::new()), |ui| {
-        block_end_card(ui, &block(false), None);
+        block_end_card(ui, &block(false), None, (&[], &[]));
     });
     let seen = words(&shapes);
     assert!(!seen.iter().any(|w| w.contains("up to")), "no dot gained");
@@ -220,13 +221,76 @@ fn a_block_s_end_shows_its_length_counts_dots_seal_and_break() {
     let mut tapped = None;
     let end = block(true);
     let map = pass(&ctx, (3.0, Language::English, Vec::new()), |ui| {
-        block_end_card(ui, &end, Some((4, 0.8)));
+        block_end_card(ui, &end, Some((4, 0.8)), (&[], &[]));
     });
     let [press, release] = tap(&map, t::ANOTHER_POMODORO.id());
     for (time, events) in [(3.1, press), (3.2, release)] {
         pass(&ctx, (time, Language::English, events), |ui| {
-            tapped = tapped.or(block_end_card(ui, &end, Some((4, 0.8))));
+            tapped = tapped.or(block_end_card(ui, &end, Some((4, 0.8)), (&[], &[])));
         });
     }
     assert_eq!(tapped, Some(BlockTap::Another));
+}
+
+#[test]
+fn the_block_s_end_asks_its_pair_and_takes_the_answer() {
+    let ctx = context();
+    let copy = |sheet, exercise| CopyRef { sheet, exercise };
+    let pair = PairShown {
+        asked: PairAsked {
+            older: copy(1, 0),
+            newer: copy(2, 1),
+        },
+        older_left: true,
+        answer: None,
+        skill: Skill::of_key("line"),
+    };
+    let (end, pairs) = (block(true), [pair]);
+    let asked = [
+        t::LEFT_BETTER,
+        t::ALIKE,
+        t::RIGHT_BETTER,
+        t::ANOTHER_POMODORO,
+    ];
+    for language in [Language::English, Language::Chinese] {
+        let map = pass(&ctx, (1.0, language, Vec::new()), |ui| {
+            card(ui, &end, Some((4, 0.8)), &pairs);
+        });
+        asked
+            .iter()
+            .for_each(|text| assert_on_screen(&map, text.id()));
+    }
+    let mut tapped = None;
+    let map = pass(&ctx, (2.0, Language::English, Vec::new()), |ui| {
+        card(ui, &end, Some((4, 0.8)), &pairs);
+    });
+    let [press, release] = tap(&map, t::RIGHT_BETTER.id());
+    for (time, events) in [(2.1, press), (2.2, release)] {
+        pass(&ctx, (time, Language::English, events), |ui| {
+            let shown = card(ui, &end, Some((4, 0.8)), &pairs);
+            tapped = tapped.or(shown);
+        });
+    }
+    assert_eq!(tapped, Some(BlockTap::Pair(0, Answer::Right)));
+    let answered = [PairShown {
+        answer: Some(Answer::Right),
+        ..pair
+    }];
+    let map = pass(&ctx, (3.0, Language::English, Vec::new()), |ui| {
+        card(ui, &end, None, &answered);
+    });
+    assert!(map.find(t::RIGHT_BETTER.id()).is_err(), "answered once");
+    assert_on_screen(&map, t::ANOTHER_POMODORO.id());
+}
+
+/// The block's end `end` with its break's `rest` and `pairs`, in a column as wide as a card's.
+fn card(
+    ui: &mut egui::Ui,
+    end: &BlockEnd,
+    rest: Option<(u32, f32)>,
+    pairs: &[PairShown],
+) -> Option<BlockTap> {
+    let column = egui::Vec2::new(296.0, 900.0);
+    let shown = ui.allocate_ui(column, |ui| block_end_card(ui, end, rest, (pairs, &[])));
+    shown.inner
 }

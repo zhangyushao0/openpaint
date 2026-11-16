@@ -5,7 +5,7 @@
 use openpaint_practice::{
     Answer, CopyRef, Judge, Offer, Outcome, PairAsked, Seal, Skill, SkillLevel, Verdict,
 };
-use openpaint_practice_app::{End, Judged, PairShown, PracticeIntent};
+use openpaint_practice_app::{End, Judged, OneMore, PairShown, PracticeIntent};
 
 use super::end::{EndTap, end_card};
 use super::first::first_how;
@@ -72,13 +72,13 @@ fn a_lesson_s_end_offers_one_more_and_that_s_all_for_today() {
         seconds: 192,
         skill: Some((skill, 1, 2)),
         sealed: vec![Seal::TenLessons],
-        next: Some(Offer {
+        next: Some(OneMore::Skill(Offer {
             skill,
             level: SkillLevel::Third,
             exercises: 6,
             minutes: 4,
             redo: false,
-        }),
+        })),
         pairs: Vec::new(),
         drill: None,
     };

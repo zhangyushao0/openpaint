@@ -32,13 +32,19 @@ impl Runtime {
     }
 
     /// The frame's clock, `now` seconds since 1970 UTC, to the practice log: the local day, and
-    /// the timer's tick with the sheet in front; what the timer changed to the store.
+    /// the timer's tick with the sheet in front; what the timer changed to the store. The sheet
+    /// in front then knows whether a block is in hand, before its intents (S148: a lesson's end
+    /// asks no pair there).
     pub(crate) fn clocked(&mut self, now: u64) {
         self.practice.set_clock(now, self.utc_offset);
         let front = (self.screen.canvas())
             .and_then(Canvas::sheet)
             .map(|open| open.sheet().record());
         self.practice.tick(now, front);
+        let in_block = self.practice.timer().block.is_some();
+        if let Some(sheet) = self.screen.canvas_mut().and_then(super::sheet) {
+            sheet.set_in_block(in_block);
+        }
         timer_saved(&mut self.practice, &mut self.storage);
     }
 

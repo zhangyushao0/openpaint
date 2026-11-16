@@ -142,7 +142,9 @@ pub use packs::pack::{
     PackProblem, PictureKind, Tier, valid_id,
 };
 pub use packs::pictures::Pictures;
-pub use progress::{Change, Curve, PairAsked, Progress, SkillFit, Within, ask, retest_pairs};
+pub use progress::{
+    Change, Curve, PairAsked, Progress, SkillFit, Within, ask, block_pairs, retest_pairs,
+};
 pub use records::blocks::{BREAK, Block, BlockTally, Blocks, Length, TimerWrite, Timing, UnderWay};
 pub use records::book::{Book, Day, LineShown};
 pub use records::givens::{Given, Givens};
