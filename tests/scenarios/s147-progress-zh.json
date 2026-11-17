@@ -32,7 +32,6 @@
     { "tap": { "at": "Accurate" } },
     { "tap": { "at": "Next" } },
     { "screenshot": { "name": "retest-start-line" } },
-    { "tap": { "at": "Got it" } },
     { "stroke": { "points": [[1300, 1200, 0.8], [1450, 1000, 0.9], [1600, 800, 0.9], [1700, 700, 0.7]] } },
     { "tap": { "at": "Compare" } },
     { "tap": { "at": "Accurate" } },

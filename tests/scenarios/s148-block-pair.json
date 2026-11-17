@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: I practise almost only inside Pomodoro blocks, lesson after lesson with nothing asking in between; now and then, where I stop anyway, I want to compare two of my earlier copies blind, so I see whether my drawing gets better.",
-    "Monday 5 October, the first lesson (a scribble, a straight line, an arc), Finish, That's all for today. Tuesday a lesson of Lines: its How, the first line copied, Compare, Accurate; Next to the end, Finish: no pair (nothing earlier). Four weeks later (day 29) Lines again: the first line, Compare, Almost; Finish: still no pair (no copy of the last two weeks to set against an older one).",
+    "Monday 5 October, the first lesson (a scribble, a straight line, an arc), Finish, That's all for today. Tuesday a lesson of Lines (its How told at the first lesson's line, S160): the first line copied, Compare, Accurate; Next to the end, Finish: no pair (nothing earlier). Four weeks later (day 29) Lines again: the first line, Compare, Almost; Finish: still no pair (no copy of the last two weeks to set against an older one).",
     "A week later (day 36): a lesson of Lines opened, then Home: Lesson under way, Lines 1/6, Continue; the Pomodoro's row. 15, Start timer: the lesson under way opens again, 15 min in the bar. The first line copied, Compare, Accurate, Next to the end, Finish: no lesson's end, no pair; the chain lays Lesson 5 · Ghosted lines on the next row (first in the course, S156), its How first.",
     "Got it, a first stroke in its first exercise, then the time: Time in red in the bar, End where Next was. End: Pomodoro done in the bar; the block's end over the rows drawn in it: 15 minutes and its seal, 2 lessons · 7 exercises, the results as marks; under a rule Which is better over two of my earlier lines side by side (day 29's and day 1's, never today's), each as its first Compare showed it, no date, no mark; Left better, Same, Right better; under another rule the break's ring with Break and 5 min, Another pomodoro, That's all for today. No sentence anywhere.",
     "Left better: the buttons go, each card's date shows under it (3 Nov, the newer, in ink; 6 Oct quieter), the left card outlined; the break still counts. That's all for today: the home, Today with the block's red seal, the next lesson offered, 15 kept on the row.",
@@ -19,7 +19,6 @@
     { "tap": { "at": "That's all for today" } },
     { "later": { "minutes": 1320, "hidden": true } },
     { "lesson": { "skill": "line", "level": 1 } },
-    { "tap": { "at": "Got it" } },
     { "stroke": { "points": [[1300, 1200, 0.8], [1450, 1000, 0.9], [1600, 800, 0.9], [1700, 700, 0.7]] } },
     { "tap": { "at": "Compare" } },
     { "tap": { "at": "Accurate" } },

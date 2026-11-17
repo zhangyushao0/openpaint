@@ -83,7 +83,6 @@
     { "expect": { "shown": ["15 min"], "absent": ["Another pomodoro"] } },
     { "host": { "chimes": 1, "screen_on": true } },
     { "screenshot": { "name": "another" } },
-    { "tap": { "at": "Got it" } },
     { "stroke": { "points": [[1300, 1200, 0.8], [1450, 1000, 0.9], [1600, 800, 0.9], [1700, 700, 0.7]] } },
     { "tap": { "at": "Compare" } },
     { "tap": { "at": "Almost" } },

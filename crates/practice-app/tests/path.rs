@@ -144,8 +144,11 @@ fn the_lesson_in_hand_is_named_judged_and_ended() {
         session
             .practise(PracticeIntent::Next(VIEWPORT), NOON + 20)
             .expect("next");
-        let lesson = shown(&session).lesson.expect("the lesson in hand");
+        let practice = shown(&session);
+        let lesson = practice.lesson.expect("the lesson in hand");
         assert_eq!(lesson.place, (place, 3));
+        // Its How comes by itself at its first line (S160), not again at the arc.
+        assert_eq!(practice.how.is_some(), place == 2, "the How at {place}");
     }
     session
         .practise(PracticeIntent::Next(VIEWPORT), NOON + 30)

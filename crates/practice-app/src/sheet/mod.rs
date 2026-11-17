@@ -260,9 +260,8 @@ impl PracticeSheet {
     /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
     /// compared before are corrected in blue, others drawn with the pen last chosen, painted
     /// exercises painted with the painting pen last chosen (value masses with the grey last
-    /// chosen); its kind's How shows by itself the first time it comes up (in the first lesson
-    /// only at its first exercise);
-    /// once the lesson is done, its end is kept.
+    /// chosen); its kind's How shows by itself the first time it comes up; once the lesson is
+    /// done, its end is kept.
     fn shown(&mut self) {
         self.take_in_hand();
         let current = self.current();
@@ -284,11 +283,9 @@ impl PracticeSheet {
         };
         self.painted_shown();
         self.choices_shown();
-        let at = (current.zip(self.record.held()))
-            .and_then(|(index, held)| index.checked_sub(held.first_exercise()));
-        // The first lesson's How (shown in place of a kind's) comes by itself once, at its start.
-        let quiet = at.is_some_and(|at| at > 0 && !self.scored());
-        if let Some(kind) = kind.filter(|_| !quiet)
+        // The first lesson's How (shown in place of a kind's, its exercise's steps alone) comes as
+        // any kind's: at its scribble, then at its first line.
+        if let Some(kind) = kind
             && self.told.insert(kind.facts().key)
         {
             self.instructions = Some(kind);

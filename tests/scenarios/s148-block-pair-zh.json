@@ -21,7 +21,6 @@
     { "tap": { "at": "That's all for today" } },
     { "later": { "minutes": 1320, "hidden": true } },
     { "lesson": { "skill": "line", "level": 1 } },
-    { "tap": { "at": "Got it" } },
     { "stroke": { "points": [[1300, 1200, 0.8], [1450, 1000, 0.9], [1600, 800, 0.9], [1700, 700, 0.7]] } },
     { "tap": { "at": "Compare" } },
     { "tap": { "at": "Accurate" } },

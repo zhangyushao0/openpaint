@@ -1,7 +1,8 @@
 //! Where a practice sheet shows (`mod.rs`): every view of a pair fits its row (`Layout::row_rect`,
 //! exactly a one-row sheet), so a quick pinch fits the row in hand and the zoom's limits are a
 //! row's whatever the sheet's size. It opens on the shown pair, large but with room round it (a
-//! picture under its marks, its pair's one frame, larger, S158k),
+//! picture under its marks, its pair's one frame, larger, S158k; an exercise that compares
+//! nothing, its copy's frame in the middle, S160),
 //! Next glides to the next pair at the zoom kept, a finished lesson shows the rows used (the
 //! paper laid ahead below them left out), and One more glides to the next lesson's first pair at
 //! the zoom the view had before Finish; always in the room left of `PRACTICE_ROOM`, where the
@@ -56,9 +57,9 @@ impl PracticeSheet {
         if ends {
             self.zoom = Some(view.zoom());
             *view = self.whole(viewport);
-        } else if let Some(pair) = self.pair(index + 1) {
+        } else if let Some(middle) = self.middle(index + 1) {
             let row = view.within(self.row(index + 1));
-            *view = centred(&row, pair.centre(), (self.canvas, viewport));
+            *view = centred(&row, middle, (self.canvas, viewport));
         }
         self.changed = true;
         self.shown();
@@ -71,7 +72,7 @@ impl PracticeSheet {
         let Some(index) = self.current() else {
             return self.whole(viewport);
         };
-        let Some(pair) = self.pair(index) else {
+        let (Some(pair), Some(middle)) = (self.pair(index), self.middle(index)) else {
             return self.whole(viewport);
         };
         let ([width, height], _) = room(viewport);
@@ -87,7 +88,20 @@ impl PracticeSheet {
             FRAME_HEIGHT
         };
         let scale = (PAIR_WIDTH * width / pair_width).min(tall * height / frame_height);
-        self.at_scale(scale, (pair.centre(), self.row(index)), viewport)
+        self.at_scale(scale, (middle, self.row(index)), viewport)
+    }
+
+    /// The point a view of exercise `index` centres: its pair's middle, or its copy's frame's,
+    /// the one drawn, where it compares nothing (the first lesson's scribble: no original beside
+    /// it, its frame in the middle of the room).
+    fn middle(&self, index: usize) -> Option<[f64; 2]> {
+        let pair = self.pair(index)?;
+        let alone = self.facts(index).is_some_and(|facts| !facts.compared);
+        Some(if alone {
+            pair.copy.middle()
+        } else {
+            pair.centre()
+        })
     }
 
     /// The view One more glides to: the new lesson's first pair at the zoom the view had before
@@ -96,13 +110,13 @@ impl PracticeSheet {
         let (Some(index), Some(zoom)) = (self.current(), self.zoom) else {
             return self.opening_view(viewport);
         };
-        let Some(pair) = self.pair(index) else {
+        let Some(middle) = self.middle(index) else {
             return self.opening_view(viewport);
         };
         let still = CanvasView::new([0.0; 2], zoom, 0.0).unwrap_or(CanvasView::FIT);
         centred(
             &still.within(self.row(index)),
-            pair.centre(),
+            middle,
             (self.canvas, viewport),
         )
     }

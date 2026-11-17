@@ -3,7 +3,8 @@
 //! controls registered by name and on the screen.
 
 use openpaint_practice::{
-    Answer, CopyRef, Judge, Offer, Outcome, PairAsked, Seal, Skill, SkillLevel, Verdict,
+    Answer, CopyRef, Judge, Kind, LineTier, Offer, Outcome, PairAsked, Seal, Skill, SkillLevel,
+    Verdict,
 };
 use openpaint_practice_app::{End, Judged, OneMore, PairShown, PracticeIntent};
 
@@ -171,9 +172,13 @@ fn a_lesson_s_end_asks_a_blind_pair_once_and_offers_a_drill_on_a_fall() {
 #[test]
 fn the_first_lesson_s_how_ends_with_got_it() {
     let ctx = context();
-    for language in [Language::English, Language::Chinese] {
+    let kinds = [Kind::Free, Kind::Line(LineTier::Straight)];
+    for (language, kind) in [Language::English, Language::Chinese]
+        .into_iter()
+        .zip(kinds)
+    {
         let map = pass(&ctx, (1.0, language, Vec::new()), |ui| {
-            first_how(ui);
+            first_how(ui, kind);
         });
         assert_on_screen(&map, t::GOT_IT.id());
     }

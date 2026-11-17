@@ -210,7 +210,7 @@ impl PracticeBar {
         let (demos, of) = (&mut self.demos, practice_card::how_of(practice, kind));
         let (done, rect) = card(ctx, "practice card", opened, |ui| {
             if first {
-                first_how(ui)
+                first_how(ui, kind)
             } else {
                 practice_card::instructions(ui, of, demos)
             }
