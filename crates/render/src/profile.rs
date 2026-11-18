@@ -148,12 +148,11 @@ pub(crate) fn since(started: Instant) -> u64 {
     nanos(started.elapsed())
 }
 
-#[cfg_attr(
-    target_os = "android",
-    expect(
-        clippy::missing_const_for_thread_local,
-        reason = "clippy 1.98 takes every const thread-local for a non-const one on Android"
-    )
+#[expect(
+    clippy::missing_const_for_thread_local,
+    reason = "clippy 1.98 takes a const thread-local built for Android on Windows for a non-const \
+              one, not on Linux (S162): no `const` block, so every host and target reads it alike; \
+              a few counters a frame lose nothing to the lazy check"
 )]
 mod cell {
     use std::cell::Cell;
@@ -174,7 +173,7 @@ mod cell {
     };
 
     thread_local! {
-        pub(super) static SPENT: Cell<Spent> = const { Cell::new(NOTHING) };
+        pub(super) static SPENT: Cell<Spent> = Cell::new(NOTHING);
     }
 }
 use cell::SPENT;
