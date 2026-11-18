@@ -2,7 +2,7 @@
 //! tests on Mesa's lavapipe, named by `OPENPAINT_SOFTWARE_GPU`. What holds only on a hardware GPU
 //! is left out there, each named with why as the gate runs: a drawing held to the bit across two
 //! paths (a tier tile and the export, bands and one piece, incremental and cold) or to a hash
-//! taken on the dev machine's GPU, which lavapipe's rasterisation does not keep, and the runtime's
+//! taken on the dev machine's GPU, which lavapipe's rasterisation does not keep, and frames and
 //! walks timed for a hardware GPU. Every local gate runs them all (the dev machine's GPU), the
 //! tablet's checks beside it.
 
@@ -17,6 +17,11 @@ const LEFT_OUT: &[(&str, &str)] = &[
     (
         "crates/runtime/tests/budget.rs",
         "the caches' bytes as a hardware GPU's drawing leaves them",
+    ),
+    (
+        "crates/render/tests/frame_budget.rs",
+        "a frame's background work budgeted in a hardware GPU's time: on lavapipe a tier may get \
+         no room in the frames counted",
     ),
 ];
 
