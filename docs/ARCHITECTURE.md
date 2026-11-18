@@ -232,6 +232,7 @@ A lost GPU device is not an error the user sees (D96): wgpu's lost callback, out
 | --- | --- | --- |
 | unit | pure tests for core, app, store; GPU readback tests for render and runtime (formulas, incremental = cold, invariants) | `cargo test -p` |
 | gate | fmt, clippy (also for `aarch64-linux-android` on the JNI crate), all tests, the `smoke` scenario, repo-check | before the commit |
+| CI | the gate on GitHub's Linux runner, the GPU tests on lavapipe (`OPENPAINT_SOFTWARE_GPU`): what holds only on a hardware GPU (drawings to the bit across paths, golden hashes, frames timed) left out and named, `xtask/src/test_run/software.rs`; the APK; a release on a tag `v<version>` (`.github/workflows/ci.yml`, S162) | every push to main and pull request |
 | regression | every harness scenario (`cargo scenarios`): JSON steps plus canvas hash checkpoints | slices that touch behaviour |
 | device | `cargo device-smoke` (at most 20 s), benches and manual checks | slices marked in ROADMAP, stage exits |
 

@@ -70,11 +70,11 @@ Canvas: 1.0.0 (2026-10-22), paced benches on test art imported by `open-file` (p
 | A stroke at a view tier every vsync (S130 to S135), the tablet, the author's pen | pass | 2026-11-15 | 4038e18, the studio at 2.5x on its 2x tier: 312 events in 311 frames, none skipped; event to present p50 10.0, p95 12.8 ms; frame work p50 3.9; the recorder 97 to 100 % of the vsyncs wanted. At fit as before (10 ms). The author: smoother, more comfortable to draw |
 | The same, injected (the tablet) | pass | 2026-11-15 | `bench strokes` at fit after S135: event to present p50 9.6 to 10.2 ms, the smudge 18.8; a day's sheet: 61 events in 61 frames, 12.2 ms |
 | Display cache written only on leaving (S128) | pass | 2026-11-14 | `runtime/tests/display_cache.rs`; 8 leave-and-return scenarios byte for byte; the tablet (d045cf7): written once on leaving (73.4 MB, 75 ms) |
-| S124 and its fixes on the tablet | pass | 2026-11-14 | 1.23.3 (ae0ea0f), a 60 s test block in the app's log: screen kept on, End, the break, its chime; the library byte-identical |
-| Device smoke, tablet | not_run | 2026-11-07 | 1.21.6: every injected touch refused by the input dispatcher; last pass 1.21.0, 14.6 s, 2026-11-06 |
+| S124 and its fixes on the tablet | pass | 2026-11-14 | 1.23.3: a 60 s test block: screen kept on, End, the break, its chime; the library byte-identical |
+| Device smoke, tablet | not_run | 2026-11-07 | injected touches refused since 1.21.6; last pass 1.21.0 |
 | Tablet display | facts | 2026-10-04 | MovinkPad 14, Android 15: wide colour, HDR10/HLG; the surface Rgb10a2Unorm in sRGB; 120 Hz drawing, 60 Hz idle after 3 s |
 | Long session (`harness long-session`, 3,000 strokes) | in bound | 2026-10-13 | everything in bound but the driver's growth, 4.7 to 5.2 GB in an hour |
-| CI (GitHub Actions `gate`) | not_run | — | the remote exists; no workflow run |
+| CI (GitHub Actions `ci`, Linux, lavapipe) | pass | 2026-11-18 | S162: hardware-only tests left out, named; the APK built; a tag's release not_run |
 
 ## Known limits
 

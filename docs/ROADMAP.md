@@ -75,6 +75,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-11-18 S162: on lavapipe, drawings held to the bit across two paths (a tier tile and the export, bands and one piece, incremental and cold; 45 of render's stroke tests) differ: lavapipe's rounding or code that leans on a hardware GPU's, unknown; the tablet's GPU never read so. Way out: read one pair's pixels on lavapipe, then decide per-adapter tolerance or a fix.
 - 2026-11-14 the main session: the benches' frame work is bimodal on the tablet under injected gestures: the same panel reads about 5 ms and 95 % in one run and about 9.5 ms and 50 % in the next (`bench ui`: colour, brushes), never a frame skipped for the GPU. The author's real hand shows a stroke's frames on a sheet as heavy as the benches say, so the touch-boost hypothesis does not explain strokes; the panels' two speeds under injection stay unexplained.
 - 2026-11-14 the main session: on a sheet some motions' UI pass takes 14 to 30 ms a frame (seen with a real hand; which state is not known yet, a comparison shown while the view moves is the first suspect).
 - 2026-11-14 the main session: leaving the canvas, one frame waits for a readback: 59 ms on an A4 (`bench open-cold`: 36.8 ms in a readback), 70 to 95 ms leaving a day's sheet for the home (five of five).
@@ -165,3 +166,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S159 2026-11-16: packs grown: crops on a five-by-five grid, every crop keeping the rules up to six a picture, a refused crop making way for the next; Texture Ninja, Openverse, `search aic`, `--from`; combinations 454 crops (81 hard), compositions 97 (41 hard).
 - S160 2026-11-16 1.33.0: the first lesson's How says the exercise in hand's steps alone and comes again at the first line; the scribble's one frame in the middle of the view (its place on the sheet kept).
 - S161 2026-11-18 1.34.0: what lies over the canvas (a sheet's frames and givens, the selection, the guide) laid through the view this frame's fingers move it to, so on a long sheet they no longer move a frame apart from the strokes.
+- S162 2026-11-18: CI on GitHub: the gate on a software GPU (lavapipe), what holds only on a hardware GPU left out and named; the APK built each run, released on a tag `v<version>`; practice's pinned values alike on every platform.
