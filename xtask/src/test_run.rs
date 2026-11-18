@@ -12,6 +12,7 @@
 mod guard;
 mod memory;
 pub mod prune;
+pub mod software;
 
 use std::io;
 use std::path::PathBuf;
@@ -40,6 +41,9 @@ struct Binary {
 
 pub fn run() -> Result<(), String> {
     let mut binaries = build()?;
+    if software::on() {
+        binaries = software::kept(binaries);
+    }
     // No times kept (a first run): cargo's order.
     longest_first(
         &mut binaries,
@@ -210,6 +214,7 @@ fn run_all(binaries: &[Binary], jobs: usize, memory: &Memory) -> (usize, String)
                     let started = Instant::now();
                     let mut command = Command::new(&binary.executable);
                     command
+                        .args(software::skips(&binary.source))
                         .current_dir(&binary.dir)
                         .env("CARGO_MANIFEST_DIR", &binary.dir);
                     let run = guard::run(&mut command, HANG_LIMIT);

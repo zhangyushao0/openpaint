@@ -91,18 +91,25 @@ fn fnv(hash: &mut u64, value: u64) {
     }
 }
 
+/// `v` to a billionth, as `fnv` folds it: the last bits each platform's maths rounds its own way
+/// (Windows' and Linux's `sin` differ in the last place) left out, so a hash is every platform's
+/// (S162; the hashes below retaken so, of the same values the bits had pinned since f100347).
+fn quantised(v: f64) -> u64 {
+    (v * 1e9).round() as i64 as u64
+}
+
 /// `b` folded into `hash`: its corners, horizon, vanishing points (1 for one it lacks), front.
 fn boxed(hash: &mut u64, b: &PerspectiveBox) {
     for c in b.corners {
-        fnv(hash, c[0].to_bits());
-        fnv(hash, c[1].to_bits());
+        fnv(hash, quantised(c[0]));
+        fnv(hash, quantised(c[1]));
     }
-    fnv(hash, b.horizon.to_bits());
+    fnv(hash, quantised(b.horizon));
     for v in b.vanishing {
         match v {
             Some(p) => {
-                fnv(hash, p[0].to_bits());
-                fnv(hash, p[1].to_bits());
+                fnv(hash, quantised(p[0]));
+                fnv(hash, quantised(p[1]));
             }
             None => fnv(hash, 1),
         }
@@ -133,16 +140,16 @@ fn the_earlier_variants_and_the_first_level_lay_what_they_laid_before_s142() {
             let exact = [e.centre[0], e.centre[1], e.axes[0], e.axes[1], e.angle];
             points
                 .chain(&exact)
-                .for_each(|v| fnv(&mut ellipses, v.to_bits()));
+                .for_each(|v| fnv(&mut ellipses, quantised(*v)));
         }
     }
     let hashes = [boxes, pages, ellipses];
     assert_eq!(
         hashes,
         [
-            0xe0a1_c663_dd23_bfd9,
-            0xa8eb_3c6c_664d_7558,
-            0x64b3_bb7a_2c45_7296
+            0x034c_e2c1_3b8e_34fe,
+            0xe136_e4a5_9b53_489f,
+            0x5cac_125e_640d_ea26
         ],
         "{hashes:x?}"
     );

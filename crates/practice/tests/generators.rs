@@ -49,11 +49,18 @@ const GENERATED: [[f64; 2]; 2] = [
 
 #[test]
 fn a_generator_keeps_giving_the_same_line() {
-    // A kind code names one generator for good (D98): a stored lesson's lines come back to
-    // the last bit; a changed generator is a new code.
+    // A kind code names one generator for good (D98): a seed's lines come back as they were laid
+    // (`alike`); a changed generator is a new code.
     let line = LineExercise::generate(LineTier::Wave, 0x5EED_0045);
     let ends = [line.points[0], line.points[480]];
-    assert_eq!(ends, GENERATED);
+    assert!(alike(&ends, &GENERATED), "{ends:?}");
+}
+
+/// `a` and `b` alike but for the last bits each platform's maths rounds its own way (`sin`,
+/// `exp`: Windows' and Linux's differ in the last place, S162).
+fn alike(a: &[[f64; 2]], b: &[[f64; 2]]) -> bool {
+    let close = |(x, y): (&f64, &f64)| (x - y).abs() < 1e-12;
+    a.len() == b.len() && a.iter().zip(b).all(|(p, q)| p.iter().zip(q).all(close))
 }
 
 #[test]
@@ -103,7 +110,8 @@ fn a_generator_keeps_giving_the_same_group() {
     // As for single lines: code 3's groups come back to the last bit.
     let group = CombinedLines::generate(Combination::Crossing, 0x5EED_0045);
     let first = &group.lines[0];
-    assert_eq!([first[0], first[first.len() - 1]], CROSSED);
+    let ends = [first[0], first[first.len() - 1]];
+    assert!(alike(&ends, &CROSSED), "{ends:?}");
 }
 
 /// Each line before S141 seeded `0x5EED_0141`: its first and middle points, as ee393c6 laid them.
@@ -180,13 +188,15 @@ fn the_variants_before_s141_lay_what_they_laid() {
     // New variants are appended (S141); an existing one's seed still gives its exercise.
     for (tier, pinned) in LINES_BEFORE {
         let line = LineExercise::generate(tier, 0x5EED_0141).points;
-        assert_eq!([line[0], line[240]], pinned, "{tier:?}");
+        let laid = [line[0], line[240]];
+        assert!(alike(&laid, &pinned), "{tier:?} {laid:?}");
     }
     for (combination, count, pinned) in GROUPS_BEFORE {
         let group = CombinedLines::generate(combination, 0x5EED_0141).lines;
         let last = group.last().map_or([0.0; 2], |line| line[line.len() - 1]);
-        let laid = (group.len(), [group[0][0], last]);
-        assert_eq!(laid, (count, pinned), "{combination:?}");
+        let laid = [group[0][0], last];
+        assert_eq!(group.len(), count, "{combination:?}");
+        assert!(alike(&laid, &pinned), "{combination:?} {laid:?}");
     }
 }
 

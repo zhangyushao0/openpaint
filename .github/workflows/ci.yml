@@ -35,7 +35,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      # What holds only on a hardware GPU is left out and named (xtask/src/test_run/software.rs).
       - run: cargo gate
+        env:
+          OPENPAINT_SOFTWARE_GPU: lavapipe
 
   apk:
     runs-on: ubuntu-latest

@@ -56,8 +56,13 @@ fn clippy_android() -> Result<(), String> {
 }
 
 /// The short harness scenario: the app opens, takes a pen stroke and passes a canvas checkpoint
-/// (`tests/scenarios/smoke.json`). Debug build, sharing the test step's compiled crates.
+/// (`tests/scenarios/smoke.json`). Debug build, sharing the test step's compiled crates. Left out
+/// on a software GPU (`test_run::software`): its checkpoint is a hash the dev machine's GPU drew.
 fn scenario_smoke() -> Result<(), String> {
+    if test_run::software::on() {
+        println!("  left out on a software GPU: its canvas checkpoint is a hardware GPU's hash");
+        return Ok(());
+    }
     cargo(&[
         "run",
         "--quiet",
