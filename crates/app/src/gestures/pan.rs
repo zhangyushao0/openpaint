@@ -17,7 +17,7 @@ struct Candidate {
     current: [f32; 2],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct OneFingerPan {
     /// Every finger down, whatever it does.
     down: Vec<i32>,

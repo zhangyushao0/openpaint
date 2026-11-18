@@ -58,6 +58,8 @@ pub struct Shell {
     /// The input clock for this frame (`set_now`).
     pub(crate) now_ms: i64,
     pub(crate) input: CanvasInput,
+    /// This frame's contacts (`set_contacts`), routed ahead for the view the pass lays with.
+    contacts: Vec<openpaint_app::InputBatch>,
     panels: Panels,
     side: SideBar,
     selection: SelectionBar,
@@ -200,7 +202,7 @@ impl Shell {
         let ctx = ui.ctx().clone();
         let area = CanvasArea::from_points(rect, self.pixels_per_point);
         self.arrived();
-        if let Some(mapping) = self.mapping(&area) {
+        if let Some(mapping) = self.foreseen(area) {
             self.view.advance(&ctx);
             let (shown, ppp) = (self.view.shown(mapping), self.pixels_per_point);
             let whole = sheet::show_sheet(&ctx, rect, self.shown, &shown, ppp);
@@ -307,6 +309,12 @@ impl Shell {
     /// The input clock now (the time input samples carry) for the next frame; call before `show`.
     pub fn set_now(&mut self, now_ms: i64) {
         self.now_ms = now_ms;
+    }
+
+    /// The contacts the next frame routes; call before `show`, so what it lays over the canvas
+    /// lies where they move it (`foreseen`).
+    pub fn set_contacts(&mut self, batches: &[openpaint_app::InputBatch]) {
+        self.contacts = batches.to_vec();
     }
 
     /// The device's offset from UTC in minutes, for the dates the home shows.

@@ -68,7 +68,7 @@ impl CanvasFrame<'_> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct CanvasInput {
     owned: Vec<i32>,
     gestures: Gestures,

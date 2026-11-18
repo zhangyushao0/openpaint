@@ -32,7 +32,7 @@ struct Hold {
     next_ms: i64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct Taps {
     down: Vec<Finger>,
     most: usize,

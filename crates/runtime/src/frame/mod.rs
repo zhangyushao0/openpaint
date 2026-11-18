@@ -322,6 +322,7 @@ impl Runtime {
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
         self.shell.set_now(self.clock.now_ms());
+        self.shell.set_contacts(&batches);
         let language = self.language();
         self.shell.set_language(language);
         let shown = self.screen();

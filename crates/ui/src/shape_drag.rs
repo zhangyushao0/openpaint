@@ -18,7 +18,7 @@ enum Grip {
 }
 
 /// The contact holding a grip, until it lifts.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct Grips {
     held: Option<(i32, Grip)>,
 }

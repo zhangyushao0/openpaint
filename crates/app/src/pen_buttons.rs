@@ -134,7 +134,7 @@ impl ButtonMap {
 }
 
 /// Follows the pen's buttons and the eraser end across batches.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ButtonTracker {
     /// The side buttons as the pen's last batch reported them.
     buttons: PenButtons,

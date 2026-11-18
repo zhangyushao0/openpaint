@@ -70,7 +70,7 @@ pub struct Gestured {
 }
 
 /// The gesture trackers of the canvas.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Gestures {
     pair: PairTracker,
     filter: NavigationFilter,

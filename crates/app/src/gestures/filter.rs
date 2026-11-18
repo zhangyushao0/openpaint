@@ -24,7 +24,7 @@ enum Primary {
     Rotate,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct NavigationFilter {
     active: bool,
     /// Since the pair formed: pixels, ln zoom, radians.

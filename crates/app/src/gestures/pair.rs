@@ -26,7 +26,7 @@ pub(super) struct PairDelta {
     pub(super) rotation: f32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct PairTracker {
     fingers: Vec<Finger>,
     blocked: bool,

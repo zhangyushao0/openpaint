@@ -33,7 +33,7 @@ struct Held {
     start: Placement,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct TransformDrag {
     held: Option<Held>,
     /// The fingers down now first touched inside the frame: their gestures move the content.

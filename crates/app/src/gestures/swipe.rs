@@ -23,7 +23,7 @@ struct Finger {
     current: [f32; 2],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct Swipe {
     down: Vec<Finger>,
     /// When the third finger landed.
