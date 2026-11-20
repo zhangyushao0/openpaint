@@ -1,4 +1,5 @@
-//! The frame's intents on the open canvas: brush and tool intents to the toolbox (choosing a tool
+//! The frame's intents on the open canvas: the replay's to it (`replay.rs`; while it is open
+//! every other intent is dropped), brush and tool intents to the toolbox (choosing a tool
 //! leaves the Selection tool), canvas contacts to the eyedropper while it is on (`pick.rs`), the
 //! copy menu to the session with the app's clipboard, the rest through what is open (`Work`); a
 //! practice sheet's own intents after them (`practise`); a transform's pixels lifted at once.
@@ -23,7 +24,9 @@ impl Canvas {
     /// canvas draws its next stroke with the style that results. While the eyedropper is on,
     /// canvas contacts pick colours instead of drawing (`pick`). The copy menu's commands copy
     /// into and paste from `clipboard`, the app's. Every contact touching down takes the next of
-    /// `seeds` for the stroke it may begin. A sheet's own intents follow (`practise`).
+    /// `seeds` for the stroke it may begin. A sheet's own intents follow (`practise`). The
+    /// replay's intents go to it; while it is open nothing else applies (pen and fingers on the
+    /// canvas do nothing, S163).
     pub(crate) fn dispatch(
         &mut self,
         core: &Core,
@@ -33,6 +36,13 @@ impl Canvas {
         for intent in intents {
             if self.leaving != Leaving::Staying {
                 return;
+            }
+            if let Intent::Replay(replay) = intent {
+                self.replay_intent(replay);
+                continue;
+            }
+            if self.replay.is_some() {
+                continue;
             }
             if self.toolbox_intent(core, &intent, toolbox) {
                 match toolbox.style() {
@@ -88,7 +98,7 @@ impl Canvas {
         &mut self,
         apply: impl FnOnce(&mut SheetSession) -> Result<(), E>,
     ) -> bool {
-        if self.leaving != Leaving::Staying {
+        if self.leaving != Leaving::Staying || self.replay.is_some() {
             return false;
         }
         let Some(sheet) = self.work.sheet_mut() else {

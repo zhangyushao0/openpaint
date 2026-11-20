@@ -2,24 +2,25 @@
 //! its window, hands over input batches, keyboard text and the back button, and asks for
 //! frames; all calls come from one thread.
 //!
-//! A frame: take what the storage worker finished -> take the input normalised since the last
-//! frame, palms removed, and the keyboard's text -> run the UI from the screen's projection ->
-//! route the canvas contacts and the chrome's taps as intents to the session or the gallery ->
-//! evaluate what changed into the canvas target -> hand the store what it must write or read
-//! -> draw the canvas and the UI over it.
+//! A frame (`update.rs`): take what the workers finished (`receive.rs`) -> take the input
+//! normalised since the last frame, palms removed, and the keyboard's text -> the replay moved on
+//! (`replay.rs`) -> run the UI from the screen's projection -> route the canvas
+//! contacts and the chrome's taps as intents to the session, the replay or the gallery ->
+//! evaluate what changed into the canvas target -> hand the store what it must write or read ->
+//! draw the canvas and the UI over it. Starting it: `start.rs`.
 
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, InputBatch, Intent, Language, PalmRejection, ScreenProjection, SessionProjection,
-    Toolbox, Transfers, TransformIntent,
+    Clipboard, InputBatch, Language, PalmRejection, ScreenProjection, SessionProjection, Toolbox,
+    Transfers,
 };
 use openpaint_core::Artwork;
 use openpaint_practice_app::PracticeLog;
 use openpaint_practice_ui::PracticeScreens;
-use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
+use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow};
+use openpaint_ui::Shell;
 use openpaint_ui::design::{self, TextFonts};
-use openpaint_ui::{CanvasArea, Shell};
 
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
@@ -31,7 +32,6 @@ use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pacing::{Paced, Pacing};
 use crate::pictures::PictureWorker;
-use crate::pointer::pointer_events;
 use crate::practice;
 use crate::raster::RasterWorker;
 use crate::recover::{Reattach, Recoveries};
@@ -41,9 +41,8 @@ use crate::shared::SharedCore;
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
 use crate::touches::Touches;
-use crate::transfer::{TransferWorker, route};
+use crate::transfer::TransferWorker;
 pub(crate) use crate::ui_pass::screen_frame;
-use crate::ui_pass::{UiPass, run_ui};
 
 pub struct Runtime {
     /// The renderer's GPU state now; replaced whole when its device is lost (`recover.rs`).
@@ -114,18 +113,24 @@ pub struct Runtime {
     pub(crate) brushes: BrushPictures,
     /// Writes the display cache; dropping it writes what it was handed.
     pub(crate) cache: CacheWorker,
+    /// What the replay keeps across artworks: its video worker, its last speed (S163).
+    pub(crate) replays: Replays,
     /// Declared last: dropping it writes what it was handed before the process goes.
     pub(crate) storage: Storage,
 }
 
 mod receive;
+mod replay;
 mod start;
+mod update;
+use replay::Replays;
 pub use start::StartOptions;
 
 impl Runtime {
     /// The host's text faces: its system's sans and a face with the Chinese characters, read
     /// from the system's font files. Call before the first frame.
     pub fn set_text_fonts(&mut self, fonts: TextFonts) {
+        self.replays.fonts = fonts.clone();
         design::install_text_fonts(&self.ui, fonts);
     }
 
@@ -297,104 +302,5 @@ impl Runtime {
         let drawing = self.pictures.busy() || self.brushes.busy() || self.cache.busy();
         let drawing = drawing || self.pack_pictures.busy();
         working || drawing || matches!(self.screen, Screen::Opening(_))
-    }
-
-    /// Everything before drawing: storage results, input, UI, intents, evaluation, storage
-    /// calls. Asks for another frame when the screen changed what it offers, so it never
-    /// shows a stale state while idle, while waiting for the storage worker and while
-    /// something moves (D44).
-    pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
-        // This frame's budget for background work, corrected by the GPU's measured times;
-        // while nothing touches the screen, what the GPU's queue has room for.
-        let idle = self.begin_background();
-        // A benchmark times the frame's GPU work from its first submission on.
-        self.core.frame_begun();
-        self.receive()?;
-        let batches = std::mem::take(&mut self.pending);
-        let now = self.frame_clock.wall_seconds();
-        self.clocked(now);
-        // A use of the pen (touching or hovering), a finger or a control on a practice sheet.
-        if let (false, Some(canvas)) = (batches.is_empty(), self.screen.canvas_mut())
-            && let Some(sheet) = practice::sheet(canvas)
-        {
-            sheet.practised(now);
-        }
-        let mut events = pointer_events(&batches, self.pixels_per_point);
-        events.append(&mut self.typed);
-        self.shell.set_now(self.clock.now_ms());
-        self.shell.set_contacts(&batches);
-        let language = self.language();
-        self.shell.set_language(language);
-        let shown = self.screen();
-        let practised = practice::Shown::of(&self.screen, &self.practice);
-        let mut hooked = practised.hooked(&mut self.practice_screens);
-        let laid = std::time::Instant::now();
-        let pass = run_ui(
-            &self.ui,
-            UiPass {
-                shell: &mut self.shell,
-                projection: (&shown, hooked.hooks()),
-                size,
-                pixels_per_point: self.pixels_per_point,
-                events,
-                time: self.frame_clock.seconds(),
-            },
-        );
-        self.ui_ns = u64::try_from(laid.elapsed().as_nanos()).unwrap_or(u64::MAX);
-        self.keyboard = pass.keyboard;
-        let intents = self.shell.route(&batches, hooked.hooks());
-        let practising = self.practice_screens.take();
-        let mut intents = route(&mut self.transfers, self.screen.canvas(), intents);
-        // A picture read for inserting goes to the canvas open now, before this frame's taps.
-        if let Some(picture) = self.transfers.take_picture() {
-            intents.insert(0, Intent::Transform(TransformIntent::Insert(picture)));
-        }
-        let area = self.shell.canvas_area();
-        self.open_canvas()?;
-        let arrived = self.apply(intents, practising);
-        if let Some(state) = self.toolbox.save_request() {
-            self.storage.submit(Job::SaveEditor(Box::new(state)));
-        }
-        self.keep_within_budget()?;
-        self.answer_raster();
-        self.evaluate_screen(area)?;
-        self.core.end_background();
-        self.send_raster(idle);
-        let changed = self.screen() != shown
-            || practice::Shown::of(&self.screen, &self.practice) != practised
-            || self.language() != language;
-        // Also until the next tier's atlas is asked for, made ahead once nothing touches.
-        let viewing = (self.screen.canvas())
-            .is_some_and(|canvas| canvas.waiting() || canvas.view().wants_spare());
-        let shows = changed || arrived || viewing;
-        let again = pass.repaint || shows || self.storing() || self.shell.animating();
-        Ok((pass.frame, again))
-    }
-
-    /// The screen's evaluations this frame: where it looks on the canvas (its waiting tiles there
-    /// go first), what changed and storage's steps, then the view tiers through the view.
-    fn evaluate_screen(&mut self, area: Option<CanvasArea>) -> Result<(), RuntimeError> {
-        let now = self.frame_clock.wall_seconds();
-        let (shell, pen) = (&self.shell, self.hovering());
-        let frame = match (self.screen.canvas_mut(), area) {
-            (Some(canvas), Some(area)) => {
-                let frame = canvas.view_frame((&area, self.pixels_per_point), |mapping| {
-                    shell.displayed(mapping)
-                });
-                canvas.look_at(&frame, pen);
-                Some(frame)
-            }
-            _ => None,
-        };
-        let workers = (&mut self.storage, &mut self.cache);
-        let practice = (&mut self.practice, &mut self.seeds);
-        let at = (area, now, self.shell.shown_part());
-        if let Some(picture) = self.screen.progress(&self.core, workers, at, practice)? {
-            self.shell.carry(picture);
-        }
-        if let (Some(canvas), Some(frame)) = (self.screen.canvas_mut(), frame) {
-            canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
-        }
-        Ok(())
     }
 }

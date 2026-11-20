@@ -1,6 +1,7 @@
 //! The system around the app in a scenario: the pickers, the save dialog and the share sheet
-//! answered as the user would (`SystemAnswer`), files kept in memory, a test picture and the
-//! fixture pictures, and the check that an exported file shows the canvas.
+//! (a file's or the replay's video's) answered as the user would (`SystemAnswer`), files kept in
+//! memory, a test picture and the fixture pictures, and the check that an exported file shows
+//! the canvas. The replay's encoder is lent at once (`video/`), never asked of the user.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -40,7 +41,8 @@ pub enum SystemAnswer {
     P3Jpeg,
     /// A text file is chosen in the image picker or the file picker.
     TextFile,
-    /// The share sheet shows the exported file; the user closes it with Back.
+    /// The share sheet shows the exported file or the replay's video; the user closes it with
+    /// Back.
     ShareSheet,
     /// In the file picker, the file the last save wrote (an OpenPaint file).
     SavedFile,
@@ -126,8 +128,12 @@ pub(crate) fn answer(
 
 /// Whether `answer` answers `request`.
 fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
+    let sheet = matches!(
+        request,
+        HostRequest::Send { .. } | HostRequest::SendVideo { .. }
+    );
     match answer {
-        SystemAnswer::ShareSheet => matches!(request, HostRequest::Send { .. }),
+        SystemAnswer::ShareSheet => sheet,
         SystemAnswer::ChooseFile | SystemAnswer::FullStorage => matches!(
             request,
             HostRequest::SaveFile { .. }
@@ -153,7 +159,7 @@ fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
             matches!(request, HostRequest::OpenFile)
         }
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
-            !matches!(request, HostRequest::Send { .. })
+            !sheet && !matches!(request, HostRequest::Video { .. })
         }
     }
 }

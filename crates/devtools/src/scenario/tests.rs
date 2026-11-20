@@ -2,6 +2,9 @@
 //! hashes are checked.
 
 use super::*;
+use crate::pen::Pen;
+use crate::target::Spot;
+use crate::video::{Ended, VideoCheck};
 
 #[test]
 fn every_step_kind_parses() {
@@ -244,6 +247,39 @@ fn a_host_step_names_the_chimes_and_the_screen_kept_on() {
     for bad in [
         r#"{ "chimes": 1 }"#,
         r#"{ "chimes": 1, "screen_on": true, "x": 0 }"#,
+    ] {
+        assert!(Scenario::parse(&step(bad)).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn a_video_step_names_its_frames_size_end_and_last_hash() {
+    let step = |video: &str| {
+        format!(r#"{{ "screen": [640, 400], "density": 2, "steps": [{{ "video": {video} }}] }}"#)
+    };
+    let given = r#"{ "name": "cut", "frames": 12, "size": [640, 352], "ended": "cancelled",
+                     "last": "00000000000000ff" }"#;
+    let expected = VideoCheck {
+        name: "cut".into(),
+        frames: Some(12),
+        size: Some([640, 352]),
+        ended: Ended::Cancelled,
+        last: Some(255),
+    };
+    let scenario = Scenario::parse(&step(given)).expect("parses");
+    assert_eq!(scenario.steps, [Step::Video(expected)]);
+    let bare = Scenario::parse(&step(r#"{ "name": "full" }"#)).expect("parses");
+    let Step::Video(check) = &bare.steps[0] else {
+        panic!("a video step");
+    };
+    assert_eq!(
+        (check.ended, check.frames, check.last),
+        (Ended::Finished, None, None)
+    );
+    for bad in [
+        r#"{ "name": "Full" }"#,
+        r#"{ "name": "a", "x": 0 }"#,
+        r#"{}"#,
     ] {
         assert!(Scenario::parse(&step(bad)).is_err(), "{bad}");
     }

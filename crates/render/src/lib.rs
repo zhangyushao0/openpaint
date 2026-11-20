@@ -33,6 +33,8 @@
 //!   `gpu_frames.rs`, `waiting.rs`, `tally.rs` (`Counts`), `profile.rs`, `budget.rs`.
 //! - The screen: `screen.rs`, `surface.rs`, `gradient.rs`, `gpu.rs`, `core.rs`, `frame.rs`,
 //!   `adapter/` (the UI framework's painter and the chrome pass).
+//! - The replay's video: `video/` (`VideoTarget`: its frames drawn on a canvas of its own and
+//!   scaled by area in integers, its end card; S163).
 #![forbid(unsafe_code)]
 
 mod active;
@@ -93,6 +95,7 @@ mod tally;
 mod thumbnail;
 mod timestamps;
 mod underlay;
+mod video;
 mod view_atlas;
 mod view_fill;
 mod view_kept;
@@ -125,6 +128,7 @@ pub use crate::stroke::{stroke_region, tip_radius};
 pub use crate::surface::{Surface, SurfaceWindow};
 pub use crate::tally::Counts;
 pub use crate::thumbnail::{thumbnail_reference, thumbnail_size};
+pub use crate::video::{VideoTarget, video_reference};
 pub use crate::view_kept::HeldTier;
 pub use crate::view_tier::{ViewCache, ViewFrame, ViewWork};
 pub use crate::waiting::Focus;

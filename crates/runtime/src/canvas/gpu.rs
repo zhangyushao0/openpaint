@@ -5,14 +5,15 @@
 
 use std::time::Instant;
 
-use openpaint_app::{Session, Thumbnail};
+use openpaint_app::Thumbnail;
 use openpaint_core::StrokeTool;
 use openpaint_render::{
-    CacheBytes, CanvasTarget, Core, Focus, FrameRequest, PixelRect, RasterAnswer, RasterOrder,
-    RenderError, ViewCache, ViewFrame, changed_regions,
+    CacheBytes, CanvasTarget, Core, Focus, PixelRect, RasterAnswer, RasterOrder, RenderError,
+    ViewCache, ViewFrame, changed_regions,
 };
 
-use super::{Canvas, PAPER, THUMBNAIL_MAX};
+use super::replay::shown_request;
+use super::{Canvas, THUMBNAIL_MAX};
 use crate::budget::Unit;
 use crate::error::RuntimeError;
 use crate::pictures::Drawn;
@@ -68,17 +69,21 @@ impl Canvas {
         } else {
             vec![PixelRect::full(self.target.size())]
         };
+        let request = shown_request(&self.work, self.replay.as_deref());
         if let Some(before) = self.changed_from.take() {
-            regions.extend(changed_regions(&before, self.work.session().shown()));
+            regions.extend(changed_regions(&before, request.artwork));
         }
-        let request = request(self.work.session());
         if frame {
             self.target.draw_frame(core, &request, &regions)?;
         } else {
             self.target.draw(core, &request, &regions)?;
         }
-        self.target
-            .show_selection(core, self.work.session().selection());
+        let selection = self
+            .work
+            .session()
+            .selection()
+            .filter(|_| self.replay.is_none());
+        self.target.show_selection(core, selection);
         self.evaluated = true;
         self.filled(core);
         self.took_ahead(core);
@@ -160,8 +165,12 @@ impl Canvas {
         }
     }
 
-    /// The gallery picture of what the canvas shows now, every waiting tile evaluated first.
+    /// The gallery picture of what the canvas shows now, every waiting tile evaluated first;
+    /// the session's version while the replay shows instead.
     pub(crate) fn thumbnail(&mut self, core: &Core) -> Result<Thumbnail, RuntimeError> {
+        if self.replay.is_some() {
+            return self.session_picture(core);
+        }
         self.settle(core)?;
         thumbnail(core.thumbnail(&self.target, THUMBNAIL_MAX)?)
     }
@@ -184,7 +193,7 @@ impl Canvas {
         core: &Core,
         (frame, now): (&ViewFrame, f64),
     ) -> Result<(), RuntimeError> {
-        let request = request(self.work.session());
+        let request = shown_request(&self.work, self.replay.as_deref());
         let work = (self.view).update(core, &mut self.target, &request, (frame, now))?;
         self.view_pending = work.pending();
         self.view_missing = work.waiting > 0;
@@ -365,13 +374,4 @@ fn thumbnail(image: openpaint_render::RgbaImage) -> Result<Thumbnail, RuntimeErr
     Thumbnail::new(size, image.into_pixels()).ok_or(RuntimeError::Render(RenderError::Invalid(
         "a thumbnail of the wrong length",
     )))
-}
-
-/// What the canvas evaluates: what `session` shows, the stroke being drawn, on the paper.
-fn request(session: &Session) -> FrameRequest<'_> {
-    FrameRequest {
-        artwork: session.shown(),
-        active: session.active(),
-        background: PAPER,
-    }
 }

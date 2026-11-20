@@ -1,6 +1,7 @@
 //! A frame's steps around its UI pass: what the workers finished (a practice sheet left for One
-//! more starts the next lesson), the canvas that is ready opening, and the frame's intents
-//! applied to the screen.
+//! more starts the next lesson, the video worker's progress), the canvas that is ready opening,
+//! and the frame's intents applied to the screen (a stroke begun keeping its start by the wall
+//! clock less the input clock, D125; the replay's speed kept, its Cancel to the video worker).
 
 use openpaint_app::Intent;
 use openpaint_practice_app::PracticeSheet;
@@ -17,6 +18,7 @@ impl Runtime {
     /// starts; Compare's fit or reading to the open sheet), then opens a canvas that is ready.
     pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
         self.transfer.receive(&mut self.transfers);
+        self.receive_video();
         self.cache.collect();
         while let Some(done) = self.storage.take() {
             let after = (
@@ -52,8 +54,11 @@ impl Runtime {
         match &mut self.screen {
             Screen::Canvas(canvas) => {
                 let now = self.frame_clock.wall_seconds();
+                let offset = self.frame_clock.wall_ms() - self.clock.now_ms();
+                canvas.session_mut().set_utc_clock(offset);
                 let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
-                canvas.dispatch(&self.core, intents, app);
+                let core = &self.core;
+                (self.replays).around(canvas, |canvas| canvas.dispatch(core, intents, app));
                 let day = (&mut self.practice, &mut self.seeds, &mut self.storage);
                 practice::apply(canvas, sheet, day, now);
                 let day = (&mut self.practice, &mut self.seeds, &mut self.storage);

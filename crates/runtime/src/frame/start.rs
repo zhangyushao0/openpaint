@@ -1,5 +1,5 @@
-//! Starting the runtime: the GPU device, the theme, the workers, the brush picker's previews,
-//! and opening the library on the storage worker.
+//! Starting the runtime: the GPU device, the theme, the workers (the video's among them), the
+//! brush picker's previews, and opening the library on the storage worker.
 
 use std::sync::Arc;
 
@@ -14,7 +14,7 @@ use openpaint_store::DisplayCache;
 use openpaint_ui::Shell;
 use openpaint_ui::design;
 
-use super::Runtime;
+use super::{Replays, Runtime};
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
 use crate::clock::{FrameClock, InputClock};
@@ -108,6 +108,7 @@ impl Runtime {
             pictures: PictureWorker::start(shared.clone())?,
             pack_pictures,
             raster: RasterWorker::start(shared.clone())?,
+            replays: Replays::start(shared.clone())?,
             budget: Budget::of(&core, memory),
             core,
             shared,

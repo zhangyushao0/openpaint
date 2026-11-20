@@ -3,8 +3,10 @@
 //! the tablet, and then frames until the storage worker is done, so every step sees the store's
 //! answer. The app's library lives in a directory the caller owns; `restart` reopens it. What
 //! the app asks of the system (pickers, the share sheet) waits for a `system` step to answer it
-//! as the user would (`system.rs`). Checkpoints, screenshots and exported files are collected
-//! into a report; a failed checkpoint does not stop the run.
+//! as the user would (`system.rs`); an encoder for the replay's video is lent at once
+//! (`video.rs`), its frames let through a runner's frame at a time. Checkpoints, screenshots,
+//! exported files and the videos' frames are collected into a report; a failed checkpoint does
+//! not stop the run. The steps that touch and look: `contact.rs`; the clock: `clock.rs`.
 //!
 //! Motion (D44) and every gesture that waits (a hold, a drop, QuickShape) run on a clock the
 //! runner holds: the time of the input being handed over, then one 60 Hz frame further per frame
@@ -22,18 +24,18 @@ use std::time::{Duration, Instant};
 use openpaint_practice_store::Packs;
 use openpaint_render::Core;
 use openpaint_runtime::{
-    EditKey, HostRequest, Language, MotionBatch, Runtime, RuntimeError, StartOptions, TextFonts,
+    EditKey, HostAnswer, HostRequest, Language, Runtime, RuntimeError, StartOptions, TextFonts,
     TextInput,
 };
 
 use crate::error::ScenarioError;
 use crate::host::Hosted;
-use crate::report::{Record, Report, record, view_check};
+use crate::report::{Record, Report};
 use crate::scenario::{Lesson, Scenario, StartOn, Step, SystemLanguage};
 use crate::system::{self, Written};
-use crate::target::{self, Key, Spot};
+use crate::target;
+use crate::video::{VideoCheck, VideoSink};
 use crate::watched::Watched;
-use crate::{gesture, pen};
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
 const FRAME_MS: i64 = 16;
@@ -72,10 +74,13 @@ pub fn run(
         requests: Vec::new(),
         hosted: Hosted::default(),
         written: Written::default(),
+        videos: VideoSink::default(),
         index: 0,
         unnamed: Vec::new(),
     };
     let mut runtime = runner.start()?;
+    // Dropped before the runtime, however the run ends: its video worker never waits for us.
+    let _videos = runner.videos.opener();
     let mut records = Vec::new();
     for (index, step) in scenario.steps.iter().enumerate() {
         runner.index = index;
@@ -83,7 +88,9 @@ pub fn run(
             // The user leaves (the host's `onPause`), then the system ends the process: what
             // the leave handed over is written and the library closes before the new start.
             runtime.leave();
+            runner.videos.set_open(true);
             drop(runtime);
+            runner.videos.set_open(false);
             runner.requests.clear();
             runtime = runner.start()?;
             continue;
@@ -127,6 +134,8 @@ struct Runner<'a> {
     hosted: Hosted,
     /// The file the last export wrote.
     written: Written,
+    /// The encoders lent for the replay's videos, and what they kept.
+    videos: VideoSink,
     /// The step running, from 0.
     index: usize,
     /// Contacts given as window pixels that land on a control, which the step should name.
@@ -172,6 +181,7 @@ impl Runner<'_> {
                     .look(runtime, step)
                     .map(|seen| seen.into_iter().collect());
             }
+            Step::Video(check) => return self.video(runtime, check),
             Step::Type(text) => {
                 let typed = text.strip_suffix('\n');
                 runtime.text(TextInput::Commit(typed.unwrap_or(text).to_owned()));
@@ -196,9 +206,7 @@ impl Runner<'_> {
             Step::Lesson(lesson) => self.lesson(runtime, lesson)?,
             Step::Wait { frames } => self.wait(runtime, *frames)?,
             Step::Later { minutes, hidden } => self.later(runtime, (*minutes, *hidden))?,
-            Step::Restart => {
-                return Err(ScenarioError::Missing("restart is run by `run`"));
-            }
+            Step::Restart => return Err(ScenarioError::Missing("restart is run by `run`")),
             Step::StorageFails => self.storage_off.store(true, Ordering::Relaxed),
             Step::StorageWorks => self.storage_off.store(false, Ordering::Relaxed),
             Step::LoseDevice => {
@@ -229,139 +237,13 @@ impl Runner<'_> {
         Ok(())
     }
 
-    /// A step that touches the screen, its spots resolved on the screen the last frame laid
-    /// out, once the canvas's background work is done (`fill_held`): a stroke drawn into a view
-    /// tile that is ready shows a step apart from one drawn whole after it, so whether the raster
-    /// worker had finished a tile when the pen came down moved s98-alike's screens (S129).
-    fn contact(
-        &mut self,
-        runtime: &mut Runtime,
-        step: &Step,
-    ) -> Result<Vec<Record>, ScenarioError> {
-        self.fill_held(runtime)?;
-        let now = self.clock_ms;
-        let batches = match step {
-            Step::Tap { at, tool } => gesture::tap(*tool, self.spot(runtime, at)?, now),
-            Step::Hover { at, pen } => {
-                pen::held(gesture::hover(self.spot(runtime, at)?, now), *pen)
-            }
-            Step::Drag { from, to, tool } => {
-                let (from, to) = (self.spot(runtime, from)?, self.spot(runtime, to)?);
-                let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
-                gesture::path(*tool, &points, now)
-            }
-            Step::Press {
-                path,
-                tool,
-                pressure,
-                before_lift,
-                canvas_before_lift,
-                interrupted,
-            } => {
-                let keys = self.keys(runtime, path)?;
-                let batches = gesture::press(*tool, &keys, *pressure, now);
-                let before = before_lift.as_ref().map(|name| (name, *canvas_before_lift));
-                return self.press(runtime, &batches, (before, *interrupted));
-            }
-            Step::Stroke {
-                points,
-                lift,
-                palm,
-                sparse,
-                hold_ms,
-                pen,
-                tilt,
-                azimuth,
-            } => {
-                let path = (points.as_slice(), *sparse, *hold_ms);
-                let lean = [*tilt, *azimuth];
-                pen::held(gesture::stroke(path, *lift, *palm, lean, now), *pen)
-            }
-            Step::Touch { from, to, ms } => {
-                let from = self.spots(runtime, from)?;
-                let to = match to {
-                    Some(to) => self.spots(runtime, to)?,
-                    None => from.clone(),
-                };
-                gesture::fingers(&from, &to, *ms, now)
-            }
-            _ => return Err(ScenarioError::Missing("not a step that touches")),
-        };
-        self.gesture(runtime, &batches)?;
-        Ok(Vec::new())
-    }
-
-    /// `spot` in window pixels on the screen the last frame laid out. Window pixels on a
-    /// control are noted: the step should name it.
-    fn spot(&mut self, runtime: &Runtime, spot: &Spot) -> Result<[f32; 2], ScenarioError> {
-        let map = runtime.controls();
-        let at = target::resolve(map, spot)?;
-        if matches!(spot, Spot::Point(_))
-            && let Some(instead) = target::named_instead(map, at)
-        {
-            self.unnamed.push(format!("step {}: {instead}", self.index));
-        }
-        Ok(at)
-    }
-
-    fn spots(&mut self, runtime: &Runtime, spots: &[Spot]) -> Result<Vec<[f32; 2]>, ScenarioError> {
-        spots.iter().map(|spot| self.spot(runtime, spot)).collect()
-    }
-
-    /// A press's keys as `[x, y, ms]`.
-    fn keys(&mut self, runtime: &Runtime, keys: &[Key]) -> Result<Vec<[f32; 3]>, ScenarioError> {
-        let mut out = Vec::with_capacity(keys.len());
-        for key in keys {
-            let (spot, ms) = match key {
-                Key::Point([x, y, ms]) => (Spot::Point([*x, *y]), *ms),
-                Key::At { at, ms } => (at.clone(), *ms),
-            };
-            let [x, y] = self.spot(runtime, &spot)?;
-            out.push([x, y, ms]);
-        }
-        Ok(out)
-    }
-
-    /// A step that looks: once motion settled, or a screenshot `after_ms` the last input.
-    fn look(
-        &mut self,
-        runtime: &mut Runtime,
-        step: &Step,
-    ) -> Result<Option<Record>, ScenarioError> {
-        match step {
-            Step::Screenshot {
-                after_ms: Some(ms), ..
-            } => self.advance_to(runtime, self.input_ms + i64::from(*ms))?,
-            _ => self.settle(runtime)?,
-        }
-        if matches!(step, Step::View { .. }) {
-            return Ok(view_check(runtime, step));
-        }
-        record(runtime, step, &self.written).map(Some)
-    }
-
-    /// Each batch is one platform event followed by one frame at the batch's time.
-    fn gesture(
-        &mut self,
-        runtime: &mut Runtime,
-        batches: &[MotionBatch],
-    ) -> Result<(), ScenarioError> {
-        for batch in batches {
-            let at = gesture::end_ms(std::slice::from_ref(batch), self.clock_ms);
-            self.clock_ms = self.clock_ms.max(at);
-            runtime.motion(batch);
-            self.frame(runtime)?;
-        }
-        self.input_ms = self.clock_ms;
-        self.clock_ms = gesture::end_ms(batches, self.clock_ms).max(self.clock_ms) + FRAME_MS;
-        Ok(())
-    }
-
     /// One frame and the frames the runtime then asks for at once (a button that changed what
     /// the UI offers, egui's own layout), as the host's frame pacing gives them, up to
     /// `FOLLOW_UPS` more, all at the runner's clock now; again while a worker (storage,
-    /// transfer) is busy, until it is done. Then the host takes what the app asks of the system.
+    /// transfer) is busy, until it is done. Then the host takes what the app asks of the system:
+    /// an encoder for a video at once. A video being made takes its next frames first.
     fn frame(&mut self, runtime: &mut Runtime) -> Result<(), ScenarioError> {
+        self.videos.release()?;
         let screen = self.scenario.screen;
         let start = Instant::now();
         runtime.fix_clock(self.clock_ms);
@@ -386,15 +268,42 @@ impl Runner<'_> {
                 break;
             }
         }
-        // The host takes what the app asks of the system after each frame.
-        self.requests
-            .extend(std::iter::from_fn(|| runtime.host_request()));
+        // The host takes what the app asks of the system after each frame; an encoder is made
+        // at once, as Android makes it.
+        let asked: Vec<HostRequest> = std::iter::from_fn(|| runtime.host_request()).collect();
+        for request in asked {
+            match request {
+                HostRequest::Video { .. } => runtime.answer(HostAnswer::Video(self.videos.lend())),
+                request => self.requests.push(request),
+            }
+        }
         self.hosted.frame(runtime);
         Ok(())
     }
+
+    /// A `video` step: frames until the last video ended and the app took its end, then its
+    /// check (`video.rs`).
+    fn video(
+        &mut self,
+        runtime: &mut Runtime,
+        check: &VideoCheck,
+    ) -> Result<Vec<Record>, ScenarioError> {
+        let start = Instant::now();
+        loop {
+            let video = self.videos.last();
+            let video = video.ok_or(ScenarioError::Missing("the app asked for no video"))?;
+            if video.ended() && !runtime.making_video() {
+                return video.check(check);
+            }
+            if start.elapsed() > HANG {
+                return Err(ScenarioError::Missing("the video did not end"));
+            }
+            self.frame(runtime)?;
+            self.clock_ms += FRAME_MS;
+        }
+    }
 }
 
-#[path = "runner_clock.rs"]
 mod clock;
-#[path = "runner_press.rs"]
+mod contact;
 mod press;

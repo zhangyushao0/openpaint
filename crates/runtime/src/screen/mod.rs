@@ -46,7 +46,8 @@ pub(crate) enum Screen {
 
 impl Screen {
     /// What the screen offers; on the canvas with the toolbox's brush, size and opacity, the
-    /// export and reference flows and whether the clipboard can paste.
+    /// export and reference flows, whether the clipboard can paste and the replay (its screen
+    /// while it is open, none on a practice sheet).
     pub(crate) fn projection(
         &self,
         toolbox: &Toolbox,
@@ -55,14 +56,16 @@ impl Screen {
         match self {
             Self::Opening(_) => ScreenProjection::Starting,
             Self::Canvas(canvas) => {
-                let session = canvas.session().projection();
-                ScreenProjection::Canvas(Box::new(
-                    session
-                        .with_brush(toolbox.projection())
-                        .with_transfers(transfers.projection())
-                        .with_clipboard(clipboard.canvas())
-                        .with_pen(canvas.pen()),
-                ))
+                let session = (canvas.session().projection())
+                    .with_brush(toolbox.projection())
+                    .with_transfers(transfers.projection())
+                    .with_clipboard(clipboard.canvas())
+                    .with_pen(canvas.pen());
+                let session = match canvas.replay_shown() {
+                    Some(replay) => session.with_replay(replay),
+                    None => session,
+                };
+                ScreenProjection::Canvas(Box::new(session))
             }
             Self::Gallery(gallery, _) => ScreenProjection::Gallery(gallery.projection()),
         }
@@ -242,7 +245,10 @@ impl Screen {
                 canvas.stored(version, *stored);
             }
         }
-        canvas.keep_cache(core, cache);
+        // The replay's frame on the target is not the version stored (S163).
+        if !canvas.replaying() {
+            canvas.keep_cache(core, cache);
+        }
         if !closed {
             canvas.leaving = Leaving::Staying;
             return None;
