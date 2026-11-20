@@ -1,0 +1,37 @@
+{
+  "walkthrough": [
+    "Goal: keep the replay as a video: an MP4 in the album to post or send, the whole drawing at the speed I chose, ending on the finished picture with a line of how many strokes and how long it took.",
+    "Before: the canvas of s163-replay (a closed shape and a wave, a fill, Layer 2 with two strokes); Actions › Replay…; it plays at 4x.",
+    "Entry: Export video… at the top right (ringed while its panel is open). The panel under it: Length as rows with their lengths: 30 s highlight (the whole fitted into thirty seconds, never slower than 1x), Full (the whole at the bar's speed), Segment (a part chosen on the track); Size: 1080p (the canvas fitted in 1920 x 1080, never enlarged) and 'Original 2880 × 1716' (the canvas's own size, greyed where the tablet's encoder cannot take it); End: Stop on the finished picture (three seconds held), Strokes and time (the line under it, offered with the first); Save to album in its pill and Share….",
+    "Choose and save: Full, then Save to album: the panel closes, the replay pauses, a pill in the top band reads 'Exporting video', a line filling and its percent, with Cancel; every other control is greyed and the system's back waits. The video is drawn frame by frame at 30 frames a second off the screen's work and encoded as H.264 into Movies/OpenPaint.",
+    "Success: the pill reads 'Video saved to album · 1 s' (its length) with Share… and OK. Share… opens the system's share sheet for that video; OK (or anything else) puts the pill away. The video plays in the gallery: blank paper, every stroke as drawn, the fill in its turn, Layer 2 over it, three seconds of the finished picture with the line '4 strokes · 2 layers · …' under it and OpenPaint quieter at its right.",
+    "Failure: an encoder that cannot start or a full disk: 'Couldn't export the video' with OK; nothing half-made is left in the album. Cancel: see s163-video-segment-zh.",
+    "Undo: making a video changes nothing in the artwork and is no step. Reopen: the video stays in the album; the replay and its choices start afresh."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "stroke": { "points": [[700, 500, 1.0], [1500, 500, 1.0], [1500, 1200, 1.0], [700, 1200, 1.0], [700, 500, 1.0]] } },
+    { "stroke": { "points": [[400, 1450, 0.5], [1000, 1300, 1.0], [1600, 1500, 0.8], [2200, 1350, 0.6]] } },
+    { "press": { "path": [{ "at": "Colour", "ms": 0 }, [1100, 850, 80], [1100, 850, 240], [1100, 850, 300]] } },
+    { "tap": { "at": "Layers" } },
+    { "tap": { "at": "Add layer" } },
+    { "stroke": { "points": [[1800, 400, 0.6], [2300, 800, 1.0], [1950, 1250, 0.8]] } },
+    { "stroke": { "points": [[2050, 300, 0.5], [2550, 650, 1.0]] } },
+    { "checkpoint": { "name": "drawn", "canvas": "d46acfd5977ccbbc" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "Replay…" } },
+    { "tap": { "at": "Export video…" } },
+    { "screenshot": { "name": "export-panel" } },
+    { "tap": { "at": "Full" } },
+    { "screenshot": { "name": "full-chosen" } },
+    { "tap": { "at": "Save to album" } },
+    { "video": { "name": "full", "frames": 147, "size": [1812, 1080], "ended": "finished" } },
+    { "screenshot": { "name": "saved-pill" } },
+    { "tap": { "at": "Share…" } },
+    { "system": "share_sheet" },
+    { "screenshot": { "name": "after-share" } },
+    { "tap": { "at": "Back" } },
+    { "checkpoint": { "name": "closed", "canvas": "d46acfd5977ccbbc" } }
+  ]
+}

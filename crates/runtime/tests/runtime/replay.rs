@@ -53,6 +53,15 @@ fn the_replay_shows_instead_and_closing_leaves_the_artwork_as_it_was() {
         hand.gesture(&mut runtime, ToolKind::Stylus, &line(y));
     }
     settle(&mut runtime, &mut hand);
+    let artwork = runtime.artwork().expect("artwork");
+    let starts: Vec<Option<u64>> = (artwork.layers().iter())
+        .flat_map(|layer| layer.strokes().iter().map(|stroke| stroke.began_ms()))
+        .collect();
+    let on_the_utc_clock = |start: &Option<u64>| start.is_some_and(|ms| ms > 1_700_000_000_000);
+    assert!(
+        starts.iter().all(on_the_utc_clock),
+        "each stroke keeps when it began: {starts:?}"
+    );
     let drawn = canvas(&mut runtime).content_hash();
     let offered = ReplayShown::Offered {
         strokes: 2,
@@ -235,14 +244,42 @@ fn the_video_hands_every_frame_in_order_at_its_time_and_finishes() {
     assert_eq!(keeper.calls(), expected);
     let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
     let steps = frames.drawing().steps().len();
-    let mut last = None;
     for (index, pixels) in kept.iter().enumerate() {
         let shown = match frames.frame(index as u32) {
-            VideoFrame::At(at) => last.insert(moment(&frames, at.done, at.samples)).clone(),
-            VideoFrame::End => last.clone().unwrap_or_else(|| moment(&frames, steps, 0)),
+            VideoFrame::At(at) => moment(&frames, at.done, at.samples),
+            VideoFrame::End => moment(&frames, steps, 0),
         };
         assert!(*pixels == shown.into_pixels(), "frame {index}");
     }
+}
+
+#[test]
+fn a_segment_ends_on_the_finished_picture() {
+    let keeper = Keeper::default();
+    let (asked, whole) = job(&keeper, 3);
+    let drawing = whole.drawing().clone();
+    let timeline = Arc::new(Timeline::of(&drawing));
+    let half = [0, timeline.total_ms() / 2];
+    let frames = VideoFrames::new((drawing, timeline), half, 4.0, 3);
+    let job = VideoJob {
+        frames: frames.clone(),
+        ..asked
+    };
+    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(false));
+    make_video(&core(), (job, None), (&made, &cancel)).expect("made");
+    let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
+    let count = kept.len();
+    let steps = frames.drawing().steps().len();
+    let finished = moment(&frames, steps, 0).into_pixels();
+    let VideoFrame::At(last) = frames.frame(frames.count() - 4) else {
+        panic!("a drawing frame before the end");
+    };
+    let halfway = moment(&frames, last.done, last.samples).into_pixels();
+    assert!(halfway != finished, "the segment stops half way");
+    assert!(
+        kept[count - 3..].iter().all(|end| *end == finished),
+        "Stop on the finished picture"
+    );
 }
 
 #[test]
@@ -296,4 +333,22 @@ fn cancel_and_a_failing_encoder_drop_what_was_begun() {
     assert!(matches!(failed, Err(VideoError::Write(_))), "{failed:?}");
     let expected = [Call::Begin(order), Call::Frame(0), Call::Cancel];
     assert_eq!(failing.calls(), expected);
+}
+
+#[test]
+fn a_video_cancelled_before_its_card_lets_the_line_go_and_is_cancelled() {
+    let keeper = Keeper::default();
+    let (asked, _) = job(&keeper, 2);
+    let mut textures = egui::TexturesDelta::default();
+    let texel = egui::ColorImage::filled([1, 1], egui::Color32::WHITE);
+    let delta = egui::epaint::ImageDelta::full(texel, egui::TextureOptions::default());
+    textures.push(egui::TextureId::Managed(0), delta);
+    let caption = UiFrame {
+        primitives: Vec::new(),
+        textures,
+        pixels_per_point: 1.0,
+    };
+    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(true));
+    let cancelled = make_video(&core(), (asked, Some(caption)), (&made, &cancel));
+    assert_eq!(cancelled, Err(VideoError::Cancelled), "never a failure");
 }

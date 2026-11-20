@@ -10,8 +10,8 @@ use openpaint_store::{decode_image, encode_image};
 
 use crate::support::{Nowhere, Written, assert_cold, core, mapping, pixel_at, settle, start};
 
-/// 800 x 600 points at density 2: the Actions panel, with S29's scale row, fits.
-const SIZE: [u32; 2] = [1600, 1200];
+/// 800 x 700 points at density 2: the Actions panel, with S29's scale row and S163's Replay…, fits.
+const SIZE: [u32; 2] = [1600, 1400];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The canvas fits under the top band.
 const BAR: u32 = 96;

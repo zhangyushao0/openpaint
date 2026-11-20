@@ -253,9 +253,9 @@ fn a_picture_of_one_s_own_changes_tier_and_goes() {
 
 #[test]
 fn an_imported_pack_is_kept_beside_the_library_whose_bytes_stay() {
-    // The frozen format-1 library (every record kind, `tests/format.rs`) and packs beside it.
+    // The frozen format-2 library (every record kind, `tests/format.rs`) and packs beside it.
     let dir = TestDir::new("packs");
-    let frozen = std::fs::read(sample_path()).expect("the format-1 sample");
+    let frozen = std::fs::read(sample_path()).expect("the format-2 sample");
     write_records(&dir.join("library"), &decode(&frozen));
 
     let packs = Packs::at(dir.join("packs"));
@@ -274,7 +274,7 @@ fn an_imported_pack_is_kept_beside_the_library_whose_bytes_stay() {
     assert_eq!(packs.picture(&named("../library", "fox")), Ok(None));
 
     let library = records(&dir.join("library"));
-    assert!(encode(&library) == frozen, "format 1's bytes as they were");
+    assert!(encode(&library) == frozen, "format 2's bytes as they were");
     let mut library = Library::at(dir.join("library"));
     let project = library.open_last().expect("opens").expect("the sample");
     assert_eq!(project.artwork.to_parts(), parts());

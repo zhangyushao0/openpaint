@@ -1,0 +1,37 @@
+{
+  "walkthrough": [
+    "Goal: as s163-replay, in Chinese: watch the picture come about again stroke by stroke, then go back to drawing as if nothing happened.",
+    "Before: the same canvas: a closed shape and a wave, colour dropped into the shape, Layer 2 with two strokes.",
+    "Entry: 操作 (Actions); under 分享, after 分享 JPEG…, 回放… after a play icon with '4 笔' quiet at its right.",
+    "Open: a tap and the replay takes the screen from blank paper at 4x: 返回 at the top left, 导出视频… at the top right, the bar along the bottom with 暂停 in its ring, the track, over it '10月5日 12:00 · 第 1 笔' (no space inside the date) and the time, and 1x 4x 16x.",
+    "Gestures: 暂停 stops it (播放 again); a tap on the track goes there; a speed changes the pace at once. The pen and fingers on the canvas do nothing.",
+    "Close: 返回 (or the system's back): the studio as it was, the artwork the same to the pixel. Undo: 撤销 undoes the last stroke drawn before the replay. Failure: none. Reopen: the same replay, the strokes with their days and times."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "system_language": "chinese",
+  "steps": [
+    { "stroke": { "points": [[700, 500, 1.0], [1500, 500, 1.0], [1500, 1200, 1.0], [700, 1200, 1.0], [700, 500, 1.0]] } },
+    { "stroke": { "points": [[400, 1450, 0.5], [1000, 1300, 1.0], [1600, 1500, 0.8], [2200, 1350, 0.6]] } },
+    { "press": { "path": [{ "at": "Colour", "ms": 0 }, [1100, 850, 80], [1100, 850, 240], [1100, 850, 300]] } },
+    { "tap": { "at": "Layers" } },
+    { "tap": { "at": "Add layer" } },
+    { "stroke": { "points": [[1800, 400, 0.6], [2300, 800, 1.0], [1950, 1250, 0.8]] } },
+    { "stroke": { "points": [[2050, 300, 0.5], [2550, 650, 1.0]] } },
+    { "checkpoint": { "name": "drawn", "canvas": "d46acfd5977ccbbc" } },
+    { "tap": { "at": "Actions" } },
+    { "screenshot": { "name": "actions-replay-row" } },
+    { "tap": { "at": "Replay…" } },
+    { "screenshot": { "name": "playing", "after_ms": 300 } },
+    { "tap": { "at": "Pause" } },
+    { "tap": { "at": { "on": "Replay track", "fraction": [0.7, 0.5] } } },
+    { "screenshot": { "name": "paused-at-seven-tenths" } },
+    { "tap": { "at": "1×" } },
+    { "screenshot": { "name": "one-times" } },
+    { "tap": { "at": "Back" } },
+    { "checkpoint": { "name": "closed", "canvas": "d46acfd5977ccbbc" } },
+    { "screenshot": { "name": "studio-again" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "undone", "canvas": "435650cc1d530d0d" } }
+  ]
+}

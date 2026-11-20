@@ -220,9 +220,9 @@ impl Canvas {
     }
 
     /// The target shown in the canvas area through the session's view as `shown` shows it (the
-    /// same, or on its way there while the view settles), on a screen of `pixels_per_point`,
-    /// with the pen's hover outline when it shows; while the replay is open, at fit with the
-    /// ring at its stroke's tip instead.
+    /// same, or on its way there while the view settles; at fit while the replay is open), on a
+    /// screen of `pixels_per_point`, with the shell's `cursor` (the pen's hover outline, or the
+    /// ring at the replay's stroke tip).
     pub(crate) fn placement(
         &self,
         (area, pixels_per_point): (&CanvasArea, f32),
@@ -230,10 +230,6 @@ impl Canvas {
         shown: impl FnOnce(ViewMapping) -> ViewMapping,
     ) -> CanvasPlacement<'_> {
         let mapping = self.mapping((area, pixels_per_point), shown);
-        let cursor = match &self.replay {
-            Some(_) => self.replay_ring(&mapping, pixels_per_point),
-            None => cursor,
-        };
         CanvasPlacement {
             target: &self.target,
             origin: area.screen.origin,

@@ -1,6 +1,6 @@
 //! Imported practice packs, kept beside the library (ROADMAP S78): one file a pack,
 //! `<dir>/<pack id>.pack`, holding the pack's bytes as imported (`pack.rs`), checked whole first.
-//! The library's records are never touched: a pack is no artwork, and the library's format 1
+//! The library's records are never touched: a pack is no artwork, and the library's format
 //! stays as it is. Importing a pack whose id is kept replaces it whole (a newer edition); the
 //! personal pack is never imported. The user's own pictures are added one at a time to the
 //! personal pack (`PERSONAL`), written whole again with the new one at its end, and removed or

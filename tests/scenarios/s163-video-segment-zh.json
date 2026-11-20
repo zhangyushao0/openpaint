@@ -1,0 +1,42 @@
+{
+  "walkthrough": [
+    "Goal (in Chinese): send a friend the part of the drawing I like, not the whole: choose it on the replay's track and share it at once; then start another video and change my mind half way.",
+    "Before: a canvas with one slow, long stroke (twenty seconds of the pen) and two short ones; 操作 › 回放…; 1× chosen on the bar, so the video runs at the pen's own pace.",
+    "Segment: 导出视频… opens its panel; 自选片段 (Segment) shows two handles on the track, from the playhead to the end at first, and the bar reads the part's range and length ('0:02 – 0:13 · 11 秒'). I drag the start handle near the beginning and the end handle past the middle: the range and its length on the bar and in the panel follow.",
+    "Share: 分享… closes the panel, the video of that part is made (the pill '正在导出视频', its line and percent, 取消), then the system's share sheet opens at once with it, no pill after. Back from the share sheet leaves the replay as it was.",
+    "Cancel: 导出视频… again, 完整 (Full), 保存到相册; while the pill fills, 取消: the pill goes at once and nothing is told; nothing is left in the album; the replay is as it was and every control works again.",
+    "Failure: as s163-video ('视频导出失败' with 确定). Undo: none of this is a step. Reopen: the choices start afresh with the replay."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "system_language": "chinese",
+  "steps": [
+    { "press": { "path": [[600, 700, 0], [1400, 500, 10000], [2200, 700, 20000]], "tool": "stylus" } },
+    { "stroke": { "points": [[600, 1100, 0.6], [1400, 1300, 1.0], [2200, 1100, 0.7]] } },
+    { "stroke": { "points": [[1400, 900, 0.8], [1400, 1500, 0.8]] } },
+    { "checkpoint": { "name": "drawn", "canvas": "54ea7efdafe6f282" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "Replay…" } },
+    { "tap": { "at": "1×" } },
+    { "tap": { "at": "Export video…" } },
+    { "tap": { "at": "Segment" } },
+    { "screenshot": { "name": "segment-handles" } },
+    { "drag": { "from": "Segment start", "to": { "on": "Replay track", "fraction": [0.1, 0.5] } } },
+    { "drag": { "from": "Segment end", "to": { "on": "Replay track", "fraction": [0.6, 0.5] } } },
+    { "screenshot": { "name": "segment-dragged" } },
+    { "tap": { "at": "Share…" } },
+    { "video": { "name": "segment", "ended": "finished" } },
+    { "system": "share_sheet" },
+    { "screenshot": { "name": "shared" } },
+    { "tap": { "at": "Export video…" } },
+    { "tap": { "at": "Full" } },
+    { "tap": { "at": "Save to album" } },
+    { "screenshot": { "name": "exporting", "after_ms": 200 } },
+    { "tap": { "at": "Cancel" } },
+    { "video": { "name": "cancelled", "ended": "cancelled" } },
+    { "screenshot": { "name": "after-cancel" } },
+    { "expect": { "shown": ["Back", "Export video…", "Play"], "absent": ["Cancel", "OK"] } },
+    { "tap": { "at": "Back" } },
+    { "checkpoint": { "name": "closed", "canvas": "54ea7efdafe6f282" } }
+  ]
+}

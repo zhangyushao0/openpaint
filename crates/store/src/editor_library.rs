@@ -1,4 +1,4 @@
-//! The toolbox's brushes (format 1, `editor.rs`). The library: a count (u32), then per brush in
+//! The toolbox's brushes (format 2, `editor.rs`). The library: a count (u32), then per brush in
 //! picker order its key (u32 length + UTF-8) and a kind (u8: 0 a built-in as its file has it, 1 a
 //! whole brush); a whole brush then holds its name and its source's key (empty for a built-in;
 //! strings as the key), its size range's least, first and largest diameter, its first opacity and

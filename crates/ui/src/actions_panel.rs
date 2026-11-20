@@ -9,7 +9,8 @@
 //! under "Pen", Pen buttons, which shows its page in the panel's place
 //! (`pen_buttons_page.rs`); then Language with English and 中文, each in its own words, the one
 //! shown in the ink pill (Procreate's Prefs; D100); last, quietly, the app's version and
-//! storage format ("OpenPaint 1.5.0 · format 1"). A row that opens a system dialog closes the
+//! storage format ("OpenPaint 1.5.0 · format 2"). Taller than the screen, the rows scroll under
+//! the heading. A row that opens a system dialog closes the
 //! panel; the switch, the words and the page leave it open. Any contact landing on the canvas
 //! outside closes it.
 
@@ -92,10 +93,9 @@ impl ActionsPanel {
         taps: &mut Vec<Intent>,
     ) {
         self.area = None;
-        let Some(transfers) = projection.transfers() else {
+        if projection.transfers().is_none() {
             return;
-        };
-        let offered = |action| projection.availability(action).is_available();
+        }
         let mut close = false;
         let opener = Opener {
             island: "left island",
@@ -112,34 +112,19 @@ impl ActionsPanel {
                 return;
             }
             panel_heading(ui, t::ACTIONS);
-            close |= self.add_rows(ui, offered(EditorAction::InsertImage), taps);
-            section(ui, t::SHARE);
-            self.scale_row(ui, projection);
-            close |= self.export_rows(ui, offered(EditorAction::Export), taps);
-            close |= replay_row(ui, projection.replay_shown(), taps);
-            section(ui, t::CANVAS_SECTION);
-            let shown = transfers.reference_shown;
-            if switch_row(ui, t::REFERENCE, shown, true).clicked() {
-                push_once(taps, Intent::Reference(ReferenceIntent::Show(!shown)));
-            }
-            let choose = offered(EditorAction::ChooseReference);
-            if menu_row(ui, t::CHOOSE_REFERENCE, Words::EMPTY, choose).clicked() {
-                push_once(taps, Intent::Reference(ReferenceIntent::Choose));
-                close = true;
-            }
-            guide_rows(ui, projection.guide(), taps);
-            if let Some(buttons) = buttons {
-                section(ui, t::PEN);
-                let summary = summary(language(ui.ctx()), buttons);
-                if menu_row(ui, t::PEN_BUTTONS, Words::made(&summary), true).clicked() {
-                    page = Some(true);
-                }
-            }
-            language_rows(ui, taps);
-            if let Some((version, format)) = &self.version {
-                let line = t::version_line(language(ui.ctx()), version, *format);
-                hint(ui, Words::made(&line));
-            }
+            // Taller than the screen's room (a landscape tablet with the Drawing Guide on), the
+            // rows scroll under the heading, as the layers' do: nothing is left out.
+            let room = (ui.ctx().content_rect().bottom() - ui.cursor().top() - 2.0 * SPACE)
+                .max(TOUCH_TARGET);
+            ui.allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("actions rows")
+                    .max_height(room)
+                    .auto_shrink([false, true])
+                    // A finger drags the rows (egui asks for a touch screen otherwise).
+                    .scroll_source(egui::scroll_area::ScrollSource::ALL)
+                    .show(ui, |ui| (close, page) = self.rows(ui, projection, taps));
+            });
         });
         if let Some(pen_page) = page {
             self.pen_page = pen_page;
@@ -149,6 +134,47 @@ impl ActionsPanel {
         } else if let Some(rect) = rect {
             self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
         }
+    }
+
+    /// The panel's rows under its heading: Add, Share (Replay… last), Canvas, Pen, Language and
+    /// the version. Returns whether a row closes the panel, and the Pen buttons page opened.
+    fn rows(
+        &mut self,
+        ui: &mut egui::Ui,
+        projection: &SessionProjection,
+        taps: &mut Vec<Intent>,
+    ) -> (bool, Option<bool>) {
+        let offered = |action| projection.availability(action).is_available();
+        let mut close = self.add_rows(ui, offered(EditorAction::InsertImage), taps);
+        section(ui, t::SHARE);
+        self.scale_row(ui, projection);
+        close |= self.export_rows(ui, offered(EditorAction::Export), taps);
+        close |= replay_row(ui, projection.replay_shown(), taps);
+        section(ui, t::CANVAS_SECTION);
+        let shown = projection.transfers().is_some_and(|t| t.reference_shown);
+        if switch_row(ui, t::REFERENCE, shown, true).clicked() {
+            push_once(taps, Intent::Reference(ReferenceIntent::Show(!shown)));
+        }
+        let choose = offered(EditorAction::ChooseReference);
+        if menu_row(ui, t::CHOOSE_REFERENCE, Words::EMPTY, choose).clicked() {
+            push_once(taps, Intent::Reference(ReferenceIntent::Choose));
+            close = true;
+        }
+        guide_rows(ui, projection.guide(), taps);
+        let mut page = None;
+        if let Some(buttons) = projection.brush().map(|brush| brush.buttons) {
+            section(ui, t::PEN);
+            let summary = summary(language(ui.ctx()), buttons);
+            if menu_row(ui, t::PEN_BUTTONS, Words::made(&summary), true).clicked() {
+                page = Some(true);
+            }
+        }
+        language_rows(ui, taps);
+        if let Some((version, format)) = &self.version {
+            let line = t::version_line(language(ui.ctx()), version, *format);
+            hint(ui, Words::made(&line));
+        }
+        (close, page)
     }
 
     /// The export rows at the scale chosen (offered with `export`). Returns whether one was

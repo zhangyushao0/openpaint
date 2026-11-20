@@ -3,9 +3,10 @@
 //! record's strokes (S163), none on a mode's sheet; the panel on the tablet's screen.
 
 use openpaint_app::{
-    Availability, BrushLibrary, Intent, Language, ReplayIntent, ReplayShown, SessionProjection,
-    Toolbox, Transfers,
+    Availability, BrushLibrary, GuideIntent, Intent, Language, ReplayIntent, ReplayShown, Session,
+    SessionProjection, StrokeIntent, Toolbox, Transfers,
 };
+use openpaint_core::CanvasSize;
 
 use super::ActionsPanel;
 use crate::components::{ControlMap, chrome, controls};
@@ -29,23 +30,42 @@ fn projection(replay: ReplayShown) -> SessionProjection {
         .with_replay(replay)
 }
 
-/// The open panel over `projection` after a second of frames in `language` on `screen`, the last
-/// with `events`: its controls, every text with where it lies (points), and what it asked for.
+/// A session's projection on the tablet's canvas with the Drawing Guide on (its hint shows) and
+/// `replay` as Actions' row.
+fn guided(replay: ReplayShown) -> SessionProjection {
+    let toolbox = Toolbox::new(BrushLibrary::built_in().expect("brushes"));
+    let canvas = CanvasSize::new(2880, 1800).expect("a size");
+    let mut session = Session::new(canvas, toolbox.style().expect("a style"));
+    let on = Intent::Stroke(StrokeIntent::Guide(GuideIntent::Show(true)));
+    session.dispatch(on).expect("the guide on");
+    session
+        .projection()
+        .with_brush(toolbox.projection())
+        .with_transfers(Transfers::default().projection())
+        .with_replay(replay)
+}
+
+/// The last of a second of frames.
+const LAST: u32 = 89;
+
+/// The open panel over `projection` after a second of frames in `language` on `screen`, frame
+/// `at` with `events`: its controls, every text with the part of it that shows (points), and what
+/// the last frame asked for.
 fn laid(
     panel: &mut ActionsPanel,
     (projection, language): (&SessionProjection, Language),
     (points, ppp): Screen,
-    events: &[egui::Event],
+    (events, at): (&[egui::Event], u32),
 ) -> (ControlMap, Vec<(String, egui::Rect)>, Vec<Intent>) {
     let ctx = egui::Context::default();
     design::install(&ctx);
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, points);
     let mut last = (ControlMap::default(), Vec::new(), Vec::new());
-    for frame in 0..90 {
+    for frame in 0..=LAST {
         let mut input = egui::RawInput {
             screen_rect: Some(screen),
             time: Some(f64::from(frame) / 60.0),
-            events: if frame == 89 {
+            events: if frame == at {
                 events.to_vec()
             } else {
                 Vec::new()
@@ -74,7 +94,9 @@ fn laid(
             .filter_map(|clipped| match &clipped.shape {
                 egui::Shape::Text(text) => {
                     let rect = text.galley.rect.translate(text.pos.to_vec2());
-                    Some((text.galley.text().to_owned(), rect))
+                    let shows = rect.intersect(clipped.clip_rect);
+                    let text = text.galley.text().to_owned();
+                    shows.is_positive().then_some((text, shows))
                 }
                 _ => None,
             })
@@ -88,7 +110,7 @@ fn laid(
 /// its top.
 fn settled(panel: &mut ActionsPanel, language: Language) -> (ControlMap, Vec<(String, f32)>) {
     let shown = (&projection(ReplayShown::None), language);
-    let (map, texts, _) = laid(panel, shown, SQUARE, &[]);
+    let (map, texts, _) = laid(panel, shown, SQUARE, (&[], LAST));
     let tops = texts.into_iter().map(|(text, rect)| (text, rect.top()));
     (map, tops.collect())
 }
@@ -179,7 +201,7 @@ fn share_offers_the_replay_with_its_strokes_and_a_tap_opens_it() {
         (Language::Chinese, ["回放…", "1,288 笔"]),
     ] {
         let mut panel = open();
-        let (map, texts, _) = laid(&mut panel, (&offered, language), SQUARE, &[]);
+        let (map, texts, _) = laid(&mut panel, (&offered, language), SQUARE, (&[], LAST));
         assert!(map.find("Replay…").is_ok(), "named by its English");
         let shown = |word: &str| texts.iter().any(|(text, _)| text == word);
         assert!(words.iter().all(|word| shown(word)), "{texts:?}");
@@ -189,7 +211,7 @@ fn share_offers_the_replay_with_its_strokes_and_a_tap_opens_it() {
             "Share's last row"
         );
         let events = tap(&map, "Replay…", 1.0);
-        let (_, _, taps) = laid(&mut panel, (&offered, language), SQUARE, &events);
+        let (_, _, taps) = laid(&mut panel, (&offered, language), SQUARE, (&events, LAST));
         assert_eq!(taps, [Intent::Replay(ReplayIntent::Open)]);
         assert!(!panel.open, "the replay takes the screen");
     }
@@ -199,9 +221,14 @@ fn share_offers_the_replay_with_its_strokes_and_a_tap_opens_it() {
         availability: Availability::NothingLeft,
     });
     let mut panel = open();
-    let (map, _, _) = laid(&mut panel, (&empty, Language::English), SQUARE, &[]);
+    let (map, _, _) = laid(&mut panel, (&empty, Language::English), SQUARE, (&[], LAST));
     let events = tap(&map, "Replay…", 1.0);
-    let (_, _, taps) = laid(&mut panel, (&empty, Language::English), SQUARE, &events);
+    let (_, _, taps) = laid(
+        &mut panel,
+        (&empty, Language::English),
+        SQUARE,
+        (&events, LAST),
+    );
     assert!(taps.is_empty() && panel.open);
     // A mode's sheet: no row.
     let (map, _) = settled(&mut open(), Language::English);
@@ -210,19 +237,51 @@ fn share_offers_the_replay_with_its_strokes_and_a_tap_opens_it() {
 
 #[test]
 fn on_the_tablet_the_panel_ends_on_the_screen() {
-    let offered = projection(ReplayShown::Offered {
+    let offered = ReplayShown::Offered {
         strokes: 1288,
         availability: Availability::Available,
-    });
-    for language in Language::ALL {
+    };
+    // The Drawing Guide on: its hint shows, the panel at its tallest.
+    let guided = guided(offered.clone());
+    assert!(guided.guide().on);
+    let version = |texts: &[(String, egui::Rect)]| {
+        let line = texts.iter().find(|(text, _)| text.starts_with("OpenPaint"));
+        line.is_some_and(|(_, rect)| rect.height() >= 16.0)
+    };
+    for (shown, language) in [projection(offered), guided.clone()]
+        .iter()
+        .flat_map(|shown| Language::ALL.map(|language| (shown, language)))
+    {
         let mut panel = open();
-        let (map, texts, _) = laid(&mut panel, (&offered, language), TABLET, &[]);
+        let (map, texts, _) = laid(&mut panel, (shown, language), TABLET, (&[], LAST));
         let bottom = TABLET.0.y;
         for control in map.iter() {
             assert!(control.rect[3] / TABLET.1 <= bottom, "{}", control.name);
         }
         for (text, rect) in &texts {
             assert!(rect.bottom() <= bottom, "{text} at {rect:?}");
+        }
+        assert!(map.find("Drawing Guide").is_ok() && map.find("Replay…").is_ok());
+        if !shown.guide().on {
+            assert!(version(&texts), "all of it shows without the guide");
+        }
+    }
+    // With the guide on, the rows scroll under the heading: a finger's way up shows the last.
+    for language in Language::ALL {
+        let mut panel = open();
+        let over_rows = egui::pos2(160.0, 600.0);
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -400.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let events = [egui::Event::PointerMoved(over_rows), wheel];
+        let (map, texts, _) = laid(&mut panel, (&guided, language), TABLET, (&events, 30));
+        assert!(version(&texts), "the version shows, scrolled to");
+        assert!(map.find("中文").is_ok() && map.find("Pen buttons").is_ok());
+        for (text, rect) in &texts {
+            assert!(rect.bottom() <= TABLET.0.y, "{text} at {rect:?}");
         }
     }
 }

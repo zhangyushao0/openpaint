@@ -11,8 +11,8 @@ use openpaint_runtime::{
 
 use crate::support::{Hand, Nowhere, assert_cold, cold, core, mapping, pixel_at, start, strokes};
 
-/// 700 x 800 points at density 2: the Actions panel fits.
-const SIZE: [u32; 2] = [1400, 1600];
+/// 700 x 900 points at density 2: the Actions panel, with S163's Replay…, fits.
+const SIZE: [u32; 2] = [1400, 1800];
 const PIXELS_PER_POINT: f32 = 2.0;
 
 /// Panics unless the canvas equals a cold evaluation of what it shows now, the stroke being

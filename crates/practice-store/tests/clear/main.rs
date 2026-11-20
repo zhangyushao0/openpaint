@@ -1,4 +1,4 @@
-//! The practice-only clear (S152) on a library of the author's shape: the frozen format-1 studio
+//! The practice-only clear (S152) on a library of the author's shape: the frozen format-2 studio
 //! (every record kind, `store/tests/format.rs`) with practice beside it: a day's sheet of two
 //! lessons, a test's, a colour copy, a drawing from life, the Pomodoro's settings, a block under
 //! way and one completed, a blind pair, and a sheet whose record this version cannot read (a
@@ -36,7 +36,7 @@ const NOON: u64 = 1_791_201_600;
 type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
 fn sample_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../store/tests/samples/format-1.bin")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../store/tests/samples/format-2.bin")
 }
 
 fn named(title: &str) -> Title {
@@ -107,7 +107,7 @@ fn listed(library: &mut Library) -> Vec<ProjectId> {
 /// The library at `dir`: the frozen studio, then practice of every kind beside it. Returns the
 /// artworks' projects and the sheets' (the unreadable one's last).
 fn authors_shape(dir: &Path) -> (Vec<ProjectId>, Vec<u64>) {
-    let frozen = std::fs::read(sample_path()).expect("the format-1 sample");
+    let frozen = std::fs::read(sample_path()).expect("the format-2 sample");
     write_records(dir, &decode(&frozen));
     assert!(encode(&records(dir)) == frozen, "the studio as frozen");
     let mut library = Library::at(dir);

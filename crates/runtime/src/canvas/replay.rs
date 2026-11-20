@@ -2,7 +2,7 @@
 //! instead of the session's version, drawn by the target's own path (consecutive moments share
 //! their records: moving on is the scene's append, the stroke being drawn the live path) and the
 //! view tiers; the canvas lies at fit in the area the shell gives it (between the top band and
-//! the bar), with a thin ring at the tip of the stroke being drawn; every intent but the replay's
+//! the bar), the ring at its stroke's tip the shell's cursor; every intent but the replay's
 //! is dropped (`dispatch.rs`, `transfer::route`); the selection does not show. The session, its
 //! history and the view stay as they were under it. Its gallery picture and display cache stay
 //! the artwork's: the picture is drawn from the session's version off the target while the replay
@@ -10,20 +10,14 @@
 
 use openpaint_app::{
     AppError, Availability, EditorAction, Intent, Replay, ReplayIntent, ReplayShown, Session,
-    Speed, Thumbnail, VideoError, ViewMapping,
+    Speed, Thumbnail, VideoError,
 };
 use openpaint_core::Artwork;
-use openpaint_render::{
-    BrushCursor, Core, FrameRequest, RenderError, thumbnail_reference, thumbnail_size,
-};
+use openpaint_render::{Core, FrameRequest, RenderError, thumbnail_reference, thumbnail_size};
 
 use super::work::Work;
 use super::{Canvas, PAPER, THUMBNAIL_MAX};
 use crate::error::RuntimeError;
-
-/// The ring at the tip of the stroke being drawn: its radius and its line, in points.
-const RING_RADIUS: f32 = 6.0;
-const RING_WIDTH: f32 = 1.0;
 
 impl Canvas {
     /// One replay intent: `Open` through the session (what it ends ends first, whether it is
@@ -163,22 +157,6 @@ impl Canvas {
         }
     }
 
-    /// The thin ring at the tip of the stroke the replay draws, through `mapping` on a screen of
-    /// `pixels_per_point`; none between strokes.
-    pub(super) fn replay_ring(
-        &self,
-        mapping: &ViewMapping,
-        pixels_per_point: f32,
-    ) -> Option<BrushCursor> {
-        let active = self.replay.as_ref()?.frame().active.as_ref()?;
-        let tip = active.samples().last()?.position();
-        Some(BrushCursor {
-            centre: mapping.to_screen([tip.x(), tip.y()]),
-            radius: RING_RADIUS * pixels_per_point,
-            width: RING_WIDTH * pixels_per_point,
-        })
-    }
-
     /// What the canvas shows: the replay's frame while it is open, else the session's version.
     pub(super) fn shown_artwork(&self) -> &Artwork {
         match &self.replay {
@@ -203,11 +181,18 @@ impl Canvas {
 
 /// What the canvas evaluates: the replay's frame while it is open (the moment's artwork and the
 /// stroke being drawn), else what `work`'s session shows and the stroke being drawn; on the paper.
-pub(super) fn shown_request<'a>(work: &'a Work, replay: Option<&'a Replay>) -> FrameRequest<'a> {
+/// The replay's stroke only once no tile `waiting`: the target draws its waiting tiles only while
+/// no stroke is drawn, and the replay opening or moved along its track changes the canvas whole,
+/// most often mid-stroke; under a stroke they would wait for its end, showing what was there.
+pub(super) fn shown_request<'a>(
+    work: &'a Work,
+    replay: Option<&'a Replay>,
+    waiting: bool,
+) -> FrameRequest<'a> {
     match replay {
         Some(replay) => FrameRequest {
             artwork: &replay.frame().artwork,
-            active: replay.frame().active.as_ref(),
+            active: replay.frame().active.as_ref().filter(|_| !waiting),
             background: PAPER,
         },
         None => session_request(work.session()),

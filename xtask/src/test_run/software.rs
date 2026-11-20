@@ -48,6 +48,26 @@ const SKIPPED: &[(&str, &str, &str)] = &[
         "pomodoro",
         "a day's sheet's walks within a hang guard timed for a hardware GPU",
     ),
+    (
+        "crates/render/tests/video.rs",
+        "frames_drawn_one_after_another_equal_each_drawn_cold",
+        "the video's frames drawn incrementally equal to the bit to each drawn cold",
+    ),
+    (
+        "crates/runtime/tests/runtime/main.rs",
+        "replay::the_video_hands_every_frame_in_order_at_its_time_and_finishes",
+        "the video's frames to the bit of the replay's moments drawn cold",
+    ),
+    (
+        "crates/runtime/tests/runtime/main.rs",
+        "replay::a_segment_ends_on_the_finished_picture",
+        "a segment's held end to the bit of the finished picture drawn cold",
+    ),
+    (
+        "crates/runtime/tests/runtime/main.rs",
+        "replay::the_replay_shows_instead_and_closing_leaves_the_artwork_as_it_was",
+        "the replay's end drawn by appends to the bit of the artwork drawn live",
+    ),
 ];
 
 /// Whether the gate runs on a software GPU (CI's).

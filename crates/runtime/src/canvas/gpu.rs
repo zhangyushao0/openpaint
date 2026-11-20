@@ -69,7 +69,7 @@ impl Canvas {
         } else {
             vec![PixelRect::full(self.target.size())]
         };
-        let request = shown_request(&self.work, self.replay.as_deref());
+        let request = shown_request(&self.work, self.replay.as_deref(), self.target.pending());
         if let Some(before) = self.changed_from.take() {
             regions.extend(changed_regions(&before, request.artwork));
         }
@@ -193,7 +193,7 @@ impl Canvas {
         core: &Core,
         (frame, now): (&ViewFrame, f64),
     ) -> Result<(), RuntimeError> {
-        let request = shown_request(&self.work, self.replay.as_deref());
+        let request = shown_request(&self.work, self.replay.as_deref(), self.target.pending());
         let work = (self.view).update(core, &mut self.target, &request, (frame, now))?;
         self.view_pending = work.pending();
         self.view_missing = work.waiting > 0;

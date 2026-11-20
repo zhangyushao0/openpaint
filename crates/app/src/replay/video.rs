@@ -6,9 +6,9 @@
 //! `from + k × rate × 1000 / VIDEO_FPS` ms of the timeline, the last drawing frame exactly at `to`
 //! (`rate`: the speed chosen, or for the highlight the whole fitted in `HIGHLIGHT_MS` less the
 //! hold, never slower than 1×); then, with the hold, `HOLD_MS` of frames of the end
-//! (`VideoFrame::End`): the last drawing frame again, or with the caption the card: the desk, the
-//! picture fitted above the caption band, the line under it (the worker draws it with the
-//! caption the UI lays, `openpaint_ui::video_caption`).
+//! (`VideoFrame::End`): the finished picture (a segment's too, as "Stop on the finished picture"
+//! says), or with the caption the card: the desk, the picture fitted above the caption band, the
+//! line under it (the worker draws it with the caption the UI lays, `openpaint_ui::video_caption`).
 //!
 //! The encoder's calls come from the video worker's thread, in order: `begin`, `frame` for each
 //! frame, then `finish`, or `cancel` at any point after `begin` (also after a failed call): what a
@@ -123,7 +123,7 @@ pub struct VideoFrames {
 pub enum VideoFrame {
     /// The replay at one moment (`DrawingOrder::frame(done, samples)`).
     At(At),
-    /// The end held: the last drawing frame again, or the card with the caption.
+    /// The end held: the finished picture (a segment's too), or the card with the caption.
     End,
 }
 

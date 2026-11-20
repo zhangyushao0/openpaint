@@ -1,5 +1,5 @@
 //! Kept versions (DECISIONS D63): an artwork as it was stored when it was left, kept as the
-//! bytes of an OpenPaint file (`artwork_file.rs`, format 1), at most `KEPT_VERSIONS` per artwork,
+//! bytes of an OpenPaint file (`artwork_file.rs`, format 2), at most `KEPT_VERSIONS` per artwork,
 //! the oldest dropped; restoring opens it as a file is opened, as a new artwork, and changes
 //! nothing kept.
 //!

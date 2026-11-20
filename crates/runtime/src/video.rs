@@ -1,8 +1,8 @@
 //! The video worker (S163): the replay's video made off the frame loop on the thread
 //! `openpaint-video`, one job at a time. Every frame of the job's `VideoFrames` is drawn by a
 //! `VideoTarget` of its own (the moment's artwork and the stroke being drawn, scaled to the
-//! video's size and read back); the end held is the last drawing frame again or, with the
-//! caption, the end card (the line the composition root laid, painted by a painter of its own
+//! video's size and read back); the end held is the finished picture (a segment's too) or, with
+//! the caption, the end card (the line the composition root laid, painted by a painter of its own
 //! into a `ScreenTarget` of the band's size, `openpaint_ui::video_caption`). Each frame goes to
 //! the platform's encoder with its time (`k × 1_000_000 / fps` µs). How many frames it made and
 //! the user's Cancel are atomics the frame loop shares: it stops between frames and the encoder
@@ -123,9 +123,14 @@ pub fn make_video(
     } = job;
     let started = Instant::now();
     let mut spent = Spent::default();
+    let mut ends = Ends {
+        caption,
+        finished: None,
+        card: None,
+    };
     let made_whole = catch_unwind(AssertUnwindSafe(|| {
         encoder.begin(&order)?;
-        let work = (&order, &frames, caption);
+        let work = (&order, &frames, &mut ends);
         spent = encode(core, work, encoder.as_mut(), (made, cancel))?;
         encoder.finish()
     }));
@@ -164,18 +169,13 @@ struct Spent {
 /// `cancel`.
 fn encode(
     core: &Core,
-    (order, frames, caption): (&VideoOrder, &VideoFrames, Option<UiFrame>),
+    (order, frames, ends): (&VideoOrder, &VideoFrames, &mut Ends),
     encoder: &mut dyn VideoEncoder,
     (made, cancel): (&AtomicU32, &AtomicBool),
 ) -> Result<Spent, VideoError> {
     let canvas = frames.drawing().artwork().canvas();
     let canvas = [canvas.width(), canvas.height()];
     let mut target = VideoTarget::new(core, canvas, order.size).map_err(rendering)?;
-    let mut ends = Ends {
-        caption,
-        last: None,
-        card: None,
-    };
     let fps = u64::from(order.fps.max(1));
     let mut spent = Spent::default();
     for index in 0..frames.count() {
@@ -183,8 +183,12 @@ fn encode(
             return Err(VideoError::Cancelled);
         }
         let drawn = Instant::now();
+        let moment;
         let image = match frames.frame(index) {
-            VideoFrame::At(at) => &*ends.last.insert(drawn_at(core, &mut target, frames, at)?),
+            VideoFrame::At(at) => {
+                moment = drawn_at(core, &mut target, frames, at)?;
+                &moment
+            }
             VideoFrame::End => ends.end(core, &mut target, frames.drawing())?,
         };
         let encoded = Instant::now();
@@ -212,31 +216,32 @@ fn drawn_at(
     target.frame(core, &request).map_err(rendering)
 }
 
-/// The end held: the last drawing frame, and the card once made.
+/// The end held: the finished picture, and the card once made.
 struct Ends {
     /// The line laid for the card, until it is painted.
     caption: Option<UiFrame>,
-    last: Option<RgbaImage>,
+    finished: Option<RgbaImage>,
     card: Option<RgbaImage>,
 }
 
 impl Ends {
-    /// A frame of the end: the card with the line, else the last drawing frame again (the
-    /// finished artwork when none was drawn).
+    /// A frame of the end: the card with the line, else the finished picture ("Stop on the
+    /// finished picture": a segment's video too ends on the whole drawing, whose line the card
+    /// tells). The card holds the picture the target drew last: the finished one.
     fn end(
         &mut self,
         core: &Core,
         target: &mut VideoTarget,
         drawing: &DrawingOrder,
     ) -> Result<&RgbaImage, VideoError> {
-        if self.last.is_none() {
+        if self.finished.is_none() {
             let finished = drawing.frame(drawing.steps().len(), 0);
             let request = FrameRequest {
                 artwork: &finished.artwork,
                 active: None,
                 background: PAPER,
             };
-            self.last = Some(target.frame(core, &request).map_err(rendering)?);
+            self.finished = Some(target.frame(core, &request).map_err(rendering)?);
         }
         if let Some(caption) = self.caption.take() {
             let band = band(core, caption, caption_band(target.size())).map_err(rendering)?;
@@ -244,8 +249,18 @@ impl Ends {
         }
         self.card
             .as_ref()
-            .or(self.last.as_ref())
+            .or(self.finished.as_ref())
             .ok_or(VideoError::Render)
+    }
+}
+
+impl Drop for Ends {
+    /// A line never painted (the video cancelled or failed before its end) is let go: its
+    /// textures are its own context's, which is gone, and epaint asserts every delta is handled.
+    fn drop(&mut self) {
+        if let Some(caption) = &mut self.caption {
+            caption.textures.clear();
+        }
     }
 }
 

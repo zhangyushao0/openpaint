@@ -104,7 +104,7 @@ mod tests {
     fn this_workspace_has_a_version_and_the_store_a_format() {
         assert!(Version::current().is_ok(), "{}", env!("CARGO_PKG_VERSION"));
         let format = format(&crate::process::root()).expect("the store's format");
-        assert_eq!(format, 1);
+        assert_eq!(format, 2);
         assert_eq!(format_in("/// x\npub const FORMAT: u32 = 2;\n"), Some(2));
         assert_eq!(format_in("pub const FORMAT: u32 = 2x;"), None);
         assert_eq!(format_in("const FORMAT: u32 = 4;"), None);

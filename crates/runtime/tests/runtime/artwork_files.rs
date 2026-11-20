@@ -1,5 +1,5 @@
 //! GPU test of OpenPaint files and kept versions through the whole frame loop on a real
-//! library (DECISIONS D62, D63): the store's format-1 sample artwork (strokes of every recipe
+//! library (DECISIONS D62, D63): the store's format-2 sample artwork (strokes of every recipe
 //! stage, fills, smudges, masks, groups, clipping, adjustments, blurs, transforms, a placed
 //! picture, a merged layer and cleared pixels)
 //! saved as a file from its card's options and opened again under "+" shows the same canvas
@@ -17,12 +17,12 @@ use crate::support::{Hand, TestDir, Written, assert_cold, core, gallery, until};
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
 
-/// The store's frozen format-1 sample as an OpenPaint file titled "Hafen": its project's
+/// The store's frozen format-2 sample as an OpenPaint file titled "Hafen": its project's
 /// records, the file layout written out by hand.
 fn sample_file() -> Vec<u8> {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../store/tests/samples/format-1.bin"
+        "/../store/tests/samples/format-2.bin"
     );
     let dump = std::fs::read(path).expect("the store's sample");
     let (mut at, mut records) = (0, Vec::new());
@@ -47,7 +47,7 @@ fn sample_file() -> Vec<u8> {
         file.extend_from_slice(&u32::try_from(part.len()).expect("len").to_le_bytes());
         file.extend_from_slice(part);
     };
-    file.extend_from_slice(&1u32.to_le_bytes());
+    file.extend_from_slice(&openpaint_store::FORMAT.to_le_bytes());
     blob(&mut file, b"Hafen");
     file.extend_from_slice(&u32::try_from(records.len()).expect("count").to_le_bytes());
     for (key, value) in &records {
