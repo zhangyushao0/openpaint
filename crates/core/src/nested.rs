@@ -81,14 +81,16 @@ impl NestedLayer {
         1 + nesting(&self.edits)
     }
 
-    /// The same content under a new id and new stroke ids from `ids` (a duplicated layer's).
+    /// The same content under a new id and new stroke ids from `ids` (a duplicated layer's, a
+    /// pasted copy's), the places of its edits among them renumbered alike (`renumbered`).
     pub(crate) fn renumbered(&self, ids: &mut IdCounters) -> Self {
         let mut copy = self.clone();
         copy.id = ids.take_layer();
         copy.strokes = self.strokes.renumbered(ids);
-        copy.edits = renumbered(&self.edits, ids);
+        copy.edits = renumbered(&self.edits, &copy.strokes, ids);
         if let Some(mask) = &mut copy.mask {
             mask.strokes = mask.strokes.renumbered(ids);
+            mask.edits = renumbered(&mask.edits, &mask.strokes, ids);
         }
         copy
     }
@@ -98,6 +100,9 @@ impl NestedLayer {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NestedEdit {
     pub(crate) after: usize,
+    /// The artwork's next stroke id when it was merged or pasted (D125); its content keeps its
+    /// own places.
+    pub(crate) before_stroke: u64,
     pub(crate) layer: Arc<NestedLayer>,
 }
 
@@ -108,6 +113,12 @@ impl NestedEdit {
         self.after
     }
 
+    /// The artwork's next stroke id when it was made (D125).
+    #[must_use]
+    pub const fn before_stroke(&self) -> u64 {
+        self.before_stroke
+    }
+
     #[must_use]
     pub fn layer(&self) -> &NestedLayer {
         &self.layer
@@ -116,7 +127,8 @@ impl NestedEdit {
     /// The same record seen from two versions: one shared content at one place. O(1).
     #[must_use]
     pub fn same(&self, other: &Self) -> bool {
-        self.after == other.after && Arc::ptr_eq(&self.layer, &other.layer)
+        (self.after, self.before_stroke) == (other.after, other.before_stroke)
+            && Arc::ptr_eq(&self.layer, &other.layer)
     }
 
     /// Bytes for history budgets: the record alone; its strokes are the merged layer's, shared
@@ -140,20 +152,38 @@ pub(crate) fn nesting(edits: &[RegionEdit]) -> usize {
         .unwrap_or(0)
 }
 
-/// `edits` with every nested record renumbered from `ids` (a duplicated layer's); the very same
-/// list when it holds none.
-pub(crate) fn renumbered(edits: &Arc<[RegionEdit]>, ids: &mut IdCounters) -> Arc<[RegionEdit]> {
-    if edits.iter().all(|edit| edit.nested().is_none()) {
+/// `edits` lying among `strokes` (their list's strokes, renumbered from `ids` just before), with
+/// every nested record renumbered from `ids` and every place among all strokes renumbered alike
+/// (D125): after k strokes, `0 < k < len`, the k-th's new id plus one; after none, the first's;
+/// after all of them, the next id once the records before it took theirs. The very same list
+/// when it is empty.
+pub(crate) fn renumbered(
+    edits: &Arc<[RegionEdit]>,
+    strokes: &StrokeList,
+    ids: &mut IdCounters,
+) -> Arc<[RegionEdit]> {
+    if edits.is_empty() {
         return Arc::clone(edits);
     }
     edits
         .iter()
-        .map(|edit| match edit {
-            RegionEdit::Nested(nested) => RegionEdit::Nested(NestedEdit {
-                after: nested.after,
-                layer: Arc::new(nested.layer.renumbered(ids)),
-            }),
-            other => other.clone(),
+        .map(|edit| {
+            let edit = match edit {
+                RegionEdit::Nested(nested) => RegionEdit::Nested(NestedEdit {
+                    layer: Arc::new(nested.layer.renumbered(ids)),
+                    ..nested.clone()
+                }),
+                other => other.clone(),
+            };
+            let after = edit.after();
+            let place = match after.checked_sub(1) {
+                _ if after >= strokes.len() => ids.next_stroke,
+                None => strokes.get(0).map_or(ids.next_stroke, |s| s.id().get()),
+                Some(last) => strokes
+                    .get(last)
+                    .map_or(ids.next_stroke, |s| s.id().get() + 1),
+            };
+            edit.at(after, place)
         })
         .collect()
 }

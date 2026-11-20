@@ -168,14 +168,15 @@ impl Layer {
     }
 
     /// A copy of the layer under `id`, its strokes, its nested records and its mask's strokes
-    /// renumbered from `ids`.
+    /// renumbered from `ids`, its edits' places among them alike (`nested::renumbered`).
     pub(crate) fn duplicate(&self, id: LayerId, ids: &mut IdCounters) -> Self {
         let mut copy = self.clone();
         copy.id = id;
         copy.strokes = self.strokes.renumbered(ids);
-        copy.edits = crate::nested::renumbered(&self.edits, ids);
+        copy.edits = crate::nested::renumbered(&self.edits, &copy.strokes, ids);
         if let Some(mask) = &mut copy.mask {
             mask.strokes = mask.strokes.renumbered(ids);
+            mask.edits = crate::nested::renumbered(&mask.edits, &mask.strokes, ids);
         }
         copy
     }

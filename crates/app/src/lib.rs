@@ -6,8 +6,8 @@
 //! Each intent family is one module holding its intents, handler, projection and tests (`intent.rs`
 //! names them all, `projection.rs` what the UI may offer, `error.rs`):
 //! - the session per artwork (`session/`; what an intent ends before it applies `drafts.rs`, what
-//!   a mode sets and does `mode.rs`, D119): history (`history.rs`), strokes (`stroke.rs`,
-//!   `stroke_shape.rs`, `stroke_copies.rs`, `streamline.rs`, `quickshape*.rs`, `symmetry.rs`; D69,
+//!   a mode sets and does `mode.rs`, D119): history (`history.rs`), strokes (`stroke/` with its
+//!   shape and copies, `streamline.rs`, `quickshape*.rs`, `symmetry.rs`; D69,
 //!   D71), layers (`layers.rs`, `layer_rules.rs`: the one Hidden/Locked check), the selection
 //!   (`selection.rs`), fill (`fill.rs`), transform and insert (`transform.rs`,
 //!   `transform_insert.rs`), adjust (`adjust.rs`), the clipboard (`clipboard.rs`) and autosave

@@ -84,6 +84,9 @@ pub enum EditParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClearParts {
     pub after: u64,
+    /// The artwork's next stroke id when it was made: its place among all strokes (D125), as
+    /// every edit's.
+    pub before_stroke: u64,
     pub mask: MaskParts,
 }
 
@@ -92,6 +95,7 @@ pub struct ClearParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NestedParts {
     pub after: u64,
+    pub before_stroke: u64,
     pub id: u64,
     pub opacity: f32,
     pub blend: BlendMode,
@@ -108,6 +112,7 @@ pub struct NestedParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformParts {
     pub after: u64,
+    pub before_stroke: u64,
     pub lift: Option<MaskParts>,
     pub patch: Option<PatchParts>,
     /// `[a, b, c, d]` and the translation, as `Placement::new` takes them.
@@ -130,6 +135,7 @@ pub struct PatchParts {
 pub struct FillParts {
     /// How many of the layer's strokes lie under it.
     pub after: u64,
+    pub before_stroke: u64,
     /// sRGB red, green, blue.
     pub color: [f32; 3],
     pub alpha_locked: bool,
@@ -142,6 +148,8 @@ pub struct FillParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrokeParts {
     pub id: u64,
+    /// When its first sample was drawn, ms since 1970 UTC; 0 unknown (D125).
+    pub began_ms: u64,
     /// Paint over, paint atop (Alpha Lock) or erase; gives the style's tool.
     pub blend: StrokeBlend,
     /// The brush recipe the stroke was drawn with.
@@ -252,6 +260,7 @@ fn nested_parts(nested: &NestedEdit) -> NestedParts {
     let layer = nested.layer();
     NestedParts {
         after: nested.after() as u64,
+        before_stroke: nested.before_stroke(),
         id: layer.id.get(),
         opacity: layer.opacity,
         blend: layer.blend,
@@ -268,6 +277,7 @@ fn edit_parts(edit: &RegionEdit) -> EditParts {
             let color = fill.color;
             EditParts::Fill(FillParts {
                 after: fill.after as u64,
+                before_stroke: fill.before_stroke,
                 color: [color.r(), color.g(), color.b()],
                 alpha_locked: fill.alpha_locked,
                 origin: fill.mask.origin(),
@@ -279,6 +289,7 @@ fn edit_parts(edit: &RegionEdit) -> EditParts {
             let placement = transform.placement();
             EditParts::Transform(TransformParts {
                 after: transform.after() as u64,
+                before_stroke: transform.before_stroke(),
                 lift: transform.lift().map(RegionMask::to_parts),
                 patch: transform.patch().map(|patch| PatchParts {
                     origin: patch.origin(),
@@ -293,6 +304,7 @@ fn edit_parts(edit: &RegionEdit) -> EditParts {
         RegionEdit::Nested(nested) => EditParts::Nested(nested_parts(nested)),
         RegionEdit::Clear(clear) => EditParts::Clear(ClearParts {
             after: clear.after() as u64,
+            before_stroke: clear.before_stroke(),
             mask: clear.mask().to_parts(),
         }),
     }
@@ -303,6 +315,7 @@ fn stroke_parts(stroke: &Stroke) -> StrokeParts {
     let color = style.color();
     StrokeParts {
         id: stroke.id().get(),
+        began_ms: stroke.began_ms().unwrap_or(0),
         blend: stroke.blend(),
         recipe: style.recipe().to_parts(),
         size: style.size(),

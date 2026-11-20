@@ -1,6 +1,6 @@
-//! DECISIONS D77 in format 1: a library that fails to write and a save cut off by a killed
-//! process, over the frozen sample (`tests/samples/format-1.bin`). Unit tests: they make writes
-//! fail through the test hook in `batch.rs`.
+//! DECISIONS D77 in format 2: a library that fails to write and a save cut off by a killed
+//! process, over the frozen sample (`tests/samples/format-2.bin`). Unit tests: they make writes
+//! fail through the test hook in `batch.rs`. The frozen samples' helpers serve `convert/`'s tests.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -18,11 +18,18 @@ use crate::records::{LIBRARY, PROJECTS};
 use crate::test_dir::TestDir;
 
 /// Records as the frozen sample holds them: keyspace, key, value.
-type Dump = Vec<(&'static str, Vec<u8>, Vec<u8>)>;
+pub(crate) type Dump = Vec<(&'static str, Vec<u8>, Vec<u8>)>;
 
 /// The frozen sample.
 fn sample() -> Dump {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/samples/format-1.bin");
+    dump("format-2.bin")
+}
+
+/// The frozen sample `name` in `tests/samples/`.
+pub(crate) fn dump(name: &str) -> Dump {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/samples")
+        .join(name);
     let bytes = std::fs::read(path).expect("the frozen sample");
     let mut rest = &bytes[..];
     let mut records = Vec::new();
@@ -47,7 +54,7 @@ fn take<'a>(rest: &mut &'a [u8], len: usize) -> &'a [u8] {
 }
 
 /// A library in a new directory holding `records`, written past the store.
-fn library_of(name: &str, records: &Dump) -> TestDir {
+pub(crate) fn library_of(name: &str, records: &Dump) -> TestDir {
     let dir = TestDir::new(name);
     let db = Database::builder(&dir).open().expect("open raw");
     for (name, key, value) in records {
@@ -61,7 +68,7 @@ fn library_of(name: &str, records: &Dump) -> TestDir {
 }
 
 /// Every record of the closed library in `dir`.
-fn records(dir: &Path) -> Dump {
+pub(crate) fn records(dir: &Path) -> Dump {
     let db = Database::builder(dir).open().expect("open raw");
     let mut out = Vec::new();
     for name in [LIBRARY, PROJECTS] {
@@ -77,7 +84,7 @@ fn records(dir: &Path) -> Dump {
 }
 
 /// A copy of the closed library in `from`.
-fn copied(from: &Path, name: &str) -> TestDir {
+pub(crate) fn copied(from: &Path, name: &str) -> TestDir {
     let to = TestDir::new(name);
     copy_dir(from, &to);
     to

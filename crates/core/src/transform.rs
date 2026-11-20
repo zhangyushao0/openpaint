@@ -196,6 +196,8 @@ impl PartialEq for Patch {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformEdit {
     pub(crate) after: usize,
+    /// The artwork's next stroke id when it was made: its place among all strokes (D125).
+    pub(crate) before_stroke: u64,
     pub(crate) lift: Option<RegionMask>,
     pub(crate) patch: Option<Patch>,
     pub(crate) placement: Placement,
@@ -205,6 +207,12 @@ impl TransformEdit {
     #[must_use]
     pub const fn after(&self) -> usize {
         self.after
+    }
+
+    /// The artwork's next stroke id when it was made (D125).
+    #[must_use]
+    pub const fn before_stroke(&self) -> u64 {
+        self.before_stroke
     }
 
     /// What moved: a selection's pixels, or `None` for everything the layer held so far.
@@ -234,13 +242,15 @@ impl TransformEdit {
             (None, None) => true,
             _ => false,
         };
-        lift && patch && self.after == other.after && self.placement == other.placement
+        let place = (self.after, self.before_stroke) == (other.after, other.before_stroke);
+        lift && patch && place && self.placement == other.placement
     }
 }
 
+/// A transform at `(after, before_stroke)` (its place among the layer's strokes and among all).
 pub(crate) fn transform_from(
     canvas: CanvasSize,
-    after: usize,
+    (after, before_stroke): (usize, u64),
     lift: Option<RegionMask>,
     patch: Option<Patch>,
     placement: Placement,
@@ -256,6 +266,7 @@ pub(crate) fn transform_from(
     }
     Ok(TransformEdit {
         after,
+        before_stroke,
         lift,
         patch,
         placement,
@@ -302,8 +313,11 @@ impl Artwork {
         if self.on_mask() {
             return Err(CoreError::OnMask(self.active()));
         }
-        let after = self.state().layers[index].strokes.len();
-        let edit = transform_from(self.canvas(), after, lift, patch, placement)?;
+        let place = (
+            self.state().layers[index].strokes.len(),
+            self.next_stroke_id(),
+        );
+        let edit = transform_from(self.canvas(), place, lift, patch, placement)?;
         Ok(push_edit(self, index, RegionEdit::Transform(edit)))
     }
 }

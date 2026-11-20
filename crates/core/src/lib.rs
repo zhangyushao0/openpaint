@@ -12,7 +12,7 @@
 //! `deposit.rs`, `taper.rs`, `shape.rs`, D74); a layer's records (`fill.rs`, `clear.rs`,
 //! `transform.rs`, `adjust.rs`, `tone.rs`, `filter.rs`, `nested.rs`, `copy.rs`; D57, D59, D67) and
 //! the selection's region (`region.rs`, `mask_ops.rs`, D43); the drawing order the replay shows
-//! (`replay.rs`, D125).
+//! (`replay/`, D125).
 #![forbid(unsafe_code)]
 
 mod adjust;

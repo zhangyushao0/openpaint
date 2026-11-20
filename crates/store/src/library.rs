@@ -1,8 +1,9 @@
-//! `Library`: the artwork library on disk, a fjall database (DECISIONS D77, D95), implementing
+//! `Library`: the artwork library on disk, a fjall database (DECISIONS D77, D125), implementing
 //! the app's `ProjectStore`. Every call that writes is one atomic batch synced to disk
 //! (`batch.rs`): it lands whole or not at all, also when the process is killed mid-write; a save
 //! rewrites the head and only the stroke and edit records that changed since the version this
-//! library last stored. A library of any other format is refused and never written to.
+//! library last stored. A library of format 1 is converted once (`convert/`); one of any other
+//! format is refused and never written to.
 
 use std::path::PathBuf;
 
@@ -16,7 +17,7 @@ use openpaint_core::Artwork;
 use crate::batch::Batch;
 use crate::editor::decode_editor;
 use crate::records::{FORMAT, FORMAT_KEY, LIBRARY, PROJECTS, decode_format, encode_format};
-use crate::{artwork_file, read, spaces, versions, write};
+use crate::{artwork_file, convert, read, spaces, versions, write};
 
 /// The database and its two keyspaces.
 pub(crate) struct Open {
@@ -117,9 +118,9 @@ impl Library {
     }
 }
 
-/// Checks the format of an opened database: an empty one is marked with this build's format;
-/// one of another format, or holding records without a format, is refused as it is, nothing
-/// written.
+/// Checks the format of an opened database: an empty one is marked with this build's format; one
+/// of format 1 is converted to it in one batch (`convert`, S163's build only); one of another
+/// format, or holding records without a format, is refused as it is, nothing written.
 fn prepare(open: &Open) -> Result<(), PortError> {
     let found = match open.library.get(FORMAT_KEY).map_err(device)? {
         Some(bytes) => decode_format(&bytes),
@@ -132,6 +133,9 @@ fn prepare(open: &Open) -> Result<(), PortError> {
     };
     if found == Some(FORMAT) {
         return Ok(());
+    }
+    if found == Some(convert::FROM) {
+        return convert::library(open);
     }
     log::error!("the library is of another format ({found:?}); it is left as it is");
     Err(PortError::OtherFormat { found })

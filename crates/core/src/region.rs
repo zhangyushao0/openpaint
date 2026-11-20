@@ -212,6 +212,34 @@ impl RegionEdit {
         }
     }
 
+    /// The artwork's next stroke id when the edit was made: its place among all strokes, after
+    /// every stroke of a lower id (D125, the drawing order).
+    #[must_use]
+    pub const fn before_stroke(&self) -> u64 {
+        match self {
+            Self::Fill(fill) => fill.before_stroke,
+            Self::Transform(transform) => transform.before_stroke,
+            Self::Adjust(adjust) => adjust.before_stroke,
+            Self::Nested(nested) => nested.before_stroke,
+            Self::Clear(clear) => clear.before_stroke,
+        }
+    }
+
+    /// The same edit at another place: after `after` of its list's strokes and before the stroke
+    /// `before_stroke` among all.
+    pub(crate) fn at(&self, after: usize, before_stroke: u64) -> Self {
+        let mut edit = self.clone();
+        let (at, before) = match &mut edit {
+            Self::Fill(fill) => (&mut fill.after, &mut fill.before_stroke),
+            Self::Transform(transform) => (&mut transform.after, &mut transform.before_stroke),
+            Self::Adjust(adjust) => (&mut adjust.after, &mut adjust.before_stroke),
+            Self::Nested(nested) => (&mut nested.after, &mut nested.before_stroke),
+            Self::Clear(clear) => (&mut clear.after, &mut clear.before_stroke),
+        };
+        (*at, *before) = (after, before_stroke);
+        edit
+    }
+
     #[must_use]
     pub const fn clear(&self) -> Option<&ClearEdit> {
         match self {
@@ -259,14 +287,16 @@ impl RegionEdit {
         match (self, other) {
             (Self::Fill(a), Self::Fill(b)) => {
                 a.mask.shares(&b.mask)
-                    && a.after == b.after
+                    && (a.after, a.before_stroke) == (b.after, b.before_stroke)
                     && a.color == b.color
                     && a.alpha_locked == b.alpha_locked
             }
             (Self::Transform(a), Self::Transform(b)) => a.same(b),
             (Self::Adjust(a), Self::Adjust(b)) => a.same(b),
             (Self::Nested(a), Self::Nested(b)) => a.same(b),
-            (Self::Clear(a), Self::Clear(b)) => a.after == b.after && a.mask.shares(&b.mask),
+            (Self::Clear(a), Self::Clear(b)) => {
+                (a.after, a.before_stroke) == (b.after, b.before_stroke) && a.mask.shares(&b.mask)
+            }
             _ => false,
         }
     }

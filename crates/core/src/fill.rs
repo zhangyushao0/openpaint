@@ -13,6 +13,8 @@ use crate::value::Color;
 #[derive(Debug, Clone, PartialEq)]
 pub struct FillEdit {
     pub(crate) after: usize,
+    /// The artwork's next stroke id when it was made: its place among all strokes (D125).
+    pub(crate) before_stroke: u64,
     pub(crate) mask: RegionMask,
     pub(crate) color: Color,
     pub(crate) alpha_locked: bool,
@@ -23,6 +25,12 @@ impl FillEdit {
     #[must_use]
     pub const fn after(&self) -> usize {
         self.after
+    }
+
+    /// The artwork's next stroke id when it was made (D125).
+    #[must_use]
+    pub const fn before_stroke(&self) -> u64 {
+        self.before_stroke
     }
 
     #[must_use]
@@ -53,15 +61,18 @@ impl Artwork {
         let (index, target) = self.target()?;
         check_mask(self.canvas(), &mask)?;
         let layer = &self.state().layers[index];
+        let before_stroke = self.next_stroke_id();
         let edit = match target {
             Some(target) => FillEdit {
                 after: target.strokes.len(),
+                before_stroke,
                 mask,
                 color: target.grey(color),
                 alpha_locked: false,
             },
             None => FillEdit {
                 after: layer.strokes.len(),
+                before_stroke,
                 mask,
                 color,
                 alpha_locked: layer.props.alpha_locked,

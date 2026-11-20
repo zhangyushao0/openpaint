@@ -111,6 +111,7 @@ pub(crate) fn merge_down(artwork: &Artwork, id: LayerId) -> Result<Applied, Core
         .merge_of(index)
         .map_err(|why| CoreError::Unmergeable { layer: id, why })?;
     let mut next = artwork.state().clone();
+    let place = next.ids.next_stroke;
     let upper = next.layers.remove(index);
     let below = index - 1;
     let mut lower = next.layers[below].clone();
@@ -129,7 +130,7 @@ pub(crate) fn merge_down(artwork: &Artwork, id: LayerId) -> Result<Applied, Core
             edits: std::mem::replace(&mut lower.edits, Arc::from([])),
             mask,
         };
-        lower.edits = Arc::from([nested_edit(0, own)]);
+        lower.edits = Arc::from([nested_edit((0, place), own)]);
         if merge == Merge::Over {
             lower.props.opacity = 1.0;
         }
@@ -144,7 +145,7 @@ pub(crate) fn merge_down(artwork: &Artwork, id: LayerId) -> Result<Applied, Core
         mask: upper.mask.filter(|mask| mask.enabled),
     };
     let mut edits = lower.edits.to_vec();
-    edits.push(nested_edit(lower.strokes.len(), merged));
+    edits.push(nested_edit((lower.strokes.len(), place), merged));
     lower.edits = Arc::from(edits);
     let lower_id = lower.id;
     next.layers[below] = lower;
@@ -152,9 +153,12 @@ pub(crate) fn merge_down(artwork: &Artwork, id: LayerId) -> Result<Applied, Core
     Ok(Applied::content(next))
 }
 
-fn nested_edit(after: usize, layer: NestedLayer) -> RegionEdit {
+/// `layer` as a record after `after` of the lower layer's strokes, made before the stroke
+/// `before_stroke` (D125).
+fn nested_edit((after, before_stroke): (usize, u64), layer: NestedLayer) -> RegionEdit {
     RegionEdit::Nested(NestedEdit {
         after,
+        before_stroke,
         layer: Arc::new(layer),
     })
 }

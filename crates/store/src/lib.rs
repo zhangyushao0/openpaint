@@ -1,11 +1,12 @@
-//! Local artwork library: the persistent format (format 1, `records.rs`), OpenPaint files and
+//! Local artwork library: the persistent format (format 2, `records.rs`), OpenPaint files and
 //! kept versions, image files in and out, and record spaces whose bytes their owners keep
 //! (`spaces.rs`, D112). Implements the storage ports declared in `openpaint-app`.
 //!
 //! No GPU, no UI (`cargo repo-check`).
 //!
 //! The modules, each file's `//!` its fields or calls: the library (`library.rs`: `prepare`
-//! checks the format and marks an empty database, no upgrade path), `records.rs` (the keys and the
+//! checks the format and marks an empty database; `convert/` makes a format-1 library and file
+//! format 2, S163's build only, D125), `records.rs` (the keys and the
 //! head), `strokes.rs` and `shapes.rs` (a stroke), `edits.rs` with `adjusts.rs` and `nested.rs`
 //! (an edit record), `catalogue.rs` (entries and thumbnails), `editor.rs` and `editor_library.rs`
 //! (the toolbox), `codec.rs` (the byte reader and writer), `delta.rs` (which records a save writes
@@ -21,6 +22,7 @@ mod batch;
 mod catalogue;
 mod codec;
 mod colour;
+mod convert;
 mod delta;
 mod display_cache;
 mod editor;

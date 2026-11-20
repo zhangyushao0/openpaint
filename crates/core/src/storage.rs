@@ -249,10 +249,12 @@ fn content_from(
             EditParts::Nested(nested) => nested_from(nested, canvas, ids, depth + 1)?,
             EditParts::Clear(clear) => RegionEdit::Clear(ClearEdit {
                 after: usize::try_from(clear.after).map_err(|_| invalid("clear place"))?,
+                before_stroke: clear.before_stroke,
                 mask: clear.mask.mask(canvas)?,
             }),
         };
-        if edit.after() < after || edit.after() > strokes.len() {
+        let before = edit.before_stroke() > ids.counters.next_stroke;
+        if edit.after() < after || edit.after() > strokes.len() || before {
             return Err(invalid("edit place"));
         }
         after = edit.after();
@@ -294,6 +296,7 @@ fn nested_from(
     };
     Ok(RegionEdit::Nested(NestedEdit {
         after: usize::try_from(parts.after).map_err(|_| invalid("nested place"))?,
+        before_stroke: parts.before_stroke,
         layer: Arc::new(layer),
     }))
 }
@@ -303,6 +306,7 @@ fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<FillEdit, CoreErro
     let mask = RegionMask::from_runs(canvas, parts.origin, parts.size, &parts.runs)?;
     Ok(FillEdit {
         after: usize::try_from(parts.after).map_err(|_| invalid("fill place"))?,
+        before_stroke: parts.before_stroke,
         mask,
         color: Color::rgb(r, g, b)?,
         alpha_locked: parts.alpha_locked,
@@ -326,7 +330,7 @@ fn transform_parts_from(
         .transpose()?;
     let placement =
         Placement::new(parts.matrix, parts.translation).ok_or(invalid("transform placement"))?;
-    transform_from(canvas, after, lift, patch, placement)
+    transform_from(canvas, (after, parts.before_stroke), lift, patch, placement)
 }
 
 fn stroke_from(
@@ -366,7 +370,7 @@ fn stroke_from(
         .map(|clip| ids.clip(canvas, clip))
         .transpose()?;
     Ok(Stroke::new(
-        id,
+        (id, parts.began_ms),
         style,
         alpha_locked,
         Arc::from(samples),

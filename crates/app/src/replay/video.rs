@@ -149,17 +149,24 @@ impl VideoFrames {
     /// How many frames the video has, the end's included.
     #[must_use]
     pub fn count(&self) -> u32 {
-        // S163a: the drawing's frames over the range at the rate, then the end's.
-        let _ = (self.range, self.rate);
-        self.held
+        drawn_frames(self.range, self.rate).saturating_add(self.held)
     }
 
     /// What frame `index` shows.
     #[must_use]
     pub fn frame(&self, index: u32) -> VideoFrame {
-        // S163a: the moment of frame `index`, or the end.
-        let _ = (&self.timeline, index);
-        VideoFrame::End
+        let drawn = drawn_frames(self.range, self.rate);
+        if index >= drawn {
+            return VideoFrame::End;
+        }
+        let [from, to] = self.range;
+        let ms = if index + 1 == drawn {
+            to
+        } else {
+            let since = f64::from(index) * frame_ms(self.rate);
+            (from + since.round() as u64).min(to)
+        };
+        VideoFrame::At(self.timeline.at(&self.drawing, ms))
     }
 
     /// The drawing order the frames show.
@@ -173,4 +180,29 @@ impl VideoFrames {
 #[must_use]
 pub fn video_file_name(title: &Title) -> String {
     crate::export::named(title, "mp4")
+}
+
+/// Frames of the end held, with the hold on.
+pub(super) const HOLD_FRAMES: u32 = (HOLD_MS * VIDEO_FPS as u64 / 1000) as u32;
+
+/// Timeline ms between two frames at `rate` (a rate that is no number or not above 0 is 1×).
+fn frame_ms(rate: f64) -> f64 {
+    let rate = if rate > 0.0 { rate } else { 1.0 };
+    rate * 1000.0 / f64::from(VIDEO_FPS)
+}
+
+/// How many frames draw `range` (timeline ms) at `rate`: one every `frame_ms`, the last exactly
+/// at its end (one frame for an empty range); a millionth of a gap is rounding, not a frame.
+pub(super) fn drawn_frames([from, to]: [u64; 2], rate: f64) -> u32 {
+    let gaps = (to.saturating_sub(from) as f64 / frame_ms(rate) - 1e-6).ceil();
+    (gaps.max(0.0) as u32).saturating_add(1)
+}
+
+/// The rate fitting the whole of `total_ms` (timeline ms) into the highlight, the end held
+/// inside it when `hold`: never slower than 1×.
+pub(super) fn highlight_rate(total_ms: u64, hold: bool) -> f64 {
+    let held = if hold { HOLD_FRAMES } else { 0 };
+    let room = (HIGHLIGHT_MS * u64::from(VIDEO_FPS) / 1000) as u32 - held;
+    let room_ms = f64::from(room.saturating_sub(1)) * 1000.0 / f64::from(VIDEO_FPS);
+    (total_ms as f64 / room_ms).max(1.0)
 }

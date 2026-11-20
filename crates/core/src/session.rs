@@ -28,9 +28,42 @@ pub struct ActiveStroke {
     clip: Option<RegionMask>,
     /// It lands on the layer's mask, not its paint.
     on_mask: bool,
+    /// When its first sample was drawn, ms since 1970 UTC; 0 unknown (`began_at`).
+    began: u64,
 }
 
 impl ActiveStroke {
+    /// `stroke` of the layer `layer` at `index` (its mask's when `on_mask`) drawn to its first
+    /// `samples` samples (at least one): the replay's stroke being drawn (`DrawingOrder::frame`).
+    pub(crate) fn replayed(
+        (layer, index): (LayerId, usize),
+        stroke: &Stroke,
+        samples: usize,
+        on_mask: bool,
+    ) -> Self {
+        let drawn = samples.clamp(1, stroke.samples().len());
+        Self {
+            layer,
+            index,
+            style: stroke.style().clone(),
+            alpha_locked: stroke.alpha_locked(),
+            samples: stroke.samples()[..drawn].to_vec(),
+            clip: stroke.clip().cloned(),
+            on_mask,
+            began: stroke.began_ms().unwrap_or(0),
+        }
+    }
+
+    /// When its first sample was drawn, ms since 1970 UTC; `None` unknown.
+    #[must_use]
+    pub const fn began_ms(&self) -> Option<u64> {
+        if self.began == 0 {
+            None
+        } else {
+            Some(self.began)
+        }
+    }
+
     /// Whether the stroke lands on its layer's mask (its style then paints the mask's grey).
     #[must_use]
     pub const fn on_mask(&self) -> bool {
@@ -109,12 +142,21 @@ impl Artwork {
                 samples: vec![first],
                 clip: None,
                 on_mask: mask.is_some(),
+                began: 0,
             },
         })
     }
 }
 
 impl StrokeSession {
+    /// This stroke begun at `utc_ms` (ms since 1970 UTC, 0 unknown): it keeps it as its start
+    /// (D125), and so do its mirrored copies drawn with it.
+    #[must_use]
+    pub const fn began_at(mut self, utc_ms: u64) -> Self {
+        self.active.began = utc_ms;
+        self
+    }
+
     /// This stroke drawn inside the selection `clip`: it changes only the pixels of `clip`,
     /// while it is drawn and once committed.
     ///
@@ -202,7 +244,13 @@ impl StrokeSession {
         let id = next.ids.take_stroke();
         let active = self.active;
         let samples = Arc::from(active.samples);
-        let stroke = Stroke::new(id, active.style, active.alpha_locked, samples, active.clip);
+        let stroke = Stroke::new(
+            (id, active.began),
+            active.style,
+            active.alpha_locked,
+            samples,
+            active.clip,
+        );
         let layer = &mut next.layers[active.index];
         match layer.mask.as_mut().filter(|_| active.on_mask) {
             Some(mask) => mask.strokes = mask.strokes.pushed(stroke),

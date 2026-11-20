@@ -40,6 +40,24 @@ impl StrokeList {
         }
     }
 
+    /// Its first `len` strokes (all of them, the very same list, from its length on): its full
+    /// chunks shared, the strokes of a part chunk copied (O(chunks + `CHUNK`)), so a longer
+    /// prefix of the same list appends to a shorter one (the drawing order's frames).
+    pub(crate) fn prefix(&self, len: usize) -> Self {
+        if len >= self.len {
+            return self.clone();
+        }
+        let (full, rest) = (len / CHUNK, len % CHUNK);
+        let mut chunks = self.chunks[..full].to_vec();
+        if rest > 0 {
+            chunks.push(Arc::from(&self.chunks[full][..rest]));
+        }
+        Self {
+            chunks: Arc::from(chunks),
+            len,
+        }
+    }
+
     /// The same strokes under new ids from `ids`, in order (a duplicated layer's).
     pub(crate) fn renumbered(&self, ids: &mut IdCounters) -> Self {
         let strokes: Vec<Stroke> = self

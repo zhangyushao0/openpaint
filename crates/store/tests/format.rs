@@ -1,13 +1,15 @@
-//! Format 1 (DECISIONS D95) and its frozen sample (`tests/samples/format-1.bin`): every record of
+//! Format 2 (DECISIONS D125) and its frozen sample (`tests/samples/format-2.bin`): every record of
 //! a library holding one project with the sample artwork (every kind of record the format has:
-//! strokes of every blend, recipe stage and clip, fills, cleared pixels, transforms with and
-//! without pixels, adjustments and filters, masks, groups, a merged layer holding a merged layer)
-//! with its title, thumbnail and toolbox (every field set).
+//! strokes of every blend, recipe stage and clip, with and without a start, fills, cleared pixels,
+//! transforms with and without pixels, adjustments and filters, masks, groups, a merged layer
+//! holding a merged layer) with its title, thumbnail and toolbox (every field set).
 //!
-//! Storing them as a new project gives exactly the frozen bytes, so format 1 can never change by
+//! Storing them as a new project gives exactly the frozen bytes, so format 2 can never change by
 //! accident; opening the sample gives them back, and storing what it opened gives the same bytes
-//! again: every record round-trips byte for byte. A library of any other format, or one holding
-//! records but no format, is refused and left exactly as it was.
+//! again: every record round-trips byte for byte. A library of any other format but 1, or one
+//! holding records but no format, is refused and left exactly as it was. The format-1 sample
+//! (`format-1.bin`) opens as the format-2 sample whose strokes have no start: format 1's
+//! conversion (`convert/`, S163's build only; this test goes with it).
 //!
 //! A sample file is a record dump: per record the keyspace index (u8: 0 `library`, 1
 //! `projects`), then key and value, each as a u32 little-endian length and the bytes, sorted by
@@ -22,7 +24,7 @@ use std::path::Path;
 
 use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{BrushLibrary, BrushSet, PortError, ProjectStore, Title, Toolbox};
-use openpaint_core::Artwork;
+use openpaint_core::{Artwork, ArtworkParts, EditParts, StrokeParts};
 use openpaint_store::{FORMAT, Library};
 use sample::{
     Records, decode, encode, parts, sample_editor, sample_path, sample_thumbnail, sample_title,
@@ -41,8 +43,8 @@ fn stored(dir: &Path, artwork: &Artwork, title: &Title) -> Records {
 }
 
 #[test]
-fn the_format_1_sample_round_trips() {
-    assert_eq!(FORMAT, 1, "another format ships its own sample");
+fn the_format_2_sample_round_trips() {
+    assert_eq!(FORMAT, 2, "another format ships its own sample");
     let artwork = Artwork::from_storage(parts()).expect("valid sample artwork");
     let written = encode(&stored(
         &TestDir::new("sample-write"),
@@ -61,7 +63,7 @@ fn the_format_1_sample_round_trips() {
     };
     assert!(
         written == frozen,
-        "storing the sample artwork no longer gives the format-1 bytes"
+        "storing the sample artwork no longer gives the format-2 bytes"
     );
     let dir = TestDir::new("sample-read");
     write_records(&dir, &decode(&frozen));
@@ -148,13 +150,13 @@ fn refused_untouched(dir: &Path, found: Option<u32>) {
 #[test]
 fn a_library_of_another_format_is_refused_untouched() {
     let frozen = decode(&std::fs::read(sample_path()).expect("the sample"));
-    // Format 2, as a later build might write it.
+    // Format 3, as a later build might write it.
     let mut later = frozen.clone();
     let format = later.iter_mut().find(|(_, key, _)| key == b"format");
-    format.expect("the format record").2 = 2u32.to_le_bytes().to_vec();
-    let dir = TestDir::new("format-2");
+    format.expect("the format record").2 = 3u32.to_le_bytes().to_vec();
+    let dir = TestDir::new("format-3");
     write_records(&dir, &later);
-    refused_untouched(&dir, Some(2));
+    refused_untouched(&dir, Some(3));
     // A library holding records (a project) but no format.
     let unmarked: Records = frozen
         .into_iter()
@@ -166,14 +168,64 @@ fn a_library_of_another_format_is_refused_untouched() {
 }
 
 #[test]
-fn an_empty_library_is_made_format_1() {
+fn an_empty_library_is_made_format_2() {
     let dir = TestDir::new("empty");
     let mut library = Library::at(&dir);
     assert_eq!(library.list(), Ok(Vec::new()));
     drop(library);
     let made = records(&dir);
-    let format = ("library".to_owned(), b"format".to_vec(), vec![1, 0, 0, 0]);
+    let format = ("library".to_owned(), b"format".to_vec(), vec![2, 0, 0, 0]);
     assert_eq!(made, [format]);
+}
+
+/// `parts` with every stroke's start unknown, as format 1's conversion leaves it.
+fn untimed(mut parts: ArtworkParts) -> ArtworkParts {
+    fn list(strokes: &mut [StrokeParts], edits: &mut [EditParts]) {
+        for stroke in strokes {
+            stroke.began_ms = 0;
+        }
+        for edit in edits {
+            if let EditParts::Nested(nested) = edit {
+                list(&mut nested.strokes, &mut nested.edits);
+                if let Some(mask) = nested.mask.as_mut() {
+                    list(&mut mask.strokes, &mut mask.edits);
+                }
+            }
+        }
+    }
+    for layer in &mut parts.layers {
+        list(&mut layer.strokes, &mut layer.edits);
+        if let Some(mask) = layer.mask.as_mut() {
+            list(&mut mask.strokes, &mut mask.edits);
+        }
+    }
+    parts
+}
+
+#[test]
+fn the_format_1_sample_converts_to_the_format_2_sample_without_starts() {
+    let path = sample_path().with_file_name("format-1.bin");
+    let old = decode(&std::fs::read(path).expect("the format-1 sample"));
+    let dir = TestDir::new("format-1");
+    write_records(&dir, &old);
+    let mut library = Library::at(&dir);
+    assert!(library.list().is_ok(), "converted");
+    drop(library);
+    // Every record is the format-2 sample's, but the strokes' starts, which format 1 never had.
+    let mut expected = decode(&std::fs::read(sample_path()).expect("the sample"));
+    for (keyspace, key, value) in &mut expected {
+        if keyspace == "projects" && key.get(8) == Some(&b's') {
+            value[8..16].fill(0);
+        }
+    }
+    let converted = records(&dir);
+    assert_eq!(converted.len(), expected.len());
+    for (record, other) in converted.iter().zip(&expected) {
+        assert_eq!(record, other, "{}: {:?}", record.0, record.1);
+    }
+    let mut library = Library::at(&dir);
+    let project = library.open_last().expect("opens").expect("a project");
+    assert_eq!(project.artwork.to_parts(), untimed(parts()));
 }
 
 #[test]

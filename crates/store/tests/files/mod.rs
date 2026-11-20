@@ -1,4 +1,4 @@
-//! OpenPaint files and kept versions (DECISIONS D62, D63, D95), on the sample artwork: a file
+//! OpenPaint files and kept versions (DECISIONS D62, D63, D125), on the sample artwork: a file
 //! holds the artwork exactly (every record, the head without a save id), opens as a new artwork
 //! in any library; damaged and foreign files and files of another format are refused without a
 //! change; kept versions are capped, listed newest first and restored as copies.
@@ -98,7 +98,7 @@ fn foreign_damaged_and_other_format_files_are_refused_and_change_nothing() {
         (&file[..file.len() - 1], None),
         (&headless, None),
         // A later format.
-        (&marked(&file, 2), Some(2)),
+        (&marked(&file, 3), Some(3)),
     ];
     for (at, (bytes, format)) in cases.into_iter().enumerate() {
         let refused = library.import_file(bytes).expect_err("refused");

@@ -162,9 +162,8 @@ impl Session {
     /// The input clock's offset from UTC in ms (the runtime's wall clock less its input clock,
     /// each frame): a stroke begun from now on keeps its first sample's time plus it as its start
     /// (D125). Until a call, strokes keep no start.
-    pub fn set_utc_clock(&mut self, offset_ms: i64) {
-        // S163a: the stroke intent stamps each stroke it begins.
-        let _ = (&mut self.strokes, offset_ms);
+    pub const fn set_utc_clock(&mut self, offset_ms: i64) {
+        self.strokes.set_utc_clock(offset_ms);
     }
 
     /// The current version. While a stroke is drawn it is the version the stroke started on.
@@ -289,11 +288,16 @@ impl Session {
     }
 
     /// Actions' Replay row as this session offers it (S163): the record's strokes, nothing to
-    /// replay without a record, refused without a change of look while a stroke is drawn.
+    /// replay without a record (an edit and no stroke replays), refused without a change of look
+    /// while a stroke is drawn.
     fn replay_offer(&self) -> ReplayShown {
-        let strokes = self.history.current().stroke_count();
-        // S163a: an artwork whose record holds an edit and no stroke replays too.
-        let availability = if strokes == 0 {
+        let artwork = self.history.current();
+        let strokes = artwork.stroke_count();
+        let edits = artwork.layers().iter().any(|layer| {
+            let mask = layer.mask().is_some_and(|mask| !mask.edits().is_empty());
+            !layer.edits().is_empty() || mask
+        });
+        let availability = if strokes == 0 && !edits {
             Availability::NothingLeft
         } else if self.strokes.active().is_some() {
             Availability::StrokeInProgress

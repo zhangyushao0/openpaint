@@ -9,9 +9,10 @@
 //! The stroke follows the pen through its StreamLine (`streamline.rs`), frozen when the stroke
 //! begins: the samples stored are the smoothed line, and the lift moves the line's end onto the
 //! pen before the stroke is committed (not a smudge's: its line follows strictly, D46). Held
-//! still at its end, it snaps to the shape it resembles (QuickShape, `stroke_shape.rs`); with
+//! still at its end, it snaps to the shape it resembles (QuickShape, `shape.rs`); with
 //! the Drawing Guide on, it is drawn again mirrored, each copy a stroke of its own committed
-//! with it as one step (`stroke_copies.rs`).
+//! with it as one step (`copies.rs`). Each stroke keeps when it began (D125): its first sample's
+//! input time on the UTC clock the runtime sets (`Session::set_utc_clock`), its copies alike.
 
 use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, RegionMask, StrokeSample, StrokeSession, StrokeStyle,
@@ -24,9 +25,7 @@ use crate::input::{Contact, ContactPhase, Device, InputSample};
 use crate::streamline::{Follower, StreamLine, catch_up};
 use crate::symmetry::{Guide, GuideIntent, Mirror};
 
-#[path = "stroke_copies.rs"]
 mod copies;
-#[path = "stroke_shape.rs"]
 mod shape;
 
 pub use shape::ShapeProjection;
@@ -86,6 +85,8 @@ pub(crate) struct Strokes {
     /// Asked by a mode (`Session::keep_raw`): strokes keep the pen's own samples, with no
     /// StreamLine, QuickShape or guide.
     raw: bool,
+    /// The input clock's offset from UTC in ms, once the runtime set it.
+    utc: Option<i64>,
 }
 
 impl Strokes {
@@ -101,7 +102,14 @@ impl Strokes {
             reshown: false,
             committed: None,
             raw: false,
+            utc: None,
         }
+    }
+
+    /// Strokes begun from now on keep their first sample's input time plus `offset_ms` as their
+    /// start (ms since 1970 UTC).
+    pub(crate) const fn set_utc_clock(&mut self, offset_ms: i64) {
+        self.utc = Some(offset_ms);
     }
 
     /// From now on strokes keep the pen's own samples (`Session::keep_raw`).
@@ -252,9 +260,12 @@ impl Strokes {
         let pen = first.position;
         let first = stroke_sample(first, pen, start_ms)?;
         let leash = self.streamline.leash(self.style.size());
-        // Its stamps' seed, which its mirrored copies and a shape it snaps to keep.
+        // Its stamps' seed, which its mirrored copies and a shape it snaps to keep; its start.
         let style = self.style.clone().with_seed(self.seed);
-        let mut session = artwork.begin_stroke(style.clone(), first)?;
+        let began = (self.utc.map(|offset| start_ms.saturating_add(offset)))
+            .and_then(|utc| u64::try_from(utc).ok());
+        let session = artwork.begin_stroke(style.clone(), first)?;
+        let mut session = session.began_at(began.unwrap_or(0));
         if let Some(clip) = clip {
             session = session.clipped(clip.clone())?;
         }

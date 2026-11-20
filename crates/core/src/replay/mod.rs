@@ -30,10 +30,22 @@
 //! Consecutive frames share every stroke and edit both hold (the same `Arc`s, `Stroke::shares_samples`,
 //! `RegionEdit::same`), so a frame that only adds strokes is an append for the renderer
 //! (`changed_regions`, the scene's append).
+//!
+//! The parts: `build.rs` makes the lists and the steps, `frame.rs` cuts them.
+
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::artwork::Artwork;
 use crate::id::{LayerId, StrokeId};
+use crate::region::RegionEdit;
 use crate::session::ActiveStroke;
+use crate::stroke::Stroke;
+use crate::stroke_list::StrokeList;
+
+mod build;
+mod frame;
+
+use build::{Lists, Record};
 
 /// One record of an artwork in the order it was made.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,11 +87,25 @@ pub enum EditKind {
 }
 
 /// An artwork's records in the order they were made (see the module). Clone is cheap but for the
-/// step list; built once when the replay opens, O(records).
-#[derive(Debug, Clone)]
+/// step list; built once when the replay opens, O(records log records).
+#[derive(Debug)]
 pub struct DrawingOrder {
     artwork: Artwork,
     steps: Vec<Step>,
+    lists: Arc<Lists>,
+    /// The lists as the last frame cut them, which the next shares.
+    cache: Mutex<frame::Cache>,
+}
+
+impl Clone for DrawingOrder {
+    fn clone(&self) -> Self {
+        Self {
+            artwork: self.artwork.clone(),
+            steps: self.steps.clone(),
+            lists: Arc::clone(&self.lists),
+            cache: Mutex::new(self.cache().clone()),
+        }
+    }
 }
 
 /// What the replay shows at one moment: the artwork after the steps done, and the stroke being
@@ -94,10 +120,12 @@ impl Artwork {
     /// Its records in the order they were made.
     #[must_use]
     pub fn drawing_order(&self) -> DrawingOrder {
-        // S163a: every record's step, in the order the module states.
+        let (steps, lists) = build::order(self);
         DrawingOrder {
             artwork: self.clone(),
-            steps: Vec::new(),
+            steps,
+            lists: Arc::new(lists),
+            cache: Mutex::default(),
         }
     }
 
@@ -105,12 +133,25 @@ impl Artwork {
     /// merged layers' records at any depth. O(layers + edits), never O(strokes).
     #[must_use]
     pub fn stroke_count(&self) -> usize {
-        // S163a: masks and merged layers' records too.
         self.layers()
             .iter()
-            .map(|layer| layer.strokes().len())
+            .map(|layer| {
+                let mask =
+                    (layer.mask.as_ref()).map_or(0, |mask| strokes_in(&mask.strokes, &mask.edits));
+                strokes_in(&layer.strokes, &layer.edits) + mask
+            })
             .sum()
     }
+}
+
+/// The strokes of a list and of the merged records it holds, their masks' too.
+fn strokes_in(strokes: &StrokeList, edits: &[RegionEdit]) -> usize {
+    let nested = edits.iter().filter_map(RegionEdit::nested).map(|nested| {
+        let layer = nested.layer();
+        let mask = (layer.mask.as_ref()).map_or(0, |mask| strokes_in(&mask.strokes, &mask.edits));
+        strokes_in(&layer.strokes, &layer.edits) + mask
+    });
+    strokes.len() + nested.sum::<usize>()
 }
 
 impl DrawingOrder {
@@ -126,16 +167,55 @@ impl DrawingOrder {
         &self.steps
     }
 
+    /// The stroke step `index` draws (its samples' times pace the replay); `None` for an edit.
+    #[must_use]
+    pub fn stroke(&self, index: usize) -> Option<&Stroke> {
+        match self.lists.records.get(index)? {
+            &(list, Record::Stroke(at)) => self.lists.lists[list].strokes.get(at),
+            (_, Record::Edit(_)) => None,
+        }
+    }
+
     /// The artwork after the first `done` steps, with step `done`'s stroke drawn to its first
     /// `samples` samples when it is live and `samples` is at least one (see the module); `done`
     /// at or past the step count gives the finished artwork.
     #[must_use]
     pub fn frame(&self, done: usize, samples: usize) -> ReplayFrame {
-        // S163a: the lists cut to the steps done, the stroke drawn so far.
-        let _ = (done, samples);
-        ReplayFrame {
-            artwork: self.artwork.clone(),
-            active: None,
+        if done >= self.steps.len() {
+            return ReplayFrame {
+                artwork: self.artwork.clone(),
+                active: None,
+            };
         }
+        let artwork = frame::artwork(&self.artwork, &self.lists, done, &mut self.cache());
+        ReplayFrame {
+            artwork,
+            active: self.active(done, samples),
+        }
+    }
+
+    /// Step `done`'s stroke drawn to its first `samples` samples, when it is live.
+    fn active(&self, done: usize, samples: usize) -> Option<ActiveStroke> {
+        let step = self
+            .steps
+            .get(done)
+            .filter(|step| step.live && samples > 0)?;
+        let &(list, Record::Stroke(at)) = self.lists.records.get(done)? else {
+            return None;
+        };
+        let list = &self.lists.lists[list];
+        let (index, on_mask) = list.place?;
+        let stroke = list.strokes.get(at)?;
+        Some(ActiveStroke::replayed(
+            (step.layer, index),
+            stroke,
+            samples,
+            on_mask,
+        ))
+    }
+
+    /// The frames' cache; a frame that panicked left it whole or unused.
+    fn cache(&self) -> std::sync::MutexGuard<'_, frame::Cache> {
+        self.cache.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
