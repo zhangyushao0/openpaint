@@ -6,6 +6,7 @@
 
 mod fonts;
 mod icon_layers;
+mod icon_media;
 mod icon_tools;
 mod icons;
 pub mod motion;

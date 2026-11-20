@@ -15,8 +15,8 @@ private const val REQUEST_OPEN = 2
  * The system's pickers and share sheet for the Rust side's requests (DECISIONS D11): the
  * save dialog (Storage Access Framework, ACTION_CREATE_DOCUMENT), the image and file pickers
  * (ACTION_OPEN_DOCUMENT: PNG and JPEG, or any file) and the share sheet (ACTION_SEND with a
- * content URI from ShareProvider). What the user chose goes back as a detached file
- * descriptor; no product rules here.
+ * content URI from ShareProvider, or the album's for the replay's video saved there). What the
+ * user chose goes back as a detached file descriptor; no product rules here.
  */
 internal class Pickers(private val activity: Activity, private val handle: () -> Long) {
     /** Serves every request the last frame left. */
@@ -42,6 +42,9 @@ internal class Pickers(private val activity: Activity, private val handle: () ->
                     type = "*/*"
                 })
                 "send" -> send(fields[1], File(fields[2]).name)
+                // The replay's video last made, wherever it went (the album or the shares).
+                "send-video" -> VideoEncoder.last?.let { share("video/mp4", it, fields[1]) }
+                    ?: Log.e("openpaint", "no video to send")
                 else -> Log.e("openpaint", "unknown request: $line")
             }
         }
@@ -55,8 +58,10 @@ internal class Pickers(private val activity: Activity, private val handle: () ->
         }
     }
 
-    private fun send(mime: String, name: String) {
-        val uri = ShareProvider.uri(name)
+    private fun send(mime: String, name: String) = share(mime, ShareProvider.uri(name), name)
+
+    /** The share sheet for [uri], read as [mime] and named [name], with a read grant on it. */
+    private fun share(mime: String, uri: Uri, name: String) {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)

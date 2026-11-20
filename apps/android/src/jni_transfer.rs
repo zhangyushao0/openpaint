@@ -1,23 +1,27 @@
 //! JNI entry points for the system pickers and the share sheet (`dev.openpaint.Native`). The
 //! Kotlin host takes the runtime's requests as lines after each frame and hands back what the
-//! user chose as a file descriptor it detached; files to share are made here, in the app's cache.
-//! All calls arrive on the Android main thread; errors are logged, nothing is thrown into Java.
+//! user chose as a file descriptor it detached; files to share are made here, in the app's cache,
+//! and a video's encoder is lent at once (`video.rs`). All calls arrive on the Android main
+//! thread; errors are logged, nothing is thrown into Java.
 
 use std::fs::File;
 use std::os::fd::{FromRawFd, OwnedFd};
+use std::sync::Arc;
 
-use jni::EnvUnowned;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jint, jlong};
+use jni::{Env, EnvUnowned};
 use openpaint_runtime::{HostAnswer, HostRequest, PortError};
 
 use crate::error::HostError;
 use crate::jni_entry::{Host, host};
 use crate::transfer::{FileSink, FileSource, Pick, request_line, share_file};
+use crate::video::{AndroidVideo, VideoClass};
 
 /// The next request for the Kotlin host as a line ("save\t<mime>\t<name>", "open",
-/// "send\t<mime>\t<path>"), or null when there is none. Files to share are made here first.
+/// "send\t<mime>\t<path>", "send-video\t<name>"), or null when there is none. Files to share and
+/// video encoders are made here first.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_Native_request<'local>(
     mut env: EnvUnowned<'local>,
@@ -37,7 +41,7 @@ pub extern "system" fn Java_dev_openpaint_Native_request<'local>(
                     }
                     return Ok(env.new_string(line)?.into());
                 }
-                None => share(host, &request),
+                None => serve(env, host, &request),
             }
         }
         Ok(JObject::null())
@@ -45,19 +49,39 @@ pub extern "system" fn Java_dev_openpaint_Native_request<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// Makes the file a `ShareFile` request asks for and answers with it.
-fn share(host: &mut Host, request: &HostRequest) {
-    let HostRequest::ShareFile { name, .. } = request else {
-        return;
-    };
-    let answer = match share_file(&host.share_dir, name) {
-        Ok((path, file)) => {
-            log::info!("sharing through {}", path.display());
-            HostAnswer::File(Box::new(FileSink(file)))
-        }
-        Err(error) => HostAnswer::Failed(error),
+/// Answers at once what the Rust side serves itself: the file a `ShareFile` request asks for, the
+/// encoder a `Video` request asks for.
+fn serve(env: &mut Env<'_>, host: &mut Host, request: &HostRequest) {
+    let answer = match request {
+        HostRequest::ShareFile { name, .. } => match share_file(&host.share_dir, name) {
+            Ok((path, file)) => {
+                log::info!("sharing through {}", path.display());
+                HostAnswer::File(Box::new(FileSink(file)))
+            }
+            Err(error) => HostAnswer::Failed(error),
+        },
+        HostRequest::Video { .. } => match video_class(env, host) {
+            Ok(class) => {
+                let video = AndroidVideo::new(class, host.share_dir.clone());
+                HostAnswer::Video(Box::new(video))
+            }
+            Err(error) => HostAnswer::Failed(PortError::Device {
+                detail: format!("no video encoder: {error}"),
+            }),
+        },
+        _ => return,
     };
     host.runtime.answer(answer);
+}
+
+/// The Kotlin encoder's class, found on this (the main) thread the first time a video is made.
+fn video_class(env: &mut Env<'_>, host: &mut Host) -> Result<Arc<VideoClass>, jni::errors::Error> {
+    if let Some(class) = &host.video {
+        return Ok(Arc::clone(class));
+    }
+    let class = Arc::new(VideoClass::find(env)?);
+    host.video = Some(Arc::clone(&class));
+    Ok(class)
 }
 
 /// What the user chose: `fd` is a descriptor the Kotlin host detached for us (owned from now

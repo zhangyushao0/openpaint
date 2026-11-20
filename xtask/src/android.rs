@@ -13,7 +13,7 @@ use crate::version::{Version, format};
 /// The tablet's ABI.
 const ABI: &str = "arm64-v8a";
 /// Must equal `minSdk` in `apps/android/app/build.gradle.kts`.
-const MIN_SDK: &str = "28";
+const MIN_SDK: &str = "29";
 pub const ACTIVITY: &str = "dev.openpaint/.MainActivity";
 pub const APK: &str = "apps/android/app/build/outputs/apk/debug/app-debug.apk";
 const WRAPPER_JAR: &str = "apps/android/gradle/wrapper/gradle-wrapper.jar";

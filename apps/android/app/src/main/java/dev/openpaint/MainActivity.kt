@@ -47,6 +47,8 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The replay's videos reach the album through the app's resolver, from the video worker.
+        VideoEncoder.app = applicationContext
         val memory = ActivityManager.MemoryInfo()
         getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory)
         // The system's language now: a change recreates the activity, so this start sees it.

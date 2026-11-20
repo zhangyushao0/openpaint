@@ -1,7 +1,7 @@
 //! Files the system hands the app, as the runtime's ports: a document opened for writing an
 //! export (the save dialog's, or one the host makes for sharing) and a picture opened for
-//! reading. Also the one-line form of the requests the Kotlin host serves. Plain Rust; the file
-//! descriptors become `File`s in the JNI layer.
+//! reading; the place a video for the share sheet is made. Also the one-line form of the requests
+//! the Kotlin host serves. Plain Rust; the file descriptors become `File`s in the JNI layer.
 
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -97,10 +97,10 @@ pub fn request_line(request: &HostRequest, share_dir: &Path) -> Option<(String, 
             let path = share_dir.join(name);
             Some((format!("send\t{}\t{}", format.mime(), path.display()), None))
         }
-        HostRequest::ShareFile { .. } => None,
-        // S163c: the encoder made at once on the Rust side (`jni_transfer.rs`), the share sheet
-        // for the video last made as a line the Kotlin host serves.
-        HostRequest::Video { .. } | HostRequest::SendVideo { .. } => None,
+        // The video last made: the Kotlin encoder knows where it went (the album or the shares).
+        HostRequest::SendVideo { name } => Some((format!("send-video\t{name}"), None)),
+        // Served on the Rust side at once (`jni_transfer.rs`): a file to share, a video encoder.
+        HostRequest::ShareFile { .. } | HostRequest::Video { .. } => None,
     }
 }
 
@@ -148,6 +148,11 @@ mod tests {
             format: ImageFormat::Png,
         };
         assert_eq!(request_line(&share, dir), None);
+        let send = HostRequest::SendVideo {
+            name: "Harbour.mp4".into(),
+        };
+        let line = request_line(&send, dir);
+        assert_eq!(line, Some(("send-video\tHarbour.mp4".into(), None)));
     }
 
     #[test]

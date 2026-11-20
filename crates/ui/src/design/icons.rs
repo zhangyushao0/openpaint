@@ -7,6 +7,7 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use egui::{Color32, Pos2, Rect, Stroke};
 
 use super::icon_layers::layer_icons;
+use super::icon_media::media_icons;
 use super::icon_tools::tools;
 use super::paint::ink_line;
 
@@ -86,6 +87,9 @@ pub enum Icon {
     /// A chevron to the left and one to the right: earlier and later (a calendar's months).
     Earlier,
     Later,
+    /// A triangle pointing right, and two upright bars: play and pause (the replay).
+    Play,
+    Pause,
 }
 
 pub(super) type Line = Vec<[f32; 2]>;
@@ -178,6 +182,7 @@ fn polylines(icon: Icon) -> Vec<Line> {
         | Icon::Clipped
         | Icon::Mask
         | Icon::MergeDown => layer_icons(icon),
+        Icon::Play | Icon::Pause => media_icons(icon),
         // Discs, painted whole.
         Icon::SizeSmall | Icon::SizeLarge | Icon::OpacityLight | Icon::OpacityDark => Vec::new(),
     }
@@ -378,6 +383,8 @@ mod tests {
             Icon::More,
             Icon::Earlier,
             Icon::Later,
+            Icon::Play,
+            Icon::Pause,
         ];
         for icon in icons {
             let lines = polylines(icon);

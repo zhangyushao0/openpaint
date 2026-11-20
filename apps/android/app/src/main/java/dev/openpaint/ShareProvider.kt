@@ -11,9 +11,10 @@ import java.io.File
 import java.io.FileNotFoundException
 
 /**
- * Serves the file made for the share sheet (`cacheDir/share/<name>`) read-only to the app the
- * user shares it with, which gets a per-URI read grant; nothing else is reachable. A file
- * provider of our own, so the host needs no AndroidX (DECISIONS D11, D14).
+ * Serves the file made for the share sheet (`cacheDir/share/<name>`: a picture, or the replay's
+ * video) read-only to the app the user shares it with, which gets a per-URI read grant; nothing
+ * else is reachable. A file provider of our own, so the host needs no AndroidX (DECISIONS D11,
+ * D14).
  */
 class ShareProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -29,6 +30,7 @@ class ShareProvider : ContentProvider() {
     override fun getType(uri: Uri): String? = when (file(uri)?.extension?.lowercase()) {
         "png" -> "image/png"
         "jpg", "jpeg" -> "image/jpeg"
+        "mp4" -> "video/mp4"
         else -> null
     }
 

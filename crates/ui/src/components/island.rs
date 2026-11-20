@@ -77,6 +77,17 @@ pub fn island<R>(
     place: Place,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> (R, Rect) {
+    island_of(ctx, id, (place, TOUCH_TARGET), add_contents)
+}
+
+/// As `island`, `height` points high: a bar whose middle holds more than one row (the replay's
+/// play, track and speeds), its contents centred on its height.
+pub fn island_of<R>(
+    ctx: &egui::Context,
+    id: &str,
+    (place, height): (Place, f32),
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> (R, Rect) {
     let shown = egui::Area::new(Id::new(id))
         // In front, over the chrome pass's paper.
         .order(Order::Foreground)
@@ -84,7 +95,7 @@ pub fn island<R>(
         // Whole in the frame it opens: feedback within one frame.
         .fade_in(false)
         .anchor(place.anchor, place.offset)
-        .show(ctx, |ui| row(ui, add_contents));
+        .show(ctx, |ui| row(ui, height, add_contents));
     chrome::island(ctx, Id::new(id), shown.response.rect);
     (shown.inner, shown.response.rect)
 }
@@ -105,7 +116,7 @@ pub fn pill<R>(
         .fade_in(false)
         .anchor(place.anchor, place.offset);
     paper(ctx, Id::new(id), source, area, |ui| {
-        row(ui, |ui| {
+        row(ui, TOUCH_TARGET, |ui| {
             ui.add_space(1.5 * SPACE);
             let inner = add_contents(ui);
             ui.add_space(SPACE);
@@ -114,12 +125,12 @@ pub fn pill<R>(
     })
 }
 
-/// One touch target high, left to right, half a space in from the ends.
-fn row<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+/// `height` points high, left to right, half a space in from the ends.
+fn row<R>(ui: &mut egui::Ui, height: f32, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
     surface_frame(Margin::symmetric((SPACE / 2.0) as i8, 0))
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(SPACE / 2.0, 0.0);
-            ui.set_height(TOUCH_TARGET);
+            ui.set_height(height);
             ui.with_layout(Layout::left_to_right(Align::Center), add_contents)
                 .inner
         })

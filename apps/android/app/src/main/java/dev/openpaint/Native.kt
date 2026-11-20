@@ -103,8 +103,10 @@ internal object Native {
 
     /**
      * The next thing to show, as tab-separated fields: "save", mime, name (the save dialog);
-     * "open" (the image picker); "open-file" (any file); "send", mime, path (the share sheet).
-     * Null when there is none.
+     * "open" (the image picker); "open-file" (any file); "send", mime, path (the share sheet);
+     * "send-video", name (the share sheet for the replay's video last made, [VideoEncoder.last]).
+     * Null when there is none. The replay's video itself is made by [VideoEncoder], which the
+     * Rust side drives from its video worker.
      */
     @JvmStatic external fun request(handle: Long): String?
 

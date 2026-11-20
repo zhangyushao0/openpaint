@@ -18,8 +18,9 @@ android {
 
     defaultConfig {
         applicationId = "dev.openpaint"
-        // Must equal MIN_SDK in xtask/src/android.rs.
-        minSdk = 28
+        // Must equal MIN_SDK in xtask/src/android.rs. 29: the album's RELATIVE_PATH and
+        // IS_PENDING for the replay's videos (S163).
+        minSdk = 29
         targetSdk = 35
         versionCode = passed("openpaint.versionCode").toInt()
         versionName = passed("openpaint.versionName")

@@ -1,11 +1,11 @@
 //! Every word the interface shows, in English and Chinese (DECISIONS D100). A `Text` holds both,
 //! side by side, so a missing translation does not compile and each Chinese line sits beside the
 //! English it renders; the tables are split by where the words show (`common.rs`, `canvas.rs`,
-//! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`), words made with numbers
-//! are functions beside them. A mode's screens keep their words in tables of their own crate,
-//! made with the same `texts!` and `Text`, beside these (D112). Screens write no words of their
-//! own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src` outside this
-//! module).
+//! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `replay.rs`), words made
+//! with numbers are functions beside them. A mode's screens keep their words in tables of their
+//! own crate, made with the same `texts!` and `Text`, beside these (D112). Screens write no words
+//! of their own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src` outside
+//! this module).
 //!
 //! The English is a control's name too: the control map registers it whichever language shows
 //! (D48), so scenarios, benches and device chores name controls alike in both. A name the user
@@ -41,6 +41,7 @@ mod gallery;
 mod layers;
 mod names;
 mod notices;
+mod replay;
 
 pub use brushes::*;
 pub use canvas::*;
@@ -50,6 +51,7 @@ pub use gallery::*;
 pub use layers::*;
 pub use names::*;
 pub use notices::*;
+pub use replay::*;
 
 pub use openpaint_app::Language;
 
@@ -223,6 +225,7 @@ mod tests {
             GALLERY_NOTICES,
             NAMES,
             NOTICES,
+            REPLAY_TABLE,
         ]
         .concat()
     }
