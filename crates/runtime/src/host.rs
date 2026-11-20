@@ -1,6 +1,6 @@
-//! What the host tells the runtime outside input and frames: leaving the app, its answers to
-//! the system dialogs the app asked for, the device's time zone, and in debug builds the
-//! screen's precision check.
+//! What the host tells the runtime outside input and frames: leaving the app (the replay
+//! pauses), its answers to the system dialogs the app asked for and the replay's encoder, the
+//! device's time zone, and in debug builds the screen's precision check.
 
 use std::time::Duration;
 
@@ -32,6 +32,7 @@ impl Runtime {
         practice::timer_saved(&mut self.practice, &mut self.storage);
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);
+            canvas.pause_replay();
             // Time hidden is no practice: a sheet's time so far goes to the store.
             if let Some(sheet) = practice::sheet(canvas) {
                 sheet.hidden();
@@ -67,22 +68,26 @@ impl Runtime {
     }
 
     /// The next thing the app asks the host to show or make (a system picker, a file to share,
-    /// the share sheet), once; call after each frame until `None`.
+    /// the share sheet, the replay's video encoder), once; call after each frame until `None`.
     pub fn host_request(&mut self) -> Option<HostRequest> {
         self.transfers
             .request()
+            .or_else(|| self.replay_request())
             .or_else(|| self.screen.gallery_mut()?.host_request())
     }
 
     /// The host's answer to the last request that asks for one. The work it starts runs on the
-    /// transfer worker at once, also while the app has no window; the host should ask for a
-    /// frame.
+    /// transfer worker (the video worker for the replay's encoder) at once, also while the app
+    /// has no window; the host should ask for a frame.
     pub fn answer(&mut self, answer: HostAnswer) {
         if self.transfers.waiting() {
             log::info!("the host answered: {answer:?}");
             if let Some(job) = self.transfers.answer(answer) {
                 self.transfer.submit(job);
             }
+        } else if self.replay_waiting() {
+            log::info!("the host answered the replay: {answer:?}");
+            self.answer_replay(answer);
         } else if let Some((gallery, options)) =
             self.screen.options_mut().filter(|(g, _)| g.waiting())
         {

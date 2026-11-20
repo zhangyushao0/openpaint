@@ -2,8 +2,9 @@
 //! between batches, so gestures that wait without input (fingers held for a repeating
 //! shortcut, a drop or the pen held still, the view status fading) see time pass in the same
 //! clock their samples use. And the frame clock motion runs on (D44): real elapsed time from the
-//! start. The harness holds both at one time (`Runtime::fix_clock`), so what a gesture means
-//! never depends on how long its frames took.
+//! start, with the wall clock beside it (dated versions, a stroke's start: the wall clock less
+//! the input clock each frame, D125). The harness holds both at one time (`Runtime::fix_clock`),
+//! so what a gesture means never depends on how long its frames took.
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -110,6 +111,32 @@ impl FrameClock {
         match self.fixed {
             Some(ms) => ms as f64 / 1000.0,
             None => self.started.elapsed().as_secs_f64(),
+        }
+    }
+
+    /// Milliseconds now, what the replay's playhead moves by.
+    pub(crate) fn millis(&self) -> u64 {
+        match self.fixed {
+            Some(ms) => u64::try_from(ms).unwrap_or(0),
+            None => u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        }
+    }
+
+    /// The wall clock in milliseconds since 1970 UTC, for the start a stroke keeps (D125); once
+    /// the harness held the clock, on its calendar as `wall_seconds`.
+    pub(crate) fn wall_ms(&self) -> i64 {
+        let calendar = || i64::try_from(FIXED_WALL * 1000).unwrap_or(i64::MAX);
+        match self.fixed {
+            Some(ms) => calendar().saturating_add(ms),
+            None if self.harnessed => {
+                let ran = i64::try_from(self.started.elapsed().as_millis()).unwrap_or(i64::MAX);
+                calendar().saturating_add(ran)
+            }
+            None => SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |since| {
+                    i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+                }),
         }
     }
 

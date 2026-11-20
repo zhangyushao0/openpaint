@@ -14,11 +14,13 @@
 //! `storage_fails` / `storage_works`, `system` (a picker's answer: a fixture picture, the test pack
 //! or test frames of `test_pack.rs`, the test compositions of `test_compositions.rs`, the test
 //! crops of known areas of `test_crops.rs`), `lose_device`, `checkpoint` (a canvas hash), `view`,
-//! `exported`, `preview`, `expect` (controls that must and must not show) and `screenshot`. A spot
-//! is a control's name (`name #n` when shared), `{ on, fraction, offset }`, or window pixels on the
-//! canvas only (`target.rs`); pixels on a control fail the run with the name to write. The runner
-//! (`runner.rs`) holds the clock and opens one device with an 8-bit screen; `Watched` is the
-//! switchable store wrapper `storage_fails` turns.
+//! `exported`, `video` (the replay's last video as the encoder lent kept it, `video/`), `preview`,
+//! `expect` (controls that must and must not show) and `screenshot`; the steps' shapes in
+//! `scenario/step.rs`. A spot is a control's name (`name #n` when shared), `{ on, fraction,
+//! offset }`, or window pixels on the canvas only (`target.rs`); pixels on a control fail the run
+//! with the name to write. The runner (`runner/`) holds the clock, lets a video's frames through
+//! a frame at a time and opens one device with an 8-bit screen; `Watched` is the switchable store
+//! wrapper `storage_fails` turns.
 #![forbid(unsafe_code)]
 
 mod diff;
@@ -35,6 +37,7 @@ mod target;
 mod test_compositions;
 mod test_crops;
 mod test_pack;
+mod video;
 mod watched;
 
 pub use crate::diff::{Diff, diff};
@@ -48,4 +51,5 @@ pub use crate::scenario::{
 };
 pub use crate::system::{Export, TEST_BANDS};
 pub use crate::target::{Key, Place, Spot};
+pub use crate::video::{Ended, VideoCheck};
 pub use crate::watched::{Watched, Wrote};

@@ -5,8 +5,9 @@
 //! answers, the canvas opening, the intents applied; `ui_pass.rs`); the workers, each a
 //! `worker::Queue` on its own named thread (ARCHITECTURE section 3): `storage/`, `transfer.rs`,
 //! `fill.rs`, `pictures.rs`, `brush_pictures.rs` with `strip.rs`, `display.rs`, `raster.rs`,
-//! practice's in `practice/`. The rest: the open canvas `canvas/` (`Work::Artwork | Work::Sheet`,
-//! D119; the frame's intents, the eyedropper, the target and view tiers, the display cache),
+//! the replay's videos `video.rs` (S163), practice's in `practice/`. The rest: the open canvas
+//! `canvas/` (`Work::Artwork | Work::Sheet`, D119; the frame's intents, the eyedropper, the
+//! target and view tiers, the display cache, the replay shown instead of the artwork),
 //! `screen/` with its jobs (`Screen { Opening, Canvas, Gallery }`), practice composed
 //! `practice/` (D112), background work while idle `ahead.rs` and `touches.rs` (D96), `pacing.rs`
 //! (D97), device loss `recover.rs` and `shared.rs`, the GPU budget `budget/` with what it logs
@@ -47,6 +48,7 @@ mod text;
 mod touches;
 mod transfer;
 mod ui_pass;
+mod video;
 mod worker;
 
 pub use crate::bench::{SCENARIOS, STROKES_ADDED, busiest};
@@ -60,6 +62,7 @@ pub use crate::practice::{PracticeTest, skill_start};
 pub use crate::recorder::{FRAMES_FILE, FRAMES_KEPT, FrameRecorder};
 pub use crate::text::{EditKey, TextInput};
 pub use crate::transfer::{Encoded, encoded};
+pub use crate::video::make_video;
 pub use openpaint_app::{
     BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, Language, PortError,
     ScreenProjection,

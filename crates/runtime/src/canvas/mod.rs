@@ -2,9 +2,11 @@
 //! the target its artwork is evaluated into, where that target shows on screen, and whether the
 //! user is leaving it for the gallery. The frame's intents are applied in `dispatch.rs`, the
 //! eyedropper in `pick.rs`, the target, its view tiers and the GPU's work in `gpu.rs`, the display
-//! cache it showed in `cache.rs`.
+//! cache it showed in `cache.rs`, the replay shown instead of the artwork in `replay.rs` (S163).
 
-use openpaint_app::{FillFailed, Session, Title, Toolbox, ViewMapping, Viewport};
+use openpaint_app::{
+    CanvasView, FillFailed, Replay, Session, Speed, Title, Toolbox, ViewMapping, Viewport,
+};
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle, StrokeTool};
 use openpaint_practice::ItemRef;
 use openpaint_practice_app::{PictureImage, PracticePens, SheetSession, copy_brush};
@@ -21,6 +23,7 @@ mod cache;
 mod dispatch;
 mod gpu;
 mod pick;
+mod replay;
 mod work;
 
 use cache::CacheState;
@@ -101,6 +104,11 @@ pub(crate) struct Canvas {
     ahead: Option<Opening>,
     /// What the display cache holds for it and must match.
     cache: CacheState,
+    /// The replay shown instead of the artwork while it is open (`replay.rs`); the speed the
+    /// next opens at, the app's; the user's Cancel of its video, until the worker is told.
+    replay: Option<Box<Replay>>,
+    replay_speed: Speed,
+    video_cancelled: bool,
 }
 
 impl Canvas {
@@ -162,6 +170,9 @@ impl Canvas {
             opened: Some(Opening::start(core)),
             ahead: None,
             cache: CacheState::default(),
+            replay: None,
+            replay_speed: Speed::default(),
+            video_cancelled: false,
         };
         if let Content::Stored(_, _, held) = content {
             canvas.show_opened(core, held);
@@ -210,19 +221,24 @@ impl Canvas {
 
     /// The target shown in the canvas area through the session's view as `shown` shows it (the
     /// same, or on its way there while the view settles), on a screen of `pixels_per_point`,
-    /// with the pen's hover outline when it shows.
+    /// with the pen's hover outline when it shows; while the replay is open, at fit with the
+    /// ring at its stroke's tip instead.
     pub(crate) fn placement(
         &self,
         (area, pixels_per_point): (&CanvasArea, f32),
         cursor: Option<BrushCursor>,
         shown: impl FnOnce(ViewMapping) -> ViewMapping,
     ) -> CanvasPlacement<'_> {
-        let frame = self.view_frame((area, pixels_per_point), shown);
+        let mapping = self.mapping((area, pixels_per_point), shown);
+        let cursor = match &self.replay {
+            Some(_) => self.replay_ring(&mapping, pixels_per_point),
+            None => cursor,
+        };
         CanvasPlacement {
             target: &self.target,
-            origin: frame.origin,
-            size: frame.size,
-            to_canvas: frame.to_canvas,
+            origin: area.screen.origin,
+            size: area.screen.size,
+            to_canvas: mapping.to_canvas_rows(),
             cursor,
             pixels_per_point,
             view: Some(&self.view),
@@ -230,20 +246,34 @@ impl Canvas {
     }
 
     /// Where the canvas shows in the canvas area through the session's view as `shown` shows
-    /// it, on a screen of `pixels_per_point`.
+    /// it (at fit while the replay is open), on a screen of `pixels_per_point`.
     pub(crate) fn view_frame(
         &self,
         (area, pixels_per_point): (&CanvasArea, f32),
         shown: impl FnOnce(ViewMapping) -> ViewMapping,
     ) -> ViewFrame {
-        let canvas = self.work.session().artwork().canvas();
-        let viewport = area.viewport(pixels_per_point);
-        let mapping = shown(self.work.session().view().mapping(canvas, &viewport));
+        let mapping = self.mapping((area, pixels_per_point), shown);
         ViewFrame {
             to_canvas: mapping.to_canvas_rows(),
             origin: area.screen.origin,
             size: area.screen.size,
         }
+    }
+
+    /// The view's map onto the canvas area as `shown` shows it: the session's view, or fit
+    /// while the replay is open.
+    fn mapping(
+        &self,
+        (area, pixels_per_point): (&CanvasArea, f32),
+        shown: impl FnOnce(ViewMapping) -> ViewMapping,
+    ) -> ViewMapping {
+        let canvas = self.work.session().artwork().canvas();
+        let viewport = area.viewport(pixels_per_point);
+        let view = match &self.replay {
+            Some(_) => CanvasView::FIT,
+            None => self.work.session().view(),
+        };
+        shown(view.mapping(canvas, &viewport))
     }
 
     /// While the pen erases or smudges: the tip in canvas pixels, where the stroke is now and

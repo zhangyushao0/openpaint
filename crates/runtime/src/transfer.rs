@@ -59,14 +59,22 @@ impl TransferWorker {
 
 /// Applies the frame's export and reference intents to `transfers` and returns the others in
 /// order. An export takes the version on the open `canvas`. A contact landing on the canvas
-/// lets a success notice go.
+/// lets a success notice go. The replay's intents go on to the canvas; while it is open nothing
+/// else does (S163).
 pub(crate) fn route(
     transfers: &mut Transfers,
     canvas: Option<&Canvas>,
     intents: Vec<Intent>,
 ) -> Vec<Intent> {
+    let replaying = canvas.is_some_and(Canvas::replaying);
     let mut rest = Vec::with_capacity(intents.len());
     for intent in intents {
+        if replaying || matches!(intent, Intent::Replay(_)) {
+            if matches!(intent, Intent::Replay(_)) {
+                rest.push(intent);
+            }
+            continue;
+        }
         let result = match &intent {
             Intent::Export(export) => {
                 if let ExportIntent::Start {

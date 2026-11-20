@@ -46,7 +46,8 @@ impl Runtime {
         // Input waiting is a hand's (a lift, the last of a drag) even once nothing touches.
         let input = !self.pending.is_empty() || !self.typed.is_empty();
         let resting = self.touches.resting(drawing) && !input;
-        Wanted::of(drawing, (resting, self.shell.animating()))
+        let moving = self.shell.animating() || self.replay_moving();
+        Wanted::of(drawing, (resting, moving))
     }
 
     /// A frame call skipped while the GPU is behind: while nothing touches the screen, the open
