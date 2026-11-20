@@ -3,7 +3,7 @@
 //! several recipes, undone stroke ids skipped; Alpha Lock, an eraser stroke, fills, graphite on
 //! paper and an airbrush, strokes drawn inside selections, pixels moved and a picture placed,
 //! smudges, a faded hidden group with a clipping layer and blend modes. `records.rs` adds the
-//! rest.
+//! rest. Every edit's place among all strokes is the one format 1's conversion gives it (D125).
 
 use openpaint_core::{
     AccumulationParts, ArtworkParts, BlendMode, BrushRecipe, EditParts, FillParts, GroupParts,
@@ -98,6 +98,7 @@ fn layer(id: u64, name: &str, opacity: f32, strokes: Vec<StrokeParts>) -> LayerP
 fn layers() -> ArtworkParts {
     let stroke = |id, recipe, size, opacity, color, samples| StrokeParts {
         id,
+        began_ms: 0,
         blend: StrokeBlend::Over,
         recipe,
         size,
@@ -152,6 +153,7 @@ fn filled() -> ArtworkParts {
     let mut parts = layers();
     parts.layers[0].edits.push(EditParts::Fill(FillParts {
         after: 1,
+        before_stroke: 2,
         color: [0.75, 0.25, 0.5],
         alpha_locked: true,
         origin: [10, 8],
@@ -160,6 +162,7 @@ fn filled() -> ArtworkParts {
     }));
     parts.layers[2].edits.push(EditParts::Fill(FillParts {
         after: 0,
+        before_stroke: 7,
         color: [0.0, 0.5, 1.0],
         alpha_locked: false,
         origin: [40, 30],
@@ -205,6 +208,7 @@ fn moved() -> ArtworkParts {
         .edits
         .push(EditParts::Transform(TransformParts {
             after: 2,
+            before_stroke: 4,
             lift: Some(lift),
             patch: Some(patch([4, 6], [4, 3])),
             matrix: [0.0, -1.0, 1.0, 0.0],
@@ -214,6 +218,7 @@ fn moved() -> ArtworkParts {
         .edits
         .push(EditParts::Transform(TransformParts {
             after: 0,
+            before_stroke: 7,
             lift: None,
             patch: Some(patch([40, 30], [3, 2])),
             matrix: [-1.5, 0.0, 0.0, 1.5],

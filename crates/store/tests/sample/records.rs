@@ -36,6 +36,7 @@ fn masked() -> ArtworkParts {
     };
     let fill = EditParts::Fill(FillParts {
         after: 1,
+        before_stroke: 9,
         color: [0.5; 3],
         alpha_locked: false,
         origin: [20, 10],
@@ -52,9 +53,15 @@ fn masked() -> ArtworkParts {
     parts
 }
 
-fn adjust(after: u64, clip: Option<MaskParts>, inverted: bool, what: AdjustmentParts) -> EditParts {
+fn adjust(
+    (after, before_stroke): (u64, u64),
+    clip: Option<MaskParts>,
+    inverted: bool,
+    what: AdjustmentParts,
+) -> EditParts {
     EditParts::Adjust(AdjustParts {
         after,
+        before_stroke,
         clip,
         inverted,
         adjustment: what,
@@ -88,19 +95,19 @@ fn adjusted() -> ArtworkParts {
     let after = sketch.strokes.len() as u64;
     sketch.edits.extend([
         adjust(
-            2,
+            (2, 4),
             Some(selected),
             false,
             AdjustmentParts::Hsb([0.625, 0.25, 0.75]),
         ),
-        adjust(after, Some(blurred), false, AdjustmentParts::Blur(6.5)),
-        adjust(after, None, false, AdjustmentParts::Sharpen(0.75)),
+        adjust((after, 7), Some(blurred), false, AdjustmentParts::Blur(6.5)),
+        adjust((after, 7), None, false, AdjustmentParts::Sharpen(0.75)),
     ]);
     let mask = sketch.mask.as_mut().expect("the sketch's mask");
-    mask.edits.push(adjust(2, None, true, curves));
+    mask.edits.push(adjust((2, 10), None, true, curves));
     let ink = parts.layers[1].mask.as_mut().expect("the ink's mask");
     ink.edits.push(adjust(
-        1,
+        (1, 11),
         None,
         false,
         AdjustmentParts::Hsb([0.5, 0.5, 0.375]),
@@ -108,6 +115,7 @@ fn adjusted() -> ArtworkParts {
     let record = |lift, matrix, translation| {
         EditParts::Transform(TransformParts {
             after: 2,
+            before_stroke: 6,
             lift,
             patch: None,
             matrix,
@@ -134,10 +142,11 @@ fn merged() -> ArtworkParts {
     let mut parts = adjusted();
     let sketch = &mut parts.layers[0];
     let after = sketch.strokes.len() as u64;
-    let layer = merged_layer(&sketch.strokes[1], after);
+    let layer = merged_layer(&sketch.strokes[1], (after, 7));
     sketch.edits.push(layer);
     sketch.edits.push(EditParts::Clear(ClearParts {
         after,
+        before_stroke: 7,
         mask: MaskParts {
             origin: [10, 12],
             size: [6, 2],
@@ -149,8 +158,8 @@ fn merged() -> ArtworkParts {
     parts
 }
 
-/// Layer 6 as `merged` describes it, its strokes made from `model`, after `after` strokes.
-fn merged_layer(model: &StrokeParts, after: u64) -> EditParts {
+/// Layer 6 as `merged` describes it, its strokes made from `model`, at `(after, before_stroke)`.
+fn merged_layer(model: &StrokeParts, (after, before_stroke): (u64, u64)) -> EditParts {
     let stroke = |id, blend, color: [f32; 3]| {
         let mut stroke = model.clone();
         (stroke.id, stroke.blend, stroke.color, stroke.clip) = (id, blend, color, None);
@@ -158,6 +167,7 @@ fn merged_layer(model: &StrokeParts, after: u64) -> EditParts {
     };
     let inner = NestedParts {
         after: 1,
+        before_stroke: 12,
         id: 7,
         opacity: 0.5,
         blend: BlendMode::Normal,
@@ -168,6 +178,7 @@ fn merged_layer(model: &StrokeParts, after: u64) -> EditParts {
     };
     let fill = EditParts::Fill(FillParts {
         after: 1,
+        before_stroke: 12,
         color: [0.25, 0.5, 0.75],
         alpha_locked: false,
         origin: [30, 20],
@@ -176,6 +187,7 @@ fn merged_layer(model: &StrokeParts, after: u64) -> EditParts {
     });
     let outside = EditParts::Clear(ClearParts {
         after: 1,
+        before_stroke: 12,
         mask: MaskParts {
             origin: [0, 0],
             size: [64, 3],
@@ -184,6 +196,7 @@ fn merged_layer(model: &StrokeParts, after: u64) -> EditParts {
     });
     EditParts::Nested(NestedParts {
         after,
+        before_stroke,
         id: 6,
         opacity: 0.625,
         blend: BlendMode::Screen,
@@ -225,5 +238,41 @@ pub fn parts() -> ArtworkParts {
     stamped.seed = 0xC0FF_EE01;
     parts.layers[1].strokes.extend([tilted, stamped]);
     parts.next_stroke_id = 16;
+    each_stroke(&mut parts, |stroke| {
+        stroke.began_ms = if stroke.id == 4 {
+            0
+        } else {
+            BEGAN_MS + stroke.id * 60_000
+        };
+    });
     parts
+}
+
+/// 2026-11-14 21:07 UTC: the sample's strokes began a minute apart from it, by their ids, but
+/// stroke 4, whose start is unknown (as a stroke kept before format 2).
+const BEGAN_MS: u64 = 1_794_690_420_000;
+
+/// `set` on every stroke of `parts`: layers', masks' and merged layers' at any depth.
+fn each_stroke(parts: &mut ArtworkParts, mut set: impl FnMut(&mut StrokeParts)) {
+    fn list(
+        strokes: &mut [StrokeParts],
+        edits: &mut [EditParts],
+        set: &mut dyn FnMut(&mut StrokeParts),
+    ) {
+        strokes.iter_mut().for_each(&mut *set);
+        for edit in edits {
+            if let EditParts::Nested(nested) = edit {
+                list(&mut nested.strokes, &mut nested.edits, set);
+                if let Some(mask) = nested.mask.as_mut() {
+                    list(&mut mask.strokes, &mut mask.edits, set);
+                }
+            }
+        }
+    }
+    for layer in &mut parts.layers {
+        list(&mut layer.strokes, &mut layer.edits, &mut set);
+        if let Some(mask) = layer.mask.as_mut() {
+            list(&mut mask.strokes, &mut mask.edits, &mut set);
+        }
+    }
 }

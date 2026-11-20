@@ -30,20 +30,26 @@
 //!   the notice with OK.
 //! - Back (and the system's back) closes it: the canvas shows the artwork as it was, the studio's
 //!   chrome returns; refused while a video is made. Leaving the app pauses it.
+//!
+//! The parts: `timeline.rs` the time, `shown.rs` the screen's projection, `video.rs` the video's
+//! port and frames, `making.rs` the video being made.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use openpaint_core::{Artwork, CanvasSize, DrawingOrder, ReplayFrame};
+use openpaint_core::{Artwork, CanvasSize, DrawingOrder, ReplayFrame, StepKind};
 
 use crate::error::AppError;
 use crate::projection::{Availability, EditorAction};
 use crate::title::Title;
-use crate::transfer::{Delivery, HostAnswer, HostRequest};
+use crate::transfer::{Delivery, HostRequest};
 
+mod making;
 mod shown;
 mod timeline;
 mod video;
+
+use making::Making;
 
 pub use shown::{
     ExportChoices, ReplayProjection, ReplayShown, Speed, StrokeLabel, VideoLength, VideoNotice,
@@ -91,18 +97,11 @@ pub enum ReplayIntent {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Choices {
     length: VideoLength,
-    /// The segment's ends, ms of the timeline at 1×.
-    segment: [u64; 2],
+    /// The segment's ends, ms of the timeline at 1×, once the handles were shown.
+    segment: Option<[u64; 2]>,
     size: VideoSize,
     hold: bool,
     caption: bool,
-}
-
-/// The video's state (S163a fills its states: asked, being made with its progress, saved,
-/// failed).
-#[derive(Debug, Clone, PartialEq, Default)]
-struct Making {
-    notice: VideoNotice,
 }
 
 /// The replay of one artwork (see the module).
@@ -113,17 +112,28 @@ pub struct Replay {
     canvas: CanvasSize,
     /// The video file's name.
     name: String,
+    /// The steps that are strokes, in order: a stroke's number is its place among them.
+    strokes: Vec<usize>,
     /// The playhead, ms of the timeline at 1×.
     at_ms: u64,
     playing: bool,
     speed: Speed,
     /// The frame clock's ms at the last tick.
     ticked: Option<u64>,
-    /// What the canvas shows at the playhead, made again only when it moves past a sample.
+    /// The moment shown, and what the canvas shows then: made again only when it changes.
+    at: At,
     shown: ReplayFrame,
     choices: Choices,
     making: Making,
     requests: VecDeque<HostRequest>,
+}
+
+/// A replay intent refused for `availability`.
+const fn refused(availability: Availability) -> AppError {
+    AppError::Unavailable {
+        action: EditorAction::Replay,
+        availability,
+    }
 }
 
 impl Replay {
@@ -133,27 +143,30 @@ impl Replay {
     pub fn open(artwork: &Artwork, title: &Title, speed: Speed) -> Self {
         let drawing = artwork.drawing_order();
         let timeline = Arc::new(Timeline::of(&drawing));
-        // S163a: blank paper at first (`drawing.frame(0, 0)`).
-        let shown = drawing.frame(drawing.steps().len(), 0);
-        let end = timeline.total_ms();
+        let strokes = (drawing.steps().iter().enumerate())
+            .filter(|(_, step)| matches!(step.kind, StepKind::Stroke { .. }))
+            .map(|(index, _)| index)
+            .collect();
         Self {
             canvas: artwork.canvas(),
             name: video_file_name(title),
+            shown: drawing.frame(0, 0),
             drawing,
             timeline,
+            strokes,
             at_ms: 0,
             playing: true,
             speed,
             ticked: None,
-            shown,
+            at: At::default(),
             choices: Choices {
                 length: VideoLength::Highlight,
-                segment: [0, end],
+                segment: None,
                 size: VideoSize::Hd,
                 hold: true,
                 caption: true,
             },
-            making: Making::default(),
+            making: Making::Idle,
             requests: VecDeque::new(),
         }
     }
@@ -164,14 +177,58 @@ impl Replay {
     /// # Errors
     /// `Unavailable` (`EditorAction::Replay`, `Running`) for any but `Cancel` while a video is
     /// made; `NothingLeft` for a choice not offered (the canvas's own size beyond the encoder's,
-    /// the caption without the hold).
+    /// the caption without the hold) and for Cancel, Share… and OK with nothing to act on.
     pub fn dispatch(&mut self, intent: &ReplayIntent) -> Result<(), AppError> {
-        // S163a: every intent by the module's flow.
         if self.making() && *intent != ReplayIntent::Cancel {
-            return Err(AppError::Unavailable {
-                action: EditorAction::Replay,
-                availability: Availability::Running,
-            });
+            return Err(refused(Availability::Running));
+        }
+        let none = refused(Availability::NothingLeft);
+        match *intent {
+            ReplayIntent::Open | ReplayIntent::Close => {}
+            ReplayIntent::Play(play) => {
+                if play && self.at_ms >= self.timeline.total_ms() {
+                    self.at_ms = 0;
+                    self.show();
+                }
+                self.playing = play;
+            }
+            ReplayIntent::Seek(place) => {
+                self.at_ms = self.ms_at(place);
+                self.show();
+            }
+            ReplayIntent::Speed(speed) => self.speed = speed,
+            ReplayIntent::Length(length) => {
+                if length == VideoLength::Segment {
+                    self.choices.segment = Some(self.segment());
+                }
+                self.choices.length = length;
+            }
+            ReplayIntent::Segment([start, end]) => {
+                let [start, end] = [start.min(end), start.max(end)].map(|end| self.ms_at(end));
+                self.choices.segment = Some([start, end]);
+            }
+            ReplayIntent::Size(size) => {
+                video_size(self.canvas, size).ok_or(none)?;
+                self.choices.size = size;
+            }
+            ReplayIntent::Hold(hold) => self.choices.hold = hold,
+            ReplayIntent::Caption(caption) if caption && !self.choices.hold => return Err(none),
+            ReplayIntent::Caption(caption) => self.choices.caption = caption,
+            ReplayIntent::Export(delivery) => self.export(delivery)?,
+            ReplayIntent::Cancel if !self.making() => return Err(none),
+            ReplayIntent::Cancel => self.making = std::mem::take(&mut self.making).cancelled(),
+            ReplayIntent::ShareSaved => {
+                let Making::Saved { name, .. } = &self.making else {
+                    return Err(none);
+                };
+                let name = name.clone();
+                self.requests.push_back(HostRequest::SendVideo { name });
+                self.making = Making::Idle;
+            }
+            ReplayIntent::Dismiss => match self.making {
+                Making::Saved { .. } | Making::Failed(_) => self.making = Making::Idle,
+                _ => return Err(none),
+            },
         }
         Ok(())
     }
@@ -179,8 +236,15 @@ impl Replay {
     /// The frame clock at `now_ms`: playing moves the playhead by the time since the last tick
     /// times the speed, stopping at the end.
     pub fn tick(&mut self, now_ms: u64) {
-        // S163a: the playhead and the frame at it.
-        self.ticked = Some(now_ms);
+        let last = self.ticked.replace(now_ms);
+        let Some(last) = last.filter(|_| self.playing) else {
+            return;
+        };
+        let total = self.timeline.total_ms();
+        let moved = now_ms.saturating_sub(last) * u64::from(self.speed.factor());
+        self.at_ms = self.at_ms.saturating_add(moved).min(total);
+        self.playing = self.at_ms < total;
+        self.show();
     }
 
     /// It plays: the composition root wants a frame every vsync meanwhile.
@@ -192,8 +256,8 @@ impl Replay {
     /// A video is being made (or its encoder asked for): Back is refused and frames keep coming
     /// for its progress.
     #[must_use]
-    pub fn making(&self) -> bool {
-        matches!(self.making.notice, VideoNotice::Working { .. })
+    pub const fn making(&self) -> bool {
+        self.making.busy()
     }
 
     /// What the canvas shows now; the same version while the playhead stays within a sample.
@@ -205,29 +269,44 @@ impl Replay {
     /// The replay's screen for this frame.
     #[must_use]
     pub fn projection(&self) -> ReplayProjection {
-        // S163a: every field from the playhead, the timeline, the choices and the video.
         let speed = u64::from(self.speed.factor());
-        let total_ms = self.timeline.total_ms() / speed;
+        let total = self.timeline.total_ms();
+        let share = |ms: u64| {
+            if total == 0 {
+                1.0
+            } else {
+                (ms as f64 / total as f64) as f32
+            }
+        };
+        let segment = self.segment();
+        let tip = (self.shown.active.as_ref())
+            .and_then(|active| active.samples().last())
+            .map(|sample| [sample.position().x(), sample.position().y()]);
         ReplayProjection {
             playing: self.playing,
             speed: self.speed,
             at_ms: self.at_ms / speed,
-            total_ms,
-            at: 0.0,
-            sittings: Vec::new(),
-            stroke: None,
-            tip: None,
+            total_ms: total / speed,
+            at: share(self.at_ms),
+            sittings: self
+                .timeline
+                .sittings()
+                .iter()
+                .map(|ms| share(*ms))
+                .collect(),
+            stroke: self.stroke(),
+            tip,
             export: ExportChoices {
                 length: self.choices.length,
-                lengths_ms: [HIGHLIGHT_MS, total_ms, total_ms],
-                segment: [0.0, 1.0],
-                segment_ms: self.choices.segment.map(|ms| ms / speed),
+                lengths_ms: VideoLength::ALL.map(|length| self.video_ms(length)),
+                segment: segment.map(share),
+                segment_ms: segment.map(|ms| ms / speed),
                 size: self.choices.size,
                 sizes: VideoSize::ALL.map(|size| video_size(self.canvas, size)),
                 hold: self.choices.hold,
                 caption: self.choices.caption,
             },
-            video: self.making.notice.clone(),
+            video: self.making.notice(),
             controls: if self.making() {
                 Availability::Running
             } else {
@@ -241,30 +320,42 @@ impl Replay {
         self.requests.pop_front()
     }
 
-    /// An encoder is asked for and not answered yet.
-    #[must_use]
-    pub const fn waiting(&self) -> bool {
-        // S163a: while the encoder is asked for.
-        false
+    /// The segment's ends: as the handles left them, else from the playhead to the end (the
+    /// whole from the end).
+    fn segment(&self) -> [u64; 2] {
+        let total = self.timeline.total_ms();
+        let first = if self.at_ms < total { self.at_ms } else { 0 };
+        self.choices.segment.unwrap_or([first, total])
     }
 
-    /// The platform's answer while `waiting`: an encoder makes the video job for the video worker;
-    /// a failure is the failed notice.
-    pub fn answer(&mut self, answer: HostAnswer) -> Option<VideoJob> {
-        // S163a: the job of the choices, `VideoFrames` over the timeline.
-        let _ = (answer, &self.drawing, &self.name, self.ticked);
-        None
+    /// The timeline's ms at `place` on the track (0 to 1).
+    fn ms_at(&self, place: f32) -> u64 {
+        let place = if place.is_nan() {
+            0.0
+        } else {
+            place.clamp(0.0, 1.0)
+        };
+        (f64::from(place) * self.timeline.total_ms() as f64).round() as u64
     }
 
-    /// The video worker made `frames` of the video's frames so far.
-    pub fn progress(&mut self, frames: u32) {
-        // S163a: the pill's percent.
-        let _ = frames;
+    /// The canvas at the playhead, made again when the moment shown changes.
+    fn show(&mut self) {
+        let at = self.timeline.at(&self.drawing, self.at_ms);
+        if at != self.at {
+            self.at = at;
+            self.shown = self.drawing.frame(at.done, at.samples);
+        }
     }
 
-    /// The video job ended: saved, shared (the share sheet next), cancelled or failed.
-    pub fn finished(&mut self, result: Result<(), VideoError>) {
-        // S163a: the notice by the result and the delivery.
-        let _ = result;
+    /// The stroke at the playhead: the last begun, by its number among the record's strokes.
+    fn stroke(&self) -> Option<StrokeLabel> {
+        let begun = self.at.done + usize::from(self.at.samples > 0);
+        let number = self.strokes.partition_point(|step| *step < begun);
+        let step = self.strokes.get(number.checked_sub(1)?)?;
+        let began_ms = match self.drawing.steps()[*step].kind {
+            StepKind::Stroke { began_ms, .. } => began_ms,
+            StepKind::Edit(_) => None,
+        };
+        Some(StrokeLabel { number, began_ms })
     }
 }

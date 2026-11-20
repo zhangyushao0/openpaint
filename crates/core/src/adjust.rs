@@ -173,6 +173,8 @@ impl Curves {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AdjustEdit {
     pub(crate) after: usize,
+    /// The artwork's next stroke id when it was made: its place among all strokes (D125).
+    pub(crate) before_stroke: u64,
     pub(crate) clip: Option<RegionMask>,
     pub(crate) adjustment: Adjustment,
     pub(crate) inverted: bool,
@@ -182,6 +184,12 @@ impl AdjustEdit {
     #[must_use]
     pub const fn after(&self) -> usize {
         self.after
+    }
+
+    /// The artwork's next stroke id when it was made (D125).
+    #[must_use]
+    pub const fn before_stroke(&self) -> u64 {
+        self.before_stroke
     }
 
     #[must_use]
@@ -202,7 +210,7 @@ impl AdjustEdit {
     /// The same edit seen from two versions: its clip shared, its values equal.
     pub(crate) fn same(&self, other: &Self) -> bool {
         RegionMask::both_shared(self.clip.as_ref(), other.clip.as_ref())
-            && self.after == other.after
+            && (self.after, self.before_stroke) == (other.after, other.before_stroke)
             && self.inverted == other.inverted
             && self.adjustment == other.adjustment
     }
@@ -220,6 +228,7 @@ impl AdjustEdit {
         };
         AdjustParts {
             after: self.after as u64,
+            before_stroke: self.before_stroke,
             clip: self.clip.as_ref().map(RegionMask::to_parts),
             inverted: self.inverted,
             adjustment,
@@ -262,6 +271,7 @@ impl AdjustEdit {
         };
         Ok(Self {
             after: usize::try_from(parts.after).map_err(|_| invalid("adjustment place"))?,
+            before_stroke: parts.before_stroke,
             clip,
             adjustment,
             inverted: parts.inverted,
@@ -273,6 +283,8 @@ impl AdjustEdit {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AdjustParts {
     pub after: u64,
+    /// The artwork's next stroke id when it was made (D125).
+    pub before_stroke: u64,
     pub clip: Option<MaskParts>,
     pub inverted: bool,
     pub adjustment: AdjustmentParts,
@@ -313,6 +325,7 @@ impl Artwork {
         };
         let edit = AdjustEdit {
             after,
+            before_stroke: self.next_stroke_id(),
             clip,
             adjustment,
             inverted,

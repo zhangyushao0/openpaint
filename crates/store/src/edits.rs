@@ -1,8 +1,9 @@
-//! Region edit records (format 1, `records.rs` has the keys): one per fill, cleared pixels,
+//! Region edit records (format 2, `records.rs` has the keys): one per fill, cleared pixels,
 //! transform, adjustment or merged layer, keyed like strokes, `[project u64]['e'][slot
 //! u64][index u64]`, oldest at index 0. A value starts with its kind (u8: 0 fill, 1 cleared
-//! pixels, 2 transform, 3 adjustment, `adjusts.rs`, 4 a merged layer, `nested.rs`) and how many
-//! of its slot's strokes lie under it (u32).
+//! pixels, 2 transform, 3 adjustment, `adjusts.rs`, 4 a merged layer, `nested.rs`), how many
+//! of its slot's strokes lie under it (u32) and the artwork's next stroke id when it was made
+//! (u64, its place among all strokes; D125).
 //!
 //! - A fill: red, green, blue (f32), alpha locked (u8), its mask (`write_mask`).
 //! - Cleared pixels (a cut, or what a copy leaves outside its selection): the mask.
@@ -52,11 +53,16 @@ pub(crate) fn edit_key(project: ProjectId, slot: u64, index: usize) -> Vec<u8> {
     key
 }
 
-/// A record's writer holding its kind and how many strokes lie under it.
-pub(crate) fn edit_writer(kind: u8, after: usize, capacity: usize) -> Writer {
+/// Where an edit lies: how many of its slot's strokes lie under it, and the artwork's next stroke
+/// id when it was made.
+pub(crate) type Place = (u64, u64);
+
+/// A record's writer holding its kind and its place.
+pub(crate) fn edit_writer(kind: u8, edit: &RegionEdit, capacity: usize) -> Writer {
     let mut writer = Writer::with_capacity(capacity);
     writer.u8(kind);
-    writer.len(after);
+    writer.len(edit.after());
+    writer.u64(edit.before_stroke());
     writer
 }
 
@@ -64,7 +70,7 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
     match edit {
         RegionEdit::Fill(fill) => {
             let mask = fill.mask().to_parts();
-            let mut writer = edit_writer(KIND_FILL, fill.after(), 48 + mask.runs.len() * 2);
+            let mut writer = edit_writer(KIND_FILL, edit, 56 + mask.runs.len() * 2);
             let color = fill.color();
             for channel in [color.r(), color.g(), color.b()] {
                 writer.f32(channel);
@@ -75,18 +81,18 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
         }
         RegionEdit::Clear(clear) => {
             let mask = clear.mask().to_parts();
-            let mut writer = edit_writer(KIND_CLEAR, clear.after(), 32 + mask.runs.len() * 2);
+            let mut writer = edit_writer(KIND_CLEAR, edit, 40 + mask.runs.len() * 2);
             write_mask(&mut writer, &mask);
             writer.finish()
         }
-        RegionEdit::Transform(transform) => encode_transform(transform),
-        RegionEdit::Adjust(adjust) => encode_adjust(adjust),
-        RegionEdit::Nested(nested) => encode_nested(nested),
+        RegionEdit::Transform(transform) => encode_transform(edit, transform),
+        RegionEdit::Adjust(adjust) => encode_adjust(edit, adjust),
+        RegionEdit::Nested(nested) => encode_nested(edit, nested),
     }
 }
 
-fn encode_transform(transform: &TransformEdit) -> Vec<u8> {
-    let mut writer = edit_writer(KIND_TRANSFORM, transform.after(), 96);
+fn encode_transform(edit: &RegionEdit, transform: &TransformEdit) -> Vec<u8> {
+    let mut writer = edit_writer(KIND_TRANSFORM, edit, 104);
     let lift = transform.lift().map(RegionMask::to_parts);
     write_optional_mask(&mut writer, lift.as_ref());
     let placement = transform.placement();
@@ -121,17 +127,18 @@ pub(crate) fn decode_edit(bytes: &[u8]) -> Result<EditParts, PortError> {
 pub(crate) fn decode_record(bytes: &[u8]) -> Result<(EditParts, Option<Counts>), PortError> {
     let mut reader = Reader::new(bytes, "edit");
     let kind = reader.u8()?;
-    let after = u64::from(reader.u32()?);
+    let place = (u64::from(reader.u32()?), reader.u64()?);
     let edit = match kind {
-        KIND_FILL => EditParts::Fill(read_fill(&mut reader, after)?),
+        KIND_FILL => EditParts::Fill(read_fill(&mut reader, place)?),
         KIND_CLEAR => EditParts::Clear(ClearParts {
-            after,
+            after: place.0,
+            before_stroke: place.1,
             mask: read_mask(&mut reader)?,
         }),
-        KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader, after)?),
-        KIND_ADJUST => EditParts::Adjust(read_adjust(&mut reader, after)?),
+        KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader, place)?),
+        KIND_ADJUST => EditParts::Adjust(read_adjust(&mut reader, place)?),
         KIND_NESTED => {
-            let (nested, counts) = read_nested(&mut reader, after)?;
+            let (nested, counts) = read_nested(&mut reader, place)?;
             reader.end()?;
             return Ok((EditParts::Nested(nested), Some(counts)));
         }
@@ -141,12 +148,16 @@ pub(crate) fn decode_record(bytes: &[u8]) -> Result<(EditParts, Option<Counts>),
     Ok((edit, None))
 }
 
-fn read_fill(reader: &mut Reader<'_>, after: u64) -> Result<FillParts, PortError> {
+fn read_fill(
+    reader: &mut Reader<'_>,
+    (after, before_stroke): Place,
+) -> Result<FillParts, PortError> {
     let color = [reader.f32()?, reader.f32()?, reader.f32()?];
     let alpha_locked = reader.bool()?;
     let MaskParts { origin, size, runs } = read_mask(reader)?;
     Ok(FillParts {
         after,
+        before_stroke,
         color,
         alpha_locked,
         origin,
@@ -155,7 +166,10 @@ fn read_fill(reader: &mut Reader<'_>, after: u64) -> Result<FillParts, PortError
     })
 }
 
-fn read_transform(reader: &mut Reader<'_>, after: u64) -> Result<TransformParts, PortError> {
+fn read_transform(
+    reader: &mut Reader<'_>,
+    (after, before_stroke): Place,
+) -> Result<TransformParts, PortError> {
     let lift = read_optional_mask(reader)?;
     let mut values = [0.0f32; 6];
     for value in &mut values {
@@ -178,6 +192,7 @@ fn read_transform(reader: &mut Reader<'_>, after: u64) -> Result<TransformParts,
     };
     Ok(TransformParts {
         after,
+        before_stroke,
         lift,
         patch,
         matrix: [a, b, c, d],

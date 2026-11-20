@@ -1,8 +1,8 @@
-//! Format 1 (DECISIONS D95): the keys and values the library stores. Integers and floats are
+//! Format 2 (DECISIONS D125): the keys and values the library stores. Integers and floats are
 //! little-endian inside values; keys are big-endian, so a project's records sort together and a
 //! layer's in drawing order. No serialization crate (`codec.rs`).
 //!
-//! Keyspace `library`: `format` -> the format of every record (u32, 1); `next` -> the next unused
+//! Keyspace `library`: `format` -> the format of every record (u32, 2); `next` -> the next unused
 //! project id (u64); `clock` -> the last value of the change counter (u64); `last` -> the project
 //! open when the app was left (u64), absent when none was; `editor` -> the toolbox
 //! (`editor.rs`), absent until it first changed; `['a'][project u64]` -> the project's catalogue
@@ -33,8 +33,9 @@ use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, 
 
 use crate::codec::{Reader, Writer};
 
-/// The format this build writes, and the only one it reads.
-pub const FORMAT: u32 = 1;
+/// The format this build writes, and the only one it reads (format 1 it converts once,
+/// `convert/`).
+pub const FORMAT: u32 = 2;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -48,8 +49,10 @@ pub(crate) const ENTRY: &[u8] = b"a";
 const HEAD: u8 = b'h';
 const STROKE: u8 = b's';
 const THUMBNAIL: u8 = b't';
+/// Where the next stroke id lies in a head: after the canvas's size and the next layer id.
+pub(crate) const NEXT_STROKE_AT: usize = 4 + 4 + 8;
 /// Where the save id lies in a head: after the canvas's size and the two id counters.
-const SAVE_ID_AT: usize = 4 + 4 + 8 + 8;
+const SAVE_ID_AT: usize = NEXT_STROKE_AT + 8;
 /// Bytes of a layer entry in the head without its name and its mask's counts.
 const LAYER_BYTES: usize = 8 + 4 + 8 + 1 + 1 + 1 + 4 + 1 + 1 + 4 + 4 + 1;
 /// Bytes of a group entry in the head without its name.

@@ -1,14 +1,14 @@
-//! Adjustment records (format 1, `edits.rs`): an edit record of kind 3. After the kind and how
-//! many strokes lie under it: its clip (`write_optional_mask`), inverted (u8:
+//! Adjustment records (format 2, `edits.rs`): an edit record of kind 3. After the kind and its
+//! place: its clip (`write_optional_mask`), inverted (u8:
 //! made on an inverted mask), then what it does (u8: 0 hue, saturation and brightness as three
 //! f32; 1 curves: composite, red, green and blue, each a point count (u32) and its points as x, y
 //! f32 pairs; 2 a Gaussian blur: its radius, f32; 3 sharpening: its amount, f32).
 
 use openpaint_app::PortError;
-use openpaint_core::{AdjustEdit, AdjustParts, AdjustmentParts};
+use openpaint_core::{AdjustEdit, AdjustParts, AdjustmentParts, RegionEdit};
 
 use crate::codec::Reader;
-use crate::edits::{edit_writer, read_optional_mask, write_optional_mask};
+use crate::edits::{Place, edit_writer, read_optional_mask, write_optional_mask};
 use crate::strokes::{read_curve, write_curve};
 
 pub(crate) const KIND_ADJUST: u8 = 3;
@@ -17,9 +17,10 @@ const CURVES: u8 = 1;
 const BLUR: u8 = 2;
 const SHARPEN: u8 = 3;
 
-pub(crate) fn encode_adjust(adjust: &AdjustEdit) -> Vec<u8> {
+/// `adjust`, the adjustment `edit` holds.
+pub(crate) fn encode_adjust(edit: &RegionEdit, adjust: &AdjustEdit) -> Vec<u8> {
     let parts = adjust.to_parts();
-    let mut writer = edit_writer(KIND_ADJUST, adjust.after(), 64);
+    let mut writer = edit_writer(KIND_ADJUST, edit, 72);
     write_optional_mask(&mut writer, parts.clip.as_ref());
     writer.bool(parts.inverted);
     match &parts.adjustment {
@@ -47,8 +48,11 @@ pub(crate) fn encode_adjust(adjust: &AdjustEdit) -> Vec<u8> {
     writer.finish()
 }
 
-/// An adjustment after its kind and `after`.
-pub(crate) fn read_adjust(reader: &mut Reader<'_>, after: u64) -> Result<AdjustParts, PortError> {
+/// An adjustment after its kind and place.
+pub(crate) fn read_adjust(
+    reader: &mut Reader<'_>,
+    (after, before_stroke): Place,
+) -> Result<AdjustParts, PortError> {
     let clip = read_optional_mask(reader)?;
     let inverted = reader.bool()?;
     let adjustment = match reader.u8()? {
@@ -65,6 +69,7 @@ pub(crate) fn read_adjust(reader: &mut Reader<'_>, after: u64) -> Result<AdjustP
     };
     Ok(AdjustParts {
         after,
+        before_stroke,
         clip,
         inverted,
         adjustment,

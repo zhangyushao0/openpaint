@@ -31,7 +31,7 @@ fn a_fill_record_round_trips_and_damage_is_corrupt() {
         .artwork;
     let (bytes, parts) = first(&artwork);
     // One row from x 10 to 289: the runs 0 (one byte) and 280 (two bytes).
-    assert_eq!(bytes.len(), 1 + 4 + 12 + 1 + 16 + 4 + 1 + 2);
+    assert_eq!(bytes.len(), 1 + 4 + 8 + 12 + 1 + 16 + 4 + 1 + 2);
     assert_eq!(bytes[0], KIND_FILL);
     assert_eq!(decode_edit(&bytes), Ok(parts));
     assert_damage_is_corrupt(&bytes);
@@ -89,7 +89,7 @@ fn a_transform_record_holds_what_moved_and_where_and_damage_is_corrupt() {
     let canvas = CanvasSize::new(40, 30).expect("size");
     let placement = Placement::around([9.0, 8.0], 3.0, 0.4, [true, false]).expect("map");
     let lift = RegionMask::polygon(canvas, &[[3.0, 4.0], [15.0, 4.0], [9.0, 13.0]]);
-    for (lift, length) in [(None, 1 + 4 + 1 + 24 + 1), (lift, 0)] {
+    for (lift, length) in [(None, 1 + 4 + 8 + 1 + 24 + 1), (lift, 0)] {
         let artwork = Artwork::new(canvas)
             .place_region(lift, placement)
             .expect("transform")

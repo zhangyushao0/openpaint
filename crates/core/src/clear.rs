@@ -16,6 +16,8 @@ use crate::stroke_list::StrokeList;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClearEdit {
     pub(crate) after: usize,
+    /// The artwork's next stroke id when it was made: its place among all strokes (D125).
+    pub(crate) before_stroke: u64,
     pub(crate) mask: RegionMask,
 }
 
@@ -24,6 +26,12 @@ impl ClearEdit {
     #[must_use]
     pub const fn after(&self) -> usize {
         self.after
+    }
+
+    /// The artwork's next stroke id when it was made (D125).
+    #[must_use]
+    pub const fn before_stroke(&self) -> u64 {
+        self.before_stroke
     }
 
     #[must_use]
@@ -53,6 +61,7 @@ impl Artwork {
                 let mut edits = layer.edits.to_vec();
                 edits.push(RegionEdit::Clear(ClearEdit {
                     after: layer.strokes.len(),
+                    before_stroke: next.ids.next_stroke,
                     mask: clip.clone(),
                 }));
                 layer.edits = Arc::from(edits);

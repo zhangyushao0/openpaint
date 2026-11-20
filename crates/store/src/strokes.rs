@@ -1,4 +1,5 @@
-//! Stroke records (format 1, `records.rs` has the keys): its id (u64); its blend (u8: 0 paint
+//! Stroke records (format 2, `records.rs` has the keys): its id (u64); when its first sample was
+//! drawn (u64, ms since 1970 UTC, 0 unknown; D125); its blend (u8: 0 paint
 //! over, 1 paint atop under Alpha Lock, 2 erase, 3 smudge, 4 smudge under Alpha Lock); its size,
 //! opacity and colour's red, green and blue (f32); the seed of its stamps' jitter (u32); its brush
 //! recipe (`write_recipe`); its samples, a count (u32) and per sample x, y, pressure, tilt and
@@ -31,6 +32,7 @@ pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
     let samples = stroke.samples();
     let mut writer = Writer::with_capacity(160 + samples.len() * SAMPLE_BYTES);
     writer.u64(stroke.id().get());
+    writer.u64(stroke.began_ms().unwrap_or(0));
     writer.u8(match stroke.blend() {
         StrokeBlend::Over => 0,
         StrokeBlend::Atop => 1,
@@ -72,7 +74,7 @@ pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
 
 pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
     let mut reader = Reader::new(bytes, "stroke");
-    let id = reader.u64()?;
+    let (id, began_ms) = (reader.u64()?, reader.u64()?);
     let blend = match reader.u8()? {
         0 => StrokeBlend::Over,
         1 => StrokeBlend::Atop,
@@ -101,6 +103,7 @@ pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
     reader.end()?;
     Ok(StrokeParts {
         id,
+        began_ms,
         blend,
         recipe,
         size,

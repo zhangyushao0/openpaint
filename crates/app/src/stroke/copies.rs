@@ -1,6 +1,6 @@
 //! The stroke's mirrored copies while the Drawing Guide is on: each copy is a stroke of
-//! its own with the stroke's style and selection, its samples mirrored (`symmetry.rs`); pressure,
-//! tilt, azimuth and time stay the drawn ones. While the stroke is drawn the canvas shows the
+//! its own with the stroke's style, selection and start, its samples mirrored (`symmetry.rs`);
+//! pressure, tilt, azimuth and time stay the drawn ones. While the stroke is drawn the canvas shows the
 //! artwork with the copies so far (`Strokes::shown`) under the stroke itself; at the lift the
 //! copies and then the stroke are committed as one version, so one undo takes them all, and
 //! the stroke lies last, where the renderer followed it.
@@ -37,24 +37,26 @@ impl Copies<'_> {
             return Ok(session.clone().finish().artwork);
         }
         let samples = session.active().samples();
-        let copied = self.drawn(session.base(), samples)?;
-        draw(&copied, *self, samples)
+        let copied = self.drawn(session, samples)?;
+        let began = session.active().began_ms().unwrap_or(0);
+        draw(&copied, *self, (samples, began))
     }
 
-    /// `base` with the copies of a stroke along `samples`, in the guide's order.
+    /// `session`'s base with the copies of its stroke along `samples`, in the guide's order.
     pub(super) fn drawn(
         &self,
-        base: &Artwork,
+        session: &StrokeSession,
         samples: &[StrokeSample],
     ) -> Result<Artwork, AppError> {
+        let began = session.active().began_ms().unwrap_or(0);
         self.mirrors
             .iter()
-            .try_fold(base.clone(), |artwork, mirror| {
+            .try_fold(session.base().clone(), |artwork, mirror| {
                 let mirrored = samples
                     .iter()
                     .map(|sample| mirrored(sample, mirror))
                     .collect::<Result<Vec<_>, _>>()?;
-                draw(&artwork, *self, &mirrored)
+                draw(&artwork, *self, (&mirrored, began))
             })
     }
 }
@@ -71,20 +73,22 @@ impl Strokes {
         let session = &drawing.session;
         let preview = drawing
             .copies()
-            .drawn(session.base(), session.active().samples())?;
+            .drawn(session, session.active().samples())?;
         self.preview = Some(preview);
         self.reshown = true;
         Ok(())
     }
 }
 
-/// `artwork` with one more stroke along `samples` (never empty), drawn as `copies` says.
+/// `artwork` with one more stroke along `samples` (never empty) begun at `began`, drawn as
+/// `copies` says.
 fn draw(
     artwork: &Artwork,
     copies: Copies<'_>,
-    samples: &[StrokeSample],
+    (samples, began): (&[StrokeSample], u64),
 ) -> Result<Artwork, AppError> {
-    let mut session = artwork.begin_stroke(copies.style.clone(), samples[0])?;
+    let session = artwork.begin_stroke(copies.style.clone(), samples[0])?;
+    let mut session = session.began_at(began);
     if let Some(clip) = copies.clip {
         session = session.clipped(clip.clone())?;
     }

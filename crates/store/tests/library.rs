@@ -258,9 +258,9 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 fn unreadable_records_are_refused_with_a_reason() {
     let other = corrupted("other-format", |records| {
         let format = records.iter_mut().find(|(_, key, _)| key == b"format");
-        format.expect("format record").2 = 2u32.to_le_bytes().to_vec();
+        format.expect("format record").2 = 3u32.to_le_bytes().to_vec();
     });
-    assert_eq!(other, PortError::OtherFormat { found: Some(2) });
+    assert_eq!(other, PortError::OtherFormat { found: Some(3) });
     let short = corrupted("short", |records| {
         head(records).pop();
     });

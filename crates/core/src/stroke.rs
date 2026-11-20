@@ -205,6 +205,8 @@ impl StrokeStyle {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stroke {
     id: StrokeId,
+    /// When its first sample was drawn, ms since 1970 UTC; 0 unknown (D125).
+    began: u64,
     style: StrokeStyle,
     /// The layer's Alpha Lock when the stroke began; never with the eraser.
     alpha_locked: bool,
@@ -215,7 +217,7 @@ pub struct Stroke {
 
 impl Stroke {
     pub(crate) fn new(
-        id: StrokeId,
+        (id, began): (StrokeId, u64),
         style: StrokeStyle,
         alpha_locked: bool,
         samples: Arc<[StrokeSample]>,
@@ -223,6 +225,7 @@ impl Stroke {
     ) -> Self {
         Self {
             id,
+            began,
             style,
             alpha_locked,
             samples,
@@ -230,9 +233,26 @@ impl Stroke {
         }
     }
 
-    /// The same stroke under another id (a duplicated layer's copy); samples and clip shared.
+    /// The same stroke under another id (a duplicated layer's copy, a pasted one); samples, clip
+    /// and start shared.
     pub(crate) fn renumbered(&self, id: StrokeId) -> Self {
         Self { id, ..self.clone() }
+    }
+
+    /// When its first sample was drawn, ms since 1970 UTC; `None` for a stroke kept before
+    /// format 2 or drawn without a clock (D125).
+    #[must_use]
+    pub const fn began_ms(&self) -> Option<u64> {
+        if self.began == 0 {
+            None
+        } else {
+            Some(self.began)
+        }
+    }
+
+    /// The layer's Alpha Lock when it began.
+    pub(crate) const fn alpha_locked(&self) -> bool {
+        self.alpha_locked
     }
 
     /// The selection the stroke was drawn inside, if any: it paints (or erases) only there.

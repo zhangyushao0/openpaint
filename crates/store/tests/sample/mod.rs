@@ -1,5 +1,7 @@
-//! The format-1 sample (`tests/samples/format-1.bin`): the sample artwork holding every kind of
-//! record, its title, thumbnail and toolbox, and the record dump format.
+//! The format-2 sample (`tests/samples/format-2.bin`): the sample artwork holding every kind of
+//! record, its title, thumbnail and toolbox, and the record dump format. The format-1 sample
+//! (`format-1.bin`, the same artwork without the strokes' starts and the edits' places) stays for
+//! the conversion's tests until the next slice deletes them (D125).
 
 use std::path::PathBuf;
 
@@ -18,7 +20,7 @@ pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 /// The sample's file, found as well from a crate beside the store whose tests take this module
 /// by path.
 pub fn sample_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../store/tests/samples/format-1.bin")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../store/tests/samples/format-2.bin")
 }
 
 pub fn sample_title() -> Title {

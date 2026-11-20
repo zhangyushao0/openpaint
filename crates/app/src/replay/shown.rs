@@ -148,13 +148,40 @@ impl VideoSize {
     pub const ALL: [Self; 2] = [Self::Hd, Self::Canvas];
 }
 
+/// The longest side H.264 level 5.1 takes.
+const LEVEL_SIDE: u32 = 4096;
+/// The most pixels H.264 level 5.1 takes in a frame.
+const LEVEL_PIXELS: u64 = 4096 * 2304;
+
 /// The video's pixels for `canvas` at `size`: the canvas's aspect, each side even (H.264 halves
-/// the colours); `Canvas` only within H.264 level 5.1's frame (sides up to 4096, at most
-/// 4096 × 2304 pixels), else `None`.
+/// the colours); `Hd` the canvas fitted in 1920 × 1080 (1080 × 1920 standing), never larger;
+/// `Canvas` only within H.264 level 5.1's frame (sides up to 4096, at most 4096 × 2304 pixels),
+/// else `None`.
 #[must_use]
 pub fn video_size(canvas: CanvasSize, size: VideoSize) -> Option<[u32; 2]> {
-    // S163a: the rule above.
-    let _ = size;
-    let even = |side: u32| (side & !1).max(2);
-    Some([even(canvas.width()), even(canvas.height())])
+    let even = |side: u64| (u32::try_from(side).unwrap_or(u32::MAX) & !1).max(2);
+    let (width, height) = (u64::from(canvas.width()), u64::from(canvas.height()));
+    match size {
+        VideoSize::Hd => {
+            let [across, down] = if width >= height {
+                [1920, 1080]
+            } else {
+                [1080, 1920]
+            };
+            // Whichever side meets its edge first, never above the canvas's own.
+            let fitted = if width <= across && height <= down {
+                [width, height]
+            } else if across * height <= down * width {
+                [across, height * across / width]
+            } else {
+                [width * down / height, down]
+            };
+            Some(fitted.map(even))
+        }
+        VideoSize::Canvas => {
+            let side = u64::from(LEVEL_SIDE);
+            let fits = width <= side && height <= side && width * height <= LEVEL_PIXELS;
+            fits.then(|| [even(width), even(height)])
+        }
+    }
 }

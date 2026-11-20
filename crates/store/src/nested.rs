@@ -1,15 +1,15 @@
-//! Nested records (format 1, DECISIONS D66): a layer merged down into another, an edit record of
-//! kind 4 (`edits.rs`). After the kind and how many strokes lie under it: the merged layer's id
+//! Nested records (format 2, DECISIONS D66): a layer merged down into another, an edit record of
+//! kind 4 (`edits.rs`). After the kind and its place: the merged layer's id
 //! (u64), opacity (f32), blend (u8, as the head's), clipped (u8), its stroke and edit counts
 //! (u32), then its mask as the head stores a layer's (`write_layer_mask`). Its strokes and edits
 //! are records under its id, its mask's under `mask_slot(id)`, as a layer's are, so a merge
 //! rewrites none of them: they stay where the layer kept them.
 
 use openpaint_app::PortError;
-use openpaint_core::{NestedEdit, NestedParts};
+use openpaint_core::{NestedEdit, NestedParts, RegionEdit};
 
 use crate::codec::Reader;
-use crate::edits::edit_writer;
+use crate::edits::{Place, edit_writer};
 use crate::records::{blend_byte, read_blend, read_layer_mask, write_layer_mask};
 
 pub(crate) const KIND_NESTED: u8 = 4;
@@ -17,9 +17,10 @@ pub(crate) const KIND_NESTED: u8 = 4;
 /// How many records a nested record's content holds: its strokes and edits, its mask's.
 pub(crate) type Counts = [usize; 4];
 
-pub(crate) fn encode_nested(nested: &NestedEdit) -> Vec<u8> {
+/// `nested`, the record `edit` holds.
+pub(crate) fn encode_nested(edit: &RegionEdit, nested: &NestedEdit) -> Vec<u8> {
     let layer = nested.layer();
-    let mut writer = edit_writer(KIND_NESTED, nested.after(), 40);
+    let mut writer = edit_writer(KIND_NESTED, edit, 48);
     writer.u64(layer.id().get());
     writer.f32(layer.opacity());
     writer.u8(blend_byte(layer.blend()));
@@ -30,11 +31,11 @@ pub(crate) fn encode_nested(nested: &NestedEdit) -> Vec<u8> {
     writer.finish()
 }
 
-/// A nested record after its kind and `after`, its content still empty, and how many records it
+/// A nested record after its kind and place, its content still empty, and how many records it
 /// holds.
 pub(crate) fn read_nested(
     reader: &mut Reader<'_>,
-    after: u64,
+    (after, before_stroke): Place,
 ) -> Result<(NestedParts, Counts), PortError> {
     let id = reader.u64()?;
     let opacity = reader.f32()?;
@@ -44,6 +45,7 @@ pub(crate) fn read_nested(
     let (mask, [mask_strokes, mask_edits]) = read_layer_mask(reader)?;
     let parts = NestedParts {
         after,
+        before_stroke,
         id,
         opacity,
         blend,
@@ -88,7 +90,7 @@ mod tests {
         let masked = layer(&masked, LayerCommand::Select(LayerId::new(2)));
         let merged = layer(&masked, LayerCommand::MergeDown(LayerId::new(2)));
         let bytes = encode_edit(&merged.layers()[0].edits()[0]);
-        assert_eq!(bytes.len(), 1 + 4 + 8 + 4 + 1 + 1 + 4 + 4 + 1 + 8);
+        assert_eq!(bytes.len(), 1 + 4 + 8 + 8 + 4 + 1 + 1 + 4 + 4 + 1 + 8);
         let (parts, counts) = decode_record(&bytes).expect("decodes");
         assert_eq!(counts, Some([1, 0, 2, 0]));
         let EditParts::Nested(mut expected) = merged.to_parts().layers[0].edits[0].clone() else {

@@ -57,6 +57,7 @@ impl Artwork {
             if let Some(outside) = clip.inverted(self.canvas()) {
                 edits.push(RegionEdit::Clear(ClearEdit {
                     after: 0,
+                    before_stroke: 0,
                     mask: outside,
                 }));
             }
@@ -73,7 +74,8 @@ impl Artwork {
         self.copy_parts(all).is_ok()
     }
 
-    /// `copied` on the active layer's paint, above its strokes, its records under new ids.
+    /// `copied` on the active layer's paint, above its strokes, its records under new ids, each
+    /// made (D125) once the records before it took theirs.
     ///
     /// # Errors
     /// `InvalidValue` when it was copied from a canvas of another size; `LayerLocked` for a
@@ -87,17 +89,14 @@ impl Artwork {
         let after = next.layers[index].strokes.len();
         let mut edits = next.layers[index].edits.to_vec();
         for edit in copied.edits.iter() {
-            edits.push(match edit {
+            let edit = match edit {
                 RegionEdit::Nested(nested) => RegionEdit::Nested(NestedEdit {
-                    after,
                     layer: Arc::new(nested.layer.renumbered(&mut next.ids)),
-                }),
-                RegionEdit::Clear(clear) => RegionEdit::Clear(ClearEdit {
-                    after,
-                    mask: clear.mask.clone(),
+                    ..nested.clone()
                 }),
                 other => other.clone(),
-            });
+            };
+            edits.push(edit.at(after, next.ids.next_stroke));
         }
         next.layers[index].edits = Arc::from(edits);
         Ok(Applied::content(next))
@@ -220,9 +219,11 @@ impl NestedLayer {
     }
 }
 
+/// `layer` as a copy's record: its places are set when it is pasted.
 fn nested(layer: NestedLayer) -> RegionEdit {
     RegionEdit::Nested(NestedEdit {
         after: 0,
+        before_stroke: 0,
         layer: Arc::new(layer),
     })
 }

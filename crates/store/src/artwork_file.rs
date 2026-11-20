@@ -1,10 +1,11 @@
-//! The OpenPaint file (`.openpaint`, format 1, DECISIONS D62, D95): one artwork as the library
+//! The OpenPaint file (`.openpaint`, format 2, DECISIONS D62, D125): one artwork as the library
 //! stores it, to keep it outside the app and open it again as a new artwork; a kept version
 //! (`versions.rs`) is the same bytes. The records are the library's own, so a file is checked by
-//! the same decoding as an artwork it opens. The toolbox, history and versions are not in it.
+//! the same decoding as an artwork it opens. The toolbox, history and versions are not in it. A
+//! file of format 1 opens converted (`convert/`, this build only).
 //!
 //! Layout, integers little-endian: the magic `OpenPaint\0` (10 bytes); the format of its records
-//! (u32, 1); the title (u32 length + UTF-8); the record count (u32); per record, in key order, its
+//! (u32, 2); the title (u32 length + UTF-8); the record count (u32); per record, in key order, its
 //! key without the project id (u32 length + bytes: `h` the head, `s` or `e`, slot and index a
 //! stroke or an edit, `t` the thumbnail) and its value (u32 length + bytes); last the CRC-32
 //! (IEEE) of every byte before it (u32). Its head holds no save id.
@@ -21,7 +22,7 @@ use crate::library::{Open, device};
 use crate::read::{self, Source};
 use crate::records::{FORMAT, head_key, project_prefix, strokes_prefix, thumbnail_key, unsaved};
 
-const MAGIC: &[u8; 10] = b"OpenPaint\0";
+pub(crate) const MAGIC: &[u8; 10] = b"OpenPaint\0";
 /// The kinds of record a file holds, by the first byte of their key.
 const KINDS: [u8; 4] = *b"hset";
 /// Where an opened file's records are kept while they are decoded.
@@ -84,13 +85,13 @@ fn encode(title: &Title, records: &Records) -> Vec<u8> {
     bytes
 }
 
-/// Opens an OpenPaint file and checks the artwork whole.
+/// Opens an OpenPaint file (one of format 1 converted first) and checks the artwork whole.
 ///
 /// # Errors
-/// `NotArtworkFile` without the magic, `OtherFormat` for any format but this build's, `Corrupt`
-/// or `Invalid` for a damaged file.
+/// `NotArtworkFile` without the magic, `OtherFormat` for any format but this build's and 1,
+/// `Corrupt` or `Invalid` for a damaged file.
 pub(crate) fn open(bytes: &[u8]) -> Result<Opened, PortError> {
-    let (title, records) = decode(bytes)?;
+    let (title, records) = decode(&crate::convert::upgraded(bytes)?)?;
     let prefix = project_prefix(HELD);
     let mut held = BTreeMap::new();
     for (key, value) in records {
