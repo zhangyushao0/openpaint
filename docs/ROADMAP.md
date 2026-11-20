@@ -67,6 +67,14 @@ The author, 2026-11-09, after an audit of the whole repository: the structure fo
   6. Then content: a reason beside the app's result (S138), harder levels from every source the plan drew on (S139 to S142), then units 5 to 8 and the foundation by the builders of G9 above.
 - Content after units 5 to 8: studio features chosen with the author from Candidates, S115 Adjustment previews that finish among them (the author, 2026-11-07: while a slider moves the part the screen shows redrawn at the screen's resolution, the full one after release, waiting tiles from the view's middle outward).
 
+## Studio features
+
+The first chosen with the author after units 5 to 8 (2026-11-20).
+
+- S163 Replay and video (the author approved the mock of six screens, https://claude.ai/artifact/6BrtD6YSP5HyrKVH77F4XS, 2026-11-20; "每一笔都可以记下时间", all three lengths). What they will see: Actions, Share: 回放… with its stroke count; the artwork replays from blank paper, each stroke drawn along its own samples, the edits (fills, transforms, adjustments) in their order; play and pause, a scrubber with the stroke's date and number and a mark where each sitting began, speeds 1×, 4×, 16×, Back. 导出视频…: length 30 s (the highlight), the whole (pauses compressed) or a segment (two handles on the scrubber); size 1080p or the canvas's own; the end held on the finished picture, a line of strokes, layers, time and dates (each a switch); Save to album or Share…; a pill with progress and Cancel while it exports; then "视频已存到相册" with Share….
+- S163 data: every stroke keeps when it began (UTC ms) from the build on: format 2; the author's library (and its kept versions) converted once by a step in an interim build, proved on a copy of the newest backup first, the step deleted by the next slice; a stroke from before has no time, replays at an even pace and shows no date. Undone steps and deleted layers are not in the record and never replay; layers show their last properties throughout.
+- S163 done: its walk-through scenarios, English and Chinese; pure tests of the timeline (order, pacing, the highlight, segments); the harness exports through a sink and checks frames; the APK encodes H.264 MP4 through MediaCodec into Movies/OpenPaint and shares it; on the tablet a real artwork replayed and exported and the video played in the gallery. It deletes nothing: a new feature.
+
 ## G8 Independent extensions after stabilisation
 
 Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud sync, plugins: each is its own project and never enters the main line automatically.
