@@ -11,7 +11,8 @@
 //! `session.rs`, the stroke in progress beside the artwork); brush recipes (`brush.rs`,
 //! `deposit.rs`, `taper.rs`, `shape.rs`, D74); a layer's records (`fill.rs`, `clear.rs`,
 //! `transform.rs`, `adjust.rs`, `tone.rs`, `filter.rs`, `nested.rs`, `copy.rs`; D57, D59, D67) and
-//! the selection's region (`region.rs`, `mask_ops.rs`, D43).
+//! the selection's region (`region.rs`, `mask_ops.rs`, D43); the drawing order the replay shows
+//! (`replay.rs`, D125).
 #![forbid(unsafe_code)]
 
 mod adjust;
@@ -39,6 +40,7 @@ mod nested;
 mod parts;
 mod parts_recipe;
 mod region;
+mod replay;
 mod session;
 mod shape;
 mod storage;
@@ -80,6 +82,7 @@ pub use parts::{
     ShapeParts, StrokeParts, TransformParts,
 };
 pub use region::{RegionEdit, RegionMask};
+pub use replay::{DrawingOrder, EditKind, ReplayFrame, Step, StepKind};
 pub use session::{ActiveStroke, StrokeSession};
 pub use shape::{
     MAX_SCATTER, MAX_SPACING, MAX_STAMPS, MIN_ASPECT, MIN_SPACING, Rotation, Shape, ShapeTexture,

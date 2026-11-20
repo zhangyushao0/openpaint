@@ -98,6 +98,9 @@ pub fn request_line(request: &HostRequest, share_dir: &Path) -> Option<(String, 
             Some((format!("send\t{}\t{}", format.mime(), path.display()), None))
         }
         HostRequest::ShareFile { .. } => None,
+        // S163c: the encoder made at once on the Rust side (`jni_transfer.rs`), the share sheet
+        // for the video last made as a line the Kotlin host serves.
+        HostRequest::Video { .. } | HostRequest::SendVideo { .. } => None,
     }
 }
 

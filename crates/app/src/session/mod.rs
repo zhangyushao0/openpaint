@@ -14,6 +14,7 @@ use crate::intent::Intent;
 use crate::layer_rules;
 use crate::layers::{LayerList, Layers};
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
+use crate::replay::ReplayShown;
 use crate::selection::{Selection, SelectionIntent};
 use crate::storage::Autosave;
 use crate::streamline::StreamLine;
@@ -152,7 +153,18 @@ impl Session {
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
+            // Opening the replay is the runtime's (S163) once what it ends ended; its own intents
+            // never come here.
+            Intent::Replay(_) => self.check(EditorAction::Replay),
         }
+    }
+
+    /// The input clock's offset from UTC in ms (the runtime's wall clock less its input clock,
+    /// each frame): a stroke begun from now on keeps its first sample's time plus it as its start
+    /// (D125). Until a call, strokes keep no start.
+    pub fn set_utc_clock(&mut self, offset_ms: i64) {
+        // S163a: the stroke intent stamps each stroke it begins.
+        let _ = (&mut self.strokes, offset_ms);
     }
 
     /// The current version. While a stroke is drawn it is the version the stroke started on.
@@ -272,6 +284,25 @@ impl Session {
             brush: None,
             transfers: None,
             pen: None,
+            replay: self.replay_offer(),
+        }
+    }
+
+    /// Actions' Replay row as this session offers it (S163): the record's strokes, nothing to
+    /// replay without a record, refused without a change of look while a stroke is drawn.
+    fn replay_offer(&self) -> ReplayShown {
+        let strokes = self.history.current().stroke_count();
+        // S163a: an artwork whose record holds an edit and no stroke replays too.
+        let availability = if strokes == 0 {
+            Availability::NothingLeft
+        } else if self.strokes.active().is_some() {
+            Availability::StrokeInProgress
+        } else {
+            Availability::Available
+        };
+        ReplayShown::Offered {
+            strokes,
+            availability,
         }
     }
 

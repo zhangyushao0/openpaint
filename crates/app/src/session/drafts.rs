@@ -69,9 +69,11 @@ impl Ends {
                 | StrokeIntent::MoveHandle { .. }
                 | StrokeIntent::Hold { .. },
             ) =>                                    [N, Y, Y, Y, Y, N],
+            // Opening the replay ends as leaving does (its own intents never come here).
             Intent::Stroke(_)
             | Intent::Selection(_)
-            | Intent::Gallery(_) =>                 [Y, Y, Y, Y, Y, N],
+            | Intent::Gallery(_)
+            | Intent::Replay(_) =>                  [Y, Y, Y, Y, Y, N],
             Intent::Layer(_) =>                     [Y, Y, Y, Y, N, N],
             Intent::Fill(_) =>                      [Y, Y, Y, N, Y, N],
             Intent::Adjust(AdjustIntent::Begin(_)) => [Y, N, Y, Y, Y, Y],

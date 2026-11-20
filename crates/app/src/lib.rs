@@ -21,6 +21,8 @@
 //!   `gallery_library.rs`, `gallery_files.rs`, `title.rs`, `project.rs`);
 //! - transfers, one system dialog at a time (`transfer.rs`, `transfer_errors.rs`, `export.rs`,
 //!   `reference.rs`, `insert.rs`);
+//! - the replay and its video (`replay/`: the flow, its time, its screen, the video's port and
+//!   frames; S163);
 //! - input (`input.rs`, `palm.rs`, the finger gestures `gestures/`, the view `view/`).
 #![forbid(unsafe_code)]
 
@@ -60,6 +62,7 @@ mod recipe;
 mod recipe_section;
 mod recipe_shape;
 mod reference;
+mod replay;
 mod selection;
 mod session;
 mod storage;
@@ -118,6 +121,12 @@ pub use crate::recipe::{MAX_BRUSH_NAME, RecipeError, brush_name};
 pub use crate::reference::{
     MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, MAX_REFERENCE_SIDE, ReferenceImage, ReferenceIntent,
     ReferenceNotice,
+};
+pub use crate::replay::{
+    At, EDIT_MS, ExportChoices, HIGHLIGHT_MS, HOLD_MS, LEAST_STROKE_MS, PAUSE_MS, Replay,
+    ReplayFacts, ReplayIntent, ReplayProjection, ReplayShown, SITTING_MS, Speed, StrokeLabel,
+    Timeline, VIDEO_FPS, VideoEncoder, VideoError, VideoFrame, VideoFrames, VideoJob, VideoLength,
+    VideoNotice, VideoOrder, VideoSize, video_file_name, video_size,
 };
 pub use crate::selection::{SelectionIntent, SelectionProjection, SelectionShape};
 pub use crate::session::Session;

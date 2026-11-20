@@ -10,6 +10,7 @@ use crate::history::HistoryIntent;
 use crate::insert::InsertIntent;
 use crate::layers::LayerIntent;
 use crate::reference::ReferenceIntent;
+use crate::replay::ReplayIntent;
 use crate::selection::SelectionIntent;
 use crate::storage::StorageIntent;
 use crate::stroke::StrokeIntent;
@@ -36,4 +37,7 @@ pub enum Intent {
     Insert(InsertIntent),
     /// The copy menu; the runtime hands it to the session with the app's clipboard.
     Clipboard(ClipboardAction),
+    /// The replay (S163): `Open` goes through the session (what it ends, whether it is offered),
+    /// then the runtime opens the replay; the rest are the replay's own (`Replay::dispatch`).
+    Replay(ReplayIntent),
 }

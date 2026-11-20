@@ -189,7 +189,7 @@ impl Export {
                 self.state = State::Failed(order, ExportError::Picker(error));
                 None
             }
-            HostAnswer::Image(_) => {
+            HostAnswer::Image(_) | HostAnswer::Video(_) => {
                 let error = PortError::Device {
                     detail: "an image came back for a file to write".into(),
                 };
@@ -267,7 +267,8 @@ pub fn artwork_file_name(title: &Title) -> String {
     named(title, ARTWORK_EXTENSION)
 }
 
-fn named(title: &Title, extension: &str) -> String {
+/// `title` as a file name (what file systems refuse as '_', never empty) with `extension`.
+pub(crate) fn named(title: &Title, extension: &str) -> String {
     let stem: String = title
         .as_str()
         .chars()

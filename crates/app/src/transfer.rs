@@ -15,6 +15,7 @@ use crate::insert::{Insert, InsertIntent, InsertJob};
 use crate::project::PortError;
 use crate::projection::{Availability, EditorAction};
 use crate::reference::{Reference, ReferenceImage, ReferenceIntent, ReferenceNotice};
+use crate::replay::VideoEncoder;
 use crate::title::Title;
 pub use crate::transfer_errors::{ExportError, ImageError};
 
@@ -119,6 +120,12 @@ pub enum HostRequest {
     /// The system's picker for one file of any kind, for a mode to read; answered as
     /// `OpenArtwork`.
     OpenFile,
+    /// An encoder for the replay's video `name` going where `delivery` says (`VideoEncoder`,
+    /// S163); answered at once with `HostAnswer::Video` or `Failed`.
+    Video { name: String, delivery: Delivery },
+    /// The system's share sheet for the video last made (saved in the album, or made for
+    /// sharing); no answer.
+    SendVideo { name: String },
 }
 
 /// How the platform answered the last request that asks for an answer.
@@ -127,6 +134,8 @@ pub enum HostAnswer {
     File(Box<dyn ImageSink>),
     /// The image the user chose.
     Image(Box<dyn ImageSource>),
+    /// The encoder a `HostRequest::Video` asked for.
+    Video(Box<dyn VideoEncoder>),
     /// The user closed the picker without choosing.
     Cancelled,
     /// The system could not show the picker or open what was chosen.
@@ -138,6 +147,7 @@ impl fmt::Debug for HostAnswer {
         match self {
             Self::File(_) => f.write_str("File"),
             Self::Image(_) => f.write_str("Image"),
+            Self::Video(_) => f.write_str("Video"),
             Self::Cancelled => f.write_str("Cancelled"),
             Self::Failed(error) => write!(f, "Failed({error})"),
         }

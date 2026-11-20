@@ -15,7 +15,8 @@
 //! `transform_drag.rs`, `shape_bar.rs`, `shape_drag.rs`, `copy_bar.rs`, `drop_bar.rs`,
 //! `color_drop.rs`); the reference window (`reference_window.rs`, `reference_touch.rs`); the home
 //! (`home/`, D116; `dates.rs` names the days); the shared widgets (`components/`), the theme
-//! (`design/`) and every word shown (`text/`, D100).
+//! (`design/`) and every word shown (`text/`, D100); the replay's screen and its video's last line
+//! (`replay/`, S163).
 #![forbid(unsafe_code)]
 
 mod actions_panel;
@@ -48,6 +49,7 @@ mod pen_buttons_page;
 mod pen_marks;
 mod reference_touch;
 mod reference_window;
+mod replay;
 mod row_drag;
 mod selection_bar;
 mod shape_bar;
@@ -63,4 +65,5 @@ mod transform_drag;
 pub use crate::brush_strip::StripStrokes;
 pub use crate::components::{CanvasArea, Control, ControlMap, ScreenArea, TOP_BAND, Unresolved};
 pub use crate::hooks::{CanvasHook, Chrome, HomeHook, Hooks, Page};
+pub use crate::replay::{caption_band, video_caption};
 pub use crate::shell::Shell;

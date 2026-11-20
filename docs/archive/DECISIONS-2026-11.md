@@ -125,3 +125,15 @@ Fragments of other decisions:
 
 - The header: "\"The previous project\" is draweave (2026-07 to 2026-10), the predecessor this repository replaces." (no decision used the phrase).
 - D97's consequences: "pans and pinches too (the zoom bench's pinches skip nothing)", measured before S127's count.
+
+## Archived 2026-11-20 (S163: D95 superseded by D125, format 2; D91's measures, room for D125; as they stood)
+
+- D91's snapshots: "Reason (S133): every tile laid again after every stroke and 800 MB on a day's sheet."; its stroke's frame: "(51 MiB loaded and 67 stored a frame at fit, 76 and 92 at a tier, now 2 and 3.2)"; its view tier: "(2026-11-14: 20.5 ms to present on a sheet, 24 at 4x; 9.8 at fit)"; its last line: "Reason: measured on the tablet: frame work p50 7.8 to 8.6 ms, lift frames 9 to 16 ms."
+- D116's decision: "which practice-ui fills; `GalleryHook` is gone." D117's block: "no end card between. The full lesson is gone."
+
+## D95 2026-10-22 Format 1: the library, OpenPaint files and kept versions designed for 1.0; no other shape is read
+- Decision: one storage format, `openpaint_store::FORMAT` 1, for the fjall library and OpenPaint files (kept versions are files); values through `codec.rs`, no serialization crate. The layout lives in the store's `records.rs` (keys, the head), `strokes.rs` with `shapes.rs`, `edits.rs` (an edit's kind: 0 fill, 1 cleared pixels, 2 transform with an optional patch, 3 adjustment, 4 merged layer; then the strokes under it) and `editor.rs` (the toolbox), each file's `//!` its fields.
+- Library: `library/format` holds 1; an empty database is marked at its first opening (`library::prepare`); another value, or records without it, is refused as `PortError::OtherFormat` before anything is written, and the app opens in the gallery saying so, leaving them as they are.
+- Files (D62): another format is `OtherFormat`; a file's head holds no save id, so an unchanged artwork's file keeps its bytes.
+- Tests: one frozen sample, `store/tests/samples/format-1.bin`, every record kind: storing the sample gives its bytes, opening it gives the sample, storing what it opened gives the bytes again; other formats refused untouched.
+- Reason: the author, 2026-10-22: 1.0.0 is a new product; one shape designed from the model as it is, with no fields only history needed. Consequences: a later format change is a decision of its own (its number, and what a library of format 1 then does).

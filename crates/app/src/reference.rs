@@ -277,7 +277,7 @@ fn picked(answer: HostAnswer) -> Result<Option<Box<dyn ImageSource>>, ImageError
         HostAnswer::Image(source) => Ok(Some(source)),
         HostAnswer::Cancelled => Ok(None),
         HostAnswer::Failed(error) => Err(ImageError::Picker(error)),
-        HostAnswer::File(_) => Err(ImageError::Picker(PortError::Device {
+        HostAnswer::File(_) | HostAnswer::Video(_) => Err(ImageError::Picker(PortError::Device {
             detail: "a file to write came back for an image".into(),
         })),
     }

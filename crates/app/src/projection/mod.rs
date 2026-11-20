@@ -1,16 +1,15 @@
 //! `SessionProjection`: what the UI may offer right now. The UI greys out what there is nothing
-//! for (`Availability::is_offered`) and never works out the rules itself.
-
-use std::fmt;
+//! for (`Availability::is_offered`) and never works out the rules itself. The actions and their
+//! availability are `actions.rs`'s.
 
 use openpaint_core::CanvasSize;
 
 use crate::adjust::AdjustProjection;
 use crate::clipboard::{ClipboardAction, paste};
-use crate::error::AppError;
 use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
+use crate::replay::{ReplayProjection, ReplayShown};
 use crate::selection::SelectionProjection;
 use crate::storage::StorageNotice;
 use crate::stroke::ShapeProjection;
@@ -20,89 +19,9 @@ use crate::transfer::TransferProjection;
 use crate::transform::TransformProjection;
 use crate::view::CanvasView;
 
-/// Something the user can ask for whose availability depends on the session. The layer actions
-/// are offered for the active layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EditorAction {
-    Undo,
-    Redo,
-    RetrySave,
-    DismissNotice,
-    AddLayer,
-    DeleteLayer,
-    /// Choose, show, hide, fade, clip or blend a layer; show, hide, fade or undo its group.
-    EditLayer,
-    /// Group the layer with the one under it.
-    GroupLayer,
-    /// Give the layer a mask (it has none).
-    AddMask,
-    /// Turn the layer's mask on or off, or delete it.
-    EditMask,
-    /// Paint on, invert or clear the layer's mask (it is on).
-    ChangeMask,
-    /// Merge the layer into the one below it (`Artwork::mergeable`; `LayerList::merge_down`
-    /// says why not).
-    MergeDown,
-    /// Leave the canvas for the gallery, or act in the gallery.
-    Gallery,
-    /// Export the artwork to a file or another app.
-    Export,
-    /// Choose a reference image with the system's picker.
-    ChooseReference,
-    /// Choose a picture with the system's picker to insert as a new layer.
-    InsertImage,
-    /// Fill a region with the colour (ColorDrop).
-    Fill,
-    /// Move, scale or turn the layer's content or the selection's.
-    Transform,
-    /// Adjust the layer's colours, blur or sharpen it.
-    Adjust,
-    /// Cut, copy or paste, as the copy menu offers.
-    Clipboard(ClipboardAction),
-}
+mod actions;
 
-/// Whether an action can run now, and why not.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Availability {
-    Available,
-    /// There is nothing to act on: no earlier version to undo to, none to redo, no failed save
-    /// to retry, no notice to close, no other layer to keep, no place further up or down.
-    NothingLeft,
-    /// A stroke is being drawn; history and layers wait until it is committed or cancelled, so
-    /// the stroke can neither be lost nor land on a version the user no longer sees.
-    StrokeInProgress,
-    /// The work the action would start is already running (a save being retried).
-    Running,
-    /// No room for more: the artwork holds the most layers it may.
-    Full,
-}
-
-impl Availability {
-    #[must_use]
-    pub const fn is_available(self) -> bool {
-        matches!(self, Self::Available)
-    }
-
-    /// Whether a control for the action looks usable: available now, or only blocked while a
-    /// stroke is drawn, when a tap is refused without any visual change (ARCHITECTURE section
-    /// 10). Nothing greys out or flickers per stroke.
-    #[must_use]
-    pub const fn is_offered(self) -> bool {
-        matches!(self, Self::Available | Self::StrokeInProgress)
-    }
-
-    /// Nothing while available; otherwise `action` refused for this reason.
-    pub(crate) const fn require(self, action: EditorAction) -> Result<(), AppError> {
-        if self.is_available() {
-            Ok(())
-        } else {
-            Err(AppError::Unavailable {
-                action,
-                availability: self,
-            })
-        }
-    }
-}
+pub use actions::{Availability, EditorAction};
 
 /// A snapshot of the session for one UI frame. The default is no open session: nothing is
 /// available, nothing to tell and no layers.
@@ -138,6 +57,9 @@ pub struct SessionProjection {
     /// The diameter of the pen the mode draws with instead of the brush (canvas pixels), for the
     /// hover outline (`with_pen`).
     pub(crate) pen: Option<f32>,
+    /// The replay: Actions' row as the session offers it, none on a mode's sheet, or its screen
+    /// while it is open (`with_replay`, S163).
+    pub(crate) replay: ReplayShown,
 }
 
 /// What the whole screen shows for one UI frame.
@@ -200,6 +122,10 @@ impl SessionProjection {
                     Availability::Available
                 }
             }
+            EditorAction::Replay => match &self.replay {
+                ReplayShown::Offered { availability, .. } => *availability,
+                ReplayShown::None | ReplayShown::Open(_) => Availability::NothingLeft,
+            },
         }
     }
 
@@ -321,6 +247,29 @@ impl SessionProjection {
             ..self
         }
     }
+
+    /// The replay as Actions offers it (`Offered`), or its screen while it is open: the canvas then
+    /// shows the replay's frame and its chrome only (S163).
+    #[must_use]
+    pub const fn replay_shown(&self) -> &ReplayShown {
+        &self.replay
+    }
+
+    /// The replay's screen, while it is open.
+    #[must_use]
+    pub fn replay(&self) -> Option<&ReplayProjection> {
+        match &self.replay {
+            ReplayShown::Open(replay) => Some(replay),
+            ReplayShown::None | ReplayShown::Offered { .. } => None,
+        }
+    }
+
+    /// This projection with the replay as the composition root holds it: `None` on a mode's sheet,
+    /// `Open` while the replay of the open artwork shows; the session's own offer otherwise.
+    #[must_use]
+    pub fn with_replay(self, replay: ReplayShown) -> Self {
+        Self { replay, ..self }
+    }
 }
 
 impl Default for SessionProjection {
@@ -353,45 +302,7 @@ impl Default for SessionProjection {
             brush: None,
             transfers: None,
             pen: None,
+            replay: ReplayShown::None,
         }
-    }
-}
-
-impl fmt::Display for EditorAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Undo => "undo",
-            Self::Redo => "redo",
-            Self::RetrySave => "retry saving",
-            Self::DismissNotice => "close the notice",
-            Self::AddLayer => "add a layer",
-            Self::DeleteLayer => "delete the layer",
-            Self::EditLayer => "change the layer",
-            Self::GroupLayer => "group the layer",
-            Self::AddMask => "add a mask",
-            Self::EditMask => "change the mask",
-            Self::ChangeMask => "paint on the mask",
-            Self::MergeDown => "merge the layer down",
-            Self::Gallery => "use the gallery",
-            Self::Export => "export the artwork",
-            Self::ChooseReference => "choose a reference image",
-            Self::InsertImage => "insert an image",
-            Self::Fill => "fill",
-            Self::Transform => "transform",
-            Self::Adjust => "adjust",
-            Self::Clipboard(_) => "cut, copy or paste",
-        })
-    }
-}
-
-impl fmt::Display for Availability {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Available => "available",
-            Self::NothingLeft => "nothing left",
-            Self::StrokeInProgress => "a stroke is in progress",
-            Self::Running => "already running",
-            Self::Full => "the layer limit is reached",
-        })
     }
 }
