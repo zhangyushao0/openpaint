@@ -2,16 +2,20 @@
 //! never style widgets inline (ARCHITECTURE section 10). A mode's screens compose them too.
 //!
 //! The one for each job: `island` (and `pill`, what comes and goes in the top band;
-//! `Place::middle_unless` puts a bar in the band's middle unless another holds it), `popover` (grown out
-//! of its island button, usable from the frame it opens), `icon_button`, `icon_toggle`,
-//! `text_button` (a command: a bare word in ink with the press wash; `pill_button` in a pill),
-//! `choices` (mutually exclusive items owning their one mark: `text_choice`, `text_choice_wide`,
-//! `icon_choice`; `word_columns` lays words in two columns with a `Lead`), `divider`, `hint` (a
-//! quieter line), `command_row`, `menu_row`, `label_row`, `panel_heading` / `panel_heading_with`,
+//! `Place::middle_unless` puts a bar in the band's middle unless another holds it; `island_of`, a
+//! bar of more than one row), `popover` (grown out of its island button, usable from the frame it
+//! opens; `popover_of_width` for longer words), `icon_button`, `icon_toggle`, `icon_ringed` (a
+//! bar's one round button), `text_button` (a command: a bare word in ink with the press wash;
+//! `pill_button` in a pill), `choices` (mutually exclusive items owning their one mark:
+//! `text_choice`, `text_choice_wide`, `icon_choice`; `word_columns` lays words in two columns
+//! with a `Lead`), `divider`, `hint` (a quieter line), `command_row`, `menu_row`, `choice_row`
+//! (one of a few rows, its ring inked), `label_row`, `panel_heading` / `panel_heading_with`,
 //! `list_row` (the chosen row outlined, an icon at its end; `picture_row`, a picture small beside
-//! its title and a line), `slider`, `side_slider`, `setting_slider`, `switch_row`, `swatch`,
+//! its title and a line), `slider`, `side_slider`, `setting_slider`, `track` (a scrubber with its
+//! readouts, marks or a segment's handles; `progress`, work running), `switch_row`, `swatch`,
 //! `color_wheel` (`color_compare`, two colours as a picture; `wheel_picture`, a demonstration's
-//! small wheel), `curve_editor`, `preview_strip`, `brush_row`, `notice`, `status`, `dialog`
+//! small wheel), `curve_editor`, `preview_strip`, `brush_row`, `notice` (`confirmation`,
+//! `confirmation_with`), `status`, `dialog`
 //! (`dialog_of_width` for a page of two columns, `naming_dialog` with `Naming`, `delete_dialog`),
 //! `text_field`, `artwork_card`, `card` (`card_text`, `card_columns`, `card_step`), `floating`,
 //! `loupe`, `fill_bar`, `view_status`, `canvas_frame`, `picture`, `paper`, `chrome::declare`; the
@@ -54,6 +58,7 @@ mod swatch;
 mod switch_row;
 mod text_button;
 mod text_field;
+mod track;
 mod view_settle;
 mod view_status;
 
@@ -72,20 +77,20 @@ pub use dialog::{
 };
 pub use fill_bar::{carried_drop, fill_bar};
 pub use floating::{Floating, FloatingLayout, MAT, floating};
-pub use icon_button::{icon_button, icon_choice, icon_toggle};
-pub use island::{ISLAND_TOP, Place, TOP_BAND, UNDER_ISLANDS, island, pill};
+pub use icon_button::{icon_button, icon_choice, icon_ringed, icon_toggle};
+pub use island::{ISLAND_TOP, Place, TOP_BAND, UNDER_ISLANDS, island, island_of, pill};
 pub use list_row::{
     ListRow, PICTURE_ROW, PictureRow, RowPicture, RowResponse, fitted, list_row, paint_picture,
     picture_row,
 };
 pub use loupe::{LOUPE, LOUPE_OFFSET, loupe, loupe_origin};
 pub use menu_row::{
-    command_row, hint, label_row, menu_row, panel_heading, panel_heading_with, section,
+    choice_row, command_row, hint, label_row, menu_row, panel_heading, panel_heading_with, section,
 };
-pub use notice::{confirmation, notice};
+pub use notice::{confirmation, confirmation_with, notice};
 pub use paper::paper;
 pub use picture::{Alpha, picture_texture};
-pub use popover::{Opener, popover, popover_left};
+pub use popover::{Opener, popover, popover_left, popover_of_width};
 pub use preview_strip::{StripResponse, preview_strip};
 pub use setting_slider::{SettingSlider, setting_slider};
 pub use side_panel::side_panel;
@@ -99,5 +104,6 @@ pub use text_button::{
     text_choice_wide, word_columns,
 };
 pub use text_field::{FieldResponse, field_id, text_field};
+pub use track::{TRACK_OVER, Track, TrackChange, progress, track};
 pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

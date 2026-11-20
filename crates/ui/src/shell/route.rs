@@ -19,6 +19,9 @@ impl Shell {
     /// chrome, so a stroke lifted just before undo is tapped is committed before it is undone.
     /// Call after `show`, with the same `hooks`: a mode's taps stay with it.
     pub fn route(&mut self, batches: &[InputBatch], hooks: Hooks<'_>) -> Vec<Intent> {
+        if self.replay.showing() {
+            return self.replay_route(batches);
+        }
         let now_ms = self.now_ms;
         let area = self.canvas.filter(|_| self.showing == Showing::Canvas);
         let (Some(area), Some(shown)) = (area, self.shown) else {

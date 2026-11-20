@@ -3,7 +3,8 @@
 //! inserting a picture from the system's picker as a new layer and Copy & Paste, which
 //! opens the copy menu (`copy_bar.rs`); under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
-//! another app; under "Canvas", the Reference switch that shows the floating reference window
+//! another app, then Replay… with the record's strokes, which opens the replay (S163; none on a
+//! mode's sheet); under "Canvas", the Reference switch that shows the floating reference window
 //! and the row that chooses its image, and the Drawing Guide (its switch and symmetries);
 //! under "Pen", Pen buttons, which shows its page in the panel's place
 //! (`pen_buttons_page.rs`); then Language with English and 中文, each in its own words, the one
@@ -14,13 +15,13 @@
 
 use openpaint_app::{
     Delivery, EditorAction, ExportIntent, ExportScale, Guide, GuideIntent, ImageFormat,
-    InsertIntent, Intent, Language, ReferenceIntent, SessionProjection, StrokeIntent, Symmetry,
-    ToolIntent,
+    InsertIntent, Intent, Language, ReferenceIntent, ReplayIntent, ReplayShown, SessionProjection,
+    StrokeIntent, Symmetry, ToolIntent,
 };
 
 use crate::components::{
-    Lead, Opener, ScreenArea, choices, hint, icon_toggle, menu_row, panel_heading, popover_left,
-    section, switch_row, text_choice, word_columns,
+    Lead, Opener, ScreenArea, choices, command_row, hint, icon_toggle, menu_row, panel_heading,
+    popover_left, section, switch_row, text_choice, word_columns,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::pen_buttons_page::{pen_buttons_page, summary};
@@ -115,6 +116,7 @@ impl ActionsPanel {
             section(ui, t::SHARE);
             self.scale_row(ui, projection);
             close |= self.export_rows(ui, offered(EditorAction::Export), taps);
+            close |= replay_row(ui, projection.replay_shown(), taps);
             section(ui, t::CANVAS_SECTION);
             let shown = transfers.reference_shown;
             if switch_row(ui, t::REFERENCE, shown, true).clicked() {
@@ -225,6 +227,26 @@ impl ActionsPanel {
         self.pen_page = false;
         self.area = None;
     }
+}
+
+/// Share's last row, Replay… after its play icon, with how many strokes the record holds; none on
+/// a mode's sheet, greyed with nothing to replay. Returns whether it was tapped: the replay opens
+/// and the panel closes.
+fn replay_row(ui: &mut egui::Ui, shown: &ReplayShown, taps: &mut Vec<Intent>) -> bool {
+    let ReplayShown::Offered {
+        strokes,
+        availability,
+    } = shown
+    else {
+        return false;
+    };
+    let note = t::strokes(language(ui.ctx()), *strokes);
+    let row = (Icon::Play, t::REPLAY.into(), Words::made(&note));
+    let tapped = command_row(ui, row, availability.is_offered()).clicked();
+    if tapped {
+        push_once(taps, Intent::Replay(ReplayIntent::Open));
+    }
+    tapped
 }
 
 /// The Drawing Guide: its switch, then its symmetries as words in two columns, the one in use in

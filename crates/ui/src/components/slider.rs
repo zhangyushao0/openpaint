@@ -8,9 +8,9 @@ use crate::design::{HAIRLINE, INK, INK_DISABLED, PANEL, SPACE, TOUCH_TARGET, ink
 use crate::text::Words;
 
 /// Radius of the knob, in points.
-const KNOB: f32 = 1.25 * SPACE;
+pub(super) const KNOB: f32 = 1.25 * SPACE;
 /// Thickness of the inked part of the track and of the knob's ring, in points.
-const TRACK: f32 = 2.0;
+pub(super) const TRACK: f32 = 2.0;
 
 /// A value the hand set this frame.
 #[derive(Debug, Clone, Copy, PartialEq)]

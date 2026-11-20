@@ -10,7 +10,10 @@
 //! "+" and the search in the top band (`home/`). What comes and goes moves (D44): panels, pills, dialogs, the loupe and the reference window
 //! grow out of where they come from; an artwork grows out of its card and goes back into it; a
 //! quick pinch settles the view at fit. A mode's screens come in through the frame's hooks
-//! (`hooks.rs`), each called where its part of the screen lies.
+//! (`hooks.rs`), each called where its part of the screen lies. While the replay is open the
+//! canvas shows it with its own chrome (`replay.rs`, S163). The parts: the top islands
+//! (`islands.rs`), routing (`route.rs`), what the canvas showed (`shown.rs`), what the host sets
+//! (`host.rs`).
 
 use openpaint_app::{
     GalleryIntent, Intent, Language, ScreenProjection, SessionProjection, ViewMapping,
@@ -32,6 +35,7 @@ use crate::hooks::{CanvasHook, Chrome, HomeHook, Hooks};
 use crate::panels::Panels;
 use crate::pen_marks;
 use crate::reference_window::ReferenceWindow;
+use crate::replay::{ReplayScreen, replay_area};
 use crate::selection_bar::{self, SelectionBar};
 use crate::shape_bar::{self, ShapeBar};
 use crate::sheet::{self, Showing};
@@ -39,11 +43,10 @@ use crate::side_bar::SideBar;
 use crate::text::{self, Names};
 use crate::transform_bar::TransformBar;
 
-#[path = "shell_islands.rs"]
+mod host;
 mod islands;
-#[path = "shell_route.rs"]
+mod replay;
 mod route;
-#[path = "shell_shown.rs"]
 mod shown;
 pub(crate) use shown::Shown;
 
@@ -81,6 +84,8 @@ pub struct Shell {
     /// Where the top islands and the notice pill lie, from the last pass.
     islands: Vec<ScreenArea>,
     home: HomeScreen,
+    /// The replay's screen, while the canvas's projection holds it open (S163).
+    replay: ReplayScreen,
     /// Intents from taps on the chrome since the last `route` (a mode keeps its own).
     taps: Vec<Intent>,
     /// The view the screen shows while it settles, and the artwork on its way from its card.
@@ -120,6 +125,7 @@ impl Shell {
         self.pixels_per_point = ctx.pixels_per_point();
         self.shown = None;
         self.islands.clear();
+        self.replay.begin();
         let rect = match projection {
             ScreenProjection::Starting => {
                 let rect = canvas_frame(ui);
@@ -128,12 +134,19 @@ impl Shell {
                 }
                 rect
             }
-            ScreenProjection::Canvas(session) => self.canvas_screen(ui, session, canvas),
+            ScreenProjection::Canvas(session) => match session.replay() {
+                Some(replay) => self.replay_screen(ui, session, replay),
+                None => self.canvas_screen(ui, session, canvas),
+            },
             ScreenProjection::Gallery(projection) => {
                 (self.home).show(ui, projection, (home, &mut self.taps))
             }
         };
-        self.canvas = Some(CanvasArea::from_points(rect, self.pixels_per_point));
+        self.canvas = Some(if self.replay.showing() {
+            replay_area(rect, self.pixels_per_point)
+        } else {
+            CanvasArea::from_points(rect, self.pixels_per_point)
+        });
         chrome::finish(&ctx);
         self.moving = moving(&ctx);
         self.controls = controls::take(&ctx);
@@ -300,49 +313,22 @@ impl Shell {
 
     /// What the screen shows of the canvas whose view maps as `mapping` this frame: the same,
     /// or, while the view settles (a quick pinch, an artwork opened from its card), the way
-    /// there. Input never uses it.
+    /// there; while the replay shows, the canvas at fit above its bar. Input never uses it.
     #[must_use]
     pub fn displayed(&self, mapping: ViewMapping) -> ViewMapping {
-        self.view.shown(mapping)
-    }
-
-    /// The input clock now (the time input samples carry) for the next frame; call before `show`.
-    pub fn set_now(&mut self, now_ms: i64) {
-        self.now_ms = now_ms;
-    }
-
-    /// The contacts the next frame routes; call before `show`, so what it lays over the canvas
-    /// lies where they move it (`foreseen`).
-    pub fn set_contacts(&mut self, batches: &[openpaint_app::InputBatch]) {
-        self.contacts = batches.to_vec();
-    }
-
-    /// The device's offset from UTC in minutes, for the dates the home shows.
-    pub fn set_utc_offset(&mut self, minutes: i32) {
-        self.home.utc_offset = minutes;
-    }
-
-    /// The app's version and storage format, which Actions' last line shows.
-    pub fn set_version(&mut self, version: &str, format: u32) {
-        self.panels.actions.version = Some((version.to_owned(), format));
-    }
-
-    /// The language the interface shows from the next pass on (D100).
-    pub fn set_language(&mut self, language: Language) {
-        self.language = language;
-    }
-
-    /// The names a mode gives, which show in the language from the next pass on (D112).
-    pub fn set_names(&mut self, names: Names) {
-        self.names = names;
+        (self.replay.view()).unwrap_or_else(|| self.view.shown(mapping))
     }
 
     /// The pen's outline in screen pixels: the current brush at full size around where the pen
     /// hovers over open canvas, or, while the pen erases there, `erasing` (the eraser's tip:
     /// centre and radius in canvas pixels); `None` over controls, during multi-touch, while
-    /// picking, while the brush draws and off the canvas screen.
+    /// picking, while the brush draws and off the canvas screen. While the replay shows: the
+    /// thin ring at its pen's tip.
     #[must_use]
     pub fn cursor(&self, erasing: Option<([f32; 2], f32)>) -> Option<BrushCursor> {
+        if self.replay.showing() {
+            return self.replay.tip_cursor(self.pixels_per_point);
+        }
         // While the Selection or the Transform tool is on, or an adjustment, the pen draws no
         // paint: no outline.
         let painting = |s: &Shown| !s.selecting && !s.transforming && !s.adjusting;
@@ -370,11 +356,14 @@ impl Shell {
         self.moving
     }
 
-    /// The system's back button: from the canvas it goes to the home; on the home it
-    /// closes an open dialog (a mode's through `hooks`). Returns whether it was used; otherwise
-    /// the system's back applies.
+    /// The system's back button: from the canvas it goes to the home (from the replay, Back);
+    /// on the home it closes an open dialog (a mode's through `hooks`). Returns whether it was
+    /// used; otherwise the system's back applies.
     pub fn back(&mut self, projection: &ScreenProjection, hooks: Hooks<'_>) -> bool {
         match projection {
+            ScreenProjection::Canvas(session) if session.replay().is_some() => {
+                self.replay_back(session)
+            }
             ScreenProjection::Canvas(_) if self.panels.layers.cancel_rename() => true,
             ScreenProjection::Canvas(_) if self.panels.brushes.back() => true,
             ScreenProjection::Canvas(_) => {

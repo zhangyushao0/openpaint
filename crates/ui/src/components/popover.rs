@@ -29,13 +29,21 @@ pub fn popover(
     (opener, open): (Opener, bool),
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> Option<Rect> {
-    panel(
-        ctx,
-        id,
-        (Align2::RIGHT_TOP, -SPACE),
-        (opener, open),
-        add_contents,
-    )
+    let place = (Align2::RIGHT_TOP, -SPACE, PANEL_WIDTH);
+    panel(ctx, id, place, (opener, open), add_contents)
+}
+
+/// As `popover`, `width` points wide: a panel whose words need more room than `PANEL_WIDTH`
+/// (the video's export, its choices beside their sizes).
+pub fn popover_of_width(
+    ctx: &egui::Context,
+    id: &str,
+    (opener, open): (Opener, bool),
+    width: f32,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) -> Option<Rect> {
+    let place = (Align2::RIGHT_TOP, -SPACE, width);
+    panel(ctx, id, place, (opener, open), add_contents)
 }
 
 /// As `popover`, its left edge one space from the screen's.
@@ -45,19 +53,14 @@ pub fn popover_left(
     (opener, open): (Opener, bool),
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> Option<Rect> {
-    panel(
-        ctx,
-        id,
-        (Align2::LEFT_TOP, SPACE),
-        (opener, open),
-        add_contents,
-    )
+    let place = (Align2::LEFT_TOP, SPACE, PANEL_WIDTH);
+    panel(ctx, id, place, (opener, open), add_contents)
 }
 
 fn panel(
     ctx: &egui::Context,
     id: &str,
-    (corner, inset): (Align2, f32),
+    (corner, inset, width): (Align2, f32, f32),
     (opener, open): (Opener, bool),
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> Option<Rect> {
@@ -81,7 +84,7 @@ fn panel(
         .show(ctx, |ui| {
             surface_frame(Margin::same(SPACE as i8)).show(ui, |ui| {
                 ui.multiply_opacity(showing.reveal);
-                let inner = PANEL_WIDTH - 2.0 * SPACE;
+                let inner = width - 2.0 * SPACE;
                 ui.set_width(inner);
                 ui.spacing_mut().item_spacing = Vec2::splat(0.0);
                 add_contents(ui);

@@ -24,17 +24,34 @@ pub fn confirmation<'a>(ui: &mut egui::Ui, message: impl Into<Words<'a>>) -> egu
     shown(ui, Icon::Done, (message.into(), OK.into()), true)
 }
 
+/// As `confirmation`, with `other` before OK (Share… for a video just saved). Returns the
+/// responses of `other` and of OK.
+pub fn confirmation_with<'a>(
+    ui: &mut egui::Ui,
+    message: impl Into<Words<'a>>,
+    other: impl Into<Words<'a>>,
+) -> (egui::Response, egui::Response) {
+    lead(ui, Icon::Done, message.into());
+    let other = text_button(ui, other, true);
+    (other, text_button(ui, OK, true))
+}
+
 fn shown(
     ui: &mut egui::Ui,
     icon: Icon,
     (message, action): (Words<'_>, Words<'_>),
     enabled: bool,
 ) -> egui::Response {
+    lead(ui, icon, message);
+    text_button(ui, action, enabled)
+}
+
+/// The icon, the message and the divider before the answers.
+fn lead(ui: &mut egui::Ui, icon: Icon, message: Words<'_>) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(ICON_SIZE), Sense::hover());
     paint_icon(ui.painter(), icon, rect, INK);
     ui.label(message.shown(ui.ctx()));
     // As far from the message as the word's own margin keeps it from the line.
     ui.add_space(2.0 * SPACE);
     divider(ui);
-    text_button(ui, action, enabled)
 }

@@ -1,14 +1,16 @@
 //! The menu row: one touch target high across a panel, an action's name at its left and an
 //! optional note at its right end, dimmer. Tapping it does the action; pressed, a faint wash
 //! fills the row's outline under the hand; unavailable, it dims and taps go nowhere. Words show
-//! in the pass's language; a row is named by its English (`text.rs`).
+//! in the pass's language; a row is named by its English (`text.rs`). A choice row is one of a
+//! few rows of which one is chosen, its ring inked.
 
-use egui::{Align, Align2, Layout, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
+use egui::{Align, Align2, Layout, Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
 
-use crate::components::controls;
+use crate::components::{animate, controls};
+use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{
-    ICON_SIZE, INK, INK_DISABLED, INK_SECONDARY, Icon, Outline, SPACE, TOUCH_TARGET, paint_icon,
-    paint_pressed,
+    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, MARK_LINE, Outline, SPACE,
+    TOUCH_TARGET, paint_icon, paint_pressed,
 };
 use crate::text::Words;
 
@@ -59,6 +61,51 @@ pub fn menu_row<'a>(
     };
     let font = TextStyle::Body.resolve(ui.style());
     let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
+    painter.text(left, Align2::LEFT_CENTER, shown, font, text);
+    let small = TextStyle::Small.resolve(ui.style());
+    let right = rect.right_center() - Vec2::new(2.0 * SPACE, 0.0);
+    painter.text(right, Align2::RIGHT_CENTER, note, small, quiet);
+    response
+}
+
+/// Radius of a choice row's ring and of the dot inked in it while chosen, in points.
+const CHOICE_RING: f32 = 1.25 * SPACE;
+const CHOICE_DOT: f32 = 0.6 * SPACE;
+
+/// One row of a few of which one is chosen (a video's length): a ring at its left, the dot inked
+/// in it and the ring deeper while it is the one `chosen` (acknowledge), its words `label`, and
+/// `note` (`Words::EMPTY` for none) at its right end, quieter. Tapping it chooses it;
+/// unavailable, it dims and taps go nowhere.
+pub fn choice_row<'a>(
+    ui: &mut egui::Ui,
+    (label, note): (Words<'a>, Words<'a>),
+    (enabled, chosen): (bool, bool),
+) -> egui::Response {
+    let (shown, note) = (label.shown(ui.ctx()), note.shown(ui.ctx()));
+    let info = || WidgetInfo::selected(WidgetType::RadioButton, enabled, chosen, shown);
+    let (response, visible) = tap_row(ui, label.id(), enabled, info);
+    let dot = animate(
+        ui.ctx(),
+        response.id.with("dot"),
+        f32::from(u8::from(chosen)),
+        ACKNOWLEDGE,
+    );
+    if !visible {
+        return response;
+    }
+    let (rect, painter) = (response.rect, ui.painter());
+    let (text, quiet, ring) = match (enabled, chosen) {
+        (false, _) => (INK_DISABLED, INK_DISABLED, INK_DISABLED),
+        (true, true) => (INK, INK_SECONDARY, INK_ACTIVE),
+        (true, false) => (INK, INK_SECONDARY, INK_SECONDARY),
+    };
+    let centre = rect.left_center() + Vec2::new(2.0 * SPACE + CHOICE_RING, 0.0);
+    painter.circle_stroke(centre, CHOICE_RING, Stroke::new(MARK_LINE, ring));
+    if dot > 0.0 {
+        painter.circle_filled(centre, CHOICE_DOT * dot.min(1.0), text.gamma_multiply(dot));
+    }
+    let font = TextStyle::Body.resolve(ui.style());
+    let left = centre + Vec2::new(CHOICE_RING + 1.5 * SPACE, 0.0);
     painter.text(left, Align2::LEFT_CENTER, shown, font, text);
     let small = TextStyle::Small.resolve(ui.style());
     let right = rect.right_center() - Vec2::new(2.0 * SPACE, 0.0);

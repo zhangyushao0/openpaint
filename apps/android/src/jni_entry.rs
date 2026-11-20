@@ -42,6 +42,8 @@ pub(crate) struct Host {
     pub(crate) share_dir: PathBuf,
     /// What the Kotlin host was last asked to show; its answer is for that.
     pub(crate) pending: Option<Pick>,
+    /// The Kotlin video encoder's class, found on the main thread for the video worker (S163).
+    pub(crate) video: Option<std::sync::Arc<crate::video::VideoClass>>,
 }
 
 /// The handle Kotlin holds is a leaked `Box<Host>`; 0 means "no runtime".
@@ -127,6 +129,7 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             recorder,
             share_dir,
             pending: None,
+            video: None,
         };
         let handle = Box::into_raw(Box::new(host)) as jlong;
         crate::jni_debug::remember(handle);

@@ -1,5 +1,6 @@
-//! Android composition root: activity lifecycle, Surface, system pickers, JNI. The only crate
-//! allowed to hold `unsafe`, and only in the JNI and native-window modules. No product rules.
+//! Android composition root: activity lifecycle, Surface, system pickers, the replay's video
+//! encoder (`video.rs`), JNI. The only crate allowed to hold `unsafe`, and only in the JNI,
+//! video and native-window modules. No product rules.
 //!
 //! The Kotlin host (`app/src/main/java/dev/openpaint/`) owns the lifecycle and the
 //! `SurfaceView` (DECISIONS D11); this crate turns its calls into `Runtime` calls. Everything
@@ -41,6 +42,12 @@ mod jni_timer;
     reason = "JNI entry points export unmangled symbols and take over file descriptors"
 )]
 mod jni_transfer;
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "a video's frames go to the Kotlin encoder as direct ByteBuffers"
+)]
+mod video;
 #[cfg(target_os = "android")]
 #[expect(
     unsafe_code,

@@ -3,15 +3,15 @@
 //! fades to pencil grey and taps go nowhere; the pen hovering over it shows its name. The
 //! toggle form carries the active mark (an ink ring, never a filled block) while what it opens
 //! is open; the choice form is one of a `choices` group, whose one ring slides to the icon
-//! chosen.
+//! chosen; the ringed form stands in its ring at rest, the one round button of a bar.
 
 use egui::{Rect, Sense, Vec2, WidgetInfo, WidgetType};
 
 use crate::components::{Choices, animate, controls};
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{
-    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, Icon, Outline, TOUCH_TARGET, paint_icon, paint_mark,
-    paint_pressed,
+    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, Icon, MARK_LINE, Outline, TOUCH_TARGET, paint_icon,
+    paint_mark, paint_pressed,
 };
 use crate::text::Words;
 
@@ -45,6 +45,26 @@ pub fn icon_toggle<'a>(
     );
     if ui.is_rect_visible(response.rect) {
         paint_mark(ui.painter(), Outline::ring(response.rect), mark);
+    }
+    response.on_hover_text(label.shown(ui.ctx()))
+}
+
+/// The one round button of a bar (the replay's Play and Pause): its icon standing in an ink ring,
+/// as `pill_button` stands a word in its pill; unavailable, ring and icon in pencil grey.
+pub fn icon_ringed<'a>(
+    ui: &mut egui::Ui,
+    icon: Icon,
+    label: impl Into<Words<'a>>,
+    enabled: bool,
+) -> egui::Response {
+    let label = label.into();
+    let response = button(ui, icon, label, enabled, false);
+    if ui.is_rect_visible(response.rect) {
+        let ring = Outline::ring(response.rect);
+        let color = if enabled { INK } else { INK_DISABLED };
+        let line = egui::Stroke::new(MARK_LINE, color);
+        let kind = egui::StrokeKind::Middle;
+        ui.painter().rect_stroke(ring.rect, ring.corner, line, kind);
     }
     response.on_hover_text(label.shown(ui.ctx()))
 }
