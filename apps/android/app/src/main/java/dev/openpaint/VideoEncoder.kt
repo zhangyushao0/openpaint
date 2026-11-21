@@ -121,13 +121,18 @@ class VideoEncoder {
         }
 
     /**
-     * One frame: opaque RGBA rows of the video's size, top first; [atUs] its time. Its upload and
-     * drawing are finished before it goes to the encoder, so the next frame's upload never finds
-     * the texture in use: a driver would keep a copy of it for each frame the GPU is behind (the
-     * GPU is busy with the frames being drawn), memory the app counts nowhere.
+     * One frame: opaque RGBA rows of the video's size, top first; [atUs] its time. The video's own
+     * context and the encoder's surface are made current first: whatever else ran on the thread
+     * since (a GPU device opened or let go) cannot have taken them. Its upload and drawing are
+     * finished before it goes to the encoder, so the next frame's upload never finds the texture
+     * in use: a driver would keep a copy of it for each frame the GPU is behind (the GPU is busy
+     * with the frames being drawn), memory the app counts nowhere.
      */
     fun frame(rgba: ByteBuffer, atUs: Long): String? = attempt {
         check(rgba.capacity() >= width * height * 4) { "a frame of ${rgba.capacity()} bytes" }
+        check(EGL14.eglMakeCurrent(display, window, window, context)) {
+            "the video's EGL context could not be made current: EGL error ${EGL14.eglGetError()}"
+        }
         drain(end = false)
         GLES20.glTexSubImage2D(
             GLES20.GL_TEXTURE_2D, 0, 0, 0, width, height,
@@ -137,7 +142,9 @@ class VideoEncoder {
         GLES20.glFinish()
         glChecked("drawing a frame")
         EGLExt.eglPresentationTimeANDROID(display, window, atUs * 1_000)
-        check(EGL14.eglSwapBuffers(display, window)) { "the frame did not reach the encoder" }
+        check(EGL14.eglSwapBuffers(display, window)) {
+            "the frame did not reach the encoder: EGL error ${EGL14.eglGetError()}"
+        }
     }
 
     /** Ends the video: the file complete and, in the album, shown there. */

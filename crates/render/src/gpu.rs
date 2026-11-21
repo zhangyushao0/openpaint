@@ -74,11 +74,15 @@ fn display_format(adapter: &wgpu::Adapter) -> wgpu::TextureFormat {
 impl Gpu {
     /// Opens a device before any window exists: offscreen targets work at once, surfaces attach
     /// later and bring their own display handle (`SurfaceWindow`). `WGPU_BACKEND` and the other
-    /// wgpu environment variables select the adapter. Without `ten_bits` the display format is
-    /// `readback::FORMAT` whatever the adapter offers.
-    pub(crate) fn new(ten_bits: bool) -> Result<Self, RenderError> {
-        let instance =
-            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+    /// wgpu environment variables select the adapter; with `alone` its instance starts that
+    /// backend and no other (on Android starting GLES takes the calling thread's EGL context).
+    /// Without `ten_bits` the display format is `readback::FORMAT` whatever the adapter offers.
+    pub(crate) fn new(ten_bits: bool, alone: Option<wgpu::Backend>) -> Result<Self, RenderError> {
+        let mut instance = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        if let Some(backend) = alone {
+            instance.backends = backend.into();
+        }
+        let instance = wgpu::Instance::new(instance);
         let adapter =
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .map_err(device)?;

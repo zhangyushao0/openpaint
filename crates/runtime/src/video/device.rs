@@ -1,5 +1,7 @@
 //! The video's own GPU device (S163): a `Core` the video worker opens beside the screen's, on
-//! the same kind of adapter, when a video starts (`Core::reopened`), with the `VideoTarget`
+//! the same adapter and its backend alone, when a video starts (`Core::reopened`: no other
+//! backend started on the worker's thread, whose EGL context the platform's encoder draws with,
+//! and which that encoder makes current again for every frame), with the `VideoTarget`
 //! drawing on it, and lets go when the video ends. What a driver keeps for a device's drawing
 //! (on the tablet's, memory the process never got back while the device lived, which added up
 //! export after export) goes with it. Within one video the device is made anew once it drew
@@ -70,8 +72,9 @@ impl VideoDevice {
         own.catch_errors();
         let target = VideoTarget::new(&own, canvas, (video, arena)).map_err(rendering)?;
         log::info!(
-            "a device of the video's own opened in {} ms",
-            started.elapsed().as_millis()
+            "a device of the video's own opened in {} ms on {}",
+            started.elapsed().as_millis(),
+            own.adapter()
         );
         Ok(Self {
             target,

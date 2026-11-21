@@ -69,14 +69,14 @@ impl Core {
     /// Opens the GPU device without a window and builds the pipelines. Offscreen rendering and
     /// readback work at once; platform windows attach later through `Core::create_surface`.
     pub fn headless() -> Result<Self, RenderError> {
-        Self::with_gpu(Gpu::new(true)?)
+        Self::with_gpu(Gpu::new(true, None)?)
     }
 
     /// As `headless`, the screen's canvas and view tiers in 8 bits per channel even where the
     /// device has ten: what the scenario runner uses, whose checks read 8-bit
     /// values and whose ten-bit reads decoded every texel on the CPU.
     pub fn headless_eight_bits() -> Result<Self, RenderError> {
-        Self::with_gpu(Gpu::new(false)?)
+        Self::with_gpu(Gpu::new(false, None)?)
     }
 
     fn with_gpu(gpu: Gpu) -> Result<Self, RenderError> {
@@ -126,13 +126,15 @@ impl Core {
         self.identity
     }
 
-    /// A new device on the same kind of adapter, with every pipeline built anew: what replaces
-    /// this one once it is lost. Nothing made on this one can be used with it.
+    /// A new device on the same adapter, its instance starting this one's backend and no other,
+    /// with every pipeline built anew: what replaces this one once it is lost, and the video's
+    /// device of its own beside it. Nothing made on this one can be used with it.
     ///
     /// # Errors
     /// As `headless`: no adapter or device now (the driver may still be resetting).
     pub fn reopened(&self) -> Result<Self, RenderError> {
-        Self::with_gpu(Gpu::new(self.gpu.ten_bits)?)
+        let backend = self.gpu.adapter.get_info().backend;
+        Self::with_gpu(Gpu::new(self.gpu.ten_bits, Some(backend))?)
     }
 
     /// Why the device was lost (the driver's lost callback, an error once it was lost, out of
@@ -285,4 +287,32 @@ pub(crate) fn clear_attachment(
 fn unorm_color(color: [u8; 4]) -> wgpu::Color {
     let [r, g, b, a] = color.map(|channel| f64::from(channel) / 255.0);
     wgpu::Color { r, g, b, a }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_core;
+
+    /// A device opened beside or after another starts the backend that one runs on and no other,
+    /// on the same adapter: on Android starting GLES as well takes the calling thread's EGL
+    /// context, which the video's encoder draws with (S163).
+    #[test]
+    fn a_core_reopened_starts_its_adapters_backend_alone() {
+        let core = test_core();
+        let backend = core.gpu.adapter.get_info().backend;
+        let reopened = core.reopened().expect("a second device on the adapter");
+        let all = reopened
+            .gpu
+            .instance
+            .enumerate_adapters(wgpu::Backends::all());
+        let started: Vec<_> = pollster::block_on(all)
+            .iter()
+            .map(|adapter| adapter.get_info().backend)
+            .collect();
+        assert!(
+            !started.is_empty() && started.iter().all(|other| *other == backend),
+            "{backend:?} alone, started {started:?}"
+        );
+        assert_eq!(reopened.adapter(), core.adapter(), "the same adapter");
+    }
 }
