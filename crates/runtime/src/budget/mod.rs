@@ -14,7 +14,10 @@
 //! The smudge residuals keep within a share of the budget (`ARENA_SHARE`), the least recently
 //! needed going first, never one the last frame needed. Once a minute while a canvas is open,
 //! what holds memory is logged (`budget/note.rs`). `release`, for Android's `onTrimMemory`, lets
-//! the tiers, the raster targets, the snapshots and the arena's blocks no scene shows go at once.
+//! the tiers, the raster targets, the snapshots and the arena's blocks no scene shows go at once;
+//! so does a video's making as it starts (`let_go_caches`). While a video is made, its target's
+//! bytes count as held and never go (the video worker's, `VideoTarget::bytes`), and the screen's
+//! tiers and snapshots have no room (the replay stands still).
 
 use openpaint_render::{CacheBytes, Core};
 
@@ -185,7 +188,7 @@ fn rooms(held: &CacheBytes, units: &[Held], budget: u64) -> Rooms {
         .filter(|held| held.needed && matches!(held.unit, Unit::Tier(_)))
         .map(|held| held.bytes)
         .sum::<u64>();
-    let fixed = held.canvas + needed(Unit::Pictures);
+    let fixed = held.canvas + held.video + needed(Unit::Pictures);
     Rooms {
         tiers: budget.saturating_sub(fixed + needed(Unit::Snapshots)),
         snapshots: budget.saturating_sub(fixed + shown),
@@ -198,6 +201,7 @@ impl Runtime {
     pub(crate) fn keep_within_budget(&mut self) -> Result<(), RuntimeError> {
         let now = self.frame_clock.seconds();
         let panel = self.shell.layers_open();
+        let (video, filming) = (self.video_bytes(), self.making_video());
         let Screen::Canvas(canvas) = &mut self.screen else {
             return Ok(());
         };
@@ -206,6 +210,7 @@ impl Runtime {
         let making = if self.pictures.busy() { picture } else { 0 };
         let held = CacheBytes {
             pictures: making + self.shell.picture_bytes(),
+            video,
             ..canvas.bytes()
         };
         self.budget.saw(&held, &self.core);
@@ -217,8 +222,12 @@ impl Runtime {
         ];
         let units = self.budget.units((canvas, &held), now, using);
         let gone = to_let_go(&units, held.total(), self.budget.bytes);
-        let freed =
-            canvas.hold_within(&self.core, rooms(&held, &units, self.budget.bytes), &gone)?;
+        let mut rooms = rooms(&held, &units, self.budget.bytes);
+        if filming {
+            // The replay stands still while its video is made: nothing grows back.
+            (rooms.tiers, rooms.snapshots) = (0, 0);
+        }
+        let freed = canvas.hold_within(&self.core, rooms, &gone)?;
         if gone.contains(&Unit::Arena) {
             self.budget.shrunk = Some(held.arena.saturating_sub(freed.arena));
         }
@@ -246,23 +255,29 @@ impl Runtime {
             log::info!("trim memory level {level}: nothing let go");
             return;
         }
+        self.let_go_caches(&format!("trim memory level {level}"));
+    }
+
+    /// The open canvas's view tiers with the raster targets, its snapshots and the arena's blocks
+    /// no scene shows let go now, `why` (the app hidden, a video made); each is made again when
+    /// needed. Logged with what went.
+    pub(crate) fn let_go_caches(&mut self, why: &str) {
         let Some(canvas) = self.screen.canvas_mut() else {
-            log::info!("trim memory level {level}: no canvas open");
+            log::info!("{why}: no canvas open");
             return;
         };
         let held = canvas.bytes();
         match canvas.release(&self.core) {
             Ok(freed) => log::info!(
-                "trim memory level {level}: let go the view tiers {:.1} MB, the snapshots {:.1} \
-                 MB, the arena's blocks no scene shows {:.1} MB, of {:.1} MB held; the budget \
-                 {:.0} MB",
+                "{why}: let go the view tiers {:.1} MB, the snapshots {:.1} MB, the arena's \
+                 blocks no scene shows {:.1} MB, of {:.1} MB held; the budget {:.0} MB",
                 mb(freed.tiers),
                 mb(freed.snapshots),
                 mb(freed.arena),
                 mb(held.total()),
                 mb(self.budget.bytes)
             ),
-            Err(error) => log::error!("trim memory level {level} failed: {error}"),
+            Err(error) => log::error!("{why} failed: {error}"),
         }
     }
 }
@@ -327,6 +342,7 @@ mod tests {
             arena: 20 * MB,
             pictures: 10 * MB,
             raster: 0,
+            video: 0,
         };
         let units = [
             unit(Unit::Tier(4), 60, 9.0, true),
@@ -342,5 +358,24 @@ mod tests {
         );
         assert_eq!(rooms.snapshots, 840 * MB, "the canvas and the tier shown");
         assert_eq!(rooms.arena, 250 * MB);
+    }
+
+    #[test]
+    fn a_video_being_made_is_held_as_the_canvas_is_and_never_goes() {
+        let held = CacheBytes {
+            canvas: 100 * MB,
+            video: 300 * MB,
+            ..CacheBytes::default()
+        };
+        let units = [unit(Unit::Tier(2), 50, 7.0, false)];
+        let rooms = rooms(&held, &units, 1000 * MB);
+        assert_eq!((rooms.tiers, rooms.snapshots), (600 * MB, 600 * MB));
+        let total = held.total() + 50 * MB;
+        assert_eq!(to_let_go(&units, total, 420 * MB), [Unit::Tier(2)]);
+        assert_eq!(
+            to_let_go(&units, total, 0),
+            [Unit::Tier(2)],
+            "all that may go"
+        );
     }
 }

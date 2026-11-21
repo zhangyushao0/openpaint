@@ -110,6 +110,17 @@ impl CanvasTarget {
         target.read(core)
     }
 
+    /// As `new`, for a worker drawing beside the screen (the replay's video): each region waited
+    /// for before the next, its smudges' and filters' material's too, so the GPU holds one region
+    /// of its work at a time (the driver keeps as many command buffers as were ever in flight)
+    /// and the screen's frames find it free between them.
+    pub(crate) fn paced(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+        let mut target = Self::new(core, size)?;
+        target.paced = true;
+        target.smudges.pace();
+        Ok(target)
+    }
+
     /// As `new`, in 8 bits per channel whatever the device shows (tests: what a ten-bit canvas
     /// reads as).
     #[cfg(test)]

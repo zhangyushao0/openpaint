@@ -54,6 +54,8 @@ struct Tools {
     /// The last cold evaluation's residual, emptied for the next: its buffers are made
     /// once, not per residual.
     scratch: Option<Run>,
+    /// A paced target's (`CanvasTarget::paced`): its material waits for each region.
+    paced: bool,
 }
 
 pub(crate) struct Smudges {
@@ -91,8 +93,15 @@ impl Smudges {
                 owner: 0,
                 next: 1,
                 scratch: None,
+                paced: false,
             },
         }
+    }
+
+    /// Its target is a worker's beside the screen's (`CanvasTarget::paced`): the material it
+    /// makes waits for each region it draws.
+    pub(crate) fn pace(&mut self) {
+        self.tools.paced = true;
     }
 
     /// The arena and the in-progress residual (an empty one without), as the raster core binds
@@ -258,7 +267,7 @@ impl Tools {
         let new = run
             .working
             .allocate(&core.gpu, &read_tiles(dabs, size), binding_limit(core))?;
-        let material = material(&mut self.material, core, size)?;
+        let material = material(&mut self.material, core, (size, self.paced))?;
         let stale = self.owner != run.owner;
         let tiles = if stale { run.working.tiles() } else { &new[..] };
         let rects: Vec<PixelRect> = tiles.iter().map(|t| run.working.tile_rect(*t)).collect();
@@ -318,14 +327,15 @@ fn binding_limit(core: &Core) -> u64 {
         .min(limits.max_buffer_size)
 }
 
-/// The material texture in `slot`, for a canvas of `size` pixels, made on first use.
+/// The material texture in `slot`, for a canvas of `size` pixels (`paced`: a paced target's),
+/// made on first use.
 fn material<'a>(
     slot: &'a mut Option<Material>,
     core: &Core,
-    size: [u32; 2],
+    (size, paced): ([u32; 2], bool),
 ) -> Result<&'a mut Material, RenderError> {
     if slot.is_none() {
-        *slot = Some(Material::new(core, size)?);
+        *slot = Some(Material::new(core, size, paced)?);
     }
     slot.as_mut()
         .ok_or(RenderError::Invalid("no material texture"))

@@ -1,5 +1,6 @@
 //! The video's scale pass on the GPU (`shaders/video.wgsl`, the module's rule): a canvas target
-//! scaled to a size by area, in integers, into a buffer read back as RGBA8.
+//! scaled to a size by area, in integers, into a buffer read back as RGBA8 through a buffer kept
+//! with it, into an image the caller keeps: a frame allocates nothing.
 
 use wgpu::util::DeviceExt;
 
@@ -7,7 +8,7 @@ use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::image::RgbaImage;
-use crate::readback::read_buffer;
+use crate::readback::{read_buffer_into, readback_buffer};
 
 const SHADER: &str = include_str!("../shaders/video.wgsl");
 /// The shader's workgroup side.
@@ -19,11 +20,26 @@ pub(super) struct ScalePass {
     layout: wgpu::BindGroupLayout,
 }
 
-/// One scale of a canvas target to `size`: its sizes, the pixels it writes and its bind group.
+/// One scale of a canvas target to `size`: its sizes, the pixels it writes, the buffer they are
+/// read back through and its bind group.
 pub(super) struct Bindings {
     size: [u32; 2],
     pixels: wgpu::Buffer,
+    readback: wgpu::Buffer,
     group: wgpu::BindGroup,
+}
+
+impl Bindings {
+    /// Bytes of its buffers.
+    pub(super) fn bytes(&self) -> u64 {
+        self.pixels.size() + self.readback.size()
+    }
+
+    /// An image of its size to read its frames into.
+    pub(super) fn image(&self) -> RgbaImage {
+        let [width, height] = self.size.map(|side| side as usize);
+        RgbaImage::new(self.size, vec![0; width * height * 4])
+    }
 }
 
 impl ScalePass {
@@ -132,14 +148,25 @@ impl ScalePass {
         });
         Ok(Bindings {
             size,
+            readback: readback_buffer(&core.gpu, "video frame readback", bytes),
             pixels,
             group,
         })
     }
 
-    /// The canvas `bindings` scale, scaled and read back (waiting for the draws before).
-    pub(super) fn run(&self, core: &Core, bindings: &Bindings) -> Result<RgbaImage, RenderError> {
+    /// The canvas `bindings` scale, scaled and read back into `image` (of the bindings' size,
+    /// `Bindings::image`), waiting for the draws before and for itself: when it returns, the GPU
+    /// holds no work of the frame.
+    pub(super) fn run(
+        &self,
+        core: &Core,
+        bindings: &Bindings,
+        image: &mut RgbaImage,
+    ) -> Result<(), RenderError> {
         let [width, height] = bindings.size;
+        if image.size() != bindings.size {
+            return Err(RenderError::Invalid("a video frame read into another size"));
+        }
         let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_compute_pass(&Default::default());
@@ -148,8 +175,7 @@ impl ScalePass {
             pass.dispatch_workgroups(width.div_ceil(GROUP), height.div_ceil(GROUP), 1);
         }
         core.gpu.submit([encoder.finish()]);
-        let bytes = u64::from(width) * u64::from(height) * 4;
-        let data = read_buffer(&core.gpu, &bindings.pixels, bytes)?;
-        Ok(RgbaImage::new(bindings.size, data))
+        let buffers = (&bindings.pixels, &bindings.readback);
+        read_buffer_into(&core.gpu, buffers, image.pixels_mut())
     }
 }

@@ -76,7 +76,8 @@ impl Smudges {
                 None if self.arena.base(&keys[index]).is_some() => continue,
                 None => {
                     let item = &scene.filters[index - scene.smudges.len()];
-                    let material = material(&mut self.tools.material, core, size)?;
+                    let material =
+                        material(&mut self.tools.material, core, (size, self.tools.paced))?;
                     let held = self.tools.owner == 0;
                     let tools = (&mut self.arena, material, &self.tools.empty, held);
                     let place = (item, keys[index]);

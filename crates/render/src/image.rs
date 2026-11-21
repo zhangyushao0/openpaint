@@ -34,6 +34,11 @@ impl RgbaImage {
         &self.pixels
     }
 
+    /// Its pixels to write over in place (a readback reusing the image).
+    pub(crate) fn pixels_mut(&mut self) -> &mut [u8] {
+        &mut self.pixels
+    }
+
     #[must_use]
     pub fn into_pixels(self) -> Vec<u8> {
         self.pixels

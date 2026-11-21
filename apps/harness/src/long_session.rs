@@ -306,3 +306,4 @@ impl Painter {
 #[path = "long_session_report.rs"]
 mod report;
 use report::path;
+pub(crate) use report::process_memory;

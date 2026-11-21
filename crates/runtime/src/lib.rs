@@ -62,7 +62,7 @@ pub use crate::practice::{PracticeTest, skill_start};
 pub use crate::recorder::{FRAMES_FILE, FRAMES_KEPT, FrameRecorder};
 pub use crate::text::{EditKey, TextInput};
 pub use crate::transfer::{Encoded, encoded};
-pub use crate::video::make_video;
+pub use crate::video::{VideoShared, make_video};
 pub use openpaint_app::{
     BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, Language, PortError,
     ScreenProjection,

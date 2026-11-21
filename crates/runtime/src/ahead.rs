@@ -7,7 +7,8 @@
 //! flat out; the queue holds at most `IDLE_BACKGROUND_NS` of it, which is what the first frame of
 //! a touch waits for. The raster core's tiles go to its worker (`raster.rs`), which submits each
 //! as the queue has room, so the GPU has the next tile when one ends, between the frame calls
-//! too.
+//! too. While a video is made the GPU's spare time is the video's: no frame is idle, a hovering
+//! pen takes nothing ahead, and the screen draws only what it shows (the replay stands still).
 
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
@@ -31,9 +32,10 @@ impl Runtime {
     /// while nothing touches the screen, else the frame's share, from which the snapshots under
     /// the next stroke take a job while the pen hovers (`Core::pen_hovers`). Whether it is idle.
     pub(crate) fn begin_background(&mut self) -> bool {
-        let idle = self.idle();
+        let making = self.making_video();
+        let idle = self.idle() && !making;
         self.core.begin_frame_idle(idle);
-        if !idle && self.hovering().is_some() {
+        if !idle && !making && self.hovering().is_some() {
             self.core.pen_hovers();
         }
         idle
@@ -54,7 +56,7 @@ impl Runtime {
     /// canvas's waiting work gets what the GPU's queue has room for, nothing drawn or presented.
     pub(crate) fn ahead(&mut self) -> Result<(), RuntimeError> {
         let waits = self.screen.canvas().is_some_and(Canvas::waiting);
-        if !waits || !self.idle() {
+        if !waits || !self.idle() || self.making_video() {
             return Ok(());
         }
         self.core.begin_frame_idle(true);

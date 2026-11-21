@@ -10,7 +10,7 @@
 //! timeline, a flow that asks the host for nothing) and with its bodies; what needs those (blank
 //! paper at opening, the playhead moving, Export asking for an encoder) the scenarios walk.
 
-use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use openpaint_app::{
@@ -21,7 +21,7 @@ use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
 use openpaint_render::{CanvasTarget, FrameRequest, RgbaImage, UiFrame, video_reference};
-use openpaint_runtime::{Runtime, ToolKind, make_video};
+use openpaint_runtime::{Runtime, ToolKind, VideoShared, make_video};
 
 use crate::support::hand::{HANG, Hand};
 use crate::support::{Nowhere, canvas, core, frame, line, settle, start, strokes};
@@ -173,6 +173,16 @@ impl VideoEncoder for Keeper {
 
 const CANVAS: [u32; 2] = [320, 200];
 const VIDEO: [u32; 2] = [192, 120];
+/// The video target's arena room: the tablet's budget's share of the residuals.
+const ARENA: u64 = 707 << 20;
+
+/// What a video shares with a frame loop whose user cancelled it before its first frame.
+fn cancelled_at_once() -> VideoShared {
+    VideoShared {
+        cancel: AtomicBool::new(true),
+        ..VideoShared::default()
+    }
+}
 
 /// Two strokes on a small canvas.
 fn artwork() -> Artwork {
@@ -233,11 +243,12 @@ fn the_video_hands_every_frame_in_order_at_its_time_and_finishes() {
     let keeper = Keeper::default();
     let (job, frames) = job(&keeper, 6);
     let order = job.order.clone();
-    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(false));
-    make_video(&core(), (job, None), (&made, &cancel)).expect("made");
+    let shared = VideoShared::default();
+    make_video(&core(), (job, None), (&shared, ARENA)).expect("made");
     let count = frames.count();
     assert!(count >= 6, "the end's frames at least");
-    assert_eq!(made.into_inner(), count);
+    assert_eq!(shared.made.load(Ordering::Acquire), count);
+    assert_eq!(shared.held.load(Ordering::Acquire), 0, "its target let go");
     let mut expected = vec![Call::Begin(order)];
     expected.extend((0..u64::from(count)).map(|k| Call::Frame(k * 1_000_000 / 30)));
     expected.push(Call::Finish);
@@ -265,8 +276,8 @@ fn a_segment_ends_on_the_finished_picture() {
         frames: frames.clone(),
         ..asked
     };
-    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(false));
-    make_video(&core(), (job, None), (&made, &cancel)).expect("made");
+    let shared = VideoShared::default();
+    make_video(&core(), (job, None), (&shared, ARENA)).expect("made");
     let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
     let count = kept.len();
     let steps = frames.drawing().steps().len();
@@ -286,13 +297,13 @@ fn a_segment_ends_on_the_finished_picture() {
 fn the_end_card_holds_the_picture_above_its_line() {
     let keeper = Keeper::default();
     let (job, frames) = job(&keeper, 3);
-    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(false));
+    let shared = VideoShared::default();
     let caption = UiFrame {
         primitives: Vec::new(),
         textures: egui::TexturesDelta::default(),
         pixels_per_point: 1.0,
     };
-    make_video(&core(), (job, Some(caption)), (&made, &cancel)).expect("made");
+    make_video(&core(), (job, Some(caption)), (&shared, ARENA)).expect("made");
     let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
     let ends: Vec<&Vec<u8>> = (kept.iter().enumerate())
         .filter(|(index, _)| frames.frame(*index as u32) == VideoFrame::End)
@@ -319,8 +330,8 @@ fn cancel_and_a_failing_encoder_drop_what_was_begun() {
     let keeper = Keeper::default();
     let (asked, _) = job(&keeper, 2);
     let order = asked.order.clone();
-    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(true));
-    let cancelled = make_video(&core(), (asked, None), (&made, &cancel));
+    let shared = cancelled_at_once();
+    let cancelled = make_video(&core(), (asked, None), (&shared, ARENA));
     assert_eq!(cancelled, Err(VideoError::Cancelled));
     assert_eq!(keeper.calls(), [Call::Begin(order.clone()), Call::Cancel]);
     let failing = Keeper {
@@ -328,8 +339,8 @@ fn cancel_and_a_failing_encoder_drop_what_was_begun() {
         ..Keeper::default()
     };
     let (asked, _) = job(&failing, 2);
-    let cancel = AtomicBool::new(false);
-    let failed = make_video(&core(), (asked, None), (&made, &cancel));
+    let shared = VideoShared::default();
+    let failed = make_video(&core(), (asked, None), (&shared, ARENA));
     assert!(matches!(failed, Err(VideoError::Write(_))), "{failed:?}");
     let expected = [Call::Begin(order), Call::Frame(0), Call::Cancel];
     assert_eq!(failing.calls(), expected);
@@ -348,7 +359,7 @@ fn a_video_cancelled_before_its_card_lets_the_line_go_and_is_cancelled() {
         textures,
         pixels_per_point: 1.0,
     };
-    let (made, cancel) = (AtomicU32::new(0), AtomicBool::new(true));
-    let cancelled = make_video(&core(), (asked, Some(caption)), (&made, &cancel));
+    let shared = cancelled_at_once();
+    let cancelled = make_video(&core(), (asked, Some(caption)), (&shared, ARENA));
     assert_eq!(cancelled, Err(VideoError::Cancelled), "never a failure");
 }

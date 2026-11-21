@@ -4,13 +4,17 @@
 //! video's size and read back); the end held is the finished picture (a segment's too) or, with
 //! the caption, the end card (the line the composition root laid, painted by a painter of its own
 //! into a `ScreenTarget` of the band's size, `openpaint_ui::video_caption`). Each frame goes to
-//! the platform's encoder with its time (`k × 1_000_000 / fps` µs). How many frames it made and
-//! the user's Cancel are atomics the frame loop shares: it stops between frames and the encoder
-//! drops what it began (also after a failure). It holds only an `Arc<Core>` and the job's values.
+//! the platform's encoder with its time (`k × 1_000_000 / fps` µs). How many frames it made, the
+//! user's Cancel and the bytes its target holds on the GPU are atomics the frame loop shares
+//! (`VideoShared`): it stops between frames and the encoder drops what it began (also after a
+//! failure); the GPU memory budget counts the bytes while the video is made. Each frame's GPU
+//! work is finished before the next is drawn (the target waits for each region and for its
+//! readback), the frame read into the one image the target keeps. It holds only an `Arc<Core>`
+//! and the job's values.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use openpaint_app::{At, VideoEncoder, VideoError, VideoFrame, VideoFrames, VideoJob, VideoOrder};
@@ -27,39 +31,47 @@ use crate::error::RuntimeError;
 use crate::shared::SharedCore;
 use crate::worker::Queue;
 
-/// One video for the worker: the job, its end card's line laid (with the caption on), and the
-/// atomics it shares with the frame loop.
+/// What a video being made shares with the frame loop: the frames handed to the encoder so far,
+/// the user's Cancel, and the bytes its target holds on the GPU (0 before its first frame and
+/// once it ended).
+#[derive(Debug, Default)]
+pub struct VideoShared {
+    pub made: AtomicU32,
+    pub cancel: AtomicBool,
+    pub held: AtomicU64,
+}
+
+/// One video for the worker: the job, its end card's line laid (with the caption on), the room
+/// its target's arena keeps within, and what it shares with the frame loop.
 pub(crate) struct VideoWork {
     job: VideoJob,
     caption: Option<UiFrame>,
-    made: Arc<AtomicU32>,
-    cancel: Arc<AtomicBool>,
+    arena: u64,
+    shared: Arc<VideoShared>,
 }
 
-/// The worker and the atomics of the job handed to it last.
+/// The worker and what the job handed to it last shares.
 pub(crate) struct VideoWorker {
     worker: Queue<VideoWork, Result<(), VideoError>>,
-    made: Arc<AtomicU32>,
-    cancel: Arc<AtomicBool>,
+    shared: Arc<VideoShared>,
 }
 
 impl VideoWorker {
     pub(crate) fn start(core: SharedCore) -> Result<Self, RuntimeError> {
         let worker = Queue::spawn("openpaint-video", move |work: VideoWork| {
-            let shared = (&*work.made, &*work.cancel);
+            let shared = (&*work.shared, work.arena);
             make_video(&core.get(), (work.job, work.caption), shared)
         })?;
         Ok(Self {
             worker,
-            made: Arc::default(),
-            cancel: Arc::default(),
+            shared: Arc::default(),
         })
     }
 
-    /// Makes `job`'s video, its end card with `caption` (the line laid for it) when given.
-    pub(crate) fn submit(&mut self, job: VideoJob, caption: Option<UiFrame>) {
-        self.made = Arc::default();
-        self.cancel = Arc::default();
+    /// Makes `job`'s video, its end card with `caption` (the line laid for it) when given, its
+    /// target's arena within `arena` bytes.
+    pub(crate) fn submit(&mut self, job: VideoJob, caption: Option<UiFrame>, arena: u64) {
+        self.shared = Arc::default();
         log::info!(
             "video {:?} of {} frames asked",
             job.order,
@@ -68,19 +80,24 @@ impl VideoWorker {
         self.worker.submit(VideoWork {
             job,
             caption,
-            made: Arc::clone(&self.made),
-            cancel: Arc::clone(&self.cancel),
+            arena,
+            shared: Arc::clone(&self.shared),
         });
     }
 
     /// The user's Cancel: the job stops before its next frame.
     pub(crate) fn cancel(&self) {
-        self.cancel.store(true, Ordering::Release);
+        self.shared.cancel.store(true, Ordering::Release);
     }
 
     /// How many frames of the last job went to its encoder so far.
     pub(crate) fn made(&self) -> u32 {
-        self.made.load(Ordering::Acquire)
+        self.shared.made.load(Ordering::Acquire)
+    }
+
+    /// The bytes the last job's target holds on the GPU now (0 while none is drawn).
+    pub(crate) fn held(&self) -> u64 {
+        self.shared.held.load(Ordering::Acquire)
     }
 
     /// The last job's end, once it ended.
@@ -103,18 +120,20 @@ impl Drop for VideoWorker {
 }
 
 /// `job`'s video made on `core`: `begin`, every frame (its end card with `caption`, the line
-/// laid for it, when given), `finish`; `made` counts the frames handed over, `cancel` stops it
-/// before the next. The video worker's path, which tests and timings call as it is. Its end is
+/// laid for it, when given), `finish`; `shared` counts the frames handed over and the bytes the
+/// target holds, its Cancel stops it before the next frame; the target's arena keeps within
+/// `arena` bytes. The video worker's path, which tests and timings call as it is. Its end is
 /// logged; a panic is a bug, logged and reported as a failure to draw. The encoder drops what it
 /// began unless the video finished.
 ///
 /// # Errors
-/// `Cancelled` once `cancel` is set; `Render` when the GPU fails; the encoder's.
+/// `Cancelled` once Cancel is set; `Render` when the GPU fails; the encoder's.
 pub fn make_video(
     core: &Core,
     (job, caption): (VideoJob, Option<UiFrame>),
-    (made, cancel): (&AtomicU32, &AtomicBool),
+    (shared, arena): (&VideoShared, u64),
 ) -> Result<(), VideoError> {
+    let made = &shared.made;
     let VideoJob {
         order,
         frames,
@@ -131,9 +150,10 @@ pub fn make_video(
     let made_whole = catch_unwind(AssertUnwindSafe(|| {
         encoder.begin(&order)?;
         let work = (&order, &frames, &mut ends);
-        spent = encode(core, work, encoder.as_mut(), (made, cancel))?;
+        spent = encode(core, (work, arena), encoder.as_mut(), shared)?;
         encoder.finish()
     }));
+    shared.held.store(0, Ordering::Release);
     let result = made_whole.unwrap_or_else(|_| {
         log::error!("making the video panicked");
         Err(VideoError::Render)
@@ -165,48 +185,46 @@ struct Spent {
     encoding: Duration,
 }
 
-/// Every frame of `frames` drawn and handed to `encoder`, `made` counting them, until done or
-/// `cancel`.
+/// Every frame of `frames` drawn (the target's arena within `arena` bytes) and handed to
+/// `encoder`, `shared` counting them and the target's bytes, until done or Cancel.
 fn encode(
     core: &Core,
-    (order, frames, ends): (&VideoOrder, &VideoFrames, &mut Ends),
+    ((order, frames, ends), arena): ((&VideoOrder, &VideoFrames, &mut Ends), u64),
     encoder: &mut dyn VideoEncoder,
-    (made, cancel): (&AtomicU32, &AtomicBool),
+    shared: &VideoShared,
 ) -> Result<Spent, VideoError> {
     let canvas = frames.drawing().artwork().canvas();
     let canvas = [canvas.width(), canvas.height()];
-    let mut target = VideoTarget::new(core, canvas, order.size).map_err(rendering)?;
+    let mut target = VideoTarget::new(core, canvas, (order.size, arena)).map_err(rendering)?;
+    shared.held.store(target.bytes().total(), Ordering::Release);
     let fps = u64::from(order.fps.max(1));
     let mut spent = Spent::default();
     for index in 0..frames.count() {
-        if cancel.load(Ordering::Acquire) {
+        if shared.cancel.load(Ordering::Acquire) {
             return Err(VideoError::Cancelled);
         }
         let drawn = Instant::now();
-        let moment;
         let image = match frames.frame(index) {
-            VideoFrame::At(at) => {
-                moment = drawn_at(core, &mut target, frames, at)?;
-                &moment
-            }
+            VideoFrame::At(at) => drawn_at(core, &mut target, frames, at)?,
             VideoFrame::End => ends.end(core, &mut target, frames.drawing())?,
         };
         let encoded = Instant::now();
         spent.drawing += encoded - drawn;
         encoder.frame(image.pixels(), u64::from(index) * 1_000_000 / fps)?;
         spent.encoding += encoded.elapsed();
-        made.store(index + 1, Ordering::Release);
+        shared.held.store(target.bytes().total(), Ordering::Release);
+        shared.made.store(index + 1, Ordering::Release);
     }
     Ok(spent)
 }
 
-/// The replay at `at`, drawn and read back.
-fn drawn_at(
+/// The replay at `at`, drawn and read back into the target's image.
+fn drawn_at<'a>(
     core: &Core,
-    target: &mut VideoTarget,
+    target: &'a mut VideoTarget,
     frames: &VideoFrames,
     at: At,
-) -> Result<RgbaImage, VideoError> {
+) -> Result<&'a RgbaImage, VideoError> {
     let frame = frames.drawing().frame(at.done, at.samples);
     let request = FrameRequest {
         artwork: &frame.artwork,
@@ -241,7 +259,7 @@ impl Ends {
                 active: None,
                 background: PAPER,
             };
-            self.finished = Some(target.frame(core, &request).map_err(rendering)?);
+            self.finished = Some(target.frame(core, &request).map_err(rendering)?.clone());
         }
         if let Some(caption) = self.caption.take() {
             let band = band(core, caption, caption_band(target.size())).map_err(rendering)?;

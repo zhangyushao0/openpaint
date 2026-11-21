@@ -162,11 +162,12 @@ impl Drawing {
         }
     }
 
-    /// Lets the pages go too (the GPU memory budget's step, a trim), unless a stroke is tracked
-    /// or the worker takes snapshots into them; returns their bytes.
+    /// Lets the pages go too (the GPU memory budget's step, a trim); while a stroke is tracked
+    /// (a replay's standing still while its video is made) or the worker takes snapshots into
+    /// them, only the pages at the end no slot holds. Returns their bytes.
     pub(crate) fn let_go(&mut self) -> u64 {
         if self.tracking() || !self.taking.is_empty() {
-            return 0;
+            return self.snapshots.trim() + self.coverage.trim();
         }
         let bytes = self.bytes();
         self.end_stroke();
@@ -320,6 +321,20 @@ impl Pool {
         for taken in &mut self.taken {
             taken.fill(false);
         }
+    }
+
+    /// Lets the pages at the end that no slot holds go (no other slot moves); returns their
+    /// bytes.
+    fn trim(&mut self) -> u64 {
+        let mut bytes = 0;
+        while self.taken.last().is_some_and(|page| !page.contains(&true)) {
+            self.taken.pop();
+            bytes += self
+                .pages
+                .pop()
+                .map_or(0, |page| texture_bytes(&page.texture));
+        }
+        bytes
     }
 
     fn free(&mut self, slot: SlotAt) {

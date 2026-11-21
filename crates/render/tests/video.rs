@@ -1,9 +1,10 @@
 //! GPU tests of the replay's video frames (S163): frames drawn one after another on the video's
 //! own canvas (strokes drawn along their samples, committed, a fill, the playhead moved back and
 //! on) equal each frame drawn cold; the scale pass equals its CPU reference on any GPU, a video of
-//! the canvas's size is the canvas; the end card lays the picture on the desk above the band.
+//! the canvas's size is the canvas; the end card lays the picture on the desk above the band; the
+//! replay drawn again holds what it held after the first time (nothing kept per frame).
 
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use openpaint_core::{
     ActiveStroke, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color,
@@ -15,6 +16,14 @@ const CANVAS: [u32; 2] = [320, 200];
 /// Five canvas pixels to three video pixels: weights that split pixels.
 const VIDEO: [u32; 2] = [192, 120];
 const DESK: [u8; 4] = [233, 230, 224, 255];
+/// The arena's room: the tablet's budget's share of the residuals.
+const ARENA: u64 = 707 << 20;
+
+/// One test at a time where one reads the device's allocator.
+fn alone() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: Mutex<()> = Mutex::new(());
+    ONE.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// This binary's one GPU device (one device per test binary, ARCHITECTURE section 8).
 fn core() -> &'static Core {
@@ -125,22 +134,25 @@ fn request<'a>(artwork: &'a Artwork, active: Option<&'a ActiveStroke>) -> FrameR
 
 /// A frame drawn on a video target of its own.
 fn cold(artwork: &Artwork, active: Option<&ActiveStroke>, size: [u32; 2]) -> RgbaImage {
-    let mut target = VideoTarget::new(core(), CANVAS, size).expect("target");
+    let mut target = VideoTarget::new(core(), CANVAS, (size, ARENA)).expect("target");
     target
         .frame(core(), &request(artwork, active))
         .expect("cold frame")
+        .clone()
 }
 
 #[test]
 fn frames_drawn_one_after_another_equal_each_drawn_cold() {
+    let _one = alone();
     let core = core();
-    let mut target = VideoTarget::new(core, CANVAS, VIDEO).expect("target");
+    let mut target = VideoTarget::new(core, CANVAS, (VIDEO, ARENA)).expect("target");
     assert_eq!(target.size(), VIDEO);
     for (index, (artwork, active)) in frames().iter().enumerate() {
         let frame = target
             .frame(core, &request(artwork, active.as_ref()))
             .expect("frame");
         assert_eq!(frame.size(), VIDEO);
+        let frame = frame.clone();
         let alone = cold(artwork, active.as_ref(), VIDEO);
         assert!(
             frame == alone,
@@ -150,7 +162,34 @@ fn frames_drawn_one_after_another_equal_each_drawn_cold() {
 }
 
 #[test]
+fn the_replay_drawn_again_holds_what_it_held_the_first_time() {
+    let _one = alone();
+    let core = core();
+    let mut target = VideoTarget::new(core, CANVAS, (VIDEO, ARENA)).expect("target");
+    let frames = frames();
+    let mut pass = || {
+        for (artwork, active) in &frames {
+            target
+                .frame(core, &request(artwork, active.as_ref()))
+                .expect("frame");
+        }
+        let held = target.bytes();
+        let memory = core.gpu_memory().unwrap_or_default();
+        (held, memory.allocated, memory.reserved)
+    };
+    let first = pass();
+    let (held, allocated, reserved) = (1..4).map(|_| pass()).last().expect("passes");
+    assert!(first.0.video > 0, "it holds its canvas: {first:?}");
+    assert_eq!(held, first.0, "the same bytes held");
+    assert!(
+        allocated <= first.1 && reserved <= first.2,
+        "the device's allocator grew: {first:?} then {allocated} in blocks of {reserved}"
+    );
+}
+
+#[test]
 fn the_scale_pass_is_its_reference_and_the_canvas_size_the_canvas() {
+    let _one = alone();
     let core = core();
     let frames = frames();
     let (artwork, _) = frames.last().expect("frames");
@@ -167,10 +206,11 @@ fn the_scale_pass_is_its_reference_and_the_canvas_size_the_canvas() {
 
 #[test]
 fn the_card_lays_the_last_picture_on_the_desk_above_the_caption() {
+    let _one = alone();
     let core = core();
     let frames = frames();
     let (artwork, _) = frames.last().expect("frames");
-    let mut target = VideoTarget::new(core, CANVAS, VIDEO).expect("target");
+    let mut target = VideoTarget::new(core, CANVAS, (VIDEO, ARENA)).expect("target");
     let band = [VIDEO[0], 14];
     let caption: Vec<u8> = (0..band[0] * band[1])
         .flat_map(|at| [(at % 251) as u8, 40, (at / band[0]) as u8 * 9, 255])
@@ -221,9 +261,10 @@ fn the_card_lays_the_last_picture_on_the_desk_above_the_caption() {
 
 #[test]
 fn a_frame_of_another_canvas_is_refused() {
+    let _one = alone();
     let core = core();
-    let mut target = VideoTarget::new(core, CANVAS, VIDEO).expect("target");
+    let mut target = VideoTarget::new(core, CANVAS, (VIDEO, ARENA)).expect("target");
     let other = Artwork::new(CanvasSize::new(100, 100).expect("size"));
     assert!(target.frame(core, &request(&other, None)).is_err());
-    assert!(VideoTarget::new(core, CANVAS, [0, 120]).is_err());
+    assert!(VideoTarget::new(core, CANVAS, ([0, 120], ARENA)).is_err());
 }

@@ -8,12 +8,19 @@
 //! The scale pass (`shaders/video.wgsl`): each video pixel is the mean of the canvas pixels it
 //! covers, each weighted by how much of it it covers, in integers, so `video_reference`
 //! reproduces it exactly on the CPU and a video of the canvas's own size is the canvas pixel for
-//! pixel (`scale.rs`). Its target is the video worker's own, outside the budget the screen's
-//! caches keep within; its snapshots under the stroke drawn are held to `SNAPSHOTS`. The card's
-//! layout and composition: `card.rs`.
+//! pixel (`scale.rs`).
+//!
+//! Its memory is bounded and counted: the target is the video worker's, drawn paced (each region
+//! waited for, so the GPU holds one region of the video's work at a time and the screen's frames
+//! find it free between them) and read back through buffers kept from frame to frame into the
+//! one frame image it lends; its snapshots under the stroke drawn are held to `SNAPSHOTS`, its
+//! arena to the room it was given (the budget's share of the residuals, stepped each frame as the
+//! budget steps the screen's); `bytes` is everything it holds, which the GPU memory budget counts
+//! while the video is made. The card's layout and composition: `card.rs`.
 
 use openpaint_core::Artwork;
 
+use crate::budget::CacheBytes;
 use crate::canvas::CanvasTarget;
 use crate::change::changed_regions;
 use crate::core::Core;
@@ -38,17 +45,25 @@ pub struct VideoTarget {
     drawn: Option<Artwork>,
     video: [u32; 2],
     scale: ScalePass,
-    /// The scale pass's bindings for the video's size.
+    /// The scale pass's bindings for the video's size, and the last frame read through them.
     frames: Bindings,
+    image: RgbaImage,
+    /// The bytes its arena keeps within.
+    arena: u64,
 }
 
 impl VideoTarget {
-    /// A target for an artwork of `canvas` pixels whose frames are `video` pixels.
+    /// A target for an artwork of `canvas` pixels whose frames are `video` pixels, its arena (the
+    /// smudges' residuals and the filters' results) kept within `arena` bytes.
     ///
     /// # Errors
     /// `Invalid` for a side of 0 or beyond the device's textures or buffers.
-    pub fn new(core: &Core, canvas: [u32; 2], video: [u32; 2]) -> Result<Self, RenderError> {
-        let mut target = CanvasTarget::new(core, canvas)?;
+    pub fn new(
+        core: &Core,
+        canvas: [u32; 2],
+        (video, arena): ([u32; 2], u64),
+    ) -> Result<Self, RenderError> {
+        let mut target = CanvasTarget::paced(core, canvas)?;
         target.set_snapshot_room(SNAPSHOTS);
         let scale = ScalePass::new(&core.gpu.device);
         let frames = scale.bindings(core, &target, video)?;
@@ -57,7 +72,9 @@ impl VideoTarget {
             drawn: None,
             video,
             scale,
+            image: frames.image(),
             frames,
+            arena,
         })
     }
 
@@ -68,7 +85,9 @@ impl VideoTarget {
     }
 
     /// `request` drawn (only what changed since the frame before, the stroke being drawn by the
-    /// live path), scaled to the video's size and read back: opaque RGBA8, rows top first.
+    /// live path), scaled to the video's size and read back: opaque RGBA8, rows top first. The
+    /// image is the target's, written over by the next frame; when this returns the GPU holds
+    /// none of the frame's work.
     ///
     /// # Errors
     /// `Invalid` when the request's canvas is not the target's; as the GPU.
@@ -76,15 +95,29 @@ impl VideoTarget {
         &mut self,
         core: &Core,
         request: &FrameRequest<'_>,
-    ) -> Result<RgbaImage, RenderError> {
+    ) -> Result<&RgbaImage, RenderError> {
         let regions = match &self.drawn {
             Some(before) => changed_regions(before, request.artwork),
             None => vec![PixelRect::full(self.canvas.size())],
         };
         self.drawn = None;
+        self.canvas.set_arena_room(core, self.arena)?;
         self.canvas.draw(core, request, &regions)?;
         self.drawn = Some(request.artwork.clone());
-        self.scale.run(core, &self.frames)
+        self.scale.run(core, &self.frames, &mut self.image)?;
+        Ok(&self.image)
+    }
+
+    /// Everything it holds on the GPU: its canvas with the scale's buffers, its snapshots, its
+    /// arena and its raster targets, as `video`.
+    #[must_use]
+    pub fn bytes(&self) -> CacheBytes {
+        let raster = self.canvas.raster_held().map_or(0, |(bytes, _)| bytes);
+        let held = self.canvas.bytes();
+        CacheBytes {
+            video: held.total() + raster + self.frames.bytes(),
+            ..CacheBytes::default()
+        }
     }
 
     /// The end card at the video's size: the `desk` colour, the picture the last frame showed
@@ -109,7 +142,8 @@ impl VideoTarget {
         }
         let card = Card::of(self.video, band[1], self.canvas.size());
         let bindings = self.scale.bindings(core, &self.canvas, card.size)?;
-        let picture = self.scale.run(core, &bindings)?;
+        let mut picture = bindings.image();
+        self.scale.run(core, &bindings, &mut picture)?;
         Ok(card.compose(desk, &picture, caption))
     }
 }

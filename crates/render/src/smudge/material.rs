@@ -3,8 +3,9 @@
 //! units laying that layer's items before it, drawn by the raster core onto a canvas of nothing
 //! (`RasterPlan::material`, where a transform record's content maps them) and rounded to 8 bits,
 //! over one region per 256-px cell of the canvas (the box of the rectangles wanted in it), only
-//! those rectangles written. A pixel never depends on which regions are drawn with it, so a tile
-//! made now or later holds the same.
+//! those rectangles written, each region waited for when the material is a paced target's (a
+//! worker's beside the screen: one region of its work on the GPU at a time). A pixel never
+//! depends on which regions are drawn with it, so a tile made now or later holds the same.
 
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -18,7 +19,7 @@ use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::raster::{Finish, Placed, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
-use crate::readback::{FORMAT, target_texture};
+use crate::readback::{FORMAT, target_texture, wait};
 use crate::scene::Scene;
 use crate::scene_ops::SceneOps;
 use crate::smudge::Bases;
@@ -33,17 +34,21 @@ pub(crate) struct Material {
     size: [u32; 2],
     /// The raster core's targets drawing it, made on first use.
     raster: Option<RasterTargets>,
+    /// A paced target's: each region waited for.
+    paced: bool,
 }
 
 impl Material {
-    /// A texture of the canvas's `size`; its pixels are undefined until made.
-    pub(crate) fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+    /// A texture of the canvas's `size`; its pixels are undefined until made. `paced`: a worker's
+    /// target beside the screen's, each region waited for before the next.
+    pub(crate) fn new(core: &Core, size: [u32; 2], paced: bool) -> Result<Self, RenderError> {
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
         let texture = target_texture(&core.gpu, (size, FORMAT), usage)?;
         Ok(Self {
             view: texture.create_view(&Default::default()),
             size,
             raster: None,
+            paced,
         })
     }
 
@@ -147,7 +152,7 @@ impl Material {
     }
 
     /// Draws `planned` (`plan_region`'s, of `region`) of the scene in `buffers` into the
-    /// material's texture: only the region's tiles.
+    /// material's texture: only the region's tiles; waited for when the material is paced.
     ///
     /// # Errors
     /// As the raster core.
@@ -172,6 +177,9 @@ impl Material {
         };
         targets.draw(core, (buffers, plan), (*output, [0.0; 4]), &finish)?;
         core.tally.rastered(1);
+        if self.paced {
+            wait(&core.gpu, "a worker's material region")?;
+        }
         Ok(())
     }
 }

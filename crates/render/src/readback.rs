@@ -155,21 +155,40 @@ pub(crate) fn read_buffer(
     source: &wgpu::Buffer,
     bytes: u64,
 ) -> Result<Vec<u8>, RenderError> {
-    let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("readback"),
+    let readback = readback_buffer(gpu, "readback", bytes);
+    let mut data = vec![0; usize::try_from(bytes).unwrap_or(usize::MAX)];
+    read_buffer_into(gpu, (source, &readback), &mut data)?;
+    Ok(data)
+}
+
+/// A buffer of `bytes` that copies from the GPU land in and the CPU maps to read, kept by a
+/// caller that reads the same size again and again (`read_buffer_into`).
+pub(crate) fn readback_buffer(gpu: &Gpu, label: &'static str, bytes: u64) -> wgpu::Buffer {
+    gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some(label),
         size: bytes,
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
-    });
+    })
+}
+
+/// As `read_buffer`, the first `out.len()` bytes of `source` through `readback` (as long at
+/// least, `readback_buffer`) into `out`, waiting for the GPU: nothing is allocated.
+pub(crate) fn read_buffer_into(
+    gpu: &Gpu,
+    (source, readback): (&wgpu::Buffer, &wgpu::Buffer),
+    out: &mut [u8],
+) -> Result<(), RenderError> {
+    let bytes = out.len() as u64;
     let mut encoder = gpu.device.create_command_encoder(&Default::default());
-    encoder.copy_buffer_to_buffer(source, 0, &buffer, 0, bytes);
+    encoder.copy_buffer_to_buffer(source, 0, readback, 0, bytes);
     gpu.submit([encoder.finish()]);
-    map_and_wait(gpu, &buffer)?;
-    let view = buffer.get_mapped_range(..).map_err(device)?;
-    let data = view.to_vec();
+    map_and_wait(gpu, readback)?;
+    let view = readback.get_mapped_range(..bytes).map_err(device)?;
+    out.copy_from_slice(&view);
     drop(view);
-    buffer.unmap();
-    Ok(data)
+    readback.unmap();
+    Ok(())
 }
 
 /// The longest any wait for the GPU may take. Work here finishes in milliseconds; a wait this

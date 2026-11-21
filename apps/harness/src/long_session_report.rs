@@ -79,7 +79,7 @@ fn size_on_disk(dir: &Path) -> std::io::Result<u64> {
 
 /// This process's private memory in bytes (Windows: `Get-Process`'s `PrivateMemorySize64`;
 /// elsewhere the resident set from `/proc/self/status`); `None` when it cannot be read.
-fn process_memory() -> Option<u64> {
+pub(crate) fn process_memory() -> Option<u64> {
     if cfg!(windows) {
         let query = format!(
             "(Get-Process -Id {}).PrivateMemorySize64",

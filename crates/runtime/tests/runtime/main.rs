@@ -27,5 +27,6 @@ mod practice_pens;
 mod practice_test;
 mod quickshape;
 mod replay;
+mod replay_video;
 mod shell_frame;
 mod tools;

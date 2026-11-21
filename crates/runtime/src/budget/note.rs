@@ -14,8 +14,8 @@ pub(super) fn peak(held: &CacheBytes, core: &Core) {
     let gpu = core.gpu_memory().unwrap_or_default();
     log::info!(
         "GPU caches hold {:.1} MB (most so far): canvas {:.1}, tiers {:.1}, raster {:.1}, \
-         snapshots {:.1}, arena {:.1}, pictures {:.1}; the allocator holds {:.1} MB in blocks of \
-         {:.1} ({})",
+         snapshots {:.1}, arena {:.1}, pictures {:.1}, video {:.1}; the allocator holds {:.1} MB \
+         in blocks of {:.1} ({})",
         mb(held.total()),
         mb(held.canvas),
         mb(held.tiers),
@@ -23,6 +23,7 @@ pub(super) fn peak(held: &CacheBytes, core: &Core) {
         mb(held.snapshots),
         mb(held.arena),
         mb(held.pictures),
+        mb(held.video),
         mb(gpu.allocated),
         mb(gpu.reserved),
         largest(&gpu, 4)

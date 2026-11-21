@@ -115,12 +115,14 @@ impl Runtime {
         self.core.destroy_device()
     }
 
-    /// What the open canvas's derived caches hold on the GPU now, pictures included.
+    /// What the open canvas's derived caches hold on the GPU now, pictures and the video being
+    /// made included.
     #[must_use]
     pub fn cache_bytes(&self) -> Option<openpaint_render::CacheBytes> {
         let canvas = self.screen.canvas()?;
         Some(openpaint_render::CacheBytes {
             pictures: self.shell.picture_bytes(),
+            video: self.video_bytes(),
             ..canvas.bytes()
         })
     }

@@ -191,7 +191,7 @@ impl Smudges {
         let Making { items, base, left } = &mut deriving.material;
         let held = held_in(&self.arena, &self.tools.empty, (scene, filters));
         let buffers = SceneBuffers::of(ops, held);
-        let material = material(&mut self.tools.material, core, size)?;
+        let material = material(&mut self.tools.material, core, (size, self.tools.paced))?;
         while let Some(region) = left.front() {
             let units = ((scene, buffers.bases()), &*items, *base);
             let planned = material.plan_region(core, units, region)?;

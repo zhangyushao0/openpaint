@@ -46,6 +46,14 @@ impl Canvas {
     /// any other change passes the pixels that differ between the version shown before it and
     /// the one shown now; the first draw covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
+        // While the replay's video is made the replay stands still: the target shows it as it
+        // is and draws nothing new (nothing remade after the caches let go), only tiles still
+        // waiting fill in.
+        let filming = self.replay.as_ref().is_some_and(|replay| replay.making());
+        let still = self.evaluated && self.changed_from.is_none() && !self.target.pending();
+        if filming && still {
+            return Ok(());
+        }
         self.evaluated_now(core, true)
     }
 
@@ -294,7 +302,8 @@ impl Canvas {
     }
 
     /// Lets the view tiers, the snapshots and the arena's blocks no scene shows go at once (the
-    /// app no longer shows); each is made again when needed.
+    /// app no longer shows, a video is made); each is made again when needed. Under the replay's
+    /// stroke standing still only the snapshots' pages it does not use go.
     pub(crate) fn release(&mut self, core: &Core) -> Result<Freed, RuntimeError> {
         let snapshots = self.target.set_snapshot_room(0) + self.view.let_go_drawing();
         let tiers = self.view.release() + self.target.let_go_raster();

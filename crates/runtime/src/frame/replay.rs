@@ -8,6 +8,7 @@ use openpaint_ui::design::TextFonts;
 use openpaint_ui::{caption_band, video_caption};
 
 use super::Runtime;
+use crate::budget::ARENA_SHARE;
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::shared::SharedCore;
@@ -74,7 +75,10 @@ impl Runtime {
     }
 
     /// The host's answer while the replay waits: an encoder makes the video job, which goes to
-    /// the video worker with the end card's line laid, in the language shown.
+    /// the video worker with the end card's line laid, in the language shown, its target's arena
+    /// within the budget's share of the residuals. The screen's caches go at once (the replay
+    /// stands still while the video is made, and its frames take nothing ahead until it ends,
+    /// `begin_background`): the video's target is what the budget holds instead.
     pub(crate) fn answer_replay(&mut self, answer: HostAnswer) {
         let language = self.language();
         let Some(replay) = self.screen.canvas_mut().and_then(Canvas::replay_mut) else {
@@ -89,13 +93,20 @@ impl Runtime {
             let fonts = &self.replays.fonts;
             video_caption(fonts, &facts, (language, self.utc_offset), band)
         });
-        self.replays.video.submit(job, caption);
+        let arena = self.budget.bytes / ARENA_SHARE;
+        self.replays.video.submit(job, caption, arena);
+        self.let_go_caches("a video is made");
     }
 
     /// A video is being made, or its end waits for the next frame (the harness waits for it).
     #[must_use]
     pub fn making_video(&self) -> bool {
         self.replays.video.busy()
+    }
+
+    /// The bytes the video being made holds on the GPU (0 while none is).
+    pub(crate) fn video_bytes(&self) -> u64 {
+        self.replays.video.held()
     }
 
     /// The replay's `intent` applied to the open canvas at once, as its control's tap applies it
