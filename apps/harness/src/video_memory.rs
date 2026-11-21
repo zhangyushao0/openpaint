@@ -6,10 +6,11 @@
 //! at 1080p (900 frames, the end held with its line) through the whole frame loop, the video
 //! worker drawing beside the screen's frames. The encoder stops at every `EVERY`th frame until
 //! the frame loop has read the memory: a row of the process's private memory, the Rust heap, the
-//! device allocator's allocations and the blocks it holds them in, the screen's GPU caches and
-//! the video's, the longest a screen frame waited for the GPU since the row before (how far the
-//! video's work stood in its way), under it the allocations by label; a last row once the video
-//! ended. Then the same video again.
+//! screen's device's allocations and the blocks it holds them in (the video draws on a device of
+//! its own, let go when it ends), the screen's GPU caches and the video's, the longest a screen
+//! frame waited for the GPU since the row before (how far the video's work stood in its way),
+//! under it the allocations by label; a last row once the video ended, which the process comes
+//! back to after each video. Then the same video again.
 //!
 //! Checks, once every row is printed: while the second video is made, the allocations and the
 //! blocks pass the most the first one took by at most `GROWTH` (what a video makes on first need

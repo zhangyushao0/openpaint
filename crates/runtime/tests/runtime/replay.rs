@@ -21,7 +21,7 @@ use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
 use openpaint_render::{CanvasTarget, FrameRequest, RgbaImage, UiFrame, video_reference};
-use openpaint_runtime::{Runtime, ToolKind, VideoShared, make_video};
+use openpaint_runtime::{Runtime, ToolKind, VideoBounds, VideoShared, make_video};
 
 use crate::support::hand::{HANG, Hand};
 use crate::support::{Nowhere, canvas, core, frame, line, settle, start, strokes};
@@ -173,8 +173,8 @@ impl VideoEncoder for Keeper {
 
 const CANVAS: [u32; 2] = [320, 200];
 const VIDEO: [u32; 2] = [192, 120];
-/// The video target's arena room: the tablet's budget's share of the residuals.
-const ARENA: u64 = 707 << 20;
+/// The app's bounds, the arena within the tablet's budget's share of the residuals.
+const BOUNDS: VideoBounds = VideoBounds::of(707 << 20);
 
 /// What a video shares with a frame loop whose user cancelled it before its first frame.
 fn cancelled_at_once() -> VideoShared {
@@ -244,7 +244,7 @@ fn the_video_hands_every_frame_in_order_at_its_time_and_finishes() {
     let (job, frames) = job(&keeper, 6);
     let order = job.order.clone();
     let shared = VideoShared::default();
-    make_video(&core(), (job, None), (&shared, ARENA)).expect("made");
+    make_video(&core(), (job, None), (&shared, BOUNDS)).expect("made");
     let count = frames.count();
     assert!(count >= 6, "the end's frames at least");
     assert_eq!(shared.made.load(Ordering::Acquire), count);
@@ -265,6 +265,25 @@ fn the_video_hands_every_frame_in_order_at_its_time_and_finishes() {
 }
 
 #[test]
+fn a_video_whose_device_is_made_anew_every_few_frames_is_the_same_video() {
+    let frames_of = |bounds: VideoBounds| {
+        let keeper = Keeper::default();
+        let (job, _) = job(&keeper, 4);
+        let shared = VideoShared::default();
+        make_video(&core(), (job, None), (&shared, bounds)).expect("made");
+        let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
+        kept.clone()
+    };
+    let unbroken = frames_of(BOUNDS);
+    assert!(unbroken.len() > 6, "{} frames", unbroken.len());
+    let renewed = frames_of(VideoBounds {
+        frames: 3,
+        ..BOUNDS
+    });
+    assert!(renewed == unbroken, "the same frames on new devices");
+}
+
+#[test]
 fn a_segment_ends_on_the_finished_picture() {
     let keeper = Keeper::default();
     let (asked, whole) = job(&keeper, 3);
@@ -277,7 +296,7 @@ fn a_segment_ends_on_the_finished_picture() {
         ..asked
     };
     let shared = VideoShared::default();
-    make_video(&core(), (job, None), (&shared, ARENA)).expect("made");
+    make_video(&core(), (job, None), (&shared, BOUNDS)).expect("made");
     let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
     let count = kept.len();
     let steps = frames.drawing().steps().len();
@@ -303,7 +322,7 @@ fn the_end_card_holds_the_picture_above_its_line() {
         textures: egui::TexturesDelta::default(),
         pixels_per_point: 1.0,
     };
-    make_video(&core(), (job, Some(caption)), (&shared, ARENA)).expect("made");
+    make_video(&core(), (job, Some(caption)), (&shared, BOUNDS)).expect("made");
     let kept = keeper.frames.lock().unwrap_or_else(PoisonError::into_inner);
     let ends: Vec<&Vec<u8>> = (kept.iter().enumerate())
         .filter(|(index, _)| frames.frame(*index as u32) == VideoFrame::End)
@@ -331,7 +350,7 @@ fn cancel_and_a_failing_encoder_drop_what_was_begun() {
     let (asked, _) = job(&keeper, 2);
     let order = asked.order.clone();
     let shared = cancelled_at_once();
-    let cancelled = make_video(&core(), (asked, None), (&shared, ARENA));
+    let cancelled = make_video(&core(), (asked, None), (&shared, BOUNDS));
     assert_eq!(cancelled, Err(VideoError::Cancelled));
     assert_eq!(keeper.calls(), [Call::Begin(order.clone()), Call::Cancel]);
     let failing = Keeper {
@@ -340,7 +359,7 @@ fn cancel_and_a_failing_encoder_drop_what_was_begun() {
     };
     let (asked, _) = job(&failing, 2);
     let shared = VideoShared::default();
-    let failed = make_video(&core(), (asked, None), (&shared, ARENA));
+    let failed = make_video(&core(), (asked, None), (&shared, BOUNDS));
     assert!(matches!(failed, Err(VideoError::Write(_))), "{failed:?}");
     let expected = [Call::Begin(order), Call::Frame(0), Call::Cancel];
     assert_eq!(failing.calls(), expected);
@@ -360,6 +379,6 @@ fn a_video_cancelled_before_its_card_lets_the_line_go_and_is_cancelled() {
         pixels_per_point: 1.0,
     };
     let shared = cancelled_at_once();
-    let cancelled = make_video(&core(), (asked, Some(caption)), (&shared, ARENA));
+    let cancelled = make_video(&core(), (asked, Some(caption)), (&shared, BOUNDS));
     assert_eq!(cancelled, Err(VideoError::Cancelled), "never a failure");
 }

@@ -12,7 +12,7 @@ use crate::budget::ARENA_SHARE;
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::shared::SharedCore;
-use crate::video::VideoWorker;
+use crate::video::{VideoBounds, VideoWorker};
 
 /// What the frame loop keeps for the replay across artworks.
 pub(crate) struct Replays {
@@ -75,7 +75,8 @@ impl Runtime {
     }
 
     /// The host's answer while the replay waits: an encoder makes the video job, which goes to
-    /// the video worker with the end card's line laid, in the language shown, its target's arena
+    /// the video worker with the end card's line laid, in the language shown, on devices of its
+    /// own within the app's bounds (`VideoBounds::of`), its target's arena
     /// within the budget's share of the residuals. The screen's caches go at once (the replay
     /// stands still while the video is made, and its frames take nothing ahead until it ends,
     /// `begin_background`): the video's target is what the budget holds instead.
@@ -94,7 +95,9 @@ impl Runtime {
             video_caption(fonts, &facts, (language, self.utc_offset), band)
         });
         let arena = self.budget.bytes / ARENA_SHARE;
-        self.replays.video.submit(job, caption, arena);
+        self.replays
+            .video
+            .submit(job, caption, VideoBounds::of(arena));
         self.let_go_caches("a video is made");
     }
 
