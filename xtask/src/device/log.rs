@@ -1,7 +1,10 @@
-//! `cargo device-log [n]`: the app's own last `n` log lines (40 when not given), every level of
-//! its tag (`openpaint`), as logcat keeps them; read-only (`logcat -d` dumps the buffer and
-//! leaves it), nothing on the tablet changed. What the app said after a tablet run (S124: the
+//! `cargo device-log [--system] [n]`: the app's own last `n` log lines (40 when not given), every
+//! level of its tag (`openpaint`), as logcat keeps them; read-only (`logcat -d` dumps the buffer
+//! and leaves it), nothing on the tablet changed. What the app said after a tablet run (S124: the
 //! Pomodoro's chime, a test block's records) reaches the dev machine without hand-typed adb.
+//! With `--system` (S163), the last `n` lines of every buffer that tell of the app's process
+//! from outside it: a fatal signal and its tombstone, the low-memory killer, the activity
+//! manager's word of its death; what an end without a panic leaves.
 
 use super::adb::{Adb, DeviceError, Result};
 
@@ -9,12 +12,25 @@ use super::adb::{Adb, DeviceError, Result};
 const TAG: &str = "openpaint";
 /// How many lines are shown when no number is given.
 const LAST: usize = 40;
+/// What a line from outside the app says when it tells of the app's process.
+const OF_THE_PROCESS: [&str; 6] = [
+    "dev.openpaint",
+    "Fatal signal",
+    "lowmemorykiller",
+    "lmkd",
+    "DEBUG   :",
+    "libc    :",
+];
 
-const USAGE: &str = "cargo device-log [n], n from 1";
+const USAGE: &str = "cargo device-log [--system] [n], n from 1";
 
-/// `cargo device-log [n]`.
+/// `cargo device-log [--system] [n]`.
 pub fn log(args: &[String]) -> Result<()> {
-    let count = match args {
+    let (system, rest) = match args {
+        [flag, rest @ ..] if flag == "--system" => (true, rest),
+        rest => (false, rest),
+    };
+    let count = match rest {
         [] => LAST,
         [n] => (n.parse::<usize>().ok())
             .filter(|n| *n >= 1)
@@ -22,14 +38,28 @@ pub fn log(args: &[String]) -> Result<()> {
         _ => return Err(DeviceError::Usage(USAGE)),
     };
     let adb = Adb::connected()?;
-    let filter = format!("{TAG}:V");
-    let output = adb.text(&["logcat", "-d", "-v", "threadtime", "-s", &filter])?;
+    let output = if system {
+        let all = adb.text(&["logcat", "-d", "-b", "all", "-v", "threadtime"])?;
+        of_the_process(&all)
+    } else {
+        let filter = format!("{TAG}:V");
+        adb.text(&["logcat", "-d", "-v", "threadtime", "-s", &filter])?
+    };
     let lines = last(&output, count);
     for line in &lines {
         println!("{line}");
     }
-    println!("log: the app's last {} lines", lines.len());
+    let what = if system { "the system's" } else { "the app's" };
+    println!("log: {what} last {} lines", lines.len());
     Ok(())
+}
+
+/// The lines of `output` that tell of the app's process from outside it.
+fn of_the_process(output: &str) -> String {
+    (output.lines())
+        .filter(|line| OF_THE_PROCESS.iter().any(|mark| line.contains(mark)))
+        .map(|line| format!("{line}\n"))
+        .collect()
 }
 
 /// The last `count` lines of `output` that are log lines (logcat's "--------- beginning of"
