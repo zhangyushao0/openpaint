@@ -26,7 +26,10 @@
 //! stroke of step `done`, drawn so far, is its first `samples` samples as the stroke being drawn
 //! (`ActiveStroke`) on its own layer's paint or mask (`Step::live`), so the renderer draws it by its
 //! live path; a stroke inside a merged record has no such place and shows whole once its step is
-//! done. `done` equal to the step count gives the finished artwork, the very same version.
+//! done. Its active layer (and whether its mask) is the place of the next stroke drawn along its
+//! samples, so between strokes the renderer keeps the scene of that place and the strokes committed
+//! there are its appends. `done` equal to the step count gives the finished artwork, the very same
+//! version.
 //! Consecutive frames share every stroke and edit both hold (the same `Arc`s, `Stroke::shares_samples`,
 //! `RegionEdit::same`), so a frame that only adds strokes is an append for the renderer
 //! (`changed_regions`, the scene's append).
@@ -187,11 +190,25 @@ impl DrawingOrder {
                 active: None,
             };
         }
-        let artwork = frame::artwork(&self.artwork, &self.lists, done, &mut self.cache());
+        let place = self.next_place(done);
+        let artwork = frame::artwork(&self.artwork, &self.lists, (done, place), &mut self.cache());
         ReplayFrame {
             artwork,
             active: self.active(done, samples),
         }
+    }
+
+    /// Where the next stroke drawn along its samples lies from step `done` on: its layer, and
+    /// whether on its mask.
+    fn next_place(&self, done: usize) -> Option<(LayerId, bool)> {
+        (done..self.steps.len()).find_map(|index| {
+            let step = self.steps.get(index).filter(|step| step.live)?;
+            let &(list, Record::Stroke(_)) = self.lists.records.get(index)? else {
+                return None;
+            };
+            let (_, on_mask) = self.lists.lists[list].place?;
+            Some((step.layer, on_mask))
+        })
     }
 
     /// Step `done`'s stroke drawn to its first `samples` samples, when it is live.

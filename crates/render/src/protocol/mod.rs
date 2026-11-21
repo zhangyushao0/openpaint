@@ -290,7 +290,7 @@ impl Op {
 }
 
 mod records;
-pub(crate) use records::{Record, encode};
+pub(crate) use records::encode;
 
 mod adjust;
 pub(crate) use adjust::{AdjustOn, table_words};

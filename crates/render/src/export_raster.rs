@@ -57,7 +57,7 @@ impl RasterExport {
         let most = if paced { PACED_REGION } else { REGION };
         let region = [0, 1].map(|axis| most[axis].min(piece[axis]));
         Ok(Self {
-            ops: scene_ops(&core.gpu, &scene, None),
+            ops: scene_ops(&core.gpu, &scene, (None, None)),
             scene,
             smudges: Smudges::new(core),
             filters: Filters::default(),

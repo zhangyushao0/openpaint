@@ -101,7 +101,13 @@ impl CanvasTarget {
             let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));
             same.then(|| cache.ops.patches.clone())
         });
-        let ops = scene_ops(&core.gpu, &scene, patches);
+        // A target no worker draws for writes over the buffers of the scene before.
+        let before = self
+            .scene
+            .as_ref()
+            .filter(|_| self.paced)
+            .map(|cache| &cache.ops);
+        let ops = scene_ops(&core.gpu, &scene, (patches, before));
         crate::profile::scene_built(started.elapsed());
         // Its filters' results now; the residuals near what each draw draws.
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);

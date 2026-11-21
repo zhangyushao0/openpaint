@@ -6,7 +6,6 @@
 use super::reads::{ATLAS, COPIED, ending};
 use super::{Bound, Pages, RasterTargets, Region, timed};
 use crate::affine::Affine;
-use crate::core::Core;
 use crate::error::RenderError;
 use crate::gpu_clock::Stamps;
 use crate::output::Output;
@@ -22,11 +21,10 @@ impl RasterTargets {
     /// to the last's end by `stamps`.
     pub(super) fn encode(
         &mut self,
-        core: &Core,
         (pipelines, pages): (&RasterPipelines, Pages<'_>),
         (regions, bounds): (&[Region<'_>], &[Bound]),
-        stamps: Option<&Stamps>,
-    ) -> Result<wgpu::CommandBuffer, RenderError> {
+        (stamps, encoder): (Option<&Stamps>, &mut wgpu::CommandEncoder),
+    ) -> Result<(), RenderError> {
         let mut finishing = Vec::with_capacity(regions.len());
         for region in regions {
             finishing.push(match region.finish {
@@ -38,7 +36,7 @@ impl RasterTargets {
         }
         let writes = |ends| stamps.and_then(|stamps| stamps.render_writes(ends));
         let (first, last) = timed(regions);
-        let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
+
         self.attached = Attached::NONE;
         let regions = regions.iter().zip(bounds).zip(finishing).enumerate();
         for (at, ((region, bound), finishing)) in regions {
@@ -47,7 +45,7 @@ impl RasterTargets {
             for (index, pass) in plan.passes.iter().enumerate() {
                 let timestamps = writes((first == (at, index), last == (at, index)));
                 let place = (plan.size, region.paper);
-                self.pass(&mut encoder, (pipelines, pages), (pass, place), timestamps);
+                self.pass(encoder, (pipelines, pages), (pass, place), timestamps);
                 if let Some((bytes, cleared)) = self.weigh(pass) {
                     self.attached.pass(bytes, cleared);
                 }
@@ -56,15 +54,10 @@ impl RasterTargets {
                 let finished = plan.instances.len() as u32;
                 let ends = (false, last == (at, plan.passes.len()));
                 let size = plan.size;
-                self.finish(
-                    &mut encoder,
-                    (finishing, finish, finished),
-                    size,
-                    writes(ends),
-                )?;
+                self.finish(encoder, (finishing, finish, finished), size, writes(ends))?;
             }
         }
-        Ok(encoder.finish())
+        Ok(())
     }
 
     /// One pass of a region of `size` on paper `background`.
@@ -169,7 +162,7 @@ impl RasterTargets {
     /// The scene's group with the region's values, the reads' `group` when given, the region's
     /// instances.
     pub(super) fn bind(&self, pass: &mut wgpu::RenderPass<'_>, group: Option<&wgpu::BindGroup>) {
-        if let Some((_, scene)) = &self.scene {
+        if let Some((_, scene)) = self.scene.last() {
             pass.set_bind_group(0, scene, &[self.bound.values]);
         }
         if let Some(group) = group {

@@ -41,7 +41,7 @@ impl CanvasTarget {
         let Some(inserted) = scene.append(&strokes) else {
             return Ok(false);
         };
-        cache.ops = cache.ops.inserted(&core.gpu, scene, inserted);
+        cache.ops = (cache.ops).inserted(&core.gpu, scene, (inserted, self.paced));
         crate::profile::scene_built(started.elapsed());
         core.tally.appended();
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);

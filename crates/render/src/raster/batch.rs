@@ -76,7 +76,9 @@ pub(super) fn timed(regions: &[Region<'_>]) -> ((usize, usize), (usize, usize)) 
 impl RasterTargets {
     /// `regions` of the scene in `scene` encoded into one command buffer, their slot passes
     /// reading and writing `pages`, timed from the first pass to the last by `stamps`; their
-    /// values and instances land before the next submission.
+    /// values and instances copied in first from the targets' staging belt, whose chunks come
+    /// back for the next batches once it is submitted and done (one dropped unsubmitted lets its
+    /// chunks go): no staging buffer is made per batch.
     ///
     /// # Errors
     /// `Invalid` for a region larger than the targets' capacity or a destination format the
@@ -100,16 +102,26 @@ impl RasterTargets {
         }
         self.make_reads(core, pipelines, regions);
         self.make_finished(core, regions)?;
+        let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
         let started = std::time::Instant::now();
-        let bounds = self.upload(core, regions);
+        let bounds = self.upload(core, &mut encoder, regions);
         self.uploaded_ns = crate::profile::since(started);
         self.bind_scene(core, pipelines, scene);
-        self.encode(core, (pipelines, pages), (regions, &bounds), stamps)
+        let encoding = (stamps, &mut encoder);
+        self.encode((pipelines, pages), (regions, &bounds), encoding)?;
+        self.belt.finish_and_recall_on_submit(&encoder);
+        Ok(encoder.finish())
     }
 
-    /// Every region's values and instances written, the buffers grown first when they do not
-    /// hold them (group 0 is made again then); where each region's start.
-    fn upload(&mut self, core: &Core, regions: &[Region<'_>]) -> Vec<Bound> {
+    /// Every region's values and instances copied in by `encoder` from the staging belt, the
+    /// buffers grown first when they do not hold them (group 0 is made again then); where each
+    /// region's start.
+    fn upload(
+        &mut self,
+        core: &Core,
+        encoder: &mut wgpu::CommandEncoder,
+        regions: &[Region<'_>],
+    ) -> Vec<Bound> {
         let atlas = self.atlas();
         let mut bytes = Vec::with_capacity(regions.len() * VALUES_STRIDE as usize);
         let mut instances = Vec::new();
@@ -144,14 +156,17 @@ impl RasterTargets {
         if bytes.len() as u64 > self.values.size() {
             let usage = wgpu::BufferUsages::UNIFORM;
             self.values = grown("raster values", bytes.len() as u64, usage);
-            self.scene = None;
+            self.scene.clear();
         }
         if instances.len() as u64 > self.instances.size() {
             let usage = wgpu::BufferUsages::VERTEX;
             self.instances = grown("raster instances", instances.len() as u64, usage);
         }
-        gpu.queue.write_buffer(&self.values, 0, &bytes);
-        gpu.queue.write_buffer(&self.instances, 0, &instances);
+        for (target, data) in [(&self.values, &bytes), (&self.instances, &instances)] {
+            if let Some(size) = wgpu::BufferSize::new(data.len() as u64) {
+                (self.belt.write_buffer(encoder, target, 0, size)).copy_from_slice(data);
+            }
+        }
         bounds
     }
 

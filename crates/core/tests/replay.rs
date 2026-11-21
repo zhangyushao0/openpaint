@@ -382,3 +382,17 @@ fn the_stroke_being_drawn_is_live_on_its_layer_s_paint_or_mask() {
     let on_mask = on_mask.expect("a stroke on the mask");
     assert_eq!(order.steps()[on_mask].layer, LayerId::new(2));
 }
+
+#[test]
+fn between_strokes_a_frame_targets_the_next_strokes_place() {
+    let one = draw(&blank(), 2.0, T, 3);
+    let two = draw(&layer(&one, LayerCommand::Create), 20.0, T + 1_000, 2);
+    let order = two.drawing_order();
+    let targets = [0, 1].map(|done| order.frame(done, 0).artwork.active());
+    assert_eq!(
+        targets,
+        [0, 1].map(|at| two.layers()[at].id()),
+        "the next's"
+    );
+    assert!(order.frame(2, 0).artwork.same_version(&two), "the end");
+}

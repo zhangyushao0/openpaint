@@ -80,6 +80,12 @@ const DRAWN: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT
 /// A target no side of which is longer is small (`RasterTargets::sized`).
 const SMALL: u32 = 4 * TIER_TILE;
 
+/// Scene groups kept: the buffers of the scene drawn and of the one before.
+const SCENE_GROUPS: usize = 2;
+
+/// The staging belt's chunk: a batch's values and instances, most of them.
+const BELT_CHUNK: u64 = 1 << 20;
+
 /// A region's float targets, the atlas and the bindings the raster core draws through, kept
 /// between regions (a view tier's tiles, an export's pieces).
 pub(crate) struct RasterTargets {
@@ -104,10 +110,14 @@ pub(crate) struct RasterTargets {
     /// passes loaded and stored (the pen latency log's).
     pub(crate) uploaded_ns: u64,
     pub(crate) attached: Attached,
-    /// Group 0 for the scene's buffers and residuals it was made with.
-    scene: Option<([wgpu::Buffer; 5], wgpu::BindGroup)>,
+    /// Group 0 for the scenes' buffers and residuals each was made with, the last bound last: a
+    /// target whose scene's ops take turns between two buffers (`SceneOps::inserted`) makes none
+    /// anew.
+    scene: Vec<([wgpu::Buffer; 5], wgpu::BindGroup)>,
     /// Group 1 by what it reads, made again when a scratch target is made.
     reads: Reads,
+    /// Where each batch's values and instances are staged, its chunks used again.
+    belt: wgpu::util::StagingBelt,
 }
 
 /// A texture with the one view every pass draws into or reads it through (a view made per pass
@@ -196,8 +206,9 @@ impl RasterTargets {
             bound: Bound::default(),
             uploaded_ns: 0,
             attached: Attached::NONE,
-            scene: None,
+            scene: Vec::new(),
             reads: Reads::default(),
+            belt: wgpu::util::StagingBelt::new(core.gpu.device.clone(), BELT_CHUNK),
         };
         for at in [Scratch::Canvas, Scratch::Layer] {
             targets.make(core, pipelines, at)?;
@@ -326,11 +337,14 @@ impl RasterTargets {
         Ok(())
     }
 
-    /// Group 0 for `scene`, made when its buffers or its residuals' are new (or the values'): the
-    /// values bound one region's worth at a time, at the offset of the region drawn.
+    /// Group 0 for `scene`, made when its buffers or its residuals' are new (or the values'),
+    /// else the one kept for them bound again: the values bound one region's worth at a time, at
+    /// the offset of the region drawn.
     fn bind_scene(&mut self, core: &Core, pipelines: &RasterPipelines, scene: &SceneBuffers) {
         let bound = scene.bound();
-        if (self.scene.as_ref()).is_some_and(|(held, _)| *held == bound) {
+        if let Some(at) = self.scene.iter().position(|(held, _)| *held == bound) {
+            let kept = self.scene.remove(at);
+            self.scene.push(kept);
             return;
         }
         let [ops, masks, patches, arena, active] = &bound;
@@ -361,7 +375,10 @@ impl RasterTargets {
                 layout: &pipelines.layouts[0],
                 entries: &entries,
             });
-        self.scene = Some((bound, group));
+        if self.scene.len() == SCENE_GROUPS {
+            self.scene.remove(0);
+        }
+        self.scene.push((bound, group));
     }
 }
 

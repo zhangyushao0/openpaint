@@ -7,16 +7,18 @@
 use std::sync::Arc;
 
 use crate::artwork::Artwork;
+use crate::id::LayerId;
 use crate::nested::{NestedEdit, NestedLayer};
 use crate::region::RegionEdit;
 use crate::replay::build::{EditStep, Lists};
 use crate::stroke_list::StrokeList;
 
-/// The last cut of each list and the artwork they made.
+/// The last cut of each list and the artwork they made, with the place it was made for.
 #[derive(Debug, Clone, Default)]
 pub(super) struct Cache {
     cuts: Vec<Option<Cut>>,
     artwork: Option<Artwork>,
+    place: Option<(LayerId, bool)>,
 }
 
 /// One list cut to the steps done.
@@ -28,16 +30,25 @@ struct Cut {
     nested: Option<Arc<NestedLayer>>,
 }
 
-/// `finished` after the steps before `done`, sharing what `cache` holds of the frames before.
+/// `finished` after the steps before `done`, sharing what `cache` holds of the frames before;
+/// its active layer (and whether its mask) `place`, the next stroke's, when given.
 pub(super) fn artwork(
     finished: &Artwork,
     lists: &Lists,
-    done: usize,
+    (done, place): (usize, Option<(LayerId, bool)>),
     cache: &mut Cache,
 ) -> Artwork {
     cache.cuts.resize(lists.lists.len(), None);
     let mut state = finished.state().clone();
-    let mut changed = false;
+    let mut changed = cache.place != place;
+    if let Some((layer, on_mask)) = place
+        && let Some(held) = state.layers.iter().find(|held| held.id == layer)
+    {
+        let masked = held.mask.as_ref().is_some_and(|mask| mask.enabled);
+        state.active = layer;
+        state.on_mask = on_mask && masked;
+    }
+    cache.place = place;
     for (index, &(paint, mask)) in lists.layers.iter().enumerate() {
         let (content, fresh) = cut(lists, paint, done, cache);
         changed |= fresh;
