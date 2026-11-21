@@ -120,7 +120,12 @@ class VideoEncoder {
             muxer = open(name, sharePath)
         }
 
-    /** One frame: opaque RGBA rows of the video's size, top first; [atUs] its time. */
+    /**
+     * One frame: opaque RGBA rows of the video's size, top first; [atUs] its time. Its upload and
+     * drawing are finished before it goes to the encoder, so the next frame's upload never finds
+     * the texture in use: a driver would keep a copy of it for each frame the GPU is behind (the
+     * GPU is busy with the frames being drawn), memory the app counts nowhere.
+     */
     fun frame(rgba: ByteBuffer, atUs: Long): String? = attempt {
         check(rgba.capacity() >= width * height * 4) { "a frame of ${rgba.capacity()} bytes" }
         drain(end = false)
@@ -129,6 +134,7 @@ class VideoEncoder {
             GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, rgba,
         )
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glFinish()
         glChecked("drawing a frame")
         EGLExt.eglPresentationTimeANDROID(display, window, atUs * 1_000)
         check(EGL14.eglSwapBuffers(display, window)) { "the frame did not reach the encoder" }

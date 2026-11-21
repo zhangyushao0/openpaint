@@ -39,6 +39,7 @@ mod practice;
 mod raster;
 mod recorder;
 mod recover;
+mod resident;
 mod screen;
 mod seeds;
 mod shared;

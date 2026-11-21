@@ -106,3 +106,36 @@ impl Core {
         }
     }
 }
+
+/// The live objects of every kind wgpu holds for the app (`Core::gpu_objects`): what must stay
+/// flat while the same work repeats.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct GpuObjects {
+    pub buffers: usize,
+    pub textures: usize,
+    pub views: usize,
+    pub bind_groups: usize,
+    pub command_encoders: usize,
+    pub command_buffers: usize,
+    pub query_sets: usize,
+    pub pipelines: usize,
+}
+
+impl Core {
+    /// The live objects wgpu holds now, by kind; `None` on a backend that does not report them.
+    #[must_use]
+    pub fn gpu_objects(&self) -> Option<GpuObjects> {
+        let hub = self.gpu.instance.generate_report()?.hub;
+        Some(GpuObjects {
+            buffers: hub.buffers.num_kept_from_user,
+            textures: hub.textures.num_kept_from_user,
+            views: hub.texture_views.num_kept_from_user,
+            bind_groups: hub.bind_groups.num_kept_from_user,
+            command_encoders: hub.command_encoders.num_kept_from_user,
+            command_buffers: hub.command_buffers.num_kept_from_user,
+            query_sets: hub.query_sets.num_kept_from_user,
+            pipelines: hub.render_pipelines.num_kept_from_user
+                + hub.compute_pipelines.num_kept_from_user,
+        })
+    }
+}

@@ -9,8 +9,10 @@
 //! (`VideoShared`): it stops between frames and the encoder drops what it began (also after a
 //! failure); the GPU memory budget counts the bytes while the video is made. Each frame's GPU
 //! work is finished before the next is drawn (the target waits for each region and for its
-//! readback), the frame read into the one image the target keeps. It holds only an `Arc<Core>`
-//! and the job's values.
+//! readback), the frame read into the one image the target keeps. Every `NOTE_EVERY` frames and
+//! at its end it logs what the process's resident memory gained while frames were drawn and
+//! while they were encoded, with the allocator and wgpu's live objects. It holds only an
+//! `Arc<Core>` and the job's values.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
@@ -28,6 +30,7 @@ use openpaint_ui::design::SURROUND;
 
 use crate::canvas::PAPER;
 use crate::error::RuntimeError;
+use crate::resident::resident;
 use crate::shared::SharedCore;
 use crate::worker::Queue;
 
@@ -161,13 +164,16 @@ pub fn make_video(
     let frames_made = made.load(Ordering::Acquire);
     match &result {
         Ok(()) => log::info!(
-            "video {} made: {frames_made} frames of {} x {} in {} ms (drawn {} ms, encoded {} ms)",
+            "video {} made: {frames_made} frames of {} x {} in {} ms (drawn {} ms, encoded {} \
+             ms); resident memory {:+.1} MB while drawing, {:+.1} while encoding",
             order.name,
             order.size[0],
             order.size[1],
             started.elapsed().as_millis(),
             spent.drawing.as_millis(),
-            spent.encoding.as_millis()
+            spent.encoding.as_millis(),
+            spent.grown[0] as f64 / f64::from(1 << 20),
+            spent.grown[1] as f64 / f64::from(1 << 20)
         ),
         Err(VideoError::Cancelled) => log::info!("video cancelled after {frames_made} frames"),
         Err(error) => log::error!("video failed after {frames_made} frames: {error}"),
@@ -178,11 +184,51 @@ pub fn make_video(
     result
 }
 
-/// Where a job's time went.
+/// A memory note every this many frames.
+const NOTE_EVERY: u32 = 30;
+
+/// Where a job's time went, and the resident memory the process gained while frames were drawn
+/// and while they were encoded (where the system says, `resident.rs`).
 #[derive(Debug, Default, Clone, Copy)]
 struct Spent {
     drawing: Duration,
     encoding: Duration,
+    grown: [i64; 2],
+}
+
+impl Spent {
+    /// One frame's phases: drawn from `start` to `drawn`, encoded from `drawn` to `encoded`,
+    /// each an instant with the resident memory then.
+    fn add(&mut self, [start, drawn, encoded]: [(Instant, Option<u64>); 3]) {
+        self.drawing += drawn.0 - start.0;
+        self.encoding += encoded.0 - drawn.0;
+        let gained = |(_, from): (Instant, Option<u64>), (_, to): (Instant, Option<u64>)| {
+            from.zip(to)
+                .map_or(0, |(from, to)| to.cast_signed() - from.cast_signed())
+        };
+        self.grown[0] += gained(start, drawn);
+        self.grown[1] += gained(drawn, encoded);
+    }
+}
+
+/// The video's memory after `frames` frames, logged: the process's resident memory and what it
+/// gained while drawing and while encoding, the device allocator's allocations and blocks, the
+/// target's bytes and wgpu's live objects (what must stay flat frame after frame).
+fn note(core: &Core, frames: u32, spent: &Spent, target: &VideoTarget) {
+    let mb = |bytes: f64| bytes / f64::from(1 << 20);
+    let gpu = core.gpu_memory().unwrap_or_default();
+    log::info!(
+        "video memory at frame {frames}: resident {:.1} MB, {:+.1} while drawing and {:+.1} \
+         while encoding since it began; the allocator {:.1} MB in blocks of {:.1}, the target \
+         {:.1}; wgpu objects {:?}",
+        mb(resident().unwrap_or(0) as f64),
+        mb(spent.grown[0] as f64),
+        mb(spent.grown[1] as f64),
+        mb(gpu.allocated as f64),
+        mb(gpu.reserved as f64),
+        mb(target.bytes().total() as f64),
+        core.gpu_objects().unwrap_or_default()
+    );
 }
 
 /// Every frame of `frames` drawn (the target's arena within `arena` bytes) and handed to
@@ -203,17 +249,19 @@ fn encode(
         if shared.cancel.load(Ordering::Acquire) {
             return Err(VideoError::Cancelled);
         }
-        let drawn = Instant::now();
+        let start = (Instant::now(), resident());
         let image = match frames.frame(index) {
             VideoFrame::At(at) => drawn_at(core, &mut target, frames, at)?,
             VideoFrame::End => ends.end(core, &mut target, frames.drawing())?,
         };
-        let encoded = Instant::now();
-        spent.drawing += encoded - drawn;
+        let drawn = (Instant::now(), resident());
         encoder.frame(image.pixels(), u64::from(index) * 1_000_000 / fps)?;
-        spent.encoding += encoded.elapsed();
+        spent.add([start, drawn, (Instant::now(), resident())]);
         shared.held.store(target.bytes().total(), Ordering::Release);
         shared.made.store(index + 1, Ordering::Release);
+        if (index + 1).is_multiple_of(NOTE_EVERY) {
+            note(core, index + 1, &spent, &target);
+        }
     }
     Ok(spent)
 }

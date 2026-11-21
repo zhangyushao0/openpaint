@@ -110,7 +110,7 @@ mod waiting;
 pub use crate::adapter::{
     ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame, chrome_shape,
 };
-pub use crate::budget::{CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET};
+pub use crate::budget::{CacheBytes, DeviceClass, GpuMemory, GpuObjects, OWN_BUDGET};
 pub use crate::canvas::{CanvasCopy, CanvasTarget};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;

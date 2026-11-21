@@ -13,7 +13,8 @@
 //!
 //! Checks, once every row is printed: while the second video is made, the allocations and the
 //! blocks pass the most the first one took by at most `GROWTH` (what a video makes on first need
-//! is made once; nothing the app holds grows per frame or per video); the screen holds no view
+//! is made once; nothing the app holds grows per frame or per video), and wgpu's live objects of
+//! every kind (`Core::gpu_objects`) never pass the first one's most; the screen holds no view
 //! tier and no raster target while a video is made (its canvas, the arena's blocks its scene
 //! shows and the snapshot pages a replay standing half way along a stroke holds stay); the
 //! screen's caches and the video's within the budget. How much the process grew with each video
@@ -28,7 +29,7 @@ use openpaint_app::{
     Delivery, HostAnswer, HostRequest, ReplayIntent, VideoEncoder, VideoError, VideoOrder,
 };
 use openpaint_app::{ProjectStore, Title};
-use openpaint_render::{CacheBytes, GpuMemory};
+use openpaint_render::{CacheBytes, GpuMemory, GpuObjects};
 use openpaint_runtime::{Runtime, StartOptions, take_spent};
 use openpaint_store::Library;
 
@@ -61,6 +62,7 @@ struct Row {
     screen: CacheBytes,
     video: u64,
     waited_ms: f64,
+    objects: GpuObjects,
     wall: f64,
 }
 
@@ -242,6 +244,7 @@ fn row(runtime: &Runtime, longest_ns: u64, since: Instant) -> Row {
         screen: CacheBytes { video: 0, ..caches },
         video: caches.video,
         waited_ms: longest_ns as f64 / 1e6,
+        objects: runtime.core().gpu_objects().unwrap_or_default(),
         wall: since.elapsed().as_secs_f64(),
     }
 }
@@ -277,6 +280,7 @@ fn print_row(name: &str, row: &Row) {
         .map(|(label, bytes)| format!("{label} {:.1}", *bytes as f64 / MB))
         .collect();
     println!("{:>16}{}", "", labels.join(", "));
+    println!("{:>16}wgpu objects {:?}", "", row.objects);
 }
 
 /// The checks on the rows read while the two videos were made (see the module).
@@ -301,6 +305,9 @@ fn check(first: &[Row], second: &[Row]) -> Result<(), HarnessError> {
         grew(first) as f64 / MB,
         grew(second) as f64 / MB
     );
+    let (once, twice) = (most_objects(first), most_objects(second));
+    println!("wgpu objects at most {once:?} in the first video, {twice:?} in the second");
+    let more = once.iter().zip(twice).map(|(a, b)| b.saturating_sub(*a));
     let checks = [
         (
             "allocations, the second video",
@@ -326,8 +333,32 @@ fn check(first: &[Row], second: &[Row]) -> Result<(), HarnessError> {
             bound as f64 / MB
         );
     }
-    match checks.into_iter().find(|(_, value, bound)| value > bound) {
+    let objects = (
+        "wgpu objects past the first video's most",
+        more.sum::<usize>() as u64,
+        0,
+    );
+    match (checks.into_iter().chain([objects])).find(|(_, value, bound)| value > bound) {
         Some((what, value, bound)) => Err(HarnessError::Bound { what, value, bound }),
         None => Ok(()),
     }
+}
+
+/// The most wgpu objects of each kind (buffers, textures, views, bind groups, command
+/// encoders, command buffers, query sets, pipelines) the rows saw.
+fn most_objects(rows: &[Row]) -> [usize; 8] {
+    rows.iter().fold([0; 8], |most, row| {
+        let o = &row.objects;
+        let now = [
+            o.buffers,
+            o.textures,
+            o.views,
+            o.bind_groups,
+            o.command_encoders,
+            o.command_buffers,
+            o.query_sets,
+            o.pipelines,
+        ];
+        std::array::from_fn(|kind| most[kind].max(now[kind]))
+    })
 }
